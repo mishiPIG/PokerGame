@@ -16,7 +16,7 @@ function save(data) {
 }
 
 module.exports = {
-    createUser(username, passwordHash) {
+    createUser(username, passwordHash, isAdmin = false) {
         const data = load();
         const lc = username.toLowerCase();
         if (Object.values(data.users).some(u => u.username.toLowerCase() === lc))
@@ -27,6 +27,7 @@ module.exports = {
             username,
             password_hash: passwordHash,
             gold: 10000,
+            isAdmin: isAdmin,
             created_at: new Date().toISOString()
         };
         save(data);
@@ -45,5 +46,16 @@ module.exports = {
     setGold(id, gold) {
         const data = load();
         if (data.users[id]) { data.users[id].gold = gold; save(data); }
+    },
+
+    setAdmin(id, isAdmin) {
+        const data = load();
+        if (data.users[id]) { data.users[id].isAdmin = isAdmin; save(data); }
+    },
+
+    getAllUsers() {
+        return Object.values(load().users).map(({ id, username, gold, isAdmin }) =>
+            ({ id, username, gold, isAdmin: !!isAdmin })
+        );
     }
 };

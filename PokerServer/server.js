@@ -27,6 +27,41 @@ const JWT_SECRET  = process.env.JWT_SECRET || 'poker-dev-secret-change-in-prod';
 
 const roomGames = {};
 
+// ===== Admin middleware =====
+
+function requireAdmin(req, res, next) {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: '未登录' });
+    try {
+        const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+        const user = db.getUserById(payload.id);
+        if (!user?.isAdmin) return res.status(403).json({ error: '无管理员权限' });
+        req.adminUser = user;
+        next();
+    } catch {
+        res.status(401).json({ error: '登录已过期' });
+    }
+}
+
+// 获取所有用户列表
+app.get('/api/admin/users', requireAdmin, (req, res) => {
+    res.json(db.getAllUsers());
+});
+
+// 设置任意玩家金币
+app.post('/api/admin/set-gold', requireAdmin, (req, res) => {
+    const { username, gold } = req.body || {};
+    if (!username || gold === undefined)
+        return res.status(400).json({ error: '缺少 username 或 gold' });
+    if (!Number.isInteger(gold) || gold < 0)
+        return res.status(400).json({ error: 'gold 必须为非负整数' });
+    const target = db.getUserByUsername(username);
+    if (!target) return res.status(404).json({ error: `用户 "${username}" 不存在` });
+    db.setGold(target.id, gold);
+    console.log(`[admin] ${req.adminUser.username} 将 ${target.username} 金币设为 ${gold}`);
+    res.json({ ok: true, username: target.username, gold });
+});
+
 // ===== Auth routes =====
 
 app.post('/api/register', async (req, res) => {
@@ -40,8 +75,8 @@ app.post('/api/register', async (req, res) => {
     try {
         const hash = await bcrypt.hash(password, 10);
         const user = db.createUser(username, hash);
-        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-        res.json({ token, user: { id: user.id, username: user.username, gold: user.gold } });
+        const token = jwt.sign({ id: user.id, username: user.username, isAdmin: !!user.isAdmin }, JWT_SECRET, { expiresIn: '30d' });
+        res.json({ token, user: { id: user.id, username: user.username, gold: user.gold, isAdmin: !!user.isAdmin } });
     } catch (err) {
         if (err.message?.includes('UNIQUE'))
             return res.status(409).json({ error: '用户名已被注册' });
@@ -58,8 +93,8 @@ app.post('/api/login', async (req, res) => {
     if (!user) return res.status(401).json({ error: '用户名或密码错误' });
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: '用户名或密码错误' });
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, username: user.username, gold: user.gold } });
+    const token = jwt.sign({ id: user.id, username: user.username, isAdmin: !!user.isAdmin }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { id: user.id, username: user.username, gold: user.gold, isAdmin: !!user.isAdmin } });
 });
 
 // ===== Game helpers =====

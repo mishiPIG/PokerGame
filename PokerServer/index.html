@@ -152,6 +152,26 @@
         }
         #raiseAmount:disabled { opacity: 0.3; }
 
+        /* ===== Admin panel ===== */
+        #admin-panel {
+            background: rgba(255,200,0,0.06); border: 1px solid rgba(255,200,0,0.25);
+            border-radius: 10px; padding: 14px; margin-bottom: 12px;
+        }
+        #admin-panel h3 { color: #f4d35e; font-size: 14px; margin-bottom: 10px; }
+        #admin-panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        #admin-panel th { color: #888; font-weight: normal; text-align: left; padding: 4px 6px; }
+        #admin-panel td { padding: 4px 6px; border-top: 1px solid rgba(255,255,255,0.05); }
+        #admin-panel input[type=number] {
+            width: 100px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+            color: #fff; border-radius: 4px; padding: 3px 6px; font-size: 13px;
+        }
+        #admin-panel button {
+            background: #f4d35e; color: #1a1a1a; border: none; border-radius: 4px;
+            padding: 3px 10px; font-size: 13px; font-weight: bold; cursor: pointer;
+        }
+        #admin-panel button:hover { filter: brightness(1.1); }
+        #admin-msg { font-size: 12px; color: #06d6a0; margin-top: 6px; min-height: 16px; }
+
         /* ===== Log ===== */
         #log {
             background: rgba(0,0,0,0.3); padding: 10px; height: 130px; overflow-y: auto;
@@ -192,7 +212,18 @@
     <div id="user-bar">
         <span class="uname" id="display-username"></span>
         <span class="gold">🪙 <span id="display-gold">0</span></span>
+        <button id="admin-toggle" onclick="toggleAdminPanel()" style="display:none;background:#f4d35e;color:#1a1a1a;border:none;border-radius:5px;padding:4px 12px;font-size:12px;font-weight:bold;cursor:pointer;">⚙️ 管理</button>
         <button onclick="doLogout()">退出登录</button>
+    </div>
+
+    <!-- 管理员面板（仅 isAdmin 可见） -->
+    <div id="admin-panel" style="display:none">
+        <h3>⚙️ 管理员面板</h3>
+        <table id="admin-users-table">
+            <thead><tr><th>用户名</th><th>金币</th><th>设置金币</th><th></th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <div id="admin-msg"></div>
     </div>
 
     <div id="lobby">
@@ -288,8 +319,10 @@ function onAuthSuccess({ token, user }) {
     myUserId   = user.id;
     myUsername = user.username;
     myGold     = user.gold;
+    isAdmin    = !!user.isAdmin;
     document.getElementById('auth-overlay').style.display = 'none';
     document.getElementById('game-section').style.display = '';
+    document.getElementById('admin-toggle').style.display = isAdmin ? '' : 'none';
     updateUserBar();
     connectSocket(token);
 }
@@ -467,6 +500,58 @@ function render(state) {
         (myTurn && toCall > 0) ? `跟注 Call (${toCall})` : '跟注 Call';
 }
 
+// ===== Admin =====
+let isAdmin = false;
+
+function toggleAdminPanel() {
+    const panel = document.getElementById('admin-panel');
+    const visible = panel.style.display !== 'none';
+    if (!visible) loadAdminUsers();
+    panel.style.display = visible ? 'none' : '';
+}
+
+async function loadAdminUsers() {
+    const token = localStorage.getItem('token');
+    const res = await fetch('/api/admin/users', {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const users = await res.json();
+    const tbody = document.querySelector('#admin-users-table tbody');
+    tbody.innerHTML = users.map(u => `
+        <tr>
+            <td>${u.username}${u.isAdmin ? ' 👑' : ''}</td>
+            <td>${u.gold.toLocaleString()}</td>
+            <td><input type="number" id="gold-${u.id}" value="${u.gold}" min="0"></td>
+            <td><button onclick="adminSetGold('${u.username}','${u.id}')">确认</button></td>
+        </tr>`).join('');
+}
+
+async function adminSetGold(username, userId) {
+    const token = localStorage.getItem('token');
+    const gold = parseInt(document.getElementById(`gold-${userId}`).value);
+    if (isNaN(gold) || gold < 0) return;
+    const res = await fetch('/api/admin/set-gold', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username, gold })
+    });
+    const data = await res.json();
+    const msg = document.getElementById('admin-msg');
+    if (res.ok) {
+        msg.textContent = `✅ ${data.username} 金币已设为 ${data.gold.toLocaleString()}`;
+        // 如果改的是自己，更新本地显示
+        if (username.toLowerCase() === myUsername.toLowerCase()) {
+            myGold = data.gold;
+            updateUserBar();
+            if (socket) socket.emit('request_gold_sync');
+        }
+        loadAdminUsers();
+    } else {
+        msg.textContent = `❌ ${data.error}`;
+    }
+}
+
 // ===== Init =====
 ;['btnFold','btnCheck','btnCall','btnBet','btnRaise','raiseAmount'].forEach(id => {
     document.getElementById(id).disabled = true;
@@ -480,7 +565,9 @@ if (savedToken) {
         if (payload.exp * 1000 > Date.now()) {
             myUserId   = payload.id;
             myUsername = payload.username;
+            isAdmin    = !!payload.isAdmin;
             document.getElementById('display-username').textContent = myUsername;
+            document.getElementById('admin-toggle').style.display = isAdmin ? '' : 'none';
             document.getElementById('auth-overlay').style.display = 'none';
             document.getElementById('game-section').style.display = '';
             connectSocket(savedToken);
