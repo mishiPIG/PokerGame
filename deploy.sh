@@ -25,11 +25,16 @@ else
     echo "⏭️  跳过 git（未提供 commit message）"
 fi
 
-# Step 2: rsync 同步到服务器（排除 node_modules）
+# Step 2: 打包源码（排除 node_modules）并上传到服务器
 echo ""
 echo "🚀 同步代码到服务器..."
-rsync -av --delete --exclude='node_modules' \
-    "$SCRIPT_DIR/PokerServer/" "$SERVER_HOST:$SERVER_PATH/"
+DEPLOY_TMP="/tmp/poker_deploy_$$.tar.gz"
+cd "$SCRIPT_DIR/PokerServer"
+tar czf "$DEPLOY_TMP" $(find . -maxdepth 1 -type f)
+scp "$DEPLOY_TMP" "$SERVER_HOST:/tmp/poker_deploy.tar.gz"
+ssh "$SERVER_HOST" "cd $SERVER_PATH && tar xzf /tmp/poker_deploy.tar.gz && rm /tmp/poker_deploy.tar.gz"
+rm -f "$DEPLOY_TMP"
+cd "$SCRIPT_DIR"
 
 # Step 3: 安装依赖（服务器端编译 native 模块）并重启
 echo ""
