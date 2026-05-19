@@ -61,9 +61,30 @@ Android / iOS / PC
 - **生产 URL**：`http://47.112.8.25:3000`
 - **服务器**：阿里云华南 1（深圳），Ubuntu 24.04，2vCPU/2GiB，SSH host alias `Shenzhen`
 - **路径**：`/root/PokerGame/PokerServer`，由 pm2 守护，进程名 `poker`
-- **更新流程**：本地改完代码 → 运行 `bash deploy.sh "commit message"`（自动 git push + rsync 同步 + pm2 restart）
-- **不走 GitHub clone 的原因**：服务器在国内访问 GitHub HTTPS 不稳定（TLS 中断），用 rsync 直传更可靠
+- **更新流程**：本地改完代码 → 运行 `bash deploy.sh "commit message"`（自动 git push + tar/scp 同步 + npm install + pm2 restart）
+- **不走 GitHub clone 的原因**：服务器在国内访问 GitHub HTTPS 不稳定（TLS 中断），用 tar+scp 直传更可靠
 - **GitHub 仓库**：https://github.com/mishiPIG/PokerGame （public，用于版本备份）
+
+## 管理员账号
+
+### 创建 / 升级管理员
+SSH 进服务器后执行：
+```bash
+cd /root/PokerGame/PokerServer
+node create-admin.js <用户名> <密码>
+```
+- 若用户名**不存在**：新建账号并设为管理员，初始金币 10,000
+- 若用户名**已存在**：直接升级为管理员（密码参数此时无效）
+
+### 管理员功能
+登录后右上角出现 **⚙️ 管理** 黄色按钮，点击展开管理面板：
+- 查看所有用户的用户名、当前金币、是否为管理员（👑 标记）
+- 直接修改任意玩家（包括自己）的金币数量并点「确认」提交
+
+### 管理员 API（供脚本调用）
+需在请求头携带管理员 JWT：`Authorization: Bearer <token>`
+- `GET  /api/admin/users` — 返回所有用户列表
+- `POST /api/admin/set-gold` — body: `{ "username": "玩家名", "gold": 50000 }`
 
 ## 下一步规划
 
