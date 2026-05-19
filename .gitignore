@@ -24,3 +24,8 @@ obj/
 # OS
 Thumbs.db
 .DS_Store
+
+# Database files (production data, not for version control)
+*.db
+*.db-journal
+data.json

@@ -31,7 +31,11 @@ echo "🚀 同步代码到服务器..."
 rsync -av --delete --exclude='node_modules' \
     "$SCRIPT_DIR/PokerServer/" "$SERVER_HOST:$SERVER_PATH/"
 
-# Step 3: 重启 pm2 进程
+# Step 3: 安装依赖（服务器端编译 native 模块）并重启
+echo ""
+echo "📦 服务器安装依赖..."
+ssh "$SERVER_HOST" "cd $SERVER_PATH && npm install --omit=dev"
+
 echo ""
 echo "🔄 重启 pm2 进程..."
 ssh "$SERVER_HOST" "pm2 restart $PM2_APP"

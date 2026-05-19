@@ -1,12 +1,15 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { Deck, HandEvaluator } = require('./PokerLogic');
+const db = require('./database');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
-
+const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
+app.use(express.json());
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
 const PHASES = {
@@ -19,11 +22,47 @@ const PHASES = {
 };
 
 const SMALL_BLIND = 10;
-const BIG_BLIND = 20;
+const BIG_BLIND   = 20;
+const JWT_SECRET  = process.env.JWT_SECRET || 'poker-dev-secret-change-in-prod';
 
 const roomGames = {};
 
-// ===== 工具函数 =====
+// ===== Auth routes =====
+
+app.post('/api/register', async (req, res) => {
+    const { username, password } = req.body || {};
+    if (!username || !password)
+        return res.status(400).json({ error: '请填写用户名和密码' });
+    if (username.length < 2 || username.length > 20)
+        return res.status(400).json({ error: '用户名 2-20 字符' });
+    if (password.length < 6)
+        return res.status(400).json({ error: '密码至少 6 位' });
+    try {
+        const hash = await bcrypt.hash(password, 10);
+        const user = db.createUser(username, hash);
+        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+        res.json({ token, user: { id: user.id, username: user.username, gold: user.gold } });
+    } catch (err) {
+        if (err.message?.includes('UNIQUE'))
+            return res.status(409).json({ error: '用户名已被注册' });
+        console.error(err);
+        res.status(500).json({ error: '服务器错误' });
+    }
+});
+
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body || {};
+    if (!username || !password)
+        return res.status(400).json({ error: '请填写用户名和密码' });
+    const user = db.getUserByUsername(username);
+    if (!user) return res.status(401).json({ error: '用户名或密码错误' });
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: '用户名或密码错误' });
+    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { id: user.id, username: user.username, gold: user.gold } });
+});
+
+// ===== Game helpers =====
 
 function activePlayers(game) {
     return game.players.filter(p => !p.folded);
@@ -46,23 +85,21 @@ function isBettingRoundComplete(game) {
     const active = activePlayers(game);
     if (active.length <= 1) return true;
     const canStill = active.filter(canAct);
-    if (canStill.length === 0) return true; // 所有人都 all-in
+    if (canStill.length === 0) return true;
     return canStill.every(p => p.hasActed && p.currentBet === game.currentBet);
 }
 
-// 把本街的 currentBet 收进 pot；未被跟注的部分退还给玩家（2人版替代边池）
 function collectBetsToPot(game) {
     const activeBets = game.players
         .filter(p => !p.folded)
         .map(p => p.currentBet)
         .sort((a, b) => b - a);
     const cap = activeBets.length >= 2 ? activeBets[1] : 0;
-
     game.players.forEach(p => {
         let contribute = p.currentBet;
         if (!p.folded) {
             contribute = Math.min(p.currentBet, cap);
-            p.chips += (p.currentBet - contribute); // 退还未被跟注的部分
+            p.chips += (p.currentBet - contribute);
         }
         game.pot += contribute;
         p.currentBet = 0;
@@ -80,15 +117,16 @@ function broadcastState(roomId) {
         currentBet: game.currentBet,
         smallBlind: SMALL_BLIND,
         bigBlind: BIG_BLIND,
-        buttonId: game.players[game.buttonIdx]?.id || null,
-        actionOnId: game.actionOnIdx >= 0 ? (game.players[game.actionOnIdx]?.id || null) : null,
+        buttonUserId:   game.players[game.buttonIdx]?.userId || null,
+        actionOnUserId: game.actionOnIdx >= 0 ? (game.players[game.actionOnIdx]?.userId || null) : null,
         communityCards: game.communityCards.map(c => ({ suit: c.suit, rank: c.rank })),
         players: game.players.map(p => ({
-            id: p.id,
-            chips: p.chips,
+            userId:     p.userId,
+            username:   p.username,
+            chips:      p.chips,
             currentBet: p.currentBet,
-            folded: p.folded,
-            allIn: p.allIn
+            folded:     p.folded,
+            allIn:      p.allIn
         }))
     };
     io.in(roomId).emit('game_state', state);
@@ -107,17 +145,14 @@ function dealCommunity(game, count) {
 
 function advanceStage(roomId) {
     const game = roomGames[roomId];
-
     while (true) {
         const active = activePlayers(game);
-
-        // 只剩一人 → 直接结束本局
         if (active.length <= 1) {
             collectBetsToPot(game);
             if (active.length === 1) {
                 const winner = active[0];
                 winner.chips += game.pot;
-                io.in(roomId).emit('server_msg', `🏆 ${winner.id.substring(0, 4)} 赢得底池 ${game.pot}（对手弃牌）`);
+                io.in(roomId).emit('server_msg', `🏆 ${winner.username} 赢得底池 ${game.pot}（对手弃牌）`);
             }
             game.pot = 0;
             game.phase = PHASES.SHOWDOWN;
@@ -125,10 +160,7 @@ function advanceStage(roomId) {
             broadcastState(roomId);
             return;
         }
-
         collectBetsToPot(game);
-
-        // 阶段切换
         if (game.phase === PHASES.PREFLOP) {
             game.phase = PHASES.FLOP;
             const flop = dealCommunity(game, 3);
@@ -146,14 +178,8 @@ function advanceStage(roomId) {
             doShowdown(roomId);
             return;
         }
-
-        // 双人 postflop：行动先手是非按钮位（大盲位置）
-        // 通用：从按钮位顺时针第一个能行动的人
         game.actionOnIdx = findNextActionIdx(game, game.buttonIdx);
-
-        // 没人能行动了（双方都 all-in）→ 直接进入下一阶段
         if (game.actionOnIdx < 0) continue;
-
         broadcastState(roomId);
         return;
     }
@@ -165,7 +191,7 @@ function doShowdown(roomId) {
     io.in(roomId).emit('server_msg', `\n--- 🃏 Showdown ---`);
 
     const scored = active.map(p => {
-        const sevenCards = game.communityCards.concat(game.holeCards[p.id]);
+        const sevenCards = game.communityCards.concat(game.holeCards[p.userId]);
         const score = HandEvaluator.evaluate7Cards(sevenCards);
         return { player: p, score };
     });
@@ -173,33 +199,75 @@ function doShowdown(roomId) {
     const bestScore = Math.min(...scored.map(s => s.score));
     const winners = scored.filter(s => s.score === bestScore).map(s => s.player);
 
+    // 广播所有手牌（供客户端翻牌展示）
+    const reveals = {};
     scored.forEach(({ player, score }) => {
-        const hole = game.holeCards[player.id];
-        io.in(roomId).emit('server_msg', `📊 ${player.id.substring(0, 4)}: ${hole[0].toString()}, ${hole[1].toString()} → 得分 ${score}`);
+        const hole = game.holeCards[player.userId];
+        reveals[player.userId] = hole.map(c => ({ suit: c.suit, rank: c.rank }));
+        io.in(roomId).emit('server_msg', `📊 ${player.username}: ${hole[0].toString()}, ${hole[1].toString()} → 得分 ${score}`);
     });
+    io.in(roomId).emit('showdown_reveal', reveals);
 
     const split = Math.floor(game.pot / winners.length);
     const remainder = game.pot - split * winners.length;
-    winners.forEach((w, i) => {
-        w.chips += split + (i === 0 ? remainder : 0);
-    });
-    const winnerLabel = winners.map(w => w.id.substring(0, 4)).join(', ');
-    io.in(roomId).emit('server_msg', `🏆 ${winnerLabel} 赢得底池 ${game.pot}${winners.length > 1 ? `（平分每人 ${split}）` : ''}`);
+    winners.forEach((w, i) => { w.chips += split + (i === 0 ? remainder : 0); });
+
+    const winnerLabel = winners.map(w => w.username).join(', ');
+    io.in(roomId).emit('server_msg',
+        `🏆 ${winnerLabel} 赢得底池 ${game.pot}${winners.length > 1 ? `（平分每人 ${split}）` : ''}`);
 
     game.pot = 0;
     game.actionOnIdx = -1;
     broadcastState(roomId);
 }
 
-// ===== Socket 处理 =====
+// ===== Socket auth middleware =====
+
+io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error('未登录'));
+    try {
+        const payload = jwt.verify(token, JWT_SECRET);
+        const user = db.getUserById(payload.id);
+        if (!user) return next(new Error('用户不存在'));
+        socket.user = { ...user }; // shallow copy so we can mutate gold cache
+        next();
+    } catch {
+        next(new Error('登录已过期，请重新登录'));
+    }
+});
+
+// ===== Socket handlers =====
 
 io.on('connection', (socket) => {
-    console.log(`[+] 玩家上线: ${socket.id}`);
+    const user = socket.user;
+    console.log(`[+] ${user.username} 上线`);
+    socket.emit('gold_update', { gold: user.gold });
 
     socket.on('join_room', ({ roomId, buyIn }) => {
-        const buyInAmount = Math.max(BIG_BLIND * 5, parseInt(buyIn) || 1000);
+        const buyInAmount = Math.max(BIG_BLIND * 10, parseInt(buyIn) || 1000);
+        const freshUser = db.getUserById(user.id);
 
+        if (freshUser.gold < buyInAmount) {
+            socket.emit('server_msg', `⚠️ 金币不足（当前 ${freshUser.gold}，需要 ${buyInAmount}）`);
+            return;
+        }
+
+        // 断线重连：玩家已在房间内
         const existing = roomGames[roomId];
+        if (existing?.players.some(p => p.userId === user.id)) {
+            const p = existing.players.find(p => p.userId === user.id);
+            p.socketId = socket.id;
+            socket.join(roomId);
+            socket.currentRoom = roomId;
+            socket.emit('server_msg', '🔄 重新连接成功');
+            if (existing.holeCards[user.id]) {
+                socket.emit('hole_cards', existing.holeCards[user.id].map(c => ({ suit: c.suit, rank: c.rank })));
+            }
+            broadcastState(roomId);
+            return;
+        }
+
         if (existing && existing.phase !== PHASES.WAITING && existing.phase !== PHASES.SHOWDOWN) {
             socket.emit('server_msg', '⚠️ 当前牌局进行中，请等本局结束再加入');
             return;
@@ -223,69 +291,54 @@ io.on('connection', (socket) => {
         }
 
         const game = roomGames[roomId];
-        if (!game.players.some(p => p.id === socket.id)) {
-            game.players.push({
-                id: socket.id,
-                chips: buyInAmount,
-                currentBet: 0,
-                folded: false,
-                allIn: false,
-                hasActed: false
-            });
-        }
+        const newGold = freshUser.gold - buyInAmount;
+        db.setGold(user.id, newGold);
+        user.gold = newGold;
+
+        game.players.push({
+            userId:     user.id,
+            socketId:   socket.id,
+            username:   user.username,
+            chips:      buyInAmount,
+            currentBet: 0,
+            folded:     false,
+            allIn:      false,
+            hasActed:   false
+        });
 
         socket.emit('server_msg', `✅ 加入房间 [${roomId}]，带入 ${buyInAmount}`);
-        socket.to(roomId).emit('server_msg', `🪑 玩家 ${socket.id.substring(0, 4)} 加入（${buyInAmount}）`);
+        socket.emit('gold_update', { gold: user.gold });
+        socket.to(roomId).emit('server_msg', `🪑 ${user.username} 加入牌桌（${buyInAmount}）`);
         broadcastState(roomId);
     });
 
     socket.on('start_deal', (roomId) => {
         const game = roomGames[roomId];
         if (!game) return;
-        if (game.players.length < 2) {
-            socket.emit('server_msg', '⚠️ 至少需要 2 位玩家');
-            return;
-        }
+        if (game.players.length < 2) { socket.emit('server_msg', '⚠️ 至少需要 2 位玩家'); return; }
         if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) {
-            socket.emit('server_msg', `⚠️ 当前阶段 [${game.phase}] 无法开新局`);
-            return;
+            socket.emit('server_msg', `⚠️ 当前阶段 [${game.phase}] 无法开新局`); return;
         }
-
-        // 第二局起庄家位顺移
-        if (game.phase === PHASES.SHOWDOWN) {
+        if (game.phase === PHASES.SHOWDOWN)
             game.buttonIdx = (game.buttonIdx + 1) % game.players.length;
+
+        if (game.players.some(p => p.chips < BIG_BLIND)) {
+            socket.emit('server_msg', `⚠️ 有玩家筹码不足大盲 ${BIG_BLIND}`); return;
         }
 
-        // 检查筹码
-        const broke = game.players.filter(p => p.chips < BIG_BLIND);
-        if (broke.length > 0) {
-            socket.emit('server_msg', `⚠️ 有玩家筹码不足大盲 ${BIG_BLIND}`);
-            return;
-        }
-
-        // 重置
-        game.deck.reset();
-        game.deck.shuffle();
-        game.holeCards = {};
-        game.communityCards = [];
-        game.pot = 0;
-        game.currentBet = 0;
+        game.deck.reset(); game.deck.shuffle();
+        game.holeCards = {}; game.communityCards = [];
+        game.pot = 0; game.currentBet = 0;
         game.players.forEach(p => {
-            p.currentBet = 0;
-            p.folded = false;
-            p.allIn = false;
-            p.hasActed = false;
+            p.currentBet = 0; p.folded = false; p.allIn = false; p.hasActed = false;
         });
-
         game.phase = PHASES.PREFLOP;
 
-        // 标准 heads-up 规则：按钮位 = 小盲(SB)，preflop 先动；非按钮位 = 大盲(BB)，postflop 先动。
-        // 3+人需另外实现 SB=(button+1)%N, BB=(button+2)%N
+        // 标准 heads-up：按钮位 = SB，preflop 先动
         const sbIdx = game.buttonIdx;
         const bbIdx = (game.buttonIdx + 1) % game.players.length;
         const sb = game.players[sbIdx];
         const bb = game.players[bbIdx];
-
         const sbAmt = Math.min(SMALL_BLIND, sb.chips);
         const bbAmt = Math.min(BIG_BLIND, bb.chips);
         sb.chips -= sbAmt; sb.currentBet = sbAmt;
@@ -295,47 +348,41 @@ io.on('connection', (socket) => {
         game.currentBet = bbAmt;
 
         io.in(roomId).emit('server_msg', `\n--- 🎲 新一局开始 ---`);
-        io.in(roomId).emit('server_msg', `💰 SB: ${sb.id.substring(0, 4)} (${sbAmt}) | BB: ${bb.id.substring(0, 4)} (${bbAmt})`);
+        io.in(roomId).emit('server_msg', `💰 SB: ${sb.username} (${sbAmt}) | BB: ${bb.username} (${bbAmt})`);
 
-        // 发底牌
         game.players.forEach(p => {
             const c1 = game.deck.drawCard();
             const c2 = game.deck.drawCard();
-            game.holeCards[p.id] = [c1, c2];
-            io.to(p.id).emit('hole_cards', [
+            game.holeCards[p.userId] = [c1, c2];
+            io.to(p.socketId).emit('hole_cards', [
                 { suit: c1.suit, rank: c1.rank },
                 { suit: c2.suit, rank: c2.rank }
             ]);
         });
 
-        // 双人 preflop 行动顺序：SB（=按钮）先动
         game.actionOnIdx = sbIdx;
-
         broadcastState(roomId);
     });
 
     socket.on('player_action', ({ roomId, action, amount }) => {
         const game = roomGames[roomId];
         if (!game) return;
-        if (game.actionOnIdx < 0 || game.players[game.actionOnIdx]?.id !== socket.id) {
-            socket.emit('server_msg', '⚠️ 不是你的回合');
-            return;
+        if (game.actionOnIdx < 0 || game.players[game.actionOnIdx]?.userId !== user.id) {
+            socket.emit('server_msg', '⚠️ 不是你的回合'); return;
         }
 
         const player = game.players[game.actionOnIdx];
-        const tag = player.id.substring(0, 4);
+        const tag = player.username;
 
         switch (action) {
             case 'fold':
-                player.folded = true;
-                player.hasActed = true;
+                player.folded = true; player.hasActed = true;
                 io.in(roomId).emit('server_msg', `❌ ${tag} 弃牌`);
                 break;
 
             case 'check':
                 if (player.currentBet < game.currentBet) {
-                    socket.emit('server_msg', '⚠️ 有未跟注，不能 Check');
-                    return;
+                    socket.emit('server_msg', '⚠️ 有未跟注，不能 Check'); return;
                 }
                 player.hasActed = true;
                 io.in(roomId).emit('server_msg', `✓ ${tag} 过牌`);
@@ -343,13 +390,9 @@ io.on('connection', (socket) => {
 
             case 'call': {
                 const toCall = game.currentBet - player.currentBet;
-                if (toCall <= 0) {
-                    socket.emit('server_msg', '⚠️ 无需跟注，请 Check');
-                    return;
-                }
+                if (toCall <= 0) { socket.emit('server_msg', '⚠️ 无需跟注'); return; }
                 const pay = Math.min(toCall, player.chips);
-                player.chips -= pay;
-                player.currentBet += pay;
+                player.chips -= pay; player.currentBet += pay;
                 if (player.chips === 0) player.allIn = true;
                 player.hasActed = true;
                 io.in(roomId).emit('server_msg', `📞 ${tag} 跟注 ${pay}${player.allIn ? ' (All-in)' : ''}`);
@@ -357,61 +400,37 @@ io.on('connection', (socket) => {
             }
 
             case 'bet': {
-                if (game.currentBet > 0) {
-                    socket.emit('server_msg', '⚠️ 已有下注，请用 Raise');
-                    return;
-                }
+                if (game.currentBet > 0) { socket.emit('server_msg', '⚠️ 已有下注，请用 Raise'); return; }
                 const betTo = parseInt(amount);
-                if (!betTo || betTo < BIG_BLIND) {
-                    socket.emit('server_msg', `⚠️ 下注最少 ${BIG_BLIND}`);
-                    return;
-                }
-                if (betTo > player.chips) {
-                    socket.emit('server_msg', '⚠️ 筹码不足');
-                    return;
-                }
-                player.chips -= betTo;
-                player.currentBet = betTo;
+                if (!betTo || betTo < BIG_BLIND) { socket.emit('server_msg', `⚠️ 下注最少 ${BIG_BLIND}`); return; }
+                if (betTo > player.chips) { socket.emit('server_msg', '⚠️ 筹码不足'); return; }
+                player.chips -= betTo; player.currentBet = betTo;
                 if (player.chips === 0) player.allIn = true;
                 game.currentBet = betTo;
-                game.players.forEach(p => {
-                    if (p.id !== player.id && canAct(p)) p.hasActed = false;
-                });
+                game.players.forEach(p => { if (p.userId !== user.id && canAct(p)) p.hasActed = false; });
                 player.hasActed = true;
                 io.in(roomId).emit('server_msg', `💸 ${tag} 下注 ${betTo}${player.allIn ? ' (All-in)' : ''}`);
                 break;
             }
 
             case 'raise': {
-                if (game.currentBet === 0) {
-                    socket.emit('server_msg', '⚠️ 当前无人下注，请用 Bet');
-                    return;
-                }
+                if (game.currentBet === 0) { socket.emit('server_msg', '⚠️ 无人下注，请用 Bet'); return; }
                 const raiseTo = parseInt(amount);
                 if (!raiseTo || raiseTo <= game.currentBet) {
-                    socket.emit('server_msg', `⚠️ 加注须大于当前注 ${game.currentBet}`);
-                    return;
+                    socket.emit('server_msg', `⚠️ 加注须大于当前注 ${game.currentBet}`); return;
                 }
                 const needed = raiseTo - player.currentBet;
-                if (needed > player.chips) {
-                    socket.emit('server_msg', '⚠️ 筹码不足');
-                    return;
-                }
-                player.chips -= needed;
-                player.currentBet = raiseTo;
+                if (needed > player.chips) { socket.emit('server_msg', '⚠️ 筹码不足'); return; }
+                player.chips -= needed; player.currentBet = raiseTo;
                 if (player.chips === 0) player.allIn = true;
                 game.currentBet = raiseTo;
-                game.players.forEach(p => {
-                    if (p.id !== player.id && canAct(p)) p.hasActed = false;
-                });
+                game.players.forEach(p => { if (p.userId !== user.id && canAct(p)) p.hasActed = false; });
                 player.hasActed = true;
                 io.in(roomId).emit('server_msg', `🔼 ${tag} 加注到 ${raiseTo}${player.allIn ? ' (All-in)' : ''}`);
                 break;
             }
 
-            default:
-                socket.emit('server_msg', '⚠️ 未知动作');
-                return;
+            default: return;
         }
 
         if (isBettingRoundComplete(game)) {
@@ -423,37 +442,34 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log(`[-] 玩家下线: ${socket.id}`);
+        console.log(`[-] ${user.username} 下线`);
         const roomId = socket.currentRoom;
         if (!roomId) return;
         const game = roomGames[roomId];
         if (!game) return;
-        const idx = game.players.findIndex(p => p.id === socket.id);
+        const idx = game.players.findIndex(p => p.userId === user.id);
         if (idx < 0) return;
 
-        io.to(roomId).emit('server_msg', `🚪 玩家 ${socket.id.substring(0, 4)} 离开`);
+        io.to(roomId).emit('server_msg', `🚪 ${user.username} 离开`);
+        const player = game.players[idx];
+
+        // 退还筹码到金币
+        const freshGold = db.getUserById(user.id).gold;
+        db.setGold(user.id, freshGold + player.chips);
 
         if (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) {
             game.players.splice(idx, 1);
             if (game.buttonIdx >= game.players.length) game.buttonIdx = 0;
             broadcastState(roomId);
         } else {
-            // 进行中：标记为弃牌保留座位（保持索引）
-            const p = game.players[idx];
-            p.folded = true;
-            p.hasActed = true;
-
-            if (isBettingRoundComplete(game)) {
-                advanceStage(roomId);
-                return;
-            }
-            if (game.actionOnIdx === idx) {
+            player.folded = true; player.hasActed = true; player.chips = 0;
+            if (isBettingRoundComplete(game)) { advanceStage(roomId); return; }
+            if (game.actionOnIdx === idx)
                 game.actionOnIdx = findNextActionIdx(game, game.actionOnIdx);
-            }
             broadcastState(roomId);
         }
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => { console.log(`🚀 权威扑克服务器已启动！端口: ${PORT}`); });
+server.listen(PORT, () => { console.log(`🚀 扑克服务器已启动！端口: ${PORT}`); });
