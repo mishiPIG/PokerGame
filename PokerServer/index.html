@@ -89,7 +89,11 @@
             border: 2px solid transparent; transition: border-color 0.2s, box-shadow 0.2s;
             min-width: 220px; min-height: 150px; position: relative;
         }
-        .seat.acting { border-color: #f4d35e; box-shadow: 0 0 18px rgba(244,211,94,0.5); }
+        .seat.acting { border-color: #f4d35e; animation: seatPulse 1.2s ease-in-out infinite; }
+        @keyframes seatPulse {
+            0%, 100% { box-shadow: 0 0 12px rgba(244,211,94,0.4); }
+            50%      { box-shadow: 0 0 28px rgba(244,211,94,0.85); }
+        }
         .seat.folded { opacity: 0.45; }
         .seat .name  { font-weight: bold; font-size: 14px; }
         .seat .info  { font-size: 11px; color: #b0c9b8; }
@@ -120,6 +124,12 @@
         .card .rank { font-size: 15px; line-height: 1; }
         .card .suit { font-size: 22px; align-self: center; line-height: 1; }
         .empty-slot { width: 46px; height: 64px; border: 2px dashed rgba(255,255,255,0.12); border-radius: 6px; }
+        /* 发牌入场动画：从上方翻入 */
+        .card.deal-in { animation: dealIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+        @keyframes dealIn {
+            from { opacity: 0; transform: translateY(-28px) rotateZ(-10deg) scale(0.88); }
+            to   { opacity: 1; transform: none; }
+        }
 
         /* ===== Table center ===== */
         .table-center { text-align: center; margin: 22px 0; }
@@ -271,6 +281,12 @@ let myHoleCards  = [];
 let revealedCards = {};  // userId -> [{suit,rank},{suit,rank}]  (showdown)
 let currentRoom  = '';
 
+// ===== 动画门控：只在「真正发新牌」时播放入场动画，避免每次重绘都闪 =====
+let lastState          = null;  // 最近一次 game_state，供 hole_cards/showdown 单独重渲时复用
+let prevCommunityCount = 0;     // 上次公共牌数量，新增的那几张才动画
+let holeJustDealt      = false; // 本局刚发到自己手牌
+let revealJustHappened = false; // showdown 刚翻开对手底牌
+
 // ===== Auth =====
 function showTab(tab) {
     document.getElementById('tab-login').style.display    = tab === 'login'    ? '' : 'none';
@@ -333,6 +349,8 @@ function doLogout() {
     document.getElementById('auth-overlay').style.display = 'flex';
     document.getElementById('game-section').style.display = 'none';
     myHoleCards = []; revealedCards = {}; currentRoom = '';
+    lastState = null; prevCommunityCount = 0;
+    holeJustDealt = false; revealJustHappened = false;
 }
 
 // ===== Socket =====
@@ -358,11 +376,14 @@ function connectSocket(token) {
     socket.on('hole_cards', (cards) => {
         myHoleCards = cards;
         revealedCards = {};  // 新一局清除 showdown 展示
-        renderSeats(null);   // 用最新 state 重渲（等 game_state 来）
+        holeJustDealt = true;
+        if (lastState) render(lastState);  // 用缓存 state 重渲，触发手牌入场动画
     });
 
     socket.on('showdown_reveal', (reveals) => {
         revealedCards = reveals;
+        revealJustHappened = true;
+        if (lastState) render(lastState);  // 立即翻开对手底牌（带入场动画）
     });
 
     socket.on('gold_update', ({ gold }) => {
@@ -371,6 +392,7 @@ function connectSocket(token) {
     });
 
     socket.on('game_state', (state) => {
+        lastState = state;
         render(state);
     });
 }
@@ -406,11 +428,12 @@ function updateUserBar() {
     document.getElementById('display-gold').textContent = myGold?.toLocaleString() || '0';
 }
 
-function formatCard(c) {
+function formatCard(c, animate = false) {
     const sym = { Spades:'♠', Hearts:'♥', Diamonds:'♦', Clubs:'♣' }[c.suit] || '?';
     const red  = c.suit === 'Hearts' || c.suit === 'Diamonds';
-    return `<span class="card ${red ? 'red' : 'black'}">
-                <span class="rank">${c.rank}</span>
+    const rank = c.rank === 'T' ? '10' : c.rank;
+    return `<span class="card ${red ? 'red' : 'black'}${animate ? ' deal-in' : ''}">
+                <span class="rank">${rank}</span>
                 <span class="suit">${sym}</span>
             </span>`;
 }
@@ -451,9 +474,9 @@ function buildSeat(p, state) {
     if (p.folded) {
         cardsHtml = emptySlot() + emptySlot();
     } else if (isMe && myHoleCards.length === 2) {
-        cardsHtml = myHoleCards.map(formatCard).join('');
+        cardsHtml = myHoleCards.map(c => formatCard(c, holeJustDealt)).join('');
     } else if (!isMe && revealedCards[p.userId]) {
-        cardsHtml = revealedCards[p.userId].map(formatCard).join('');
+        cardsHtml = revealedCards[p.userId].map(c => formatCard(c, revealJustHappened)).join('');
     } else if (state.phase !== 'waiting' && state.phase !== 'showdown') {
         cardsHtml = cardBack() + cardBack();
     } else {
@@ -478,11 +501,20 @@ function render(state) {
     document.getElementById('phase-indicator').textContent = `阶段: ${state.phase}`;
     document.getElementById('pot').textContent = `💰 底池: ${state.pot}`;
 
-    document.getElementById('community').innerHTML = state.communityCards.length
-        ? state.communityCards.map(formatCard).join('')
+    // 公共牌：只有这次新增的那几张才播放入场动画
+    const comm = state.communityCards;
+    if (comm.length < prevCommunityCount) prevCommunityCount = 0;  // 新一局，公共牌清空
+    const animateFrom = prevCommunityCount;
+    document.getElementById('community').innerHTML = comm.length
+        ? comm.map((c, i) => formatCard(c, i >= animateFrom)).join('')
         : '<span style="color:rgba(255,255,255,0.2);font-size:13px;line-height:64px;">公共牌</span>';
+    prevCommunityCount = comm.length;
 
     renderSeats(state);
+
+    // 入场动画标志只生效一次，渲染完即消费，避免后续重绘重复闪动
+    holeJustDealt = false;
+    revealJustHappened = false;
 
     // 按钮启用逻辑
     const myTurn = state.actionOnUserId === myUserId;
