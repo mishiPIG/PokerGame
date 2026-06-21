@@ -28,10 +28,16 @@ module.exports = {
             password_hash: passwordHash,
             gold: 10000,
             isAdmin: isAdmin,
+            avatar: null,
             created_at: new Date().toISOString()
         };
         save(data);
         return data.users[id];
+    },
+
+    setAvatar(id, avatar) {
+        const data = load();
+        if (data.users[id]) { data.users[id].avatar = avatar; save(data); }
     },
 
     getUserByUsername(username) {

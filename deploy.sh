@@ -30,7 +30,7 @@ echo ""
 echo "🚀 同步代码到服务器..."
 DEPLOY_TMP="/tmp/poker_deploy_$$.tar.gz"
 cd "$SCRIPT_DIR/PokerServer"
-tar czf "$DEPLOY_TMP" $(find . -maxdepth 1 -type f)
+tar czf "$DEPLOY_TMP" $(find . -maxdepth 1 -type f) avatars
 scp "$DEPLOY_TMP" "$SERVER_HOST:/tmp/poker_deploy.tar.gz"
 ssh "$SERVER_HOST" "cd $SERVER_PATH && tar xzf /tmp/poker_deploy.tar.gz && rm /tmp/poker_deploy.tar.gz"
 rm -f "$DEPLOY_TMP"

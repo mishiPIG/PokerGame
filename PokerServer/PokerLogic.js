@@ -109,6 +109,48 @@ const HandEvaluator = {
         let a = (u + (u << 2)) >>> 19;
         let r = a ^ LookupTables.HashAdjust[b];
         return LookupTables.HashValues[r];
+    },
+
+    // 从 7 张牌中取出构成最强牌的 5 张：返回 { score, indices(5 个，指向 sevenCards), category }
+    bestHand: function(sevenCards) {
+        let bestScore = 9999, bestPerm = null;
+        for (let i = 0; i < 21; i++) {
+            const idx = LookupTables.Perm7[i];
+            const five = [sevenCards[idx[0]], sevenCards[idx[1]], sevenCards[idx[2]], sevenCards[idx[3]], sevenCards[idx[4]]];
+            const s = this.evaluate5Cards(five);
+            if (s < bestScore) { bestScore = s; bestPerm = idx; }
+        }
+        return { score: bestScore, indices: [...bestPerm], category: this.handCategory(bestScore) };
+    },
+
+    // 从任意 5~7 张牌中取最强 5 张：返回 { score, indices, category }
+    bestHandFrom: function(cards) {
+        const n = cards.length;
+        if (n < 5) return null;
+        let bestScore = 9999, bestIdx = null;
+        for (let a = 0; a < n - 4; a++)
+        for (let b = a + 1; b < n - 3; b++)
+        for (let c = b + 1; c < n - 2; c++)
+        for (let d = c + 1; d < n - 1; d++)
+        for (let e = d + 1; e < n; e++) {
+            const s = this.evaluate5Cards([cards[a], cards[b], cards[c], cards[d], cards[e]]);
+            if (s < bestScore) { bestScore = s; bestIdx = [a, b, c, d, e]; }
+        }
+        return { score: bestScore, indices: bestIdx, category: this.handCategory(bestScore) };
+    },
+
+    // 分数 → 牌型名（Cactus Kev 标准分段，分数越小越强）
+    handCategory: function(score) {
+        if (score === 1)    return '皇家同花顺';
+        if (score <= 10)    return '同花顺';
+        if (score <= 166)   return '四条';
+        if (score <= 322)   return '葫芦';
+        if (score <= 1599)  return '同花';
+        if (score <= 1609)  return '顺子';
+        if (score <= 2467)  return '三条';
+        if (score <= 3325)  return '两对';
+        if (score <= 6185)  return '一对';
+        return '高牌';
     }
 };
 
