@@ -18,7 +18,7 @@ TEST_URL="http://10.76.106.91:3000"
 echo "🚀 同步代码到测试服务器（5090）..."
 DEPLOY_TMP="/tmp/poker_test_$$.tar.gz"
 cd "$SCRIPT_DIR/PokerServer"
-tar czf "$DEPLOY_TMP" $(find . -maxdepth 1 -type f ! -name 'data.json') avatars
+tar czf "$DEPLOY_TMP" $(find . -maxdepth 1 -type f ! -name 'data.json' ! -name 'hands.jsonl') avatars
 scp "$DEPLOY_TMP" "$SERVER_HOST:/tmp/poker_test.tar.gz"
 ssh "$SERVER_HOST" "cd $SERVER_PATH && tar xzf /tmp/poker_test.tar.gz && rm /tmp/poker_test.tar.gz"
 rm -f "$DEPLOY_TMP"

@@ -63,5 +63,29 @@ module.exports = {
         return Object.values(load().users).map(({ id, username, gold, isAdmin }) =>
             ({ id, username, gold, isAdmin: !!isAdmin })
         );
+    },
+
+    // 牌谱：每手一行追加到 hands.jsonl（JSON Lines，按时序、便于按 玩家×模式 筛选；量大可换 DB）
+    appendHand(record) {
+        try { fs.appendFileSync(path.join(__dirname, 'hands.jsonl'), JSON.stringify(record) + '\n'); }
+        catch (e) { console.error('appendHand failed', e.message); }
+    },
+
+    // 读取某玩家参与的最近 N 手牌谱（按时序倒序）；可按模式筛选
+    getHandsForUser(userId, { limit = 30, mode = null } = {}) {
+        const file = path.join(__dirname, 'hands.jsonl');
+        if (!fs.existsSync(file)) return [];
+        let lines;
+        try { lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean); }
+        catch { return []; }
+        const out = [];
+        for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
+            let h;
+            try { h = JSON.parse(lines[i]); } catch { continue; }
+            if (mode && h.mode !== mode) continue;
+            if (!h.seats || !h.seats.some(s => s.userId === userId)) continue;
+            out.push(h);
+        }
+        return out;
     }
 };

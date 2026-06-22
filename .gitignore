@@ -29,3 +29,6 @@ Thumbs.db
 *.db
 *.db-journal
 data.json
+
+# 牌谱数据（运行时生成，勿入库/勿覆盖）
+PokerServer/hands.jsonl
