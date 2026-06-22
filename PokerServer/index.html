@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>德州扑克 Heads-Up</title>
+    <title>德扑道场 Poker Dojo</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,13 +31,15 @@
             background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.7); font-size: 13px;
             padding: 6px 16px; border-radius: 16px; white-space: nowrap; z-index: 5; }
         #user-bar, #admin-panel { flex-shrink: 0; }
-        /* 行动浮层：半透明悬浮在牌桌底部（手牌上方），不占常驻布局 */
+        /* 行动悬浮球：悬浮在「自己座位+手牌」的正上方（德扑之星式），不遮挡手牌 */
         #action-bar {
-            position: absolute; left: 6px; right: 6px; bottom: 44px; z-index: 20;
-            background: rgba(13,22,36,0.82); backdrop-filter: blur(6px);
-            border: 1px solid rgba(255,255,255,0.12); border-radius: 14px;
-            box-shadow: 0 6px 22px rgba(0,0,0,0.55);
+            position: absolute; left: 6px; right: 6px; bottom: 150px; z-index: 20;
+            background: none; border: none; box-shadow: none;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
         }
+        /* 精调面板展开时给个底板，便于看清滑条 */
+        #sizing-row { background: rgba(13,22,36,0.92) !important; backdrop-filter: blur(6px);
+            border: 1px solid rgba(255,255,255,0.14); }
         body.in-room .lobby-only { display: none !important; }
         body:not(.in-room) .room-only { display: none !important; }
         body.in-room #user-bar { display: none; }   /* 牌局中顶栏隐藏，控制移到底部 */
@@ -87,7 +89,8 @@
             background: #1a2a3a; border: 1px solid rgba(255,255,255,0.1);
             border-radius: 16px; padding: 32px; width: 340px;
         }
-        #auth-box h1 { text-align: center; color: #f4d35e; margin-bottom: 20px; font-size: 22px; }
+        #auth-box h1 { text-align: center; color: #f4d35e; margin-bottom: 4px; font-size: 24px; }
+        .auth-sub { text-align: center; color: #8fa2c4; font-size: 12px; margin-bottom: 20px; letter-spacing: 0.5px; }
         .auth-tabs { display: flex; margin-bottom: 20px; border-radius: 8px; overflow: hidden; }
         .auth-tab {
             flex: 1; padding: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: bold;
@@ -633,7 +636,8 @@
 <!-- ===== Auth overlay ===== -->
 <div id="auth-overlay">
     <div id="auth-box">
-        <h1>🎰 德州扑克</h1>
+        <h1>🃏 德扑道场</h1>
+        <div class="auth-sub">Poker Dojo · 好友开房 · 切磋成长</div>
         <div class="auth-tabs">
             <button class="auth-tab active" onclick="showTab('login')">登录</button>
             <button class="auth-tab"        onclick="showTab('register')">注册</button>
@@ -1881,10 +1885,11 @@ function emptySlot() {
     return `<span class="empty-slot"></span>`;
 }
 
-// 环形 M 个座位坐标：ringIndex 0 = 底部中央，顺时针绕一圈（自己固定在底部）
+// 环形 M 个座位坐标：ringIndex 0 = 底部中央，ringIndex 递增 = 顺时针（与座位号递增=行动顺序一致）
+// 屏幕 y 向下：底部(6点)→左下(7点)→…→右下(5点)，即行动顺序顺时针、下一位在我左手边
 function ringPos(ringIndex, M) {
-    const cx = 50, cy = 47, rx = 43, ry = 39;
-    const ang = Math.PI / 2 - (2 * Math.PI * ringIndex / M);   // 0→底部，顺时针
+    const cx = 50, cy = 45, rx = 44, ry = 42;
+    const ang = Math.PI / 2 + (2 * Math.PI * ringIndex / M);   // 0→底部；+ 使递增为顺时针
     return { x: cx + rx * Math.cos(ang), y: cy + ry * Math.sin(ang) };
 }
 
@@ -2012,7 +2017,7 @@ function buildSeat(p, state) {
     // 紧凑布局（德扑之星式）：左=头像+名字+筹码（竖排），右=手牌
     const infoCol = `<div class="seat-info">${avatarHtml}`
         + `<div class="name">${escapeHtml(p.username)}${isMe ? ' (你)' : ''}</div>`
-        + `<div class="chips${isMe ? ' clickable' : ''}"${isMe ? ' onclick="toggleDisplayBB()" title="点击切换 筹码/BB 显示"' : ''}>💵 ${fmtChips(p.chips)}</div>`
+        + `<div class="chips${isMe ? ' clickable' : ''}"${isMe ? ' onclick="toggleDisplayBB()" title="点击切换 筹码/BB 显示"' : ''}>${fmtChips(p.chips)}</div>`
         + `${status ? `<div class="status">${status}</div>` : ''}</div>`;
     const cardsCol = cardsHtml ? `<div class="seat-cards">${cardsHtml}</div>` : '';
     const badges   = `${readyHtml}${handType}${myHandType}${showHint}`;
@@ -2153,11 +2158,31 @@ function render(state) {
     // ── 下注尺寸面板 ──
     setupSizing(state, me, myTurn);
 
-    // ── 行动浮层整体显隐：绝对悬浮在底部，不再改变布局（座位绝对定位，不会被推动）──
+    // ── 行动悬浮球整体显隐：座位绝对定位、悬浮球定位在「自己座位」正上方，不遮手牌 ──
     const showAB = (myTurn || (canReady && me) || canStart || waitForHost || amSittingOut || amReserved || rabbitVisible);
     const ab = document.getElementById('action-bar');
     ab.style.display = showAB ? 'flex' : 'none';
+    if (showAB) requestAnimationFrame(positionActionBar);
 }
+
+// 把行动悬浮球放到「自己座位+手牌」的正上方（图二式），不遮挡手牌
+function positionActionBar() {
+    const ab = document.getElementById('action-bar');
+    if (!ab || ab.style.display === 'none') return;
+    const view = document.getElementById('table-view');
+    const hero = document.querySelector('#ring-layer .ring-seat.bottom');
+    if (!view) return;
+    const vr = view.getBoundingClientRect();
+    if (hero) {
+        const hr = hero.getBoundingClientRect();
+        let bottom = (vr.bottom - hr.top) + 10;          // 悬浮球底边 = 自己座位顶边上方 10px
+        const maxBottom = vr.height * 0.62;              // 别顶得太高
+        ab.style.bottom = Math.min(bottom, maxBottom) + 'px';
+    } else {
+        ab.style.bottom = '70px';                        // 观众/无座位：默认靠下
+    }
+}
+window.addEventListener('resize', () => { if (lastState) positionActionBar(); });
 
 // 配置下注：轮到我且能下注/加注时，显示快捷比例（含金额）；精调面板默认收起
 function setupSizing(state, me, myTurn) {
