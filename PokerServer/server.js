@@ -8,6 +8,8 @@ const fs = require('fs');
 const path = require('path');
 const { Deck, HandEvaluator } = require('./PokerLogic');
 const db = require('./database');
+const stats = require('./stats');
+const equity = require('./equity');
 
 const app = express();
 const server = http.createServer(app);
@@ -147,6 +149,11 @@ app.get('/api/my-hands', requireAuth, (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 30, 100);
     const mode = (req.query.mode === 'sng' || req.query.mode === 'cash') ? req.query.mode : null;
     res.json(db.getHandsForUser(req.authUser.id, { limit, mode }));
+});
+
+// 我的生涯统计（从牌谱聚合 VPIP/PFR/3bet/AF/WTSD…，可按 mode 筛选）
+app.get('/api/my-stats', requireAuth, (req, res) => {
+    res.json(stats.computeUserStats(req.authUser.id, req.query.mode));
 });
 
 // 我的站内消息（收件箱）：比赛结束排名等
@@ -436,6 +443,16 @@ function dealCommunity(game, count) {
     return dealt;
 }
 
+// 全押跑马实时胜率：仅在已亮牌的全押跑马中计算并广播
+function emitEquity(roomId) {
+    const game = roomGames[roomId];
+    if (!game || !game.allinRevealed || game.phase === PHASES.SHOWDOWN) return;
+    const holes = {};
+    activePlayers(game).forEach(p => { if (game.holeCards[p.userId]) holes[p.userId] = game.holeCards[p.userId]; });
+    if (Object.keys(holes).length < 2) return;
+    try { io.in(roomId).emit('equity', equity.computeEquity(holes, game.communityCards)); } catch (e) {}
+}
+
 function advanceStage(roomId) {
     const game = roomGames[roomId];
     clearActionTimer(game);   // 进入新阶段前先停掉上一位的计时
@@ -454,6 +471,7 @@ function advanceStage(roomId) {
         io.in(roomId).emit('server_msg', `🃏 双方全押，亮牌！`);
         io.in(roomId).emit('allin_reveal', { reveals });
         broadcastState(roomId);                 // 先展示亮牌（公共牌暂不变）
+        emitEquity(roomId);                     // 亮牌即算一次当前胜率
         clearTimeout(game.runoutTimer);
         game.runoutTimer = setTimeout(() => advanceStage(roomId), RUNOUT_DELAY);
         return;                                 // 下一次 advanceStage 才开始发公共牌
@@ -510,6 +528,7 @@ function advanceStage(roomId) {
         if (game.actionOnIdx < 0) {
             // 无人可行动（全押 all-in 跑马）：发完这条街先展示，间隔一段时间再发下一张
             broadcastState(roomId);
+            emitEquity(roomId);                 // 每发一条街重算胜率（跳动）
             clearTimeout(game.runoutTimer);
             game.runoutTimer = setTimeout(() => advanceStage(roomId), RUNOUT_DELAY);
             return;
@@ -1521,6 +1540,29 @@ io.on('connection', (socket) => {
         io.in(roomId).emit('server_msg', `🐰 看后续牌：${dealt.map(c => c.toString()).join(' ')}`);
         scheduleNextHand(roomId);                 // 重置局间倒计时，给看牌时间
         broadcastState(roomId);
+    });
+
+    // 桌内文字聊天：广播给同房间（含观众）。限频 + 长度限制
+    socket.on('chat_msg', ({ text }) => {
+        const roomId = socket.currentRoom;
+        if (!roomId || !roomGames[roomId]) return;
+        text = (text || '').toString().slice(0, 120).trim();
+        if (!text) return;
+        const now = Date.now();
+        if (now - (socket._lastChat || 0) < 600) return;   // 限频 0.6s
+        socket._lastChat = now;
+        io.in(roomId).emit('chat_broadcast', { userId: user.id, username: user.username, text, ts: now });
+    });
+
+    // 表情/互动：在发送者座位上方冒一个大表情（可带目标=扔给某人）。限频
+    socket.on('emote', ({ emote, targetUserId }) => {
+        const roomId = socket.currentRoom;
+        if (!roomId || !roomGames[roomId]) return;
+        if (typeof emote !== 'string' || emote.length > 8) return;
+        const now = Date.now();
+        if (now - (socket._lastEmote || 0) < 800) return;   // 限频 0.8s
+        socket._lastEmote = now;
+        io.in(roomId).emit('emote_broadcast', { userId: user.id, emote, targetUserId: targetUserId || null });
     });
 
     socket.on('player_action', ({ roomId, action, amount }) => {
