@@ -16,15 +16,18 @@ function save(data) {
 }
 
 module.exports = {
-    createUser(username, passwordHash, isAdmin = false) {
+    createUser(username, passwordHash, isAdmin = false, email = null) {
         const data = load();
         const lc = username.toLowerCase();
         if (Object.values(data.users).some(u => u.username.toLowerCase() === lc))
             throw new Error('UNIQUE constraint failed');
+        if (email && Object.values(data.users).some(u => (u.email || '').toLowerCase() === email.toLowerCase()))
+            throw new Error('EMAIL constraint failed');
         const id = crypto.randomUUID();
         data.users[id] = {
             id,
             username,
+            email: email ? email.toLowerCase() : null,
             password_hash: passwordHash,
             gold: 10000,
             isAdmin: isAdmin,
@@ -33,6 +36,20 @@ module.exports = {
         };
         save(data);
         return data.users[id];
+    },
+
+    getUserByEmail(email) {
+        if (!email) return null;
+        const lc = email.toLowerCase();
+        return Object.values(load().users).find(u => (u.email || '').toLowerCase() === lc) || null;
+    },
+    setPassword(id, passwordHash) {
+        const data = load();
+        if (data.users[id]) { data.users[id].password_hash = passwordHash; save(data); }
+    },
+    setEmail(id, email) {
+        const data = load();
+        if (data.users[id]) { data.users[id].email = email ? email.toLowerCase() : null; save(data); }
     },
 
     // 站内消息（收件箱）：比赛结束/排名等发给玩家（含离线/已离开者）

@@ -35,3 +35,6 @@ PokerServer/hands.jsonl
 
 # JWT 私章（每台服务器自动生成、唯一，绝不入库/勿覆盖）
 PokerServer/secret.key
+
+# 发信 SMTP 凭据（授权码，绝不入库/勿覆盖）
+PokerServer/mail.json

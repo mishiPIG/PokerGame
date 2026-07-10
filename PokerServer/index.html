@@ -123,6 +123,8 @@
             border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; transition: filter 0.15s; }
         .auth-submit:hover { filter: brightness(1.15); }
         .auth-hint { text-align: center; font-size: 12px; color: #888; margin-top: 10px; }
+        .auth-link { color: #6ca0ff; cursor: pointer; }
+        .auth-link:hover { text-decoration: underline; }
         #auth-error { color: #ff6b6b; font-size: 13px; min-height: 18px; margin-top: 8px; text-align: center; }
 
         /* ===== User bar ===== */
@@ -689,6 +691,45 @@
         .bm-auto { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: #44546e; }
         .bm-auto input { width: 16px; height: 16px; }
 
+        /* ===== 牌谱回放 ===== */
+        #replay-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.72);
+            display: flex; align-items: center; justify-content: center; padding: 12px; }
+        .replay-box { width: 100%; max-width: 440px; background: linear-gradient(160deg,#1b2740,#0e1626);
+            border-radius: 16px; padding: 14px; color: #e7eefb; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            display: flex; flex-direction: column; }
+        .rp-head { display: flex; justify-content: space-between; align-items: center; font-size: 16px; }
+        .rp-head button { background: none; border: none; color: #9fb0cc; font-size: 20px; cursor: pointer; }
+        #rp-info { font-size: 11.5px; color: #8fa2c4; margin: 4px 0 6px; }
+        #rp-table { position: relative; width: 100%; height: 300px;
+            background: radial-gradient(ellipse at center,#234 0%,#0e1626 78%); border-radius: 14px; overflow: hidden; }
+        #rp-ring { position: absolute; inset: 0; }
+        #rp-board { position: absolute; left: 50%; top: 42%; transform: translate(-50%,-50%); text-align: center; }
+        #rp-pot { font-size: 14px; font-weight: bold; color: #f4d35e; margin-bottom: 5px; }
+        #rp-community { display: flex; gap: 3px; justify-content: center; }
+        #rp-community .card, #rp-community .empty-slot { width: 26px; height: 36px; }
+        .rp-seat { position: absolute; transform: translate(-50%,-50%); display: flex; flex-direction: column;
+            align-items: center; gap: 1px; width: 66px; }
+        .rp-seat.folded { opacity: 0.42; }
+        .rp-seat.acting .rp-avatar { box-shadow: 0 0 0 2px #f4d35e, 0 0 12px rgba(244,211,94,0.8); }
+        .rp-cards { display: flex; gap: 2px; height: 34px; }
+        .rp-cards .card, .rp-cards .card.back { width: 24px; height: 33px; }
+        .rp-avatar { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center;
+            justify-content: center; color: #fff; font-weight: bold; font-size: 14px; overflow: hidden;
+            border: 1.5px solid rgba(255,255,255,0.25); }
+        .rp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .rp-name { font-size: 10px; color: #cfd8e6; max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rp-name .pos { color: #f4d35e; font-weight: bold; margin-left: 2px; }
+        .rp-stack { font-size: 10.5px; color: #e8c14a; font-weight: bold; }
+        .rp-bet { font-size: 9.5px; font-weight: bold; color: #241a00; background: linear-gradient(135deg,#f4d35e,#ee9b00);
+            padding: 0 6px; border-radius: 8px; }
+        #rp-caption { text-align: center; font-size: 13px; color: #e7eefb; min-height: 20px; margin: 8px 0; font-weight: 600; }
+        .rp-controls { display: flex; align-items: center; justify-content: center; gap: 12px; }
+        .rp-controls button { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.16);
+            color: #fff; width: 42px; height: 38px; border-radius: 10px; font-size: 16px; cursor: pointer; }
+        #rp-play { background: #3a86ff; border-color: #3a86ff; }
+        #rp-speed { width: auto; padding: 0 12px; font-size: 13px; font-weight: bold; }
+        #rp-progress { font-size: 12px; color: #8fa2c4; min-width: 42px; text-align: center; }
+
         /* ===== 消息收件箱 ===== */
         .inbox-badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 3px;
             background: #ef476f; color: #fff; border-radius: 8px; font-size: 10px; line-height: 16px;
@@ -766,15 +807,39 @@
             <button class="auth-tab"        onclick="showTab('register')">注册</button>
         </div>
         <div id="tab-login">
-            <input class="auth-field" type="text"     id="login-user" placeholder="用户名">
+            <input class="auth-field" type="text"     id="login-user" placeholder="用户名 / 邮箱">
             <input class="auth-field" type="password" id="login-pass" placeholder="密码">
             <button class="auth-submit" onclick="doLogin()">登录</button>
+            <p class="auth-hint"><a class="auth-link" onclick="showTab('forgot')">忘记密码？</a></p>
         </div>
         <div id="tab-register" style="display:none">
-            <input class="auth-field" type="text"     id="reg-user" placeholder="用户名（2-20 字符）">
-            <input class="auth-field" type="password" id="reg-pass" placeholder="密码（至少 6 位）">
-            <button class="auth-submit" onclick="doRegister()">注册</button>
+            <div id="reg-step1">
+                <input class="auth-field" type="text"  id="reg-user"  placeholder="用户名（2-20 字符）">
+                <input class="auth-field" type="email" id="reg-email" placeholder="邮箱">
+                <input class="auth-field" type="password" id="reg-pass" placeholder="密码（至少 6 位）">
+                <button class="auth-submit" onclick="regSendCode()">发送验证码</button>
+            </div>
+            <div id="reg-step2" style="display:none">
+                <div class="auth-hint" id="reg-sent-hint"></div>
+                <input class="auth-field" type="text" id="reg-code" placeholder="6 位邮箱验证码" inputmode="numeric" maxlength="6">
+                <button class="auth-submit" onclick="regVerify()">完成注册</button>
+                <p class="auth-hint"><a class="auth-link" onclick="regBack()">返回修改</a> · <a class="auth-link" onclick="regSendCode()">重发验证码</a></p>
+            </div>
             <p class="auth-hint">注册即赠 10,000 金币 🪙</p>
+        </div>
+        <div id="tab-forgot" style="display:none">
+            <div id="fg-step1">
+                <input class="auth-field" type="email" id="fg-email" placeholder="注册邮箱">
+                <button class="auth-submit" onclick="fgSendCode()">发送验证码</button>
+            </div>
+            <div id="fg-step2" style="display:none">
+                <div class="auth-hint" id="fg-sent-hint"></div>
+                <input class="auth-field" type="text" id="fg-code" placeholder="6 位邮箱验证码" inputmode="numeric" maxlength="6">
+                <input class="auth-field" type="password" id="fg-pass" placeholder="新密码（至少 6 位）">
+                <button class="auth-submit" onclick="fgReset()">重置密码</button>
+                <p class="auth-hint"><a class="auth-link" onclick="fgSendCode()">重发验证码</a></p>
+            </div>
+            <p class="auth-hint"><a class="auth-link" onclick="showTab('login')">← 返回登录</a></p>
         </div>
         <div id="auth-error"></div>
     </div>
@@ -1063,6 +1128,26 @@
 <!-- 弹幕层（聊天消息右→左滚动）-->
 <div id="danmaku-layer"></div>
 
+<!-- 牌谱回放（还原当时桌面场景，逐步/播放）-->
+<div id="replay-overlay" style="display:none">
+    <div class="replay-box">
+        <div class="rp-head"><b id="rp-title">牌谱回放</b><button onclick="closeReplay()">✕</button></div>
+        <div id="rp-info"></div>
+        <div id="rp-table">
+            <div id="rp-ring"></div>
+            <div id="rp-board"><div id="rp-pot"></div><div id="rp-community"></div></div>
+        </div>
+        <div id="rp-caption"></div>
+        <div class="rp-controls">
+            <button onclick="rpStep(-1)" title="上一步">⏮</button>
+            <button id="rp-play" onclick="rpToggle()" title="播放/暂停">▶</button>
+            <button onclick="rpStep(1)" title="下一步">⏭</button>
+            <span id="rp-progress"></span>
+            <button onclick="rpSpeed()" id="rp-speed" title="速度">1×</button>
+        </div>
+    </div>
+</div>
+
 <!-- ===== 比赛结算 ===== -->
 <div id="result-overlay" style="display:none">
     <div class="result-box">
@@ -1186,9 +1271,17 @@ function toggleDisplayBB() {
 function showTab(tab) {
     document.getElementById('tab-login').style.display    = tab === 'login'    ? '' : 'none';
     document.getElementById('tab-register').style.display = tab === 'register' ? '' : 'none';
+    document.getElementById('tab-forgot').style.display   = tab === 'forgot'   ? '' : 'none';
     document.querySelectorAll('.auth-tab').forEach((b, i) =>
-        b.classList.toggle('active', (tab === 'login') ? i === 0 : i === 1));
+        b.classList.toggle('active', (tab === 'register') ? i === 1 : i === 0));   // forgot 高亮登录页
+    if (tab === 'register') regBack();
+    if (tab === 'forgot') { document.getElementById('fg-step1').style.display = ''; document.getElementById('fg-step2').style.display = 'none'; }
     document.getElementById('auth-error').textContent = '';
+}
+async function authPost(url, body) {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    let data = {}; try { data = await res.json(); } catch {}
+    return { ok: res.ok, data };
 }
 
 function setAuthError(msg) {
@@ -1198,29 +1291,71 @@ function setAuthError(msg) {
 async function doLogin() {
     const username = document.getElementById('login-user').value.trim();
     const password = document.getElementById('login-pass').value;
-    if (!username || !password) return setAuthError('请填写用户名和密码');
+    if (!username || !password) return setAuthError('请填写账号和密码');
     try {
-        const res = await fetch('/api/login', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        const data = await res.json();
-        if (!res.ok) return setAuthError(data.error);
+        const { ok, data } = await authPost('/api/login', { username, password });
+        if (!ok) return setAuthError(data.error || '登录失败');
         onAuthSuccess(data);
     } catch { setAuthError('网络错误，请重试'); }
 }
 
-async function doRegister() {
+// ── 注册（邮箱验证码，两步）──
+let regEmail = '';
+function regBack() {
+    document.getElementById('reg-step1').style.display = '';
+    document.getElementById('reg-step2').style.display = 'none';
+    setAuthError('');
+}
+async function regSendCode() {
     const username = document.getElementById('reg-user').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-pass').value;
-    if (!username || !password) return setAuthError('请填写用户名和密码');
+    if (!username || !email || !password) return setAuthError('请填写用户名、邮箱和密码');
+    setAuthError('发送中…');
     try {
-        const res = await fetch('/api/register', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        const data = await res.json();
-        if (!res.ok) return setAuthError(data.error);
+        const { ok, data } = await authPost('/api/register/send-code', { username, email, password });
+        if (!ok) return setAuthError(data.error || '发送失败');
+        regEmail = email;
+        document.getElementById('reg-step1').style.display = 'none';
+        document.getElementById('reg-step2').style.display = '';
+        document.getElementById('reg-sent-hint').textContent =
+            data.mailConfigured === false ? `测试模式：验证码已打到服务器日志（未配置发信）` : `验证码已发送到 ${email}，请查收（含垃圾箱）`;
+        setAuthError('');
+    } catch { setAuthError('网络错误，请重试'); }
+}
+async function regVerify() {
+    const code = document.getElementById('reg-code').value.trim();
+    if (!code) return setAuthError('请输入验证码');
+    try {
+        const { ok, data } = await authPost('/api/register/verify', { email: regEmail, code });
+        if (!ok) return setAuthError(data.error || '验证失败');
+        onAuthSuccess(data);
+    } catch { setAuthError('网络错误，请重试'); }
+}
+
+// ── 忘记密码（两步）──
+let fgEmail = '';
+async function fgSendCode() {
+    const email = document.getElementById('fg-email').value.trim();
+    if (!email) return setAuthError('请输入注册邮箱');
+    setAuthError('发送中…');
+    try {
+        const { ok, data } = await authPost('/api/forgot/send-code', { email });
+        if (!ok) return setAuthError(data.error || '发送失败');
+        fgEmail = email;
+        document.getElementById('fg-step1').style.display = 'none';
+        document.getElementById('fg-step2').style.display = '';
+        document.getElementById('fg-sent-hint').textContent = `若该邮箱已注册，验证码已发送到 ${email}`;
+        setAuthError('');
+    } catch { setAuthError('网络错误，请重试'); }
+}
+async function fgReset() {
+    const code = document.getElementById('fg-code').value.trim();
+    const newPassword = document.getElementById('fg-pass').value;
+    if (!code || !newPassword) return setAuthError('请输入验证码和新密码');
+    try {
+        const { ok, data } = await authPost('/api/forgot/reset', { email: fgEmail, code, newPassword });
+        if (!ok) return setAuthError(data.error || '重置失败');
         onAuthSuccess(data);
     } catch { setAuthError('网络错误，请重试'); }
 }
@@ -1455,7 +1590,7 @@ function showLobby() {
     shownCards = {}; myShown = new Set(); showJustHappened = false;
     showdownInfo = null; myHand = null; mySeated = false; prevChipsShown = {};
     // 关闭所有桌内面板/弹窗
-    ['table-menu','buyin-modal','stats-panel','history-panel','match-modal','inbox-panel','profile-overlay','chat-panel'].forEach(id => {
+    ['table-menu','buyin-modal','stats-panel','history-panel','match-modal','inbox-panel','profile-overlay','chat-panel','replay-overlay'].forEach(id => {
         const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     if (socket) socket.emit('enter_lobby');
@@ -1834,32 +1969,164 @@ async function loadHistory(listId, mode) {
         renderHistory(await res.json(), listId);
     } catch { list.innerHTML = '<div class="hist-empty">读取牌谱失败</div>'; }
 }
+let histHandsByList = {};   // listId -> hands[]（供点击回放取用）
 function renderHistory(hands, listId) {
-    const list = document.getElementById(listId || 'history-list');
+    listId = listId || 'history-list';
+    histHandsByList[listId] = hands;
+    const list = document.getElementById(listId);
     if (!hands.length) { list.innerHTML = '<div class="hist-empty">暂无牌谱记录</div>'; return; }
     const fmtC = s => s.replace(/T/g, '10');
     list.innerHTML = hands.map((h, idx) => {
         const me = (h.seats || []).find(s => s.userId === myUserId);
         const res = (h.results || []).find(r => r.userId === myUserId);
         const won = res ? res.won : 0;
-        const net = won; // 赢得底池金额（粗略）
         const time = new Date(h.ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
         const hole = me ? me.hole.map(fmtC).join(' ') : '--';
-        const comm = (h.community || []).map(fmtC).join(' ') || '（未到翻牌）';
         const tag = h.mode === 'cash' ? '现金' : 'SNG';
         const winCls = won > 0 ? 'win' : 'lose';
-        return `<div class="hist-item ${winCls}" onclick="this.classList.toggle('open')">
+        return `<div class="hist-item ${winCls}" onclick="openReplayFrom('${listId}',${idx})">
             <div class="hi-head">
                 <span class="hi-time">${time}·${tag}</span>
                 <span class="hi-hole">${hole}</span>
-                <span class="hi-net">${won > 0 ? '赢 ' + won.toLocaleString() : '—'}</span>
-            </div>
-            <div class="hi-body">
-                <div>公共牌：${comm}</div>
-                <div>盲注：${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''} · ${(h.seats || []).length} 人</div>
-                <div class="hi-actions">${renderHistActions(h)}</div>
+                <span class="hi-net">${won > 0 ? '赢 ' + won.toLocaleString() : '—'} ▶</span>
             </div></div>`;
     }).join('');
+}
+function openReplayFrom(listId, idx) {
+    const h = (histHandsByList[listId] || [])[idx];
+    if (h) openReplay(h);
+}
+
+// ===== 牌谱回放引擎（把一手记录还原成桌面场景，逐步/播放）=====
+let rpFrames = [], rpIdx = 0, rpTimer = null, rpPlaying = false, rpSpeedIdx = 0, rpCommunity = [];
+const RP_SPEEDS = [1, 1.5, 2, 0.5];
+function rpParseCard(str) {
+    const suit = { S: 'Spades', H: 'Hearts', D: 'Diamonds', C: 'Clubs' }[str.slice(-1)] || 'Spades';
+    return { suit, rank: str.slice(0, -1) };
+}
+function rpRingPos(i, n) {
+    const cx = 50, cy = 44, rx = 40, ry = 37;
+    const ang = Math.PI / 2 + (2 * Math.PI * i / n);
+    return { x: cx + rx * Math.cos(ang), y: cy + ry * Math.sin(ang) };
+}
+function buildReplayFrames(h) {
+    const players = (h.seats || []).slice().sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0)).map(s => ({
+        userId: s.userId, name: s.username, avatar: s.avatar, seat: s.seat ?? 0,
+        stack: s.startChips || 0, bet: 0, folded: false, showCards: false,
+        hole: (s.hole || []).map(rpParseCard), isMe: s.userId === myUserId, pos: ''
+    }));
+    const byId = {}; players.forEach(p => byId[p.userId] = p);
+    const n = players.length;
+    const btnI = players.findIndex(p => p.userId === h.buttonUserId);
+    if (btnI >= 0 && n >= 2) {
+        const sbI = n === 2 ? btnI : (btnI + 1) % n;
+        const bbI = n === 2 ? (btnI + 1) % n : (btnI + 2) % n;
+        players[btnI].pos = 'BTN';
+        players[sbI].pos = (players[sbI].pos ? players[sbI].pos + '/' : '') + 'SB';
+        players[bbI].pos = players[bbI].pos ? players[bbI].pos + '/BB' : 'BB';
+    }
+    let pot = 0, community = 0, street = 'preflop';
+    const frames = [];
+    const snap = (caption, actingId) => frames.push({ players: players.map(p => ({ ...p })), pot, community, caption, actingId });
+    if (h.ante > 0) players.forEach(p => { const a = Math.min(h.ante, p.stack); p.stack -= a; pot += a; });
+    const sbP = players.find(p => (p.pos || '').includes('SB'));
+    const bbP = players.find(p => (p.pos || '').includes('BB'));
+    if (sbP) { const v = Math.min(h.sb, sbP.stack); sbP.stack -= v; sbP.bet = v; }
+    if (bbP) { const v = Math.min(h.bb, bbP.stack); bbP.stack -= v; bbP.bet = v; }
+    snap(`发牌 · 盲注 ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''}`, null);
+    const stName = { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌' };
+    for (const a of (h.actions || [])) {
+        if (a.street !== street) {
+            players.forEach(p => { pot += p.bet; p.bet = 0; });
+            street = a.street;
+            community = street === 'flop' ? 3 : street === 'turn' ? 4 : street === 'river' ? 5 : community;
+            snap(`${stName[street] || street}`, null);
+        }
+        const p = byId[a.userId]; if (!p) continue;
+        const think = a.thinkMs ? ` · 思考 ${(a.thinkMs / 1000).toFixed(1)}s` : '';
+        let cap;
+        if (a.action === 'fold') { p.folded = true; cap = `${p.name} 弃牌`; }
+        else if (a.action === 'check') cap = `${p.name} 过牌`;
+        else if (a.action === 'call') { p.stack -= (a.amount - p.bet); p.bet = a.amount; cap = `${p.name} 跟注 ${fmtChips(a.amount)}`; }
+        else if (a.action === 'bet') { p.stack -= (a.amount - p.bet); p.bet = a.amount; cap = `${p.name} 下注 ${fmtChips(a.amount)}`; }
+        else if (a.action === 'raise') { p.stack -= (a.amount - p.bet); p.bet = a.amount; cap = `${p.name} 加注到 ${fmtChips(a.amount)}`; }
+        else cap = `${p.name} ${a.action}`;
+        snap(`${stName[street] || street} · ${cap}${think}`, a.userId);
+    }
+    players.forEach(p => { pot += p.bet; p.bet = 0; });
+    community = (h.community || []).length;
+    players.forEach(p => { if (!p.folded) p.showCards = true; });
+    const winners = (h.results || []).filter(r => r.won > 0);
+    winners.forEach(r => { const p = byId[r.userId]; if (p) p.stack += r.won; });
+    const wn = winners.map(r => byId[r.userId] && byId[r.userId].name).filter(Boolean);
+    snap(`摊牌 · ${wn.length ? wn.join('、') + ' 赢得 ' + fmtChips(winners.reduce((s, r) => s + r.won, 0)) : '结束'}`, null);
+    return frames;
+}
+function openReplay(h) {
+    rpFrames = buildReplayFrames(h);
+    rpCommunity = (h.community || []).map(rpParseCard);
+    rpIdx = 0; rpPlaying = false;
+    const time = new Date(h.ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const me = (h.seats || []).find(s => s.userId === myUserId);
+    document.getElementById('rp-info').textContent =
+        `${time} · ${h.mode === 'cash' ? '现金桌' : 'SNG'} · 盲注 ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''} · ${(h.seats || []).length} 人`
+        + (me ? ` · 你的后手 ${Math.round((me.startChips || 0) / h.bb)}BB` : '');
+    document.getElementById('replay-overlay').style.display = 'flex';
+    renderReplayFrame();
+    rpToggle();   // 自动播放
+}
+function closeReplay() {
+    if (rpTimer) { clearTimeout(rpTimer); rpTimer = null; }
+    rpPlaying = false;
+    document.getElementById('replay-overlay').style.display = 'none';
+}
+function renderReplayFrame() {
+    const f = rpFrames[rpIdx]; if (!f) return;
+    const n = f.players.length;
+    const meIdx = f.players.findIndex(p => p.isMe);
+    const base = meIdx >= 0 ? meIdx : 0;
+    document.getElementById('rp-ring').innerHTML = f.players.map((p, i) => {
+        const ri = ((i - base) % n + n) % n;
+        const pos = rpRingPos(ri, n);
+        const showFace = p.isMe || p.showCards;
+        const cards = p.hole.map(c => showFace ? formatCard(c) : cardBack()).join('');
+        const cls = 'rp-seat' + (p.folded ? ' folded' : '') + (p.userId === f.actingId ? ' acting' : '');
+        const initial = (p.name || '?').charAt(0).toUpperCase();
+        const av = p.avatar ? `<img src="${p.avatar}" onerror="this.style.display='none'">` : escapeHtml(initial);
+        return `<div class="${cls}" style="left:${pos.x}%;top:${pos.y}%">
+            <div class="rp-cards">${cards}</div>
+            <div class="rp-avatar" style="background:hsl(${hashHue(p.name)},45%,42%)">${av}</div>
+            <div class="rp-name">${escapeHtml(p.name)}${p.pos ? `<span class="pos">${p.pos}</span>` : ''}</div>
+            <div class="rp-stack">${fmtChips(p.stack)}</div>
+            ${p.bet > 0 ? `<div class="rp-bet">${fmtChips(p.bet)}</div>` : ''}
+        </div>`;
+    }).join('');
+    let cc = '';
+    for (let i = 0; i < 5; i++) cc += (i < f.community && rpCommunity[i]) ? formatCard(rpCommunity[i]) : emptySlot();
+    document.getElementById('rp-community').innerHTML = cc;
+    document.getElementById('rp-pot').textContent = '💰 底池 ' + fmtChips(f.pot);
+    document.getElementById('rp-caption').textContent = f.caption || '';
+    document.getElementById('rp-progress').textContent = `${rpIdx + 1}/${rpFrames.length}`;
+}
+function rpToggle() {
+    rpPlaying = !rpPlaying;
+    document.getElementById('rp-play').textContent = rpPlaying ? '⏸' : '▶';
+    if (rpPlaying) rpAdvanceLoop(); else if (rpTimer) { clearTimeout(rpTimer); rpTimer = null; }
+}
+function rpAdvanceLoop() {
+    if (!rpPlaying) return;
+    if (rpIdx >= rpFrames.length - 1) { rpPlaying = false; document.getElementById('rp-play').textContent = '▶'; return; }
+    rpTimer = setTimeout(() => { rpIdx++; renderReplayFrame(); rpAdvanceLoop(); }, 1300 / RP_SPEEDS[rpSpeedIdx]);
+}
+function rpStep(dir) {
+    rpPlaying = false; document.getElementById('rp-play').textContent = '▶';
+    if (rpTimer) { clearTimeout(rpTimer); rpTimer = null; }
+    rpIdx = Math.max(0, Math.min(rpFrames.length - 1, rpIdx + dir));
+    renderReplayFrame();
+}
+function rpSpeed() {
+    rpSpeedIdx = (rpSpeedIdx + 1) % RP_SPEEDS.length;
+    document.getElementById('rp-speed').textContent = RP_SPEEDS[rpSpeedIdx] + '×';
 }
 function renderHistActions(h) {
     const nameOf = {}; (h.seats || []).forEach(s => nameOf[s.userId] = s.username);
