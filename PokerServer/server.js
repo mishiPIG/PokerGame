@@ -15,6 +15,8 @@ const mailer = require('./mailer');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
+// 本地开发模式必须显式开启（npm run dev），生产/测试服默认永不开启。
+const LOCAL_DEV = process.env.LOCAL_DEV === '1';
 app.use(express.json());
 app.use('/avatars', express.static(__dirname + '/avatars'));   // 本地头像图片
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
@@ -46,6 +48,18 @@ const JWT_SECRET = (() => {
     catch (e) { console.error('⚠️ 无法写入 secret.key，本次用内存随机密钥（重启会掉登录）：', e.message); }
     return k;
 })();
+
+// 仅供本机联调：每次 npm run dev 保证两个双人测试账号可登录。
+// 此分支受 LOCAL_DEV 显式环境变量保护，普通 node server.js / pm2 都不会执行。
+if (LOCAL_DEV) {
+    for (const [username, password] of [['test', 'test'], ['test2', 'test2']]) {
+        const hash = bcrypt.hashSync(password, 8);
+        const existing = db.getUserByUsername(username);
+        if (existing) db.setPassword(existing.id, hash);
+        else db.createUser(username, hash, false, null);
+    }
+    console.log('🧪 本地开发账号已就绪：test / test，test2 / test2');
+}
 
 // 标准 SNG 升盲表（级别 0 起，初始 25/50；SB=BB/2，每级 BB ×1.3~1.5 取整，行业标准结构）
 const STANDARD_BLIND_LEVELS = [
@@ -144,6 +158,201 @@ function requireAuth(req, res, next) {
         next();
     } catch { res.status(401).json({ error: '登录已过期' }); }
 }
+
+// ===== 桌内临时语音 =====
+// 语音只用于当前牌桌的短暂互动：不进聊天历史、不备份、不进数据库。
+// 服务器重启时直接清空；正常运行时 1 小时过期，定时物理删除。
+const VOICE_DIR = path.join(__dirname, 'voice_tmp');
+const VOICE_TTL_MS = 60 * 60 * 1000;
+const VOICE_SWEEP_MS = 5 * 60 * 1000;
+const VOICE_BUBBLE_MS = 10000;
+const VOICE_MAX_DURATION_MS = 15000;
+const VOICE_MAX_BYTES = 512 * 1024;
+const VOICE_DIR_MAX_BYTES = 200 * 1024 * 1024;
+const VOICE_MAX_PER_HOUR = 60;
+const VOICE_UPLOAD_GAP_MS = 3000;
+const VOICE_MAX_CONCURRENT_UPLOADS = 12;
+const VOICE_MAX_PER_USER_UPLOADS = 2;
+const VOICE_UPLOAD_TIMEOUT_MS = 10000;
+const VOICE_MIMES = new Map([
+    ['audio/mp4', 'm4a'], ['audio/aac', 'aac'], ['audio/mpeg', 'mp3'],
+    ['audio/webm', 'webm'], ['audio/ogg', 'ogg']
+]);
+const voiceEntries = new Map();
+const voiceRate = new Map();
+const voiceUserUploads = new Map();
+let voiceBytes = 0;
+let voiceUploadsInFlight = 0;
+let musicMetadataModule = null;
+
+function resetVoiceTempDir() {
+    try {
+        fs.rmSync(VOICE_DIR, { recursive: true, force: true });
+        fs.mkdirSync(VOICE_DIR, { recursive: true, mode: 0o700 });
+    } catch (e) {
+        console.error('⚠️ 无法初始化临时语音目录：', e.message);
+    }
+}
+
+function removeVoiceEntry(id) {
+    const entry = voiceEntries.get(id);
+    if (!entry) return;
+    voiceEntries.delete(id);
+    voiceBytes = Math.max(0, voiceBytes - entry.size);
+    try { fs.unlinkSync(entry.file); } catch (e) { if (e.code !== 'ENOENT') console.warn('[voice] 删除失败：', e.message); }
+}
+
+function sweepExpiredVoices(now = Date.now()) {
+    for (const [id, entry] of voiceEntries) {
+        if (entry.expiresAt <= now) removeVoiceEntry(id);
+    }
+}
+
+function userIsConnectedToRoom(userId, roomId) {
+    const members = io.sockets.adapter.rooms.get(roomId);
+    if (!members) return false;
+    for (const sid of members) {
+        const s = io.sockets.sockets.get(sid);
+        if (s?.user?.id === userId && s.currentRoom === roomId) return true;
+    }
+    return false;
+}
+
+function voicePublicMessage(entry) {
+    return {
+        id: entry.id, userId: entry.userId, username: entry.username,
+        durationMs: entry.durationMs, expiresAt: entry.expiresAt,
+        bubbleUntil: entry.bubbleUntil
+    };
+}
+
+function syncRecentVoices(socket, roomId) {
+    const now = Date.now();
+    for (const entry of voiceEntries.values()) {
+        if (entry.roomId === roomId && entry.bubbleUntil > now)
+            socket.emit('voice_broadcast', voicePublicMessage(entry));
+    }
+}
+
+function allowVoiceUpload(userId, now = Date.now()) {
+    let rate = voiceRate.get(userId);
+    if (!rate || now - rate.windowStart >= 60 * 60 * 1000) {
+        rate = { windowStart: now, count: 0, lastAt: 0 };
+    }
+    if (now - rate.lastAt < VOICE_UPLOAD_GAP_MS || rate.count >= VOICE_MAX_PER_HOUR) return false;
+    rate.lastAt = now;
+    rate.count++;
+    voiceRate.set(userId, rate);
+    return true;
+}
+
+async function actualVoiceDurationMs(buffer, mime) {
+    musicMetadataModule ||= await import('music-metadata');
+    const metadata = await musicMetadataModule.parseBuffer(
+        buffer,
+        { mimeType: mime, size: buffer.length },
+        { duration: true, skipCovers: true }
+    );
+    const seconds = metadata?.format?.duration;
+    if (!Number.isFinite(seconds) || seconds <= 0) throw new Error('NO_DURATION');
+    return Math.round(seconds * 1000);
+}
+
+function voiceUploadGate(req, res, next) {
+    const contentLength = Number(req.headers['content-length']);
+    if (!Number.isInteger(contentLength) || contentLength <= 0)
+        return res.status(411).json({ error: '语音上传必须声明文件大小' });
+    if (contentLength > VOICE_MAX_BYTES)
+        return res.status(413).json({ error: '语音文件过大' });
+    if (voiceUploadsInFlight >= VOICE_MAX_CONCURRENT_UPLOADS)
+        return res.status(503).json({ error: '当前语音上传较多，请稍后再试' });
+    const userId = req.authUser.id;
+    const userCount = voiceUserUploads.get(userId) || 0;
+    if (userCount >= VOICE_MAX_PER_USER_UPLOADS)
+        return res.status(429).json({ error: '同一账号最多同时上传 2 条语音' });
+    voiceUploadsInFlight++;
+    voiceUserUploads.set(userId, userCount + 1);
+    let released = false;
+    const timeout = setTimeout(() => {
+        if (!released) req.destroy();       // 绝对时限，慢速持续传输也不能续期
+    }, VOICE_UPLOAD_TIMEOUT_MS);
+    timeout.unref?.();
+    const release = () => {
+        if (released) return;
+        released = true;
+        clearTimeout(timeout);
+        voiceUploadsInFlight--;
+        const left = (voiceUserUploads.get(userId) || 1) - 1;
+        if (left > 0) voiceUserUploads.set(userId, left); else voiceUserUploads.delete(userId);
+    };
+    res.once('finish', release);
+    res.once('close', release);
+    next();
+}
+
+resetVoiceTempDir();
+const voiceSweepTimer = setInterval(() => sweepExpiredVoices(), VOICE_SWEEP_MS);
+voiceSweepTimer.unref?.();
+
+app.post('/api/voice', requireAuth, voiceUploadGate,
+    express.raw({ type: ['audio/*', 'application/octet-stream'], limit: VOICE_MAX_BYTES }),
+    async (req, res) => {
+        const roomId = String(req.headers['x-room-id'] || '');
+        const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+        if (!roomGames[roomId] || !userIsConnectedToRoom(req.authUser.id, roomId))
+            return res.status(403).json({ error: '你已不在该房间' });
+        if (!VOICE_MIMES.has(mime)) return res.status(415).json({ error: '不支持的录音格式' });
+        if (!Buffer.isBuffer(req.body) || req.body.length === 0 || req.body.length > VOICE_MAX_BYTES)
+            return res.status(400).json({ error: '语音文件为空或过大' });
+        let durationMs;
+        try { durationMs = await actualVoiceDurationMs(req.body, mime); }
+        catch { return res.status(422).json({ error: '无法解析语音真实时长' }); }
+        if (durationMs < 300 || durationMs > VOICE_MAX_DURATION_MS)
+            return res.status(400).json({ error: '语音时长必须在 0.3～15 秒之间' });
+        if (!allowVoiceUpload(req.authUser.id))
+            return res.status(429).json({ error: '发送太频繁，请稍后再试' });
+
+        sweepExpiredVoices();
+        if (voiceBytes + req.body.length > VOICE_DIR_MAX_BYTES)
+            return res.status(507).json({ error: '临时语音空间已满，请稍后再试' });
+
+        const id = crypto.randomBytes(16).toString('hex');
+        const file = path.join(VOICE_DIR, `${id}.${VOICE_MIMES.get(mime)}`);
+        const now = Date.now();
+        try {
+            fs.writeFileSync(file, req.body, { mode: 0o600, flag: 'wx' });
+        } catch (e) {
+            console.error('[voice] 写入失败：', e.message);
+            return res.status(500).json({ error: '语音保存失败' });
+        }
+        const entry = {
+            id, roomId, userId: req.authUser.id, username: req.authUser.username,
+            file, mime, size: req.body.length, durationMs,
+            createdAt: now, expiresAt: now + VOICE_TTL_MS,
+            bubbleUntil: now + VOICE_BUBBLE_MS
+        };
+        voiceEntries.set(id, entry);
+        voiceBytes += entry.size;
+        io.in(roomId).emit('voice_broadcast', voicePublicMessage(entry));
+        res.status(201).json({ ok: true, id, expiresAt: entry.expiresAt });
+    }
+);
+
+app.get('/api/voice/:id', requireAuth, (req, res) => {
+    const id = String(req.params.id || '');
+    if (!/^[a-f0-9]{32}$/.test(id)) return res.status(404).json({ error: '语音不存在' });
+    const entry = voiceEntries.get(id);
+    if (!entry) return res.status(404).json({ error: '语音已失效' });
+    if (entry.expiresAt <= Date.now()) {
+        removeVoiceEntry(id);
+        return res.status(410).json({ error: '语音已过期' });
+    }
+    if (!userIsConnectedToRoom(req.authUser.id, entry.roomId))
+        return res.status(403).json({ error: '仅当前房间成员可播放' });
+    res.set('Cache-Control', 'private, no-store');
+    res.type(entry.mime);
+    res.sendFile(entry.file);
+});
 
 // 我的牌谱（最近若干手，可按 mode=sng|cash 筛选）
 app.get('/api/my-hands', requireAuth, (req, res) => {
@@ -1736,6 +1945,13 @@ io.on('connection', (socket) => {
         io.in(roomId).emit('emote_broadcast', { userId: user.id, emote, targetUserId: targetUserId || null });
     });
 
+    // 重连/刷新后只恢复尚在 10 秒展示期内的语音气泡，不构成聊天历史。
+    socket.on('voice_sync', (roomId) => {
+        roomId = String(roomId || '');
+        if (socket.currentRoom !== roomId || !roomGames[roomId]) return;
+        syncRecentVoices(socket, roomId);
+    });
+
     socket.on('player_action', ({ roomId, action, amount }) => {
         const game = roomGames[roomId];
         if (!game) return;
@@ -1877,4 +2093,9 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => { console.log(`🚀 扑克服务器已启动！端口: ${PORT}`); });
+const onListening = () => {
+    const host = LOCAL_DEV ? '127.0.0.1' : '0.0.0.0';
+    console.log(`🚀 扑克服务器已启动！${host}:${PORT}${LOCAL_DEV ? ' (本地开发模式)' : ''}`);
+};
+if (LOCAL_DEV) server.listen(PORT, '127.0.0.1', onListening);
+else server.listen(PORT, onListening);

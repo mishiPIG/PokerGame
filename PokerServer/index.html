@@ -683,6 +683,25 @@
             background: rgba(255,255,255,0.06); color: #fff; padding: 9px 11px; font-size: 14px; }
         .chat-input-row button { flex: 0 0 auto; background: #3a86ff; color: #fff; border: none; border-radius: 9px;
             padding: 0 16px; font-weight: bold; cursor: pointer; }
+        /* 临时语音：按住录音，松开发送；只显示短暂的可点击气泡，不进历史 */
+        #voice-btn { touch-action: none; user-select: none; -webkit-user-select: none; }
+        #voice-btn.recording { color: #fff; background: #d64040; border-color: #ff8585;
+            box-shadow: 0 0 0 4px rgba(214,64,64,0.22); animation: voicePulse .8s ease-in-out infinite; }
+        #voice-recording { position: absolute; left: 50%; bottom: 48px; z-index: 95; transform: translateX(-50%);
+            min-width: 168px; padding: 9px 15px; border-radius: 20px; text-align: center; pointer-events: none;
+            background: rgba(18,27,43,.96); color: #fff; border: 1px solid rgba(255,255,255,.2);
+            box-shadow: 0 6px 22px rgba(0,0,0,.45); font-size: 13px; font-weight: bold; }
+        #voice-recording.cancel { background: rgba(130,38,38,.96); }
+        @keyframes voicePulse { 50% { transform: scale(1.08); } }
+        .voice-bubble { pointer-events: auto; padding: 4px 6px; overflow: visible; }
+        .voice-bubble button, .voice-float button { border: none; border-radius: 13px; padding: 5px 10px;
+            background: #eff5ff; color: #23334d; font-weight: bold; cursor: pointer; white-space: nowrap; }
+        .voice-bubble button.playing, .voice-float button.playing { background: #3a86ff; color: #fff; }
+        .voice-bubble .voice-sender { display: none; }
+        .voice-float { position: fixed; left: 50%; top: 72px; z-index: 96; transform: translateX(-50%);
+            display: flex; gap: 7px; align-items: center; padding: 7px 10px; border-radius: 17px;
+            background: rgba(13,22,36,.94); color: #dfe7f5; box-shadow: 0 5px 18px rgba(0,0,0,.45);
+            animation: bubbleIn .2s ease-out; }
         /* 弹幕（聊天消息右→左滚动，带发送者 id）*/
         #danmaku-layer { position: fixed; left: 0; right: 0; top: 64px; height: 42%; z-index: 90;
             pointer-events: none; overflow: hidden; }
@@ -1122,9 +1141,10 @@
         </div>
         <div class="tc-right">
             <button class="tc-btn" onclick="toggleChat()" title="聊天/表情">💬</button>
-            <button class="tc-btn" onclick="alert('语音功能开发中')" title="语音">🎤</button>
+            <button class="tc-btn" id="voice-btn" title="按住说话">🎤</button>
         </div>
     </div>
+    <div id="voice-recording" style="display:none">按住说话</div>
 
     <!-- 桌内菜单（B7：整合所有牌桌操作）-->
     <div id="table-menu" class="tbl-pop" style="display:none">
@@ -1526,6 +1546,8 @@ function onAuthSuccess({ token, user }) {
 }
 
 function doLogout() {
+    cancelVoiceRecording();
+    stopVoicePlayback();
     localStorage.removeItem('token');
     if (socket) { socket.disconnect(); socket = null; }
     document.getElementById('auth-overlay').style.display = 'flex';
@@ -1578,6 +1600,7 @@ function connectSocket(token) {
         hideReconnecting();
         document.getElementById('btnReady').disabled = false;
         showTable();
+        socket.emit('voice_sync', roomId);
     });
 
     socket.on('left_room', () => {
@@ -1641,6 +1664,10 @@ function connectSocket(token) {
     // 收到表情：座位上方大表情飘出
     socket.on('emote_broadcast', ({ userId, emote }) => {
         seatBubble(userId, emote, true);
+    });
+    // 临时语音不进聊天历史：只在当前房间飘出 10 秒可点击气泡
+    socket.on('voice_broadcast', ({ id, userId, username, durationMs, expiresAt, bubbleUntil }) => {
+        showVoiceBubble({ id, userId, username, durationMs, expiresAt, bubbleUntil });
     });
 
     socket.on('allin_reveal', ({ reveals }) => {
@@ -1754,6 +1781,9 @@ function hideReconnecting() {
     if (el) el.style.display = 'none';
 }
 function showLobby() {
+    cancelVoiceRecording();
+    stopVoicePlayback();
+    clearVoiceBubbles();
     currentRoom = '';
     localStorage.removeItem('currentRoom');
     document.body.classList.remove('in-room');
@@ -2887,6 +2917,290 @@ function seatBubble(userId, html, big) {
     seat.appendChild(b);
     setTimeout(() => b.remove(), big ? 2200 : 3500);
 }
+
+// ===== 临时语音（本地磁盘 1h TTL，无历史）=====
+const VOICE_MAX_MS = 14500; // 给媒体封装收尾留余量，服务端按实际媒体时长严格限制 15s
+const VOICE_BUBBLE_MS = 10000;
+let voiceHold = false;
+let voiceCancel = false;
+let voiceStartY = 0;
+let voiceRecorder = null;
+let voiceStream = null;
+let voiceChunks = [];
+let voiceStartedAt = 0;
+let voiceShouldSend = false;
+let voiceMaxTimer = null;
+let voiceTickTimer = null;
+let voiceUploading = false;
+let playingVoice = null;
+let voicePlayController = null;
+let voicePlayRequestId = 0;
+const activeVoiceBubbles = new Map();
+
+function voiceStatus(text, cancel = false) {
+    const el = document.getElementById('voice-recording');
+    el.textContent = text;
+    el.classList.toggle('cancel', cancel);
+    el.style.display = 'block';
+}
+
+function hideVoiceStatus() {
+    const el = document.getElementById('voice-recording');
+    el.style.display = 'none';
+    el.classList.remove('cancel');
+}
+
+function supportedVoiceMime() {
+    const choices = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+    return choices.find(t => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+function stopVoiceTracks() {
+    if (voiceStream) voiceStream.getTracks().forEach(t => t.stop());
+    voiceStream = null;
+}
+
+function clearVoiceTimers() {
+    clearTimeout(voiceMaxTimer); clearInterval(voiceTickTimer);
+    voiceMaxTimer = null; voiceTickTimer = null;
+}
+
+async function beginVoiceRecording(e) {
+    if (!currentRoom || voiceUploading || voiceRecorder || e.button > 0) return;
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        alert('当前浏览器不支持语音录制，请使用新版 Chrome / Safari'); return;
+    }
+    e.preventDefault();
+    voiceHold = true; voiceCancel = false; voiceStartY = e.clientY;
+    const btn = document.getElementById('voice-btn');
+    try { btn.setPointerCapture(e.pointerId); } catch {}
+    btn.classList.add('recording');
+    voiceStatus('正在请求麦克风…');
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
+        if (!voiceHold) { stream.getTracks().forEach(t => t.stop()); hideVoiceStatus(); return; }
+        voiceStream = stream;
+        const mimeType = supportedVoiceMime();
+        try {
+            voiceRecorder = mimeType
+                ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 })
+                : new MediaRecorder(stream);
+        } catch {
+            voiceRecorder = new MediaRecorder(stream);
+        }
+        voiceChunks = [];
+        voiceRecorder.ondataavailable = ev => { if (ev.data?.size) voiceChunks.push(ev.data); };
+        voiceRecorder.onerror = () => finishVoiceRecording(false);
+        voiceRecorder.onstop = completeVoiceRecording;
+        voiceStartedAt = Date.now();
+        voiceRecorder.start(250);
+        voiceStatus('🎤 0:00  松开发送 · 上滑取消');
+        voiceTickTimer = setInterval(() => {
+            const sec = Math.min(15, Math.floor((Date.now() - voiceStartedAt) / 1000));
+            voiceStatus(voiceCancel ? '松开取消' : `🎤 0:${String(sec).padStart(2, '0')}  松开发送 · 上滑取消`, voiceCancel);
+        }, 200);
+        voiceMaxTimer = setTimeout(() => {
+            voiceHold = false; voiceCancel = false; finishVoiceRecording(true);
+        }, VOICE_MAX_MS);
+    } catch (err) {
+        voiceHold = false; btn.classList.remove('recording'); hideVoiceStatus(); stopVoiceTracks();
+        alert(err?.name === 'NotAllowedError' ? '需要允许麦克风权限才能发送语音' : '无法启动麦克风，请稍后重试');
+    }
+}
+
+function moveVoiceRecording(e) {
+    if (!voiceHold) return;
+    voiceCancel = e.clientY < voiceStartY - 55;
+}
+
+function releaseVoiceRecording(e) {
+    if (!voiceHold) return;
+    e.preventDefault();
+    voiceHold = false;
+    finishVoiceRecording(!voiceCancel);
+}
+
+function finishVoiceRecording(send) {
+    voiceShouldSend = !!send;
+    clearVoiceTimers();
+    document.getElementById('voice-btn')?.classList.remove('recording');
+    if (voiceRecorder && voiceRecorder.state !== 'inactive') {
+        try { voiceRecorder.stop(); } catch { cancelVoiceRecording(); }
+    } else {
+        stopVoiceTracks(); hideVoiceStatus(); voiceRecorder = null;
+    }
+}
+
+function cancelVoiceRecording() {
+    voiceHold = false; voiceCancel = true; voiceShouldSend = false;
+    clearVoiceTimers();
+    document.getElementById('voice-btn')?.classList.remove('recording');
+    if (voiceRecorder && voiceRecorder.state !== 'inactive') {
+        try { voiceRecorder.stop(); } catch {}
+    }
+    voiceRecorder = null; voiceChunks = [];
+    stopVoiceTracks(); hideVoiceStatus();
+}
+
+async function completeVoiceRecording() {
+    const recorder = voiceRecorder;
+    const chunks = voiceChunks.slice();
+    const durationMs = Math.min(VOICE_MAX_MS, Date.now() - voiceStartedAt);
+    const shouldSend = voiceShouldSend && durationMs >= 500 && currentRoom;
+    const mime = (recorder?.mimeType || chunks[0]?.type || 'audio/webm').split(';')[0];
+    voiceRecorder = null; voiceChunks = []; voiceShouldSend = false;
+    stopVoiceTracks(); clearVoiceTimers();
+    if (!shouldSend || !chunks.length) { hideVoiceStatus(); return; }
+
+    const blob = new Blob(chunks, { type: mime });
+    if (!blob.size || blob.size > 512 * 1024) { hideVoiceStatus(); alert('语音文件过大，请重试'); return; }
+    voiceUploading = true; voiceStatus('正在发送语音…');
+    try {
+        const res = await fetch('/api/voice', {
+            method: 'POST',
+            headers: {
+                Authorization: 'Bearer ' + localStorage.getItem('token'),
+                'Content-Type': mime,
+                'X-Room-Id': currentRoom
+            },
+            body: blob
+        });
+        if (!res.ok) {
+            let msg = '语音发送失败';
+            try { msg = (await res.json()).error || msg; } catch {}
+            throw new Error(msg);
+        }
+    } catch (err) {
+        alert(err.message || '语音发送失败');
+    } finally {
+        voiceUploading = false; hideVoiceStatus();
+    }
+}
+
+function makeVoiceButton(message) {
+    const sec = Math.max(1, Math.round((message.durationMs || 0) / 1000));
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = `🎤 ${sec}秒`;
+    btn.addEventListener('click', ev => { ev.stopPropagation(); playVoice(message.id, btn); });
+    return btn;
+}
+
+function showVoiceBubble(message) {
+    const now = Date.now();
+    const hideAt = Math.min(message?.bubbleUntil || now + VOICE_BUBBLE_MS, now + VOICE_BUBBLE_MS);
+    if (!message?.id || hideAt <= now || (message.expiresAt && message.expiresAt <= now)) return;
+    removeVoiceBubble(message.id);
+    const box = document.createElement('div');
+    box.dataset.voiceId = message.id;
+    const name = document.createElement('span');
+    name.className = 'voice-sender'; name.textContent = message.username || '观众';
+    box.append(name, makeVoiceButton(message));
+    const entry = { message, box, hideAt, timer: null };
+    entry.timer = setTimeout(() => removeVoiceBubble(message.id), hideAt - now);
+    activeVoiceBubbles.set(message.id, entry);
+    attachVoiceBubble(entry);
+}
+
+function voiceSeat(userId) {
+    return Array.from(document.querySelectorAll('.seat[data-uid]'))
+        .find(el => el.dataset.uid === String(userId));
+}
+
+function attachVoiceBubble(entry) {
+    if (!entry || entry.hideAt <= Date.now()) {
+        if (entry) removeVoiceBubble(entry.message.id);
+        return;
+    }
+    const seat = voiceSeat(entry.message.userId);
+    entry.box.className = seat ? 'seat-bubble voice-bubble' : 'voice-float';
+    // appendChild 可以把被座位重绘拆下的同一个气泡节点挂回去，不会重新计时。
+    (seat || document.body).appendChild(entry.box);
+}
+
+function restoreVoiceBubbles() {
+    for (const entry of activeVoiceBubbles.values()) attachVoiceBubble(entry);
+}
+
+function removeVoiceBubble(id) {
+    const entry = activeVoiceBubbles.get(id);
+    if (!entry) return;
+    clearTimeout(entry.timer);
+    entry.box.remove();
+    activeVoiceBubbles.delete(id);
+}
+
+function clearVoiceBubbles() {
+    for (const id of Array.from(activeVoiceBubbles.keys())) removeVoiceBubble(id);
+}
+
+function clearPlayingVoiceAudio() {
+    if (!playingVoice) return;
+    playingVoice.audio.pause();
+    URL.revokeObjectURL(playingVoice.url);
+    playingVoice.button?.classList.remove('playing');
+    if (playingVoice.button?.dataset.label) playingVoice.button.textContent = playingVoice.button.dataset.label;
+    playingVoice = null;
+}
+
+function stopVoicePlayback() {
+    voicePlayRequestId++;
+    if (voicePlayController) voicePlayController.abort();
+    voicePlayController = null;
+    clearPlayingVoiceAudio();
+}
+
+async function playVoice(id, button) {
+    if (playingVoice?.id === id) { stopVoicePlayback(); button.textContent = button.dataset.label || button.textContent; return; }
+    stopVoicePlayback();
+    const requestId = voicePlayRequestId;
+    const controller = new AbortController();
+    voicePlayController = controller;
+    button.dataset.label = button.textContent; button.textContent = '加载中…';
+    try {
+        const res = await fetch('/api/voice/' + encodeURIComponent(id), {
+            headers: { Authorization: 'Bearer ' + localStorage.getItem('token') },
+            signal: controller.signal
+        });
+        if (!res.ok) throw new Error(res.status === 410 || res.status === 404 ? '语音已过期' : '无法播放语音');
+        const blob = await res.blob();
+        if (requestId !== voicePlayRequestId || controller.signal.aborted) return;
+        // 下载期间可能已有别的音频开始；真正播放前再清理一次。
+        clearPlayingVoiceAudio();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        playingVoice = { id, audio, url, button };
+        button.textContent = '⏸ 播放中'; button.classList.add('playing');
+        const done = () => {
+            if (playingVoice?.audio !== audio) return;
+            URL.revokeObjectURL(url); button.classList.remove('playing');
+            button.textContent = button.dataset.label; playingVoice = null;
+        };
+        audio.onended = done; audio.onerror = done;
+        await audio.play();
+    } catch (err) {
+        if (err?.name === 'AbortError') {
+            button.classList.remove('playing'); button.textContent = button.dataset.label || '🎤';
+            return;
+        }
+        if (playingVoice?.id === id) stopVoicePlayback();
+        button.classList.remove('playing'); button.textContent = button.dataset.label || '🎤';
+        alert(err.message || '无法播放语音');
+    } finally {
+        if (voicePlayController === controller) voicePlayController = null;
+    }
+}
+
+function setupVoiceRecording() {
+    const btn = document.getElementById('voice-btn'); if (!btn) return;
+    btn.addEventListener('pointerdown', beginVoiceRecording);
+    btn.addEventListener('pointermove', moveVoiceRecording);
+    btn.addEventListener('pointerup', releaseVoiceRecording);
+    btn.addEventListener('pointercancel', () => { voiceHold = false; finishVoiceRecording(false); });
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+}
 // 全屏切换：彻底隐藏手机浏览器工具栏
 function toggleFullscreen() {
     const el = document.documentElement;
@@ -3140,6 +3454,8 @@ function renderSeats(state) {
         html += `<div class="${cls}" style="left:${pt.x}%;top:${pt.y}%">${inner}</div>`;
     }
     ring.innerHTML = html;
+    // renderSeats 会整体替换座位 DOM；把尚在 10 秒展示期内的临时语音挂回原位。
+    restoreVoiceBubbles();
 
     // 观战横幅
     const banner = document.getElementById('spectator-banner');
@@ -3582,6 +3898,8 @@ async function adminSetGold(username, userId) {
 });
 document.getElementById('btnSound').textContent = soundOn ? '🔊' : '🔇';
 applySettings();   // 应用桌面风格 / 四色 / 自定义快捷下注
+setupVoiceRecording();
+window.addEventListener('pagehide', () => { cancelVoiceRecording(); stopVoicePlayback(); });
 // 首次交互解锁 Web Audio（浏览器自动播放策略）
 window.addEventListener('click', () => ac(), { once: true });
 // 所有按钮点击的反馈音（卡牌等非 button 元素有各自专属音）
