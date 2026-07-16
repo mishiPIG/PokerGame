@@ -1380,9 +1380,12 @@ io.on('connection', (socket) => {
         if (existing) {
             existing.socketId = socket.id;
             existing.away = false;   // 重连后恢复在桌
-            // 重连即取消留座倒计时；有筹码则回桌
+            // 重连/重新进入即取消留座倒计时；站起或留座回来，有筹码则接上原座位继续（战绩不清零）
             if (existing.reserveTimer) { clearTimeout(existing.reserveTimer); existing.reserveTimer = null; }
-            if (existing.reserved) { existing.reserved = false; if (existing.chips > 0) existing.sittingOut = false; }
+            if (existing.reserved || existing.standing) {
+                existing.reserved = false; existing.standing = false;
+                if (existing.chips > 0) existing.sittingOut = false;
+            }
             lobbySockets.delete(socket.id);
             socket.join(roomId);
             socket.currentRoom = roomId;
@@ -1396,7 +1399,13 @@ io.on('connection', (socket) => {
                 && game.actionOnIdx >= 0 && game.players[game.actionOnIdx]?.userId === user.id) {
                 startActionTimer(roomId);
             }
+            // 现金桌：重新进入后若在局间且够人，恢复续局
+            else if (game.roomType === 'cash' && game.status === 'running' && !existing.sittingOut
+                && (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) && liveCount(game) >= 2) {
+                scheduleNextHand(roomId);
+            }
             broadcastState(roomId);
+            broadcastRoomList();
             return;
         }
 
@@ -1501,27 +1510,25 @@ io.on('connection', (socket) => {
                 const p = game.players[idx];
                 const midHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN && !p.folded;
                 if (game.roomType === 'cash') {
-                    // 现金桌离场：剩余筹码按汇率兑回金币（本局还在牌里则先弃牌、本局结束再兑出移除）
-                    if (midHand) {
-                        p.folded = true; p.hasActed = true; p.leaving = true;
-                        io.to(roomId).emit('server_msg', `🚪 ${user.username} 离场（本局结束后兑出）`);
+                    // 训练赛：退出房间 = 站起离桌，保留座位+筹码，【不立即兑出】；
+                    // 只在本局结束/解散/全员离开时统一结算金币。回大厅可随时「重新进入」
+                    // 接上原座位、带入与盈亏（战绩不清零）。
+                    if (p.reserveTimer) { clearTimeout(p.reserveTimer); p.reserveTimer = null; }
+                    p.standing = true; p.away = true; p.reserved = false; p.sittingOut = true;
+                    socket.leave(roomId);
+                    socket.emit('left_room');
+                    io.to(roomId).emit('server_msg', `🚪 ${user.username} 离开牌桌（座位与筹码保留，结束时结算）`);
+                    if (midHand) { p.folded = true; p.hasActed = true; }
+                    // 全员离桌(无人在座)且无观众 → 直接结算收尾，避免空房悬挂持有筹码
+                    const anyActive = game.players.some(pl => !pl.standing && !pl.away);
+                    if (!anyActive && listSpectators(roomId).length === 0) {
+                        endCashTable(roomId, '全员离开');
+                    } else if (midHand) {
                         if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
                         else if (isBettingRoundComplete(game)) advanceStage(roomId);
                         else broadcastState(roomId);
-                    } else {
-                        recordLeft(game, p);   // 战绩面板灰显 + 结束排名
-                        const payout = cashOut(p);
-                        io.to(roomId).emit('server_msg', `🚪 ${user.username} 离场，兑出 ${p.chips} 筹码 → ${payout} 金币`);
-                        if (p.reserveTimer) clearTimeout(p.reserveTimer);
-                        game.players.splice(idx, 1);
-                        if (game.buttonIdx > idx) game.buttonIdx--;
-                        if (game.buttonIdx >= game.players.length) game.buttonIdx = 0;
-                        socket.leave(roomId);
-                        if (game.players.length === 0) {
-                            clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearActionTimer(game); clearTimeout(game.tableTimer);
-                            delete roomGames[roomId];
-                        } else broadcastState(roomId);
-                    }
+                        broadcastRoomList();
+                    } else { broadcastState(roomId); broadcastRoomList(); }
                 } else if (game.status !== 'running') {
                     // SNG 开赛前退出：退还报名费、移除座位
                     if (game.config.buyIn > 0) {

@@ -1766,7 +1766,13 @@ function joinRoomId(roomId) {
     socket.emit('join_room', { roomId });
 }
 function leaveRoom() {
-    if (socket) socket.emit('leave_room');
+    if (!socket) return;
+    const isCash = lastState && lastState.roomType === 'cash';
+    const amSeated = lastState && lastState.players && lastState.players.some(p => p.userId === myUserId);
+    if (isCash && amSeated) {
+        if (!confirm('离开牌桌：座位与筹码【保留】，只在本局结束/解散时才统一结算金币；之后可随时「重新进入」接上原座位与盈亏（战绩不清零）。确定离开？')) return;
+    }
+    socket.emit('leave_room');
 }
 function dissolveRoom() {
     if (!socket) return;
@@ -1798,7 +1804,7 @@ function toggleTableMenu() {
 }
 // 站起围观 / 留座离座 / 回到座位
 function standUp() {
-    if (socket && confirm('确定站起围观？将兑出剩余筹码为金币、离开座位。')) socket.emit('stand_up');
+    if (socket && confirm('确定站起围观？筹码【保留】（只在结束/解散时结算），暂时离座、可随时回到座位。')) socket.emit('stand_up');
 }
 function reserveLeave() {
     if (socket) { socket.emit('reserve_leave'); alert('已留座离座，2 分钟内回来保留座位（点座位「回到座位」即可）'); }
