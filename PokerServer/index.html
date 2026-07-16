@@ -168,11 +168,7 @@
         body.theme-green  #table-area { background: radial-gradient(ellipse at center,#2d6a4f 0%,#1b4332 75%) !important; }
         body.theme-gray   #table-area { background: radial-gradient(ellipse at center,#3a3f44 0%,#1c1f22 75%) !important; }
         body.theme-purple #table-area { background: radial-gradient(ellipse at center,#4a2d6a 0%,#2a1b43 75%) !important; }
-        /* 四色扑克：黑桃黑、红心红、方块蓝、梅花绿 */
-        body.four-color .card.suit-spades   { color: #1a1a1a; }
-        body.four-color .card.suit-hearts   { color: #d62828; }
-        body.four-color .card.suit-diamonds { color: #1f6fd6; }
-        body.four-color .card.suit-clubs    { color: #2a9d4a; }
+        /* 四色扑克默认常开：黑桃黑、红心红、方块蓝、梅花绿，一眼分清花色 */
         #table-area {
             background: radial-gradient(ellipse at center, #2d6a4f 0%, #1b4332 78%);
             border: none; border-radius: 0; padding: 6px 8px;
@@ -221,10 +217,21 @@
         .seat.acting .avatar-block { animation: actGlow 1.1s ease-in-out infinite; border-radius: 12px; }
         @keyframes actGlow { 0%,100% { box-shadow: 0 0 0 2px rgba(244,211,94,0.5), 0 0 10px rgba(244,211,94,0.4); }
             50% { box-shadow: 0 0 0 2px rgba(244,211,94,0.95), 0 0 22px rgba(244,211,94,0.85); } }
-        .avatar-ring { display: none; }
+        /* 环形倒计时进度条：绕头像一圈，剩余时间用 --p(1→0) 驱动 conic-gradient 收缩 */
+        .avatar-ring { position: absolute; inset: -4px; border-radius: 14px; z-index: 0; pointer-events: none;
+            background: conic-gradient(from -90deg, #f4d35e calc(var(--p,1) * 360deg), rgba(0,0,0,0.4) 0deg); }
+        .seat.acting .avatar { z-index: 1; }   /* 头像盖住环心，只露 4px 环边 */
+        .avatar-ring.low { background: conic-gradient(from -90deg, #ff3b3b calc(var(--p,1) * 360deg), rgba(0,0,0,0.45) 0deg);
+            animation: ringLowPulse 0.5s ease-in-out infinite; }
+        @keyframes ringLowPulse { 50% { filter: brightness(1.7) saturate(1.4); } }
+        /* 剩 5 秒：整个座位红光闪烁（盖过行动金光）*/
+        .seat.lowtime .avatar-block { animation: lowFlash 0.45s ease-in-out infinite !important; }
+        @keyframes lowFlash { 0%,100% { box-shadow: 0 0 0 2px rgba(255,55,55,0.65), 0 0 12px 2px rgba(255,40,40,0.5); }
+            50% { box-shadow: 0 0 0 3px rgba(255,70,70,1), 0 0 26px 7px rgba(255,40,40,0.9); } }
         .avatar-secs { position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
             background: #10151f; color: #f4d35e; font-size: 11px; font-weight: bold; z-index: 6;
             padding: 0 5px; border-radius: 8px; border: 1px solid rgba(244,211,94,0.6); font-variant-numeric: tabular-nums; }
+        .avatar-secs.low { color: #ff6b6b; border-color: rgba(255,90,90,0.8); }
         /* All-in：火焰/橙光高亮 */
         .seat.allin .avatar-block { animation: allinFire 0.9s ease-in-out infinite; border-radius: 12px; }
         .seat.allin .cards-zone .card { box-shadow: 0 0 10px 2px rgba(255,110,20,0.85); }
@@ -279,14 +286,21 @@
             border: 1px solid #ddd; padding: calc(var(--card-w) * 0.09) calc(var(--card-w) * 0.11);
             box-shadow: 0 2px 5px rgba(0,0,0,0.35); font-weight: bold; user-select: none;
         }
-        .card.red { color: #d62828; }
-        .card.black { color: #1a1a1a; }
+        .card.red { color: #e01e1e; }
+        .card.black { color: #17181c; }
+        /* 四色默认常开（放在 red/black 之后以覆盖之）：黑桃黑·红心红·方块蓝·梅花绿，一眼分清花色 */
+        .card.suit-spades   { color: #17181c; }
+        .card.suit-hearts   { color: #e01e1e; }
+        .card.suit-diamonds { color: #1667e0; }
+        .card.suit-clubs    { color: #109b46; }
         .card.back {
             background: repeating-linear-gradient(45deg,#1e3a5f 0,#1e3a5f 5px,#2c5aa0 5px,#2c5aa0 10px);
             border-color: #1e3a5f;
         }
-        .card .rank { font-size: calc(var(--card-w) * 0.5); line-height: 1; }
-        .card .suit { font-size: calc(var(--card-w) * 0.46); align-self: center; line-height: 1; }
+        /* 数字+花色是唯一关键信息 → 尽量放大、居中、清晰，一眼即知无需细辨 */
+        .card { align-items: center; }
+        .card .rank { font-size: calc(var(--card-w) * 0.62); line-height: 1; font-weight: 800; letter-spacing: -0.5px; }
+        .card .suit { font-size: calc(var(--card-w) * 0.6); align-self: center; line-height: 1; margin-top: calc(var(--card-w) * -0.02); }
         .empty-slot { width: var(--card-w); height: var(--card-h); border: 2px dashed rgba(255,255,255,0.12); border-radius: 6px; }
         /* 发牌入场动画：从上方翻入 */
         .card.deal-in { animation: dealIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
@@ -1567,7 +1581,7 @@ function connectSocket(token) {
             showdownInfo = {
                 winners: data.winners || [], winnerId: data.winnerId,
                 bestCommunity: data.bestCommunity || [], bestHole: data.bestHole || [],
-                category: data.category || ''
+                category: data.category || '', bestByWinner: data.bestByWinner || {}
             };
         } else {
             revealedCards = data; showdownInfo = null;
@@ -2755,13 +2769,16 @@ setInterval(() => {
     if (lastState && lastState.actionDeadline) {
         const remain = Math.max(0, lastState.actionDeadline - Date.now());
         const secs = Math.ceil(remain / 1000);
+        const low = secs <= 5;
         const el = document.getElementById('seat-timer-num');
-        if (el) el.textContent = secs;
+        if (el) { el.textContent = secs; el.classList.toggle('low', low); }
         const ring = document.getElementById('seat-ring');
         if (ring) {
             const frac = lastState.actionTotalMs ? Math.max(0, remain / lastState.actionTotalMs) : 0;
             ring.style.setProperty('--p', frac);
-            ring.classList.toggle('low', secs <= 5);
+            ring.classList.toggle('low', low);
+            const seat = ring.closest('.seat');
+            if (seat) seat.classList.toggle('lowtime', low);
         }
         // 我的回合剩 5s 时警告音（每回合一次）
         if (lastState.actionOnUserId === myUserId && secs <= 5 && secs > 0 && !warnedThisTurn) {
@@ -2902,11 +2919,23 @@ function formatCard(c, animate = false, delayMs = 0, opts = {}) {
                 <span class="suit">${sym}</span>
             </span>`;
 }
-// showdown 时某玩家某张底牌的高亮/变灰选项
+// 所有赢家「用到的公共牌」并集（分池时两位赢家的关键公共牌都高亮）
+function winnerCommunitySet() {
+    if (!showdownInfo) return new Set();
+    const bw = showdownInfo.bestByWinner || {};
+    const s = new Set();
+    (showdownInfo.winners || []).forEach(id => (bw[id] ? bw[id].community : []).forEach(i => s.add(i)));
+    if (!s.size) (showdownInfo.bestCommunity || []).forEach(i => s.add(i));   // 兼容旧结构
+    return s;
+}
+// showdown 时某玩家某张底牌的高亮/变灰选项（每个赢家高亮各自最强5张；分池两位赢家都高亮）
 function holeOpts(userId, i) {
     if (!showdownInfo) return {};
-    const inBest = showdownInfo.winnerId === userId && showdownInfo.bestHole.includes(i);
-    return inBest ? { hl: true, anim: revealJustHappened } : { dim: true, anim: revealJustHappened };
+    const isWinner = showdownInfo.winners.includes(userId);
+    const best = (showdownInfo.bestByWinner || {})[userId];
+    if (isWinner && best && best.hole.includes(i)) return { hl: true, anim: revealJustHappened };
+    if (isWinner) return { anim: revealJustHappened };            // 赢家其余牌保持正常（不变灰）
+    return { dim: true, anim: revealJustHappened };               // 非赢家变灰
 }
 function cardBack(opts = {}) {
     const cls = ['card', 'back'];
@@ -3145,8 +3174,8 @@ function render(state) {
     for (let i = 0; i < 5; i++) {
         if (i >= comm.length) { commHtml += emptySlot(); continue; }
         let opts = {};
-        if (showdownInfo) {   // showdown：组成赢家牌型的公共牌拉出高亮，其余变灰
-            opts = showdownInfo.bestCommunity.includes(i)
+        if (showdownInfo) {   // showdown：组成各赢家牌型的公共牌拉出高亮（分池取并集），其余变灰
+            opts = winnerCommunitySet().has(i)
                 ? { hl: true, anim: revealJustHappened }
                 : { dim: true, anim: revealJustHappened };
         } else if (myHand && myHand.community.includes(i)) {   // 行牌中：高亮我当前牌型用到的公共牌

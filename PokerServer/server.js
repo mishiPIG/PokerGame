@@ -730,19 +730,24 @@ function doShowdown(roomId) {
         });
     });
 
-    // 总赢家（赢得最多）用于高亮其最强 5 张
+    // 每个赢家各自的最强 5 张（分池/平分时两位赢家都要高亮各自的牌，不能只亮一个）
     const winnerIds = Object.keys(winShare);
     const overallId = winnerIds.sort((a, b) => winShare[b] - winShare[a])[0];
-    let bestCommunity = [], bestHole = [], category = '';
-    if (overallId) {
-        const wb = HandEvaluator.bestHand(game.communityCards.concat(game.holeCards[overallId]));
-        bestCommunity = wb.indices.filter(i => i < 5);
-        bestHole = wb.indices.filter(i => i >= 5).map(i => i - 5);
-        category = wb.category;
-    }
+    const bestByWinner = {};
+    winnerIds.forEach(id => {
+        if (!game.holeCards[id]) return;
+        const wb = HandEvaluator.bestHand(game.communityCards.concat(game.holeCards[id]));
+        bestByWinner[id] = {
+            community: wb.indices.filter(i => i < 5),
+            hole: wb.indices.filter(i => i >= 5).map(i => i - 5),
+            category: wb.category
+        };
+    });
+    const ob = bestByWinner[overallId] || { community: [], hole: [], category: '' };
     io.in(roomId).emit('showdown_reveal', {
-        reveals, winners: winnerIds, winnerId: overallId, bestCommunity, bestHole, category,
-        pots: potResults
+        reveals, winners: winnerIds, winnerId: overallId,
+        bestCommunity: ob.community, bestHole: ob.hole, category: ob.category,
+        bestByWinner, pots: potResults
     });
     const label = winnerIds.map(id => {
         const p = game.players.find(x => x.userId === id);
