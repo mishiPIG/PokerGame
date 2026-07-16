@@ -33,6 +33,9 @@ data.json
 # 牌谱数据（运行时生成，勿入库/勿覆盖）
 PokerServer/hands.jsonl
 
+# 桌内临时语音（1 小时过期，无历史、不备份）
+PokerServer/voice_tmp/
+
 # JWT 私章（每台服务器自动生成、唯一，绝不入库/勿覆盖）
 PokerServer/secret.key
 
