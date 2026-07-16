@@ -1386,6 +1386,11 @@ io.on('connection', (socket) => {
             if (game.holeCards[user.id]) {
                 socket.emit('hole_cards', game.holeCards[user.id].map(c => ({ suit: c.suit, rank: c.rank })));
             }
+            // 若正轮到他行动，重连后重启计时（away 已置 false → 恢复满时长，并取消可能的 away 快速超时）
+            if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN
+                && game.actionOnIdx >= 0 && game.players[game.actionOnIdx]?.userId === user.id) {
+                startActionTimer(roomId);
+            }
             broadcastState(roomId);
             return;
         }
@@ -1847,21 +1852,14 @@ io.on('connection', (socket) => {
 
         io.to(roomId).emit('server_msg', `🔌 ${user.username} 掉线（保留座位，可重连）`);
 
-        // 保留座位以便重连；不退还筹码（SNG 为比赛筹码）
-        // 若牌局进行中，本局自动弃牌并推进
-        if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) {
-            if (!player.folded) { player.folded = true; player.hasActed = true; }
-            if (game.actionOnIdx === idx) {
-                clearActionTimer(game);
-                afterAction(roomId);
-            } else if (isBettingRoundComplete(game)) {
-                advanceStage(roomId);
-            } else {
-                broadcastState(roomId);
-            }
-        } else {
-            broadcastState(roomId);
-        }
+        // ⚠️ 不再「掉线即立即弃牌」！socket.io 网络抖动/传输切换会瞬断重连，
+        // 立即弃牌会误杀正常玩家（表现为「闪回大厅再进来就成了弃牌」）。
+        // 改为交给行动计时器兜底：
+        //  · 若正轮到掉线者：保留当前计时不动，给重连留出时间；到点 onActionTimeout
+        //    会「无注则自动过牌(留在局里)、有注才弃牌」——比无条件弃牌合理得多。
+        //  · 若没轮到他：留在本局，等轮到他时 startActionTimer 见 away 走快速超时自动处理。
+        // 重连(join_room)会把 away 置回 false 并（若轮到他）重启计时。
+        broadcastState(roomId);
     });
 });
 

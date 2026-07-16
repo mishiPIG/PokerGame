@@ -1271,6 +1271,7 @@ let myAvatar     = null;
 let myHoleCards  = [];
 let revealedCards = {};  // userId -> [{suit,rank},{suit,rank}]  (showdown)
 let currentRoom  = '';
+let everConnected = false; // 是否已连接过（区分首次连接 vs 断线重连，重连不闪回大厅）
 let mySeated     = false; // 我当前是否已入座（用于坐下入座动画/音效触发）
 let equityMap    = {};    // 全押跑马实时胜率 { userId: pct }
 
@@ -1444,11 +1445,18 @@ function connectSocket(token) {
     socket = io({ auth: { token } });
 
     socket.on('connect', () => {
-        // 连接成功后进入大厅；若本地记录了房间则尝试重连回去
         const saved = localStorage.getItem('currentRoom');
-        showLobby();                                   // 会清掉 currentRoom 记录
-        if (saved) socket.emit('join_room', { roomId: saved });
+        hideReconnecting();
+        if (everConnected && saved) {
+            // 断线重连：直接回房，不闪回大厅（避免「弹回主界面再进来」的观感）
+            socket.emit('join_room', { roomId: saved });
+        } else {
+            showLobby();                               // 首次连接/无房：进大厅（会清掉 currentRoom 记录）
+            if (saved) socket.emit('join_room', { roomId: saved });
+        }
+        everConnected = true;
     });
+    socket.on('disconnect', () => { showReconnecting(); });   // 断线：显示「重连中」而非弹回大厅
 
     socket.on('connect_error', (err) => {
         localStorage.removeItem('token');
@@ -1468,6 +1476,7 @@ function connectSocket(token) {
     socket.on('room_joined', ({ roomId }) => {
         currentRoom = roomId;
         localStorage.setItem('currentRoom', roomId);
+        hideReconnecting();
         document.getElementById('btnReady').disabled = false;
         showTable();
     });
@@ -1629,6 +1638,22 @@ function connectSocket(token) {
 }
 
 // ===== 大厅 / 房间 =====
+function showReconnecting() {
+    let el = document.getElementById('reconnecting-toast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'reconnecting-toast';
+        el.textContent = '🔌 连接中断，重连中…';
+        el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:8px;'
+            + 'background:rgba(214,64,64,0.96);color:#fff;font-size:13px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,0.4)';
+        document.body.appendChild(el);
+    }
+    el.style.display = 'block';
+}
+function hideReconnecting() {
+    const el = document.getElementById('reconnecting-toast');
+    if (el) el.style.display = 'none';
+}
 function showLobby() {
     currentRoom = '';
     localStorage.removeItem('currentRoom');
