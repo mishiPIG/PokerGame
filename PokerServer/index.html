@@ -84,6 +84,7 @@
             font-size: 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;
         }
         .tc-btn:disabled { opacity: 0.4; }
+        .tc-btn.disabled { opacity: 0.5; }
         .tc-btn #tcAddInfo { font-size: 11px; }
         .set-actions { display: flex; flex-wrap: wrap; gap: 8px; }
         .sa-btn { flex: 1; min-width: 110px; background: #3a4a60; color: #fff; border: none;
@@ -1779,6 +1780,23 @@ function hideReconnecting() {
     const el = document.getElementById('reconnecting-toast');
     if (el) el.style.display = 'none';
 }
+// 轻量非阻塞提示（自动消失，不像 alert 会卡住交互）
+let _toastTimer = 0;
+function toast(msg, ms = 2600) {
+    let el = document.getElementById('mini-toast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'mini-toast';
+        el.style.cssText = 'position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:9998;max-width:82%;'
+            + 'background:rgba(18,27,43,0.96);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;line-height:1.4;'
+            + 'text-align:center;box-shadow:0 6px 22px rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.15);pointer-events:none;';
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.display = 'block';
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { el.style.display = 'none'; }, ms);
+}
 function showLobby() {
     cancelVoiceRecording();
     stopVoicePlayback();
@@ -2967,8 +2985,8 @@ function clearVoiceTimers() {
 
 async function beginVoiceRecording(e) {
     if (!currentRoom || voiceUploading || voiceRecorder || e.button > 0) return;
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-        alert('当前浏览器不支持语音录制，请使用新版 Chrome / Safari'); return;
+    if (!voiceSupported()) {
+        toast(window.isSecureContext ? '当前设备不支持语音录制' : '语音需 HTTPS 环境，正式版可用'); return;
     }
     e.preventDefault();
     voiceHold = true; voiceCancel = false; voiceStartY = e.clientY;
@@ -3006,7 +3024,7 @@ async function beginVoiceRecording(e) {
         }, VOICE_MAX_MS);
     } catch (err) {
         voiceHold = false; btn.classList.remove('recording'); hideVoiceStatus(); stopVoiceTracks();
-        alert(err?.name === 'NotAllowedError' ? '需要允许麦克风权限才能发送语音' : '无法启动麦克风，请稍后重试');
+        toast(err?.name === 'NotAllowedError' ? '需要允许麦克风权限才能发送语音' : '无法启动麦克风，请稍后重试');
     }
 }
 
@@ -3192,8 +3210,24 @@ async function playVoice(id, button) {
     }
 }
 
+function voiceSupported() {
+    // 麦克风录制需「安全环境」(HTTPS 或 localhost)；http 明文(如测试服内网 IP)下 mediaDevices 不可用
+    return !!(window.isSecureContext && navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+}
 function setupVoiceRecording() {
     const btn = document.getElementById('voice-btn'); if (!btn) return;
+    if (!voiceSupported()) {
+        // 不支持：不绑「按住说话」(避免 pointer 捕获卡住 + 反复弹窗)，点一下给一次轻提示即可
+        btn.classList.add('disabled');
+        btn.title = '语音需在 HTTPS 环境使用';
+        btn.addEventListener('click', () => {
+            const msg = window.isSecureContext
+                ? '当前设备/浏览器不支持语音录制（建议新版 Chrome / Safari）'
+                : '语音需在 HTTPS 安全环境使用；当前是明文测试地址，正式版 https://pokerdojo.space 可用';
+            toast(msg);
+        });
+        return;
+    }
     btn.addEventListener('pointerdown', beginVoiceRecording);
     btn.addEventListener('pointermove', moveVoiceRecording);
     btn.addEventListener('pointerup', releaseVoiceRecording);
