@@ -2004,6 +2004,14 @@ io.on('connection', (socket) => {
         io.in(roomId).emit('emote_broadcast', { userId: user.id, emote, targetUserId: targetUserId || null });
     });
 
+    // 点头像看「本局」数据（VPIP/PFR/3bet/ATS…）：按当前房间聚合，摊牌信息公开可见
+    socket.on('req_player_stats', ({ targetUserId }) => {
+        const roomId = socket.currentRoom;
+        if (!roomId || !roomGames[roomId]) return;
+        const uid = targetUserId || user.id;
+        socket.emit('player_stats', { userId: uid, stats: stats.computeUserStats(uid, null, roomId) });
+    });
+
     // 重连/刷新后只恢复尚在 10 秒展示期内的语音气泡，不构成聊天历史。
     socket.on('voice_sync', (roomId) => {
         roomId = String(roomId || '');

@@ -12,14 +12,15 @@ function sampleCurve(curve, maxPts) {
     return out;
 }
 
-function computeUserStats(userId, mode) {
+function computeUserStats(userId, mode, room) {
     const m = (mode === 'cash' || mode === 'sng') ? mode : null;
-    const hands = db.getHandsForUser(userId, { limit: 200000, mode: m });
+    const hands = db.getHandsForUser(userId, { limit: 200000, mode: m, room: room || null });
     const chrono = hands.slice().reverse();   // getHandsForUser 是倒序（新→旧），翻成时序
 
     let totalHands = 0, netTotal = 0, biggestWin = 0;
     let vpip = 0, pfr = 0;
     let threeBet = 0, threeBetOpp = 0;
+    let ats = 0, atsOpp = 0;   // 偷盲尝试：偷盲位(BTN/CO/SB)、翻前 folded-to-me 时开池加注
     let foldTo3bet = 0, faced3betAfterOpen = 0;
     let cbet = 0, cbetOpp = 0;
     let postBets = 0, postCalls = 0;          // 激进度 AF（翻后）
@@ -60,6 +61,22 @@ function computeUserStats(userId, mode) {
         }
         if (iOpened && faced3) { faced3betAfterOpen++; if (foldedTo3) foldTo3bet++; }
 
+        // ATS 偷盲尝试率：我在偷盲位(BTN/CO/SB) 且翻前前面无人入池(folded to me) → 机会；此时开池加注 → 尝试
+        const seatsOrd = (h.seats || []).slice().sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
+        const nS = seatsOrd.length, bi = seatsOrd.findIndex(s => s.userId === h.buttonUserId);
+        if (bi >= 0 && nS >= 2) {
+            const steal = new Set([seatsOrd[bi].userId, seatsOrd[(bi + 1) % nS].userId]);   // BTN, SB
+            if (nS >= 4) steal.add(seatsOrd[(bi - 1 + nS) % nS].userId);                     // CO
+            if (steal.has(userId)) {
+                let enteredBefore = false, done = false;
+                for (const a of preSeq) {
+                    if (done) break;
+                    if (a.userId === userId) { if (!enteredBefore) { atsOpp++; if (isAgg(a)) ats++; } done = true; }
+                    else if (a.action === 'call' || isAgg(a)) enteredBefore = true;
+                }
+            }
+        }
+
         const communityLen = (h.community || []).length;
         const iFoldedPre = myPre.some(a => a.action === 'fold');
         if (communityLen >= 3 && !iFoldedPre) sawFlop++;
@@ -91,6 +108,7 @@ function computeUserStats(userId, mode) {
         vpip: pct(vpip, totalHands),
         pfr: pct(pfr, totalHands),
         threeBet: pct(threeBet, threeBetOpp),
+        ats: pct(ats, atsOpp),
         foldTo3bet: pct(foldTo3bet, faced3betAfterOpen),
         cbet: pct(cbet, cbetOpp),
         af: postCalls > 0 ? Math.round((postBets / postCalls) * 10) / 10 : (postBets > 0 ? 99 : 0),
