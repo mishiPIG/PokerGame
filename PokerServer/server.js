@@ -995,7 +995,7 @@ function tryStartHand(roomId) {
     if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) return;
     if (game.players.length < 2) return;
     if (!game.players.every(p => p.ready)) return;
-    startHand(roomId);
+    beginPlay(roomId);
 }
 
 // 该玩家本手是否参与发牌（有筹码且未坐出）
@@ -1009,6 +1009,38 @@ function nextLiveIdx(game, fromIdx) {
         if (canPlay(game.players[idx])) return idx;
     }
     return -1;
+}
+
+// ===== 高牌定庄（开赛首手）=====
+const BUTTON_DRAW_MS = 2800;   // 定庄动画时长
+const RANK_ORDER = '23456789TJQKA';
+const SUIT_RANK = { Spades: 3, Hearts: 2, Diamonds: 1, Clubs: 0 };
+const cardScore = c => RANK_ORDER.indexOf(c.rank) * 4 + (SUIT_RANK[c.suit] ?? 0);
+function drawForButton(roomId) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    const live = game.players.filter(canPlay);
+    if (live.length < 2) { startHand(roomId); return; }
+    const d = new Deck(); d.reset(); d.shuffle();
+    const draws = live.map(p => ({ userId: p.userId, username: p.username, seat: p.seat, card: d.drawCard() }));
+    let win = draws[0];
+    for (const x of draws) if (cardScore(x.card) > cardScore(win.card)) win = x;
+    game.forceButtonSeat = win.seat;   // 首手强制此人为庄（startHand 不轮转）
+    io.in(roomId).emit('button_draw', {
+        draws: draws.map(x => ({ userId: x.userId, card: { suit: x.card.suit, rank: x.card.rank } })),
+        winnerId: win.userId
+    });
+    io.in(roomId).emit('server_msg', `🎴 高牌定庄：${win.username} 拿到最大牌，本场首庄`);
+    clearTimeout(game.nextHandTimer);
+    game.nextHandTimer = setTimeout(() => startHand(roomId), BUTTON_DRAW_MS);
+}
+// 开赛入口：首手走高牌定庄动画，之后正常发牌
+function beginPlay(roomId) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    if (game.status !== 'running' && (game.buttonSeat == null || game.buttonSeat < 0) && liveCount(game) >= 2) {
+        drawForButton(roomId);
+    } else startHand(roomId);
 }
 
 function startHand(roomId) {
@@ -1036,7 +1068,9 @@ function startHand(roomId) {
     // 按钮位按「座位号」轮转到下一个可参与玩家（与数组插入/删除解耦）
     const liveSeats = game.players.filter(canPlay).map(p => p.seat).sort((a, b) => a - b);
     let bseat;
-    if (game.buttonSeat == null || game.buttonSeat < 0) bseat = liveSeats[0];
+    if (game.forceButtonSeat != null && liveSeats.includes(game.forceButtonSeat)) {
+        bseat = game.forceButtonSeat; game.forceButtonSeat = null;   // 高牌定庄：首手用抽出的庄，不轮转
+    } else if (game.buttonSeat == null || game.buttonSeat < 0) bseat = liveSeats[0];
     else { bseat = liveSeats.find(s => s > game.buttonSeat); if (bseat == null) bseat = liveSeats[0]; }
     game.buttonSeat = bseat;
     game.buttonIdx = game.players.findIndex(p => p.seat === bseat);
@@ -1948,7 +1982,7 @@ io.on('connection', (socket) => {
         if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可以开始'); return; }
         if (game.status === 'running') { socket.emit('server_msg', '⚠️ 比赛已开始'); return; }
         if (liveCount(game) < 2) { socket.emit('server_msg', '⚠️ 至少 2 名玩家入座才能开始'); return; }
-        startHand(roomId);
+        beginPlay(roomId);
     });
 
     // 准备 / 取消准备：全员准备且 >=2 人时自动开局

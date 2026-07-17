@@ -941,6 +941,16 @@
         .ap-emotes { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
         .ap-emotes .emote-btn { font-size: 22px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
             border-radius: 10px; width: 42px; height: 42px; cursor: pointer; }
+        /* 高牌定庄：座位上方翻出的牌 */
+        .bd-card { --card-w: 32px; --card-h: 44px; position: fixed; z-index: 300; pointer-events: none;
+            transform: translate(-50%, -100%); transform-origin: bottom center;
+            animation: bdFlip 0.44s cubic-bezier(0.22,1,0.36,1) backwards; }
+        .bd-card .card { box-shadow: 0 3px 10px rgba(0,0,0,0.6); }
+        .bd-card.win { animation: bdFlip 0.44s cubic-bezier(0.22,1,0.36,1) backwards, bdWinGlow 0.8s ease-in-out 0.5s infinite; }
+        .bd-card.win .card { box-shadow: 0 0 0 3px #f4d35e, 0 0 18px 4px rgba(244,211,94,0.9); }
+        @keyframes bdFlip { from { transform: translate(-50%,-100%) rotateY(90deg) scale(0.8); opacity: 0; }
+            to { transform: translate(-50%,-100%) rotateY(0) scale(1); opacity: 1; } }
+        @keyframes bdWinGlow { 50% { transform: translate(-50%,-108%) scale(1.12); } }
         .fly-emote { position: fixed; z-index: 9990; font-size: 32px; pointer-events: none; will-change: transform, opacity;
             margin-left: -16px; margin-top: -16px; --dx: 0px; --dy: 0px;
             animation: flyEmoteAnim 0.64s cubic-bezier(0.34,1.2,0.5,1) forwards; }
@@ -1718,6 +1728,7 @@ function connectSocket(token) {
         else seatBubble(userId, emote, true);                                                  // 广播：自己头上冒
     });
     socket.on('player_stats', ({ userId, stats }) => renderPlayerStats(userId, stats));
+    socket.on('button_draw', ({ draws, winnerId }) => showButtonDraw(draws, winnerId));
     // 临时语音不进聊天历史：只在当前房间飘出 10 秒可点击气泡
     socket.on('voice_broadcast', ({ id, userId, username, durationMs, expiresAt, bubbleUntil }) => {
         showVoiceBubble({ id, userId, username, durationMs, expiresAt, bubbleUntil });
@@ -2730,6 +2741,24 @@ function flyCoins(fromEl, toEl, count) {
 }
 function flyCoinsToWinner(winnerId) {
     flyCoins(document.getElementById('pot'), document.querySelector(`.seat[data-uid="${winnerId}"]`), 6);
+}
+// 高牌定庄动画：每个座位头像上方翻出一张牌，最大者高亮金光（约 2.8s 后自动清、正式发牌）
+function showButtonDraw(draws, winnerId) {
+    document.querySelectorAll('.bd-card').forEach(e => e.remove());
+    (draws || []).forEach((dw, i) => {
+        const ab = document.querySelector(`.seat[data-uid="${dw.userId}"] .avatar-block`);
+        if (!ab) return;
+        const r = ab.getBoundingClientRect();
+        const el = document.createElement('div');
+        el.className = 'bd-card' + (dw.userId === winnerId ? ' win' : '');
+        el.style.left = (r.left + r.width / 2) + 'px';
+        el.style.top = (r.top - 6) + 'px';
+        el.style.animationDelay = (i * 0.1) + 's';
+        el.innerHTML = formatCard(dw.card);
+        document.body.appendChild(el);
+    });
+    toast('🎴 高牌定庄…', 2600);
+    setTimeout(() => document.querySelectorAll('.bd-card').forEach(e => e.remove()), 2700);
 }
 // 给别人发表情：表情从发送者头像「飞」到目标头像，落点冒泡，增强互动感
 function flyEmote(fromUserId, toUserId, emote) {
