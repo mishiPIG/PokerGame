@@ -668,6 +668,7 @@ function broadcastState(roomId) {
         maxPlayers: game.config?.maxPlayers || 9,
         sidePots:   livePots(game),
         spectators: listSpectators(roomId),
+        vacatedUserIds: (game.vacatedPlayers || []).map(v => v.userId),   // 站起围观者（可带原筹码回座）
         statsHistory: game.statsHistory || [],       // 已离开/淘汰玩家（战绩面板灰显）
         tableEndAt: game.tableEndAt || null,         // 现金桌训练结束时间戳
         ownerUserId:    game.ownerUserId || null,
@@ -1262,9 +1263,11 @@ function recordLeft(game, p) {
 function buildRanking(game, winnerId, prize) {
     if (game.roomType === 'cash') {
         const cur = game.players.map(p => ({ userId: p.userId, username: p.username, net: (p.chips || 0) - (p.buyIn || 0) }));
-        const hist = (game.statsHistory || []).filter(h => !game.players.some(p => p.userId === h.userId))
+        const vac = (game.vacatedPlayers || []).map(v => ({ userId: v.userId, username: v.username, net: (v.chips || 0) - (v.buyIn || 0) }));
+        const covered = new Set([...cur, ...vac].map(r => r.userId));
+        const hist = (game.statsHistory || []).filter(h => !covered.has(h.userId))
             .map(h => ({ userId: h.userId, username: h.username, net: h.net }));
-        return [...cur, ...hist].sort((a, b) => b.net - a.net)
+        return [...cur, ...vac, ...hist].sort((a, b) => b.net - a.net)
             .map((r, i) => ({ rank: i + 1, userId: r.userId, username: r.username, net: r.net, unit: '筹码' }));
     }
     const fee = game.config.buyIn || 0;
@@ -1315,6 +1318,7 @@ function endCashTable(roomId, reason) {
     for (const p of game.players) if (p.reserveTimer) clearTimeout(p.reserveTimer);
     const ranking = buildRanking(game);
     game.players.forEach(p => cashOut(p));   // 结算筹码→金币
+    (game.vacatedPlayers || []).forEach(vp => cashOut(vp));   // 站起围观者的筹码也在结束时结算
     if (ranking.length) sendMatchResult(roomId, `【${game.config.name}】${reason || '比赛结束'}`, ranking);
     else io.in(roomId).emit('room_dissolved');   // 空桌（如刚创建即解散）：直接回大厅
     // 把房间内所有 socket（在座玩家 + 观众）踢回大厅
@@ -1355,6 +1359,22 @@ function cashOut(p) {
     return payout;
 }
 
+// 站起围观：把玩家移出座位（座位腾空、可被他人坐下），转为观众；筹码存入 vacatedPlayers，
+// 结束/解散时统一结算（不立即兑出）。与「留座离桌」(reserved, 保留座位) 区分。
+function vacateSeat(game, idx) {
+    const p = game.players[idx];
+    if (!p) return;
+    if (!game.vacatedPlayers) game.vacatedPlayers = [];
+    if (p.reserveTimer) { clearTimeout(p.reserveTimer); p.reserveTimer = null; }
+    game.vacatedPlayers.push({
+        userId: p.userId, username: p.username, avatar: p.avatar || null,
+        chips: p.chips, buyIn: p.buyIn || 0, handsPlayed: p.handsPlayed || 0, socketId: p.socketId
+    });
+    game.players.splice(idx, 1);
+    if (game.buttonIdx > idx) game.buttonIdx--;
+    if (game.buttonIdx >= game.players.length) game.buttonIdx = 0;
+}
+
 // 为某座位扣金币、登记挂起补码（下一手生效）。成功返回 true
 function chargeRebuy(p, chips) {
     const fresh = db.getUserById(p.userId);
@@ -1376,6 +1396,8 @@ function removeBustedPlayers(game) {
     for (let i = game.players.length - 1; i >= 0; i--) {
         const p = game.players[i];
         if (game.roomType === 'cash') {
+            // 站起围观待腾位（本手结束）：移出座位到 vacatedPlayers，座位空出
+            if (p.vacateAfter) { vacateSeat(game, i); continue; }
             // 自动补码：耗尽且开启 autoRebuy 且无挂起 → 自动按最小带入补一手
             if (p.chips <= 0 && p.autoRebuy && !(p.pendingRebuy > 0) && !p.leaving) {
                 if (chargeRebuy(p, game.config.minBuyIn)) io.in(roomId).emit('server_msg', `🔁 ${p.username} 自动补码 ${game.config.minBuyIn}`);
@@ -1649,7 +1671,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 站起围观（现金桌）：坐出、保留筹码（不兑出！）；只有解散/退出房间时才结算
+    // 站起围观（现金桌）：离座腾位（座位变空、他人可坐），转观众；筹码保留，只在结束/解散时结算
     socket.on('stand_up', () => {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
@@ -1657,16 +1679,18 @@ io.on('connection', (socket) => {
         const idx = game.players.findIndex(p => p.userId === user.id);
         if (idx < 0) return;
         const p = game.players[idx];
-        if (p.reserveTimer) { clearTimeout(p.reserveTimer); p.reserveTimer = null; }
-        p.standing = true; p.away = true; p.reserved = false; p.sittingOut = true;
         const midHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN && !p.folded;
-        io.in(roomId).emit('server_msg', `🧍 ${user.username} 站起围观（筹码保留，结束时结算）`);
+        io.in(roomId).emit('server_msg', `🧍 ${user.username} 站起围观（座位空出，筹码保留至结束结算）`);
         if (midHand) {
-            p.folded = true; p.hasActed = true;
+            // 本手还在牌里：先弃牌打完本手，本手结束后再离座腾位（removeBustedPlayers 处理）
+            p.folded = true; p.hasActed = true; p.vacateAfter = true;
             if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
             else if (isBettingRoundComplete(game)) advanceStage(roomId);
             else broadcastState(roomId);
-        } else broadcastState(roomId);
+        } else {
+            vacateSeat(game, idx);
+            broadcastState(roomId);
+        }
         broadcastRoomList();
     });
 
@@ -1693,11 +1717,31 @@ io.on('connection', (socket) => {
         broadcastState(roomId);
     });
 
-    // 回到座位（取消留座/坐出）
+    // 回到座位（取消留座/坐出；站起围观者带原筹码回到一个空座）
     socket.on('sit_back', () => {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game) return;
+        // 站起围观回座：从 vacatedPlayers 恢复到空座（带回原筹码，不再扣买入）
+        if (game.vacatedPlayers) {
+            const vi = game.vacatedPlayers.findIndex(v => v.userId === user.id);
+            if (vi >= 0) {
+                const seat = firstFreeSeat(game);
+                if (seat < 0) { socket.emit('server_msg', '⚠️ 暂无空座，无法回座'); return; }
+                const vp = game.vacatedPlayers.splice(vi, 1)[0];
+                const inHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
+                game.players.push({
+                    userId: user.id, socketId: socket.id, username: user.username, seat,
+                    avatar: db.getUserById(user.id)?.avatar || null,
+                    chips: vp.chips, currentBet: 0, buyIn: vp.buyIn, handsPlayed: vp.handsPlayed || 0,
+                    folded: inHand, allIn: false, hasActed: false, ready: false, sittingOut: vp.chips <= 0
+                });
+                io.in(roomId).emit('server_msg', `🪑 ${user.username} 回到座位（${seat + 1} 号位）`);
+                if (game.status === 'running' && !inHand && liveCount(game) >= 2) scheduleNextHand(roomId);
+                broadcastState(roomId); broadcastRoomList();
+                return;
+            }
+        }
         const p = game.players.find(pl => pl.userId === user.id);
         if (!p) return;
         if (p.reserveTimer) { clearTimeout(p.reserveTimer); p.reserveTimer = null; }
@@ -1772,8 +1816,12 @@ io.on('connection', (socket) => {
                 // 观众离开（现金桌未入座）：退出 socket.io 房间并刷新观众列表
                 socket.leave(roomId);
                 if (game.players.length === 0 && listSpectators(roomId).length <= 1) {
-                    clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer);
-                    clearActionTimer(game); delete roomGames[roomId];
+                    // 若还有站起围观者的筹码没结算，走 endCashTable 结算再关房，避免筹码/金币丢失
+                    if ((game.vacatedPlayers || []).length) { endCashTable(roomId, '全员离开'); }
+                    else {
+                        clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer);
+                        clearActionTimer(game); delete roomGames[roomId];
+                    }
                 } else broadcastState(roomId);
             }
         }

@@ -1151,9 +1151,8 @@
         <div class="tm-grid">
             <button onclick="openSettings();toggleTableMenu()">🎨 桌面设置</button>
             <button class="cash-only" onclick="openRebuy();toggleTableMenu()">💵 补充记分牌</button>
-            <button class="seat-only" onclick="reserveLeave();toggleTableMenu()">💺 留座离座</button>
+            <button class="seat-only" onclick="reserveLeave();toggleTableMenu()">💺 留座离桌</button>
             <button class="seat-only" onclick="standUp();toggleTableMenu()">🧍 站起围观</button>
-            <button onclick="openHistory();toggleTableMenu()">📜 牌谱回顾</button>
             <button class="owner-only" onclick="openMatchSettings();toggleTableMenu()">⚙️ 比赛设置</button>
             <button onclick="leaveRoom();toggleTableMenu()">🚪 退出比赛</button>
             <button class="owner-only danger" onclick="dissolveRoom();toggleTableMenu()">🛑 解散比赛</button>
@@ -1919,7 +1918,7 @@ function toggleTableMenu() {
 }
 // 站起围观 / 留座离座 / 回到座位
 function standUp() {
-    if (socket && confirm('确定站起围观？筹码【保留】（只在结束/解散时结算），暂时离座、可随时回到座位。')) socket.emit('stand_up');
+    if (socket && confirm('确定站起围观？将【离开座位】（座位空出、他人可坐），筹码保留至结束/解散时结算；可随时「回到座位」带原筹码回来。')) socket.emit('stand_up');
 }
 function reserveLeave() {
     if (socket) { socket.emit('reserve_leave'); alert('已留座离座，2 分钟内回来保留座位（点座位「回到座位」即可）'); }
@@ -3716,10 +3715,12 @@ function render(state) {
 
     // ── 现金桌坐出补码 / 留座·围观回桌 提示 ──
     // 仅当真正坐出（本手结束被清理标记 sittingOut）才提示补码；all-in 当下 chips=0 但仍在牌局中，不弹
-    const amReserved = isCash && me && (me.reserved || me.standing);   // 留座 / 站起围观 都可回座
+    const amReserved = isCash && me && me.reserved;                    // 留座离桌：保留座位
+    const amVacated  = isCash && !me && (state.vacatedUserIds || []).includes(myUserId);   // 站起围观：已离座，可带筹码回座
     const amSittingOut = isCash && me && !amReserved && me.sittingOut && (me.pendingRebuy || 0) === 0;
-    document.getElementById('reserveBackPanel').style.display = amReserved ? '' : 'none';
-    if (amReserved) document.getElementById('reserveBackLabel').textContent = me.standing ? '🧍 围观中（筹码保留）' : '💺 留座中';
+    document.getElementById('reserveBackPanel').style.display = (amReserved || amVacated) ? '' : 'none';
+    if (amReserved || amVacated) document.getElementById('reserveBackLabel').textContent =
+        amVacated ? '🧍 站起围观中（点「回到座位」带原筹码回来）' : '💺 留座离桌中';
     document.getElementById('sitOutPanel').style.display = amSittingOut ? '' : 'none';
 
     // ── 解散房间按钮（仅房主，开赛后可用；在设置面板内）──
