@@ -55,7 +55,9 @@
             position: absolute; left: 6px; right: 6px; bottom: 150px; z-index: 20;
             background: none; border: none; box-shadow: none;
             display: flex; flex-direction: column; align-items: center; gap: 8px;
+            pointer-events: none;   /* 容器透传：透明空隙不拦截，下方头像可点 */
         }
+        #action-bar button, #action-bar input, #action-bar .size-quick { pointer-events: auto; }
         /* 精调面板展开时给个底板，便于看清滑条
            注意：不要用 backdrop-filter:blur——拖动滑条会每帧重算模糊，手机上严重卡顿。
            背景已近乎不透明(0.98)，无需模糊。 */
@@ -677,7 +679,10 @@
         .chat-emotes { border-top: 1px solid rgba(255,255,255,0.08); }
         .emote-btn { flex: 0 0 auto; width: 38px; height: 38px; font-size: 20px; border-radius: 9px;
             background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); cursor: pointer; }
-        .chat-phrases { flex-direction: column; align-items: stretch; }   /* 短语较长 → 竖排整行 */
+        .chat-phrases { flex-direction: column; align-items: stretch; max-height: 46vh; overflow-y: auto; }   /* 短语较长→竖排整行+可滚动看全 */
+        .chat-phrase-toggle { flex: 0 0 auto; background: rgba(255,255,255,0.08); color: #cdd9ef;
+            border: 1px solid rgba(255,255,255,0.16); border-radius: 9px; padding: 0 12px; font-size: 13px; font-weight: bold; cursor: pointer; }
+        .chat-phrase-toggle.on { background: #3a86ff; color: #fff; border-color: #3a86ff; }
         .phrase-btn { width: 100%; text-align: left; padding: 9px 12px; font-size: 13.5px; border-radius: 10px; white-space: normal;
             background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #dfe7f5; cursor: pointer; }
         .phrase-btn::before { content: "◆ "; color: #6f88b5; }
@@ -936,8 +941,14 @@
         .ap-emotes { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
         .ap-emotes .emote-btn { font-size: 22px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
             border-radius: 10px; width: 42px; height: 42px; cursor: pointer; }
-        .fly-emote { position: fixed; z-index: 210; font-size: 30px; pointer-events: none; will-change: transform, opacity;
-            margin-left: -15px; margin-top: -15px; }
+        .fly-emote { position: fixed; z-index: 9990; font-size: 32px; pointer-events: none; will-change: transform, opacity;
+            margin-left: -16px; margin-top: -16px; --dx: 0px; --dy: 0px;
+            animation: flyEmoteAnim 0.64s cubic-bezier(0.34,1.2,0.5,1) forwards; }
+        @keyframes flyEmoteAnim {
+            0%   { transform: translate(0,0) scale(0.55); opacity: 0.35; }
+            25%  { opacity: 1; }
+            100% { transform: translate(var(--dx), var(--dy)) scale(1.5); opacity: 1; }
+        }
         .hist-item { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
             cursor: pointer; border-left: 3px solid #555; }
         .hist-item.win { border-left-color: #4ade80; }
@@ -1187,11 +1198,11 @@
 
     <!-- 聊天 + 表情（桌内底部抽屉）-->
     <div id="chat-panel" style="display:none">
-        <div class="chat-head"><b>💬 聊天 / 表情</b><button onclick="toggleChat()">✕</button></div>
+        <div class="chat-head"><b>💬 聊天</b><button onclick="toggleChat()">✕</button></div>
         <div id="chat-list"></div>
-        <div class="chat-emotes" id="chat-emotes"></div>
-        <div class="chat-phrases" id="chat-phrases"></div>
+        <div class="chat-phrases" id="chat-phrases" style="display:none"></div>
         <div class="chat-input-row">
+            <button class="chat-phrase-toggle" id="phrase-toggle" onclick="togglePhrases()">常用语</button>
             <input id="chat-input" maxlength="120" placeholder="说点什么…" onkeydown="if(event.key==='Enter')sendChat()">
             <button onclick="sendChat()">发送</button>
         </div>
@@ -1991,6 +2002,11 @@ let pendingSeat = -1;
 function openSitDown(seat) {
     const st = lastState; if (!st || st.roomType !== 'cash') return;
     if (st.players.some(p => p.userId === myUserId)) { return; }   // 已入座
+    // 站起围观者回座：带原筹码直接回座，不弹买入框、不再扣金币
+    if ((st.vacatedUserIds || []).includes(myUserId)) {
+        if (socket) socket.emit('sit_down', { seat: (seat == null ? -1 : seat) });
+        return;
+    }
     buyinMode = 'sit';
     pendingSeat = (seat == null ? -1 : seat);
     const min = st.minBuyIn || 2000;
@@ -2726,12 +2742,10 @@ function flyEmote(fromUserId, toUserId, emote) {
     const el = document.createElement('div');
     el.className = 'fly-emote'; el.textContent = emote;
     el.style.left = ax + 'px'; el.style.top = ay + 'px';
-    document.body.appendChild(el);
-    requestAnimationFrame(() => {
-        el.style.transition = 'transform 0.6s cubic-bezier(0.34,1.25,0.5,1), opacity 0.6s';
-        el.style.transform = `translate(${dx}px, ${dy}px) scale(1.5)`;
-    });
-    setTimeout(() => { el.remove(); seatBubble(toUserId, emote, true); }, 620);
+    el.style.setProperty('--dx', dx + 'px');
+    el.style.setProperty('--dy', dy + 'px');
+    document.body.appendChild(el);   // 用 CSS keyframe（比 transition+rAF 在手机上更稳）
+    setTimeout(() => { el.remove(); seatBubble(toUserId, emote, true); }, 640);
 }
 // 手机振动反馈（不支持则忽略）
 function vibrate(pattern) { try { if (soundOn && navigator.vibrate) navigator.vibrate(pattern); } catch (e) {} }
@@ -2959,8 +2973,14 @@ const EMOTES = ['😀', '😂', '😎', '😡', '😭', '🤔', '👍', '🎉', 
 let chatBuilt = false;
 function buildChatBars() {
     if (chatBuilt) return; chatBuilt = true;
-    document.getElementById('chat-emotes').innerHTML = EMOTES.map(e => `<button class="emote-btn" onclick="sendEmote('${e}')">${e}</button>`).join('');
+    // 表情已移到「点头像」发送，聊天面板不再放表情行；只保留常用语（折叠 + 可滚动）
     document.getElementById('chat-phrases').innerHTML = QUICK_PHRASES.map(p => `<button class="phrase-btn" onclick="sendPhrase('${p.replace(/'/g, "\\'")}')">${p}</button>`).join('');
+}
+function togglePhrases() {
+    const el = document.getElementById('chat-phrases');
+    const show = el.style.display === 'none';
+    el.style.display = show ? 'flex' : 'none';
+    document.getElementById('phrase-toggle')?.classList.toggle('on', show);
 }
 function toggleChat() {
     buildChatBars();
@@ -3897,6 +3917,9 @@ function render(state) {
 
     // ── 加时按钮（底部控制栏）──
     document.getElementById('tcAddTime').disabled = !(myTurn && state.canAddTime);
+    // 加时按钮旁显示我的剩余时间卡数量（现金桌）
+    const tcInfo = document.getElementById('tcAddInfo');
+    if (tcInfo) tcInfo.textContent = (state.roomType === 'cash' && me) ? ('×' + (me.timeCards || 0)) : '';
 
     // ── 看后续牌按钮（弃牌结束的局间，公共牌不足 5 张时）──
     const btnRabbit = document.getElementById('btnRabbit');

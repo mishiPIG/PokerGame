@@ -97,9 +97,16 @@ function gameAnte(game) {
 }
 
 // 行动思考时间（毫秒）
-const ACTION_TIME = 15000;    // 初始 15s
-const EXTRA_STEP  = 15000;    // 每次加时 +15s
-const EXTRA_MAX   = 120000;   // 单次行动累计加时上限 2min
+const ACTION_TIME = 18000;    // 初始 18s
+const EXTRA_STEP  = 15000;    // 每次加时 +15s（消耗 1 张时间卡）
+const EXTRA_MAX   = 120000;   // 单次行动累计加时上限 2min（时间卡之外的硬上限）
+// 时间卡数量 = 时长(h) × 买入BB × 0.25（现金桌）；1h 带入 100BB → 25 张。偏宽松，够用为主。
+function timeCardsFor(game, chips) {
+    const bb = gameBB(game) || 1;
+    const buyInBB = chips / bb;
+    if (game.roomType === 'cash') return Math.round((game.config.durationH || 2) * buyInBB * 0.25);
+    return Math.max(6, Math.round(buyInBB * 0.1));   // SNG 无时长，按起始筹码给一份
+}
 const RUNOUT_DELAY = 1400;    // all-in 摊牌跑马，每条街发牌间隔
 const FIXED_BUYIN  = 50;      // 旧默认（保留兼容）
 const SNG_BUYIN_TIERS = [110, 220, 550, 1100];   // SNG 报名费档位（2 人冠军得 200/400/1000/2000）
@@ -680,7 +687,8 @@ function broadcastState(roomId) {
         tournamentOver: game.tournamentOver || false,
         actionDeadline: game.actionOnIdx >= 0 ? (game.actionDeadline || null) : null, // 行动截止时间戳(ms)
         actionTotalMs:  game.actionOnIdx >= 0 ? (game.actionTotalMs || ACTION_TIME) : null, // 本次行动总时长(环形进度)
-        canAddTime:     game.actionOnIdx >= 0 && (game.extraAddedThisTurn || 0) < EXTRA_MAX, // 还能加时
+        canAddTime:     game.actionOnIdx >= 0 && (game.extraAddedThisTurn || 0) < EXTRA_MAX
+                        && (game.players[game.actionOnIdx]?.timeCards || 0) > 0, // 还能加时(未达2min上限且有时间卡)
         buttonUserId:   game.players[game.buttonIdx]?.userId || null,
         actionOnUserId: game.actionOnIdx >= 0 ? (game.players[game.actionOnIdx]?.userId || null) : null,
         communityCards: game.communityCards.map(c => ({ suit: c.suit, rank: c.rank })),
@@ -702,7 +710,8 @@ function broadcastState(roomId) {
             pendingRebuy: p.pendingRebuy || 0,     // 下一手生效的补码
             autoRebuy:  !!p.autoRebuy,             // 现金桌自动补码
             buyIn:      p.buyIn || 0,              // 累计带入（战绩面板）
-            handsPlayed: p.handsPlayed || 0        // 已玩手数（战绩面板）
+            handsPlayed: p.handsPlayed || 0,       // 已玩手数（战绩面板）
+            timeCards:  p.timeCards || 0           // 剩余时间卡（加时消耗）
         }))
     };
     io.in(roomId).emit('game_state', state);
@@ -1307,6 +1316,11 @@ function extendTable(roomId, addMs) {
         clearTimeout(game.tableTimer);
         game.tableTimer = setTimeout(() => endCashTable(roomId, '训练时长已到'), Math.max(0, game.tableEndAt - Date.now()));
     }
+    // 比赛加时 → 按增加的时长给各家补时间卡（时长 × 买入BB × 0.25）
+    const addH = addMs / 3600000, bb = gameBB(game) || 1;
+    const grant = p => { p.timeCards = (p.timeCards || 0) + Math.round(addH * ((p.buyIn || 0) / bb) * 0.25); };
+    game.players.forEach(grant);
+    (game.vacatedPlayers || []).forEach(grant);
 }
 
 // 结束现金桌：结算所有在座筹码→金币，公布排名+发消息，全员（含观众）回大厅
@@ -1368,7 +1382,8 @@ function vacateSeat(game, idx) {
     if (p.reserveTimer) { clearTimeout(p.reserveTimer); p.reserveTimer = null; }
     game.vacatedPlayers.push({
         userId: p.userId, username: p.username, avatar: p.avatar || null,
-        chips: p.chips, buyIn: p.buyIn || 0, handsPlayed: p.handsPlayed || 0, socketId: p.socketId
+        chips: p.chips, buyIn: p.buyIn || 0, handsPlayed: p.handsPlayed || 0, socketId: p.socketId,
+        timeCards: p.timeCards || 0
     });
     game.players.splice(idx, 1);
     if (game.buttonIdx > idx) game.buttonIdx--;
@@ -1394,6 +1409,7 @@ function restoreVacatedPlayer(roomId, socket, user, preferSeat) {
         userId: user.id, socketId: socket.id, username: user.username, seat,
         avatar: db.getUserById(user.id)?.avatar || null,
         chips: vp.chips, currentBet: 0, buyIn: vp.buyIn, handsPlayed: vp.handsPlayed || 0,
+        timeCards: vp.timeCards || 0,
         folded: inHand, allIn: false, hasActed: false, ready: false, sittingOut: vp.chips <= 0
     });
     io.in(roomId).emit('server_msg', `🪑 ${user.username} 回到座位（${seat + 1} 号位，带回原筹码）`);
@@ -1403,7 +1419,7 @@ function restoreVacatedPlayer(roomId, socket, user, preferSeat) {
 }
 
 // 为某座位扣金币、登记挂起补码（下一手生效）。成功返回 true
-function chargeRebuy(p, chips) {
+function chargeRebuy(game, p, chips) {
     const fresh = db.getUserById(p.userId);
     if (!fresh) return false;
     const cost = Math.ceil(chips * BUYIN_RATE);
@@ -1412,6 +1428,7 @@ function chargeRebuy(p, chips) {
     if (p.socketId) io.to(p.socketId).emit('gold_update', { gold: fresh.gold - cost });
     p.pendingRebuy = (p.pendingRebuy || 0) + chips;
     p.buyIn = (p.buyIn || 0) + chips;
+    p.timeCards = (p.timeCards || 0) + timeCardsFor(game, chips);   // 补码同步补时间卡
     return true;
 }
 
@@ -1427,7 +1444,7 @@ function removeBustedPlayers(game) {
             if (p.vacateAfter) { vacateSeat(game, i); continue; }
             // 自动补码：耗尽且开启 autoRebuy 且无挂起 → 自动按最小带入补一手
             if (p.chips <= 0 && p.autoRebuy && !(p.pendingRebuy > 0) && !p.leaving) {
-                if (chargeRebuy(p, game.config.minBuyIn)) io.in(roomId).emit('server_msg', `🔁 ${p.username} 自动补码 ${game.config.minBuyIn}`);
+                if (chargeRebuy(game, p, game.config.minBuyIn)) io.in(roomId).emit('server_msg', `🔁 ${p.username} 自动补码 ${game.config.minBuyIn}`);
             }
             // 有挂起补码：下一手生效（加筹码，取消坐出）
             if (p.pendingRebuy > 0) { p.chips += p.pendingRebuy; p.pendingRebuy = 0; p.sittingOut = false; }
@@ -1512,6 +1529,7 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
         userId: user.id, socketId: socket.id, username: user.username, seat,
         avatar: db.getUserById(user.id)?.avatar || null,
         chips, currentBet: 0, buyIn: chips,   // 入座即记录带入额（战绩 net=chips-buyIn=0，避免首次广播显示 +chips）
+        timeCards: timeCardsFor(game, chips),   // 按买入BB×时长发时间卡（加时消耗）
         folded: inHand, allIn: false, hasActed: false, ready: false   // 中途加入则本局坐出（下一局开局重置）
     };
     // 牌局进行中：追加到末尾（避免打乱在用的数组索引），坐出本手；局间则按座位插入
@@ -1905,7 +1923,7 @@ io.on('connection', (socket) => {
         }
         if (cap <= 0) { socket.emit('server_msg', '⚠️ 已达带入上限'); return; }
         const chips = clampInt(amount, gameBB(game), cap, Math.min(cap, game.config.minBuyIn));
-        if (!chargeRebuy(p, chips)) { socket.emit('server_msg', `⚠️ 金币不足，补 ${chips} 筹码需 ${Math.ceil(chips * BUYIN_RATE)} 金币`); return; }
+        if (!chargeRebuy(game, p, chips)) { socket.emit('server_msg', `⚠️ 金币不足，补 ${chips} 筹码需 ${Math.ceil(chips * BUYIN_RATE)} 金币`); return; }
         user.gold = db.getUserById(user.id).gold;
         const between = game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN;
         const inActiveHand = !between && !p.folded;
@@ -2116,21 +2134,24 @@ io.on('connection', (socket) => {
         afterAction(roomId);
     });
 
-    // 加时：仅当前行动玩家可用，单次行动累计上限 EXTRA_MAX
+    // 加时：仅当前行动玩家可用；每次 +15s 消耗 1 张时间卡；单次行动累计仍上限 EXTRA_MAX(2min)
     socket.on('add_time', (roomId) => {
-        const game = roomGames[roomId];
+        const game = roomGames[roomId] || roomGames[socket.currentRoom];
         if (!game || game.actionOnIdx < 0) return;
-        if (game.players[game.actionOnIdx]?.userId !== user.id) return;
+        const actor = game.players[game.actionOnIdx];
+        if (!actor || actor.userId !== user.id) return;
         if ((game.extraAddedThisTurn || 0) >= EXTRA_MAX) {
-            socket.emit('server_msg', '⚠️ 本次行动加时已达上限'); return;
+            socket.emit('server_msg', '⚠️ 本次行动加时已达上限（2 分钟）'); return;
         }
-        const add = Math.min(EXTRA_STEP, EXTRA_MAX - game.extraAddedThisTurn);
-        game.extraAddedThisTurn += add;
+        if ((actor.timeCards || 0) <= 0) { socket.emit('server_msg', '⚠️ 没有时间卡了'); return; }
+        const add = Math.min(EXTRA_STEP, EXTRA_MAX - (game.extraAddedThisTurn || 0));
+        actor.timeCards -= 1;
+        game.extraAddedThisTurn = (game.extraAddedThisTurn || 0) + add;
         game.actionDeadline += add;
         game.actionTotalMs = (game.actionTotalMs || ACTION_TIME) + add;
         clearActionTimer(game);
         game.actionTimer = setTimeout(() => onActionTimeout(roomId), Math.max(0, game.actionDeadline - Date.now()));
-        io.in(roomId).emit('server_msg', `⏱ ${user.username} 加时 +${add / 1000}s`);
+        io.in(roomId).emit('server_msg', `⏱ ${user.username} 加时 +${add / 1000}s（剩 ${actor.timeCards} 张时间卡）`);
         broadcastState(roomId);
     });
 
