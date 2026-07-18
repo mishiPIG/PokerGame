@@ -1670,6 +1670,7 @@ io.on('connection', (socket) => {
             currentLevel: 0, levelStartTime: null, prizePool: 0, tournamentOver: false,
             statsHistory: []
         };
+        socket.playRoom = roomId;   // 房主有下场资格
         if (!seatPlayer(roomId, socket, user)) { delete roomGames[roomId]; }
     });
 
@@ -1697,13 +1698,19 @@ io.on('connection', (socket) => {
             statsHistory: [], tableEndAt: null, extraMs: 0
         };
         // 现金桌：房主先以观众身份进桌，点空座位「坐下」再带入（坐下式入座）
+        socket.playRoom = roomId;   // 房主有下场资格（无需再输房号）
         joinAsSpectator(roomId, socket);
     });
 
     // 加入已有房间（含断线重连）
-    socket.on('join_room', ({ roomId, buyInChips }) => {
+    socket.on('join_room', ({ roomId, buyInChips, byCode }) => {
         const game = roomGames[roomId];
         if (!game) { socket.emit('server_msg', '⚠️ 房间不存在或已结束'); socket.emit('room_list', listRooms(user.id)); return; }
+
+        // 输房间号进入 = 授权可下场；列表点进(观战)不设此权限，只能看不能坐（防陌生人捣乱）
+        if (byCode) socket.playRoom = roomId;
+        // 原座上成员 / 站起围观者回来：本就有资格玩
+        if (game.players.some(p => p.userId === user.id) || (game.vacatedPlayers || []).some(v => v.userId === user.id)) socket.playRoom = roomId;
 
         // 断线重连
         const existing = game.players.find(p => p.userId === user.id);
@@ -1740,10 +1747,12 @@ io.on('connection', (socket) => {
         }
 
         if (game.roomType === 'cash') {
-            // 现金桌：先进桌当观众，点空座「坐下」再带入
+            // 现金桌：先进桌当观众，点空座「坐下」再带入（坐下时校验 playRoom）
             joinAsSpectator(roomId, socket);
             return;
         }
+        // SNG：从大厅列表点进=只观战；输入房间号进入(byCode)才落座
+        if (!byCode) { joinAsSpectator(roomId, socket); return; }
         // SNG 不许中途加入（开赛即锁定座位）
         if (game.players.length >= game.config.maxPlayers) { socket.emit('server_msg', '⚠️ 房间已满'); return; }
         if (game.status === 'running') { socket.emit('server_msg', '⚠️ 比赛已开始，无法加入'); return; }
@@ -1760,6 +1769,8 @@ io.on('connection', (socket) => {
         if (game.players.find(p => p.userId === user.id)) { socket.emit('server_msg', '⚠️ 你已入座'); return; }
         // 站起围观者点座位坐下：带原筹码回座（不重复扣买入 + 清 vacated 记录），杜绝「两个自己」
         if (restoreVacatedPlayer(roomId, socket, user, seat)) return;
+        // 防陌生人捣乱：从大厅列表点进来的是观战，必须用房间号加入(byCode)才有下场资格
+        if (socket.playRoom !== roomId) { socket.emit('server_msg', '👀 你在观战——请用房间号加入房间才能下场入座'); return; }
         if (game.players.length >= game.config.maxPlayers) { socket.emit('server_msg', '⚠️ 座位已满'); return; }
         if (occupiedSeats(game).has(seat)) { socket.emit('server_msg', '⚠️ 该座位已被占用'); return; }
         if (seatPlayer(roomId, socket, user, buyInChips, seat)) {

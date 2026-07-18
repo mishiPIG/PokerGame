@@ -1066,6 +1066,7 @@
             </button>
             <div class="lobby-entry join">
                 <div class="le-title">🎟️ 加入比赛</div>
+                <div class="le-sub">下场需房主给的房间号；列表里的房间只能观战</div>
                 <div class="le-join-row">
                     <input type="text" id="joinRoomInput" placeholder="房间号" maxlength="6">
                     <button onclick="joinByCode()">加入</button>
@@ -1961,14 +1962,15 @@ function submitCreate() {
     }
     hideCreateForm();
 }
+// 输入房间号加入 = 有下场资格（byCode）
 function joinByCode() {
     const roomId = document.getElementById('joinRoomInput').value.trim();
-    if (roomId && socket) socket.emit('join_room', { roomId });
+    if (roomId && socket) socket.emit('join_room', { roomId, byCode: true });
 }
-// 加入房间：现金桌先以观众进桌，再点空座「坐下」带入；SNG 直接入座
-function joinRoomId(roomId) {
+// 从大厅列表点进 = 只观战（不能下场，需另输房间号）；本房成员=重连回桌
+function joinRoomId(roomId, isMember) {
     if (!roomId || !socket) return;
-    socket.emit('join_room', { roomId });
+    socket.emit('join_room', { roomId, byCode: !!isMember });   // 成员重进=保留资格；陌生人=观战
 }
 function leaveRoom() {
     if (!socket) return;
@@ -2954,12 +2956,8 @@ function renderRoomList(rooms) {
         // 我是本房成员 → 始终可「重新进入」（重连回桌）；否则进行中/已满则灰
         let btnLabel, disabled, cls = '';
         if (r.isMember) { btnLabel = '重新进入'; disabled = false; cls = 'rejoin'; }
-        else if (running) { btnLabel = '进行中'; disabled = true; }
-        else if (full)    { btnLabel = '已满';   disabled = true; }
-        else              { btnLabel = '加入';   disabled = false; }
+        else            { btnLabel = '👀 观战';  disabled = false; }   // 非成员：只能观战（下场需输房间号）
         const isCash = r.roomType === 'cash';
-        // 现金桌随时可加入（除非满）；不因 running 变灰
-        if (isCash && !r.isMember) { disabled = full; btnLabel = full ? '已满' : '加入'; cls = full ? '' : ''; }
         const tag  = isCash ? `<span class="rc-tag cash">现金桌</span>` : `<span class="rc-tag">SNG·升盲</span>`;
         const meta = isCash
             ? `👤 ${r.playerCount}/${r.maxPlayers} · 盲注 ${r.sb}/${r.bb}${r.ante ? ' · ante '+r.ante : ''} · 带入≥${(r.minBuyIn||0).toLocaleString()}`
@@ -2969,7 +2967,7 @@ function renderRoomList(rooms) {
                 <div class="rc-name">${escapeHtml(r.name)}</div>
                 <div class="rc-meta"><span class="rc-owner">${escapeHtml(r.ownerName)}</span>${tag} ${meta}</div>
             </div>
-            <button class="rc-join ${cls}" ${disabled ? 'disabled' : ''} onclick="joinRoomId('${r.roomId}')">${btnLabel}</button>
+            <button class="rc-join ${cls}" ${disabled ? 'disabled' : ''} onclick="joinRoomId('${r.roomId}', ${r.isMember ? 'true' : 'false'})">${btnLabel}</button>
         </div>`;
     }).join('');
 }
