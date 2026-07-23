@@ -118,6 +118,9 @@ const BUYIN_RATE   = 0.11;    // 例：110 金币 → 1000 筹码
 const CASHOUT_RATE = 0.10;    // 例：1000 筹码 → 100 金币
 
 const roomGames = {};
+const CONFIGURED_PUBLIC_ORIGIN = (process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
+const inviteCodeFailuresByUser = new Map();
+const inviteCodeFailuresByIp = new Map();
 
 // ===== Admin middleware =====
 
@@ -1194,7 +1197,92 @@ function genRoomId() {
     return id;
 }
 
-// 记住"有下场资格"的用户（房主/输过房号/坐过）：即使退到大厅当观众，列表仍显示「重新加入」
+function genJoinCode(excludeRoomId = '', disallowedCode = '') {
+    // 四位码只需在活跃房间中唯一；保留前导零。
+    for (let attempts = 0; attempts < 20000; attempts++) {
+        const code = String(crypto.randomInt(10000)).padStart(4, '0');
+        if (code === disallowedCode) continue;
+        const used = Object.entries(roomGames).some(([roomId, game]) =>
+            roomId !== excludeRoomId && game.invite?.joinCode === code);
+        if (!used) return code;
+    }
+    throw new Error('无法生成唯一房间码：活跃房间过多');
+}
+
+function createRoomInvite(excludeRoomId = '', disallowedCode = '') {
+    return {
+        token: crypto.randomBytes(16).toString('base64url'),
+        joinCode: genJoinCode(excludeRoomId, disallowedCode),
+        entryLocked: false,
+        version: 1,
+        createdAt: Date.now()
+    };
+}
+
+function findRoomByInviteToken(token) {
+    if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{20,128}$/.test(token)) return null;
+    return Object.entries(roomGames).find(([, game]) => game.invite?.token === token) || null;
+}
+
+function findRoomByJoinCode(code) {
+    if (typeof code !== 'string' || !/^\d{4}$/.test(code)) return null;
+    return Object.entries(roomGames).find(([, game]) => game.invite?.joinCode === code) || null;
+}
+
+function emitRoomInviteInfo(socket, game, autoOpen = false) {
+    if (!game || game.ownerUserId !== socket.user?.id || !game.invite) return;
+    const requestOrigin = String(socket.handshake.headers.origin || '');
+    const publicOrigin = CONFIGURED_PUBLIC_ORIGIN
+        || (/^https?:\/\/[^/]+$/i.test(requestOrigin) ? requestOrigin : 'https://pokerdojo.space');
+    socket.emit('room_invite_info', {
+        joinCode: game.invite.joinCode,
+        inviteUrl: `${publicOrigin}/#/join/${game.invite.token}`,
+        entryLocked: !!game.invite.entryLocked,
+        version: game.invite.version,
+        autoOpen
+    });
+}
+
+function clientIp(socket) {
+    const forwarded = socket.handshake.headers['x-forwarded-for'];
+    return String(forwarded || socket.handshake.address || '').split(',')[0].trim();
+}
+
+function recentFailures(map, key, windowMs) {
+    const cutoff = Date.now() - windowMs;
+    const recent = (map.get(key) || []).filter(ts => ts > cutoff);
+    if (recent.length) map.set(key, recent);
+    else map.delete(key);
+    return recent;
+}
+
+function codeAttemptLimited(socket, userId) {
+    return recentFailures(inviteCodeFailuresByUser, userId, 60_000).length >= 5
+        || recentFailures(inviteCodeFailuresByIp, clientIp(socket), 600_000).length >= 20;
+}
+
+function recordCodeFailure(socket, userId) {
+    const ip = clientIp(socket);
+    inviteCodeFailuresByUser.set(userId, [...recentFailures(inviteCodeFailuresByUser, userId, 60_000), Date.now()]);
+    inviteCodeFailuresByIp.set(ip, [...recentFailures(inviteCodeFailuresByIp, ip, 600_000), Date.now()]);
+}
+
+function clearUserCodeFailures(userId) {
+    inviteCodeFailuresByUser.delete(userId);
+}
+
+function canAuthorizeNewUser(game, userId) {
+    if (!game || game.status === 'finished') return false;
+    if (game.authorized?.has(userId)) return true;
+    if (game.invite?.entryLocked) return false;
+    if (game.roomType === 'sng') {
+        if (game.status === 'running' || game.players.length >= game.config.maxPlayers) return false;
+        if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) return false;
+    }
+    return true;
+}
+
+// 记住"有下场资格"的用户（房主/验证过邀请/坐过）：即使退到大厅，列表仍显示「重新加入」
 function authorize(roomId, userId) {
     const g = roomGames[roomId];
     if (!g) return;
@@ -1692,6 +1780,8 @@ io.on('connection', (socket) => {
             buttonIdx: 0, buttonSeat: -1, actionOnIdx: -1,
             roomType: 'sng', status: 'waiting',
             ownerUserId: user.id, ownerName: user.username,
+            authorized: new Set([user.id]),
+            invite: createRoomInvite(roomId),
             config: {
                 name:        (cfg.name || '').toString().trim().slice(0, 20) || `${user.username}的比赛`,
                 maxPlayers:  clampInt(cfg.maxPlayers, 2, 9, 2),              // 2–9 人（引擎已支持多人）
@@ -1705,6 +1795,7 @@ io.on('connection', (socket) => {
         };
         socket.playRoom = roomId; authorize(roomId, user.id);   // 房主有下场资格
         if (!seatPlayer(roomId, socket, user)) { delete roomGames[roomId]; }
+        else emitRoomInviteInfo(socket, roomGames[roomId], true);
     });
 
     // 创建现金桌（2–9 人，固定盲注，金币↔筹码买入），创建者按 buyInChips 买入
@@ -1721,6 +1812,8 @@ io.on('connection', (socket) => {
             buttonIdx: 0, buttonSeat: -1, actionOnIdx: -1,
             roomType: 'cash', status: 'waiting',
             ownerUserId: user.id, ownerName: user.username,
+            authorized: new Set([user.id]),
+            invite: createRoomInvite(roomId),
             config: {
                 name:      (cfg.name || '').toString().trim().slice(0, 20) || `${user.username}的现金桌`,
                 maxPlayers: clampInt(cfg.maxPlayers, 2, 9, 6),
@@ -1733,18 +1826,26 @@ io.on('connection', (socket) => {
         // 现金桌：房主先以观众身份进桌，点空座位「坐下」再带入（坐下式入座）
         socket.playRoom = roomId; authorize(roomId, user.id);   // 房主有下场资格（无需再输房号）
         joinAsSpectator(roomId, socket);
+        emitRoomInviteInfo(socket, roomGames[roomId], true);
     });
 
-    // 加入已有房间（含断线重连）
-    socket.on('join_room', ({ roomId, buyInChips, byCode }) => {
+    // 统一加入已有房间：公开 roomId 只能用于观战；下场资格完全来自服务端 authorized。
+    const handleJoinRoom = (roomId) => {
+        roomId = String(roomId || '');
         const game = roomGames[roomId];
         if (!game) { socket.emit('server_msg', '⚠️ 房间不存在或已结束'); socket.emit('room_list', listRooms(user.id)); return; }
         clearTimeout(game.emptyCleanupTimer);   // 有人（回来/加入）→ 取消空房清理
 
-        // 输房间号进入 = 授权可下场；列表点进(观战)不设此权限，只能看不能坐（防陌生人捣乱）
-        if (byCode) { socket.playRoom = roomId; authorize(roomId, user.id); }
-        // 原座上成员 / 站起围观者回来：本就有资格玩
-        if (game.players.some(p => p.userId === user.id) || (game.vacatedPlayers || []).some(v => v.userId === user.id)) { socket.playRoom = roomId; authorize(roomId, user.id); }
+        // 已验证邀请、原座上成员、站起围观者本就有资格。绝不信任客户端 byCode 布尔值。
+        const isKnownMember = game.authorized?.has(user.id)
+            || game.players.some(p => p.userId === user.id)
+            || (game.vacatedPlayers || []).some(v => v.userId === user.id);
+        if (isKnownMember) {
+            socket.playRoom = roomId;
+            authorize(roomId, user.id);
+        } else if (socket.playRoom === roomId) {
+            socket.playRoom = null;
+        }
 
         // 断线重连
         const existing = game.players.find(p => p.userId === user.id);
@@ -1785,13 +1886,78 @@ io.on('connection', (socket) => {
             joinAsSpectator(roomId, socket);
             return;
         }
-        // SNG：从大厅列表点进=只观战；输入房间号进入(byCode)才落座
-        if (!byCode) { joinAsSpectator(roomId, socket); return; }
+        // SNG：从大厅列表点进=只观战；只有服务端已授权成员才能落座。
+        if (!isKnownMember) { joinAsSpectator(roomId, socket); return; }
         // SNG 不许中途加入（开赛即锁定座位）
         if (game.players.length >= game.config.maxPlayers) { socket.emit('server_msg', '⚠️ 房间已满'); return; }
         if (game.status === 'running') { socket.emit('server_msg', '⚠️ 比赛已开始，无法加入'); return; }
         if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) { socket.emit('server_msg', '⚠️ 牌局进行中，请稍后'); return; }
-        seatPlayer(roomId, socket, user, buyInChips);
+        seatPlayer(roomId, socket, user);
+    };
+
+    // byCode 保留在形参外：旧页面即使发送 byCode:true，也只能按未授权用户观战。
+    socket.on('join_room', (payload = {}) => handleJoinRoom(payload?.roomId));
+
+    socket.on('join_by_code', (payload = {}) => {
+        const code = String(payload?.code || '').trim();
+        if (codeAttemptLimited(socket, user.id)) {
+            socket.emit('invite_error', { source: 'code', message: '尝试次数过多，请稍后再试' });
+            return;
+        }
+        const match = findRoomByJoinCode(code);
+        if (!match || !canAuthorizeNewUser(match[1], user.id)) {
+            recordCodeFailure(socket, user.id);
+            socket.emit('invite_error', { source: 'code', message: '房间码无效或当前不可加入' });
+            return;
+        }
+        const [roomId] = match;
+        clearUserCodeFailures(user.id);
+        authorize(roomId, user.id);
+        socket.playRoom = roomId;
+        handleJoinRoom(roomId);
+    });
+
+    socket.on('join_by_invite', (payload = {}) => {
+        const token = String(payload?.token || '').trim();
+        const match = findRoomByInviteToken(token);
+        if (!match || !canAuthorizeNewUser(match[1], user.id)) {
+            socket.emit('invite_error', { source: 'link', message: '邀请已失效或当前不可加入' });
+            return;
+        }
+        const [roomId] = match;
+        authorize(roomId, user.id);
+        socket.playRoom = roomId;
+        handleJoinRoom(roomId);
+    });
+
+    socket.on('get_room_invite', () => {
+        const game = socket.currentRoom && roomGames[socket.currentRoom];
+        if (!game || game.ownerUserId !== user.id) return;
+        emitRoomInviteInfo(socket, game);
+    });
+
+    socket.on('set_entry_locked', (payload = {}) => {
+        const locked = payload?.locked;
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game || game.ownerUserId !== user.id || typeof locked !== 'boolean') return;
+        game.invite.entryLocked = locked;
+        emitRoomInviteInfo(socket, game);
+        io.in(roomId).emit('server_msg', locked ? '🔒 房主已锁定新玩家入场' : '🔓 房主已开放新玩家入场');
+    });
+
+    socket.on('reset_room_invite', () => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game || game.ownerUserId !== user.id) return;
+        const locked = !!game.invite?.entryLocked;
+        const version = (game.invite?.version || 0) + 1;
+        const oldCode = game.invite?.joinCode || '';
+        game.invite = createRoomInvite(roomId, oldCode);
+        game.invite.entryLocked = locked;
+        game.invite.version = version;
+        emitRoomInviteInfo(socket, game);
+        socket.emit('server_msg', '🔄 邀请链接和房间码已重置');
     });
 
     // 坐下入座（现金桌坐下式）：观众点空座位 → 带入筹码正式入座
@@ -1803,8 +1969,8 @@ io.on('connection', (socket) => {
         if (game.players.find(p => p.userId === user.id)) { socket.emit('server_msg', '⚠️ 你已入座'); return; }
         // 站起围观者点座位坐下：带原筹码回座（不重复扣买入 + 清 vacated 记录），杜绝「两个自己」
         if (restoreVacatedPlayer(roomId, socket, user, seat)) return;
-        // 防陌生人捣乱：从大厅列表点进来的是观战，必须用房间号加入(byCode)才有下场资格
-        if (socket.playRoom !== roomId) { socket.emit('server_msg', '👀 你在观战——请用房间号加入房间才能下场入座'); return; }
+        // 防陌生人捣乱：从大厅列表点进来的是观战，必须先验证邀请链接或四位房间码。
+        if (socket.playRoom !== roomId) { socket.emit('server_msg', '👀 你在观战——请使用邀请链接或四位房间码加入后再入座'); return; }
         if (game.players.length >= game.config.maxPlayers) { socket.emit('server_msg', '⚠️ 座位已满'); return; }
         if (occupiedSeats(game).has(seat)) { socket.emit('server_msg', '⚠️ 该座位已被占用'); return; }
         if (seatPlayer(roomId, socket, user, buyInChips, seat)) {
