@@ -375,6 +375,10 @@
         .pot-chip.gold  { background: linear-gradient(#ffe08a, #e0a200); box-shadow: inset 0 3px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.5); }
         .pot-chip.green { background: linear-gradient(#8fe6a8, #2fae5f); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
         #community { display: flex; justify-content: center; gap: 5px; min-height: var(--card-h); }
+        /* 公共牌下方一行提示（如"谁想看转牌"）*/
+        #table-notice { display: table; margin: 8px auto 0; text-align: center; font-size: 13px; font-weight: bold; color: #f4d35e;
+            background: rgba(0,0,0,0.45); border-radius: 10px; padding: 4px 12px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.7); animation: dealIn 0.3s ease-out; }
         #community .card, #community .empty-slot { width: calc(var(--card-w) * 1.2); height: calc(var(--card-h) * 1.2); }
 
         /* ===== Action bar ===== */
@@ -1134,6 +1138,7 @@
         <div id="board">
             <div id="pot">💰 底池: 0</div>
             <div id="community"></div>
+            <div id="table-notice" style="display:none"></div>
         </div>
         <!-- 所有座位绝对环形定位（含自己=底部）-->
         <div id="ring-layer"></div>
@@ -1732,7 +1737,7 @@ function connectSocket(token) {
     });
     socket.on('player_stats', ({ userId, stats }) => renderPlayerStats(userId, stats));
     socket.on('button_draw', ({ draws, winnerId }) => showButtonDraw(draws, winnerId));
-    socket.on('table_notice', ({ text }) => toast(text, 3500));   // 牌桌下方一行提示（如"谁想看转牌"）
+    socket.on('table_notice', ({ text }) => showTableNotice(text));   // 公共牌下方一行提示（如"谁想看转牌"）
     socket.on('match_ending_soon', () => {
         const isOwner = lastState && lastState.ownerUserId === myUserId;
         if (isOwner) {
@@ -1856,6 +1861,16 @@ function showReconnecting() {
 function hideReconnecting() {
     const el = document.getElementById('reconnecting-toast');
     if (el) el.style.display = 'none';
+}
+// 公共牌下方一行提示（如"某某想看转牌"），几秒后自动消失
+let _noticeTimer = 0;
+function showTableNotice(text) {
+    const el = document.getElementById('table-notice');
+    if (!el) return;
+    el.textContent = text;
+    el.style.display = '';
+    clearTimeout(_noticeTimer);
+    _noticeTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
 // 轻量非阻塞提示（自动消失，不像 alert 会卡住交互）
 let _toastTimer = 0;
