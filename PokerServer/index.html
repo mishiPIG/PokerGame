@@ -3169,8 +3169,12 @@ function toggleReady() {
 function startGame() {
     if (socket) socket.emit('start_game');
 }
+let _lastAddTime = 0;
 function addTime() {
-    if (currentRoom && socket) socket.emit('add_time', currentRoom);
+    if (!currentRoom || !socket) return;
+    if (Date.now() - _lastAddTime < 400) return;   // 防抖：快速连点只生效一次，避免误触/异常
+    _lastAddTime = Date.now();
+    socket.emit('add_time', currentRoom);
 }
 function rabbitDeal() {
     if (currentRoom && socket) socket.emit('rabbit_deal', currentRoom);

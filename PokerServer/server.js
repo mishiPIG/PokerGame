@@ -583,11 +583,15 @@ function canAct(p) {
     return !p.folded && !p.allIn;
 }
 
+// 某玩家本街是否还需要行动：能行动(未弃牌未全押) 且 (还没行动过 或 面对更高的注还没跟平)
+function needsToAct(p, game) {
+    return canAct(p) && !(p.hasActed && p.currentBet === game.currentBet);
+}
 function findNextActionIdx(game, fromIdx) {
     const n = game.players.length;
     for (let i = 1; i <= n; i++) {
         const idx = (fromIdx + i) % n;
-        if (canAct(game.players[idx])) return idx;
+        if (needsToAct(game.players[idx], game)) return idx;   // 跳过已行动且已跟平者，避免又轮到他
     }
     return -1;
 }
@@ -1562,6 +1566,9 @@ function vacateSeat(game, idx) {
     game.players.splice(idx, 1);
     if (game.buttonIdx > idx) game.buttonIdx--;
     if (game.buttonIdx >= game.players.length) game.buttonIdx = 0;
+    // 同步调整当前行动索引，避免 splice 后 actionOnIdx 指错人导致行动卡住/错位
+    if (game.actionOnIdx > idx) game.actionOnIdx--;
+    else if (game.actionOnIdx === idx) game.actionOnIdx = -1;   // 正被移除者恰是当前行动位（正常已改为 mid-hand 不 vacate，这里兜底）
 }
 
 // 站起围观者回座：从 vacatedPlayers 取出、带原筹码放回一个空座（不重复扣买入），并清掉 vacated 记录。
@@ -1990,16 +1997,23 @@ io.on('connection', (socket) => {
         const idx = game.players.findIndex(p => p.userId === user.id);
         if (idx < 0) return;
         const p = game.players[idx];
-        const midHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN && !p.folded;
+        const handInProgress = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
         io.in(roomId).emit('server_msg', `🧍 ${user.username} 站起围观（座位空出，筹码保留至结束结算）`);
-        if (midHand) {
-            // 本手还在牌里：先弃牌打完本手，本手结束后再离座腾位（removeBustedPlayers 处理）
-            p.folded = true; p.hasActed = true; p.vacateAfter = true;
-            if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
-            else if (isBettingRoundComplete(game)) advanceStage(roomId);
-            else broadcastState(roomId);
+        if (handInProgress) {
+            // 本手进行中：一律延后到本手结束再离座（removeBustedPlayers 处理），绝不 mid-hand splice
+            // 否则 splice 会打乱 actionOnIdx，导致后面的玩家无法行动。
+            p.vacateAfter = true;
+            if (!p.folded) {
+                // 未弃牌：先弃牌打完本手，并推进行动
+                p.folded = true; p.hasActed = true;
+                if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
+                else if (isBettingRoundComplete(game)) advanceStage(roomId);
+                else broadcastState(roomId);
+            } else {
+                broadcastState(roomId);   // 已弃牌：仅标记，本手结束后离座
+            }
         } else {
-            vacateSeat(game, idx);
+            vacateSeat(game, idx);   // 局间(WAITING/SHOWDOWN)：立即离座安全
             broadcastState(roomId);
         }
         broadcastRoomList();
@@ -2025,7 +2039,16 @@ io.on('connection', (socket) => {
             broadcastState(roomId); broadcastRoomList();
         }, 120000);
         io.in(roomId).emit('server_msg', `💺 ${user.username} 留座离座（2 分钟内回来保留座位）`);
-        broadcastState(roomId);
+        // 若本手进行中：本手弃牌坐出并推进行动（尤其正轮到他时，别让全桌干等到超时）
+        const idx = game.players.findIndex(pl => pl.userId === user.id);
+        const midHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN && !p.folded;
+        if (midHand) {
+            p.folded = true; p.hasActed = true;
+            if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
+            else if (isBettingRoundComplete(game)) advanceStage(roomId);
+            else broadcastState(roomId);
+        } else broadcastState(roomId);
+        broadcastRoomList();
     });
 
     // 回到座位（取消留座/坐出；站起围观者带原筹码回到一个空座）
