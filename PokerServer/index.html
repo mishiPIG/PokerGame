@@ -742,6 +742,21 @@
         .modal-actions .cancel { background: #fff; color: #5a6a82; border: 1px solid #cdd6e3; }
         .modal-actions .confirm { background: #3a86ff; color: #fff; }
         .modal-actions .confirm.danger { background: #ef476f; }
+        .invite-note { margin: -4px 0 14px; text-align: center; color: #60718b; font-size: 12px; line-height: 1.5; }
+        .invite-field { margin: 12px 0; }
+        .invite-label { display: block; color: #52627a; font-size: 12px; margin-bottom: 5px; font-weight: bold; }
+        .invite-copy-row { display: flex; gap: 8px; }
+        .invite-value { flex: 1; min-width: 0; border: 1px solid #cdd6e3; border-radius: 10px;
+            background: #fff; color: #24344e; padding: 10px 11px; font-size: 13px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap; }
+        .invite-value.code { text-align: center; letter-spacing: 7px; font-size: 25px; font-weight: 800; color: #245ec7; }
+        .invite-copy-row button { flex: 0 0 auto; border: none; border-radius: 10px; padding: 0 13px;
+            background: #3a86ff; color: #fff; font-weight: bold; cursor: pointer; }
+        .invite-manage { display: flex; gap: 8px; margin-top: 14px; }
+        .invite-manage button { flex: 1; border: 1px solid #c7d1df; border-radius: 10px; padding: 10px 7px;
+            background: #fff; color: #33445e; font-weight: bold; cursor: pointer; }
+        .invite-manage button.locked { background: #e9f8f2; color: #087b58; border-color: #8cd8bd; }
+        .invite-manage button.reset { color: #c34858; border-color: #e6a9b1; }
         .bm-amt { text-align: center; font-size: 30px; font-weight: 800; color: #ef6c2d; margin: 6px 0 2px; }
         .bm-amt small { font-size: 13px; color: #7a8aa2; font-weight: normal; }
         #buyin-modal input[type=range] { width: 100%; margin: 14px 0 10px; }
@@ -1066,10 +1081,11 @@
             </button>
             <div class="lobby-entry join">
                 <div class="le-title">🎟️ 加入比赛</div>
-                <div class="le-sub">下场需房主给的房间号；列表里的房间只能观战</div>
+                <div class="le-sub">输入房主分享的四位房间码；列表里的房间只能观战</div>
                 <div class="le-join-row">
-                    <input type="text" id="joinRoomInput" placeholder="房间号" maxlength="6">
-                    <button onclick="joinByCode()">加入</button>
+                    <input type="text" id="joinRoomInput" placeholder="四位房间码" maxlength="4" inputmode="numeric"
+                        autocomplete="one-time-code" oninput="sanitizeJoinCode()" onkeydown="if(event.key==='Enter')joinByCode()">
+                    <button id="joinCodeBtn" onclick="joinByCode()">加入</button>
                 </div>
             </div>
         </div>
@@ -1198,6 +1214,7 @@
     <div id="table-menu" class="tbl-pop" style="display:none">
         <div class="tm-grid">
             <button onclick="openSettings();toggleTableMenu()">🎨 桌面设置</button>
+            <button class="owner-only" onclick="openInvite();toggleTableMenu()">🔗 邀请朋友</button>
             <button class="cash-only" onclick="openRebuy();toggleTableMenu()">💵 补充记分牌</button>
             <button class="seat-only" onclick="reserveLeave();toggleTableMenu()">💺 留座离桌</button>
             <button class="seat-only" onclick="standUp();toggleTableMenu()">🧍 站起围观</button>
@@ -1259,6 +1276,36 @@
                 <button class="cancel" onclick="closeMatchSettings()">关闭</button>
                 <button class="confirm danger owner-only" onclick="dissolveRoom();closeMatchSettings()">🛑 提前结束</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 房主邀请朋友 -->
+    <div id="invite-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)closeInvite()">
+        <div class="modal-box">
+            <h3>🔗 邀请朋友加入</h3>
+            <div class="invite-note">手机收到消息可直接点击链接；跨设备时输入四位房间码。</div>
+            <div id="invite-loading" class="hist-empty">正在获取邀请信息…</div>
+            <div id="invite-content" style="display:none">
+                <div class="invite-field">
+                    <span class="invite-label">四位房间码</span>
+                    <div class="invite-copy-row">
+                        <div id="invite-code" class="invite-value code">----</div>
+                        <button onclick="copyRoomCode()">复制</button>
+                    </div>
+                </div>
+                <div class="invite-field">
+                    <span class="invite-label">邀请链接</span>
+                    <div class="invite-copy-row">
+                        <div id="invite-url" class="invite-value"></div>
+                        <button onclick="copyInviteUrl()">复制</button>
+                    </div>
+                </div>
+                <div class="invite-manage">
+                    <button id="invite-lock-btn" onclick="toggleEntryLock()">🔓 开放入场</button>
+                    <button class="reset" onclick="resetRoomInvite()">↻ 重置邀请</button>
+                </div>
+            </div>
+            <div class="modal-actions"><button class="cancel" onclick="closeInvite()">关闭</button></div>
         </div>
     </div>
     </div><!-- /table-view -->
@@ -1452,10 +1499,29 @@ let myAvatar     = null;
 let myHoleCards  = [];
 let revealedCards = {};  // userId -> [{suit,rank},{suit,rank}]  (showdown)
 let currentRoom  = '';
-let iCanPlay     = false;  // 是否有下场资格（房主/输房号加入/座上玩家）——观战者为 false，隐藏房间号
+let iCanPlay     = false;  // 是否有下场资格（房主/验证邀请/座上玩家）；公开列表进入者为 false
 let everConnected = false; // 是否已连接过（区分首次连接 vs 断线重连，重连不闪回大厅）
 let mySeated     = false; // 我当前是否已入座（用于坐下入座动画/音效触发）
 let equityMap    = {};    // 全押跑马实时胜率 { userId: pct }
+let roomInviteInfo = null;
+let pendingInviteToken = '';
+
+// 邀请链接使用 fragment，先暂存到当前标签页，再从地址栏清除；登录/注册完成后继续处理。
+function capturePendingInvite() {
+    const match = location.hash.match(/^#\/join\/([A-Za-z0-9_-]{20,128})$/);
+    if (match) {
+        pendingInviteToken = match[1];
+        try { sessionStorage.setItem('pendingInviteToken', pendingInviteToken); } catch {}
+        try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+    } else if (location.hash.startsWith('#/join/')) {
+        pendingInviteToken = '';
+        try { sessionStorage.removeItem('pendingInviteToken'); } catch {}
+        try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+    } else {
+        try { pendingInviteToken = sessionStorage.getItem('pendingInviteToken') || ''; } catch {}
+    }
+}
+capturePendingInvite();
 
 // ===== 动画门控：只在「真正发新牌」时播放入场动画，避免每次重绘都闪 =====
 let lastState          = null;  // 最近一次 game_state，供 hole_cards/showdown 单独重渲时复用
@@ -1630,8 +1696,16 @@ function connectSocket(token) {
 
     socket.on('connect', () => {
         const saved = localStorage.getItem('currentRoom');
+        let pendingInvite = pendingInviteToken;
+        if (!pendingInvite) {
+            try { pendingInvite = sessionStorage.getItem('pendingInviteToken') || ''; } catch {}
+        }
         hideReconnecting();
-        if (everConnected && saved) {
+        if (pendingInvite) {
+            // 邀请优先于旧房间恢复，防止用户点新邀请却被带回上一次牌桌。
+            showLobby();
+            socket.emit('join_by_invite', { token: pendingInvite });
+        } else if (everConnected && saved) {
             // 断线重连：直接回房，不闪回大厅（避免「弹回主界面再进来」的观感）
             socket.emit('join_room', { roomId: saved });
         } else {
@@ -1658,13 +1732,34 @@ function connectSocket(token) {
     });
 
     socket.on('room_joined', ({ roomId, canPlay }) => {
+        pendingInviteToken = '';
+        try { sessionStorage.removeItem('pendingInviteToken'); } catch {}
         currentRoom = roomId;
-        iCanPlay = !!canPlay;   // 观战者=false → 隐藏房间号、禁止入座
+        iCanPlay = !!canPlay;   // 观战者=false → 禁止入座
         localStorage.setItem('currentRoom', roomId);
+        const joinBtn = document.getElementById('joinCodeBtn');
+        if (joinBtn) joinBtn.disabled = false;
         hideReconnecting();
         document.getElementById('btnReady').disabled = false;
         showTable();
         socket.emit('voice_sync', roomId);
+    });
+
+    socket.on('invite_error', ({ source, message }) => {
+        if (source === 'link') {
+            pendingInviteToken = '';
+            try { sessionStorage.removeItem('pendingInviteToken'); } catch {}
+        }
+        const joinBtn = document.getElementById('joinCodeBtn');
+        if (joinBtn) joinBtn.disabled = false;
+        showLobby();
+        toast(message || '邀请无效或当前不可加入', 3500);
+    });
+
+    socket.on('room_invite_info', (info) => {
+        roomInviteInfo = info;
+        renderInviteInfo();
+        if (info.autoOpen) openInvite(false);
     });
 
     socket.on('left_room', () => {
@@ -1887,9 +1982,9 @@ function showLobby() {
     prevCommunityCount = 0; holeJustDealt = false; revealJustHappened = false;
     prevFoldedSet = new Set(); foldingNow = new Set();
     shownCards = {}; myShown = new Set(); showJustHappened = false;
-    showdownInfo = null; myHand = null; mySeated = false; prevChipsShown = {};
+    showdownInfo = null; myHand = null; mySeated = false; prevChipsShown = {}; roomInviteInfo = null;
     // 关闭所有桌内面板/弹窗
-    ['table-menu','buyin-modal','stats-panel','history-panel','match-modal','inbox-panel','profile-overlay','chat-panel','replay-overlay'].forEach(id => {
+    ['table-menu','buyin-modal','stats-panel','history-panel','match-modal','invite-modal','inbox-panel','profile-overlay','chat-panel','replay-overlay'].forEach(id => {
         const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     if (socket) socket.emit('enter_lobby');
@@ -1964,15 +2059,81 @@ function submitCreate() {
     }
     hideCreateForm();
 }
-// 输入房间号加入 = 有下场资格（byCode）
-function joinByCode() {
-    const roomId = document.getElementById('joinRoomInput').value.trim();
-    if (roomId && socket) socket.emit('join_room', { roomId, byCode: true });
+function sanitizeJoinCode() {
+    const input = document.getElementById('joinRoomInput');
+    input.value = input.value.replace(/\D/g, '').slice(0, 4);
 }
-// 从大厅列表点进 = 只观战（不能下场，需另输房间号）；本房成员=重连回桌
-function joinRoomId(roomId, isMember) {
+// 输入四位房间码：服务端校验成功后才授予下场资格。
+function joinByCode() {
+    const code = document.getElementById('joinRoomInput').value.trim();
+    if (!/^\d{4}$/.test(code)) { toast('请输入四位数字房间码'); return; }
+    if (!socket || !socket.connected) { toast('正在连接服务器，请稍后'); return; }
+    const btn = document.getElementById('joinCodeBtn');
+    btn.disabled = true;
+    socket.emit('join_by_code', { code });
+    clearTimeout(window._joinCodeUnlock);
+    window._joinCodeUnlock = setTimeout(() => { btn.disabled = false; }, 4000);
+}
+// 从大厅列表点进 = 只观战；服务端已授权成员则重新加入。
+function joinRoomId(roomId) {
     if (!roomId || !socket) return;
-    socket.emit('join_room', { roomId, byCode: !!isMember });   // 成员重进=保留资格；陌生人=观战
+    socket.emit('join_room', { roomId });
+}
+
+function openInvite(requestInfo = true) {
+    const modal = document.getElementById('invite-modal');
+    modal.style.display = 'flex';
+    if (!roomInviteInfo) {
+        document.getElementById('invite-loading').style.display = '';
+        document.getElementById('invite-content').style.display = 'none';
+    }
+    if (requestInfo && socket) socket.emit('get_room_invite');
+}
+function closeInvite() { document.getElementById('invite-modal').style.display = 'none'; }
+function renderInviteInfo() {
+    if (!roomInviteInfo) return;
+    document.getElementById('invite-loading').style.display = 'none';
+    document.getElementById('invite-content').style.display = '';
+    document.getElementById('invite-code').textContent = roomInviteInfo.joinCode;
+    document.getElementById('invite-url').textContent = roomInviteInfo.inviteUrl;
+    const lock = document.getElementById('invite-lock-btn');
+    lock.textContent = roomInviteInfo.entryLocked ? '🔒 已锁定入场' : '🔓 开放入场';
+    lock.classList.toggle('locked', !!roomInviteInfo.entryLocked);
+}
+async function copyText(text, successMessage) {
+    if (!text) return;
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const area = document.createElement('textarea');
+            area.value = text;
+            area.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+            document.body.appendChild(area);
+            area.select();
+            const ok = document.execCommand('copy');
+            area.remove();
+            if (!ok) throw new Error('copy failed');
+        }
+        toast(successMessage);
+    } catch {
+        toast('复制失败，请长按内容手动复制');
+    }
+}
+function copyRoomCode() {
+    copyText(roomInviteInfo?.joinCode, `房间码 ${roomInviteInfo?.joinCode || ''} 已复制`);
+}
+function copyInviteUrl() {
+    copyText(roomInviteInfo?.inviteUrl, '邀请链接已复制');
+}
+function toggleEntryLock() {
+    if (!socket || !roomInviteInfo) return;
+    socket.emit('set_entry_locked', { locked: !roomInviteInfo.entryLocked });
+}
+function resetRoomInvite() {
+    if (!socket || !roomInviteInfo) return;
+    if (!confirm('重置后，已经发出的旧链接和旧房间码会立即失效；已加入的朋友不受影响。确定重置？')) return;
+    socket.emit('reset_room_invite');
 }
 function leaveRoom() {
     if (!socket) return;
@@ -2032,7 +2193,7 @@ function openSitDown(seat) {
         return;
     }
     // 观战者无下场资格：提示，不弹买入框
-    if (!iCanPlay) { toast('👀 观战中，无法入座——请用房主给的房间号在大厅「加入比赛」才能下场'); return; }
+    if (!iCanPlay) { toast('👀 观战中，无法入座——请使用房主分享的邀请链接或四位房间码加入'); return; }
     buyinMode = 'sit';
     pendingSeat = (seat == null ? -1 : seat);
     const min = st.minBuyIn || 2000;
@@ -2667,7 +2828,7 @@ function renderMatchInfo(st) {
     const isCash = st.roomType === 'cash';
     const rows = [
         ['类型', isCash ? '现金桌' : 'SNG 升盲'],
-        ['房间号', iCanPlay ? currentRoom : '👀 观战中（下场需房间号）'],
+        ['入场状态', iCanPlay ? '🔐 已获下场资格' : '👀 观战中'],
         ['盲注', `${st.smallBlind}/${st.bigBlind}` + (st.ante ? ` · ante ${st.ante}` : '')],
         ['最大人数', st.maxPlayers],
     ];
@@ -2960,7 +3121,7 @@ function renderRoomList(rooms) {
         // 我是本房成员 → 始终可「重新进入」（重连回桌）；否则进行中/已满则灰
         let btnLabel, disabled, cls = '';
         if (r.isMember) { btnLabel = '重新进入'; disabled = false; cls = 'rejoin'; }
-        else            { btnLabel = '👀 观战';  disabled = false; }   // 非成员：只能观战（下场需输房间号）
+        else            { btnLabel = '👀 观战';  disabled = false; }   // 非成员：只能观战（下场需验证邀请）
         const isCash = r.roomType === 'cash';
         const tag  = isCash ? `<span class="rc-tag cash">现金桌</span>` : `<span class="rc-tag">SNG·升盲</span>`;
         const meta = isCash
@@ -2971,7 +3132,7 @@ function renderRoomList(rooms) {
                 <div class="rc-name">${escapeHtml(r.name)}</div>
                 <div class="rc-meta"><span class="rc-owner">${escapeHtml(r.ownerName)}</span>${tag} ${meta}</div>
             </div>
-            <button class="rc-join ${cls}" ${disabled ? 'disabled' : ''} onclick="joinRoomId('${r.roomId}', ${r.isMember ? 'true' : 'false'})">${btnLabel}</button>
+            <button class="rc-join ${cls}" ${disabled ? 'disabled' : ''} onclick="joinRoomId('${r.roomId}')">${btnLabel}</button>
         </div>`;
     }).join('');
 }
@@ -3818,9 +3979,9 @@ function buildSeat(p, state) {
     return `<div class="${cls}" data-uid="${p.userId}">${statusBubble}${readyHtml}${nameHtml}${avatarBlock}${chipsHtml}</div>`;
 }
 
-// 房间号：仅有下场资格者可见；观战者显示「观战中」不露房号（防陌生人拿到房号入座）
+// roomId 仅作内部标识，不再展示为可输入的邀请凭证。
 function roomNoHtml() {
-    return iCanPlay ? `房间号 <span class="room-no">${currentRoom}</span>` : `<span class="room-no">👀 观战中</span>`;
+    return iCanPlay ? `<span class="room-no">🔐 已加入</span>` : `<span class="room-no">👀 观战中</span>`;
 }
 function render(state) {
     // 底池竖排（商业级）：中间=总底池；有边池时 上=主池、下=各边池；下注中 上=上一轮总底池
