@@ -109,6 +109,8 @@ function timeCardsFor(game, chips) {
     return Math.max(6, Math.round(buyInBB * 0.1));   // SNG 按起始筹码给一份
 }
 const RUNOUT_DELAY = 1400;    // all-in 摊牌跑马，每条街发牌间隔
+const RUNIT_MAX    = 5;       // 多次发牌上限（两人 all-in 协商发几次）
+const RUNIT_DECIDE_MS = 25000;// 多次发牌协商超时→默认发 1 次（绝不卡住牌局）
 const FIXED_BUYIN  = 50;      // 旧默认（保留兼容）
 const SNG_BUYIN_TIERS = [110, 220, 550, 1100];   // SNG 报名费档位（2 人冠军得 200/400/1000/2000）
 // SNG 冠军实得 = 奖池 × 10/11（平台抽 1/11 ≈ 9%）：110×2=220→200，1100×2=2200→2000
@@ -690,6 +692,9 @@ function broadcastState(roomId) {
         tableEndAt: game.tableEndAt || null,         // 现金桌训练结束时间戳
         pendingEnd: !!game.pendingEnd,               // 训练时长已到、本手结束后结算（房主可加时）
         paused:      !!game.paused,                  // 房主暂停发牌（本手结束后不开新局，等继续）
+        runIt:       game.runItPending && game.runIt   // 多次发牌协商中（落后方选/领先方同意）
+                     ? { deciderId: game.runIt.deciderId, leaderId: game.runIt.leaderId, n: game.runIt.n, equities: game.runIt.equities }
+                     : null,
         ownerUserId:    game.ownerUserId || null,
         status:         game.status || 'waiting',
         currentLevel:   game.currentLevel || 0,
@@ -858,6 +863,8 @@ function advanceStage(roomId) {
         io.in(roomId).emit('allin_reveal', { reveals });
         broadcastState(roomId);                 // 先展示亮牌（公共牌暂不变）
         emitEquity(roomId);                     // 亮牌即算一次当前胜率
+        // 恰两人 all-in 且还有公共牌未发 → 进入「发几次」协商（落后方选、领先方同意）；否则照常单次跑马
+        if (offerRunIt(roomId, act)) return;
         clearTimeout(game.runoutTimer);
         game.runoutTimer = setTimeout(() => advanceStage(roomId), RUNOUT_DELAY);
         return;                                 // 下一次 advanceStage 才开始发公共牌
@@ -923,6 +930,136 @@ function advanceStage(roomId) {
         broadcastState(roomId);
         return;
     }
+}
+
+// ===== 多次发牌（run it N times）：恰两人 all-in，落后方选发几次(1~5)，领先方同意 =====
+
+// 亮牌后判断是否发起协商。返回 true 表示已进入协商（暂不跑马），false 表示照常单次跑马。
+function offerRunIt(roomId, act) {
+    const game = roomGames[roomId];
+    if (!game) return false;
+    if (!act || act.length !== 2) return false;              // 只有恰两人对局才协商；多人固定发 1 次
+    if (game.communityCards.length >= 5) return false;       // 已到河牌，无牌可发
+    // 计算双方胜率，定「落后方=选次数」「领先方=同意」
+    const holes = {};
+    act.forEach(p => { if (game.holeCards[p.userId]) holes[p.userId] = game.holeCards[p.userId]; });
+    if (Object.keys(holes).length !== 2) return false;
+    let eq = {};
+    try { eq = equity.computeEquity(holes, game.communityCards); } catch (e) { return false; }
+    const [a, b] = act;
+    const ea = eq[a.userId] ?? 50, eb = eq[b.userId] ?? 50;
+    const deciderId = ea <= eb ? a.userId : b.userId;        // 落后方（胜率低）选发几次
+    const leaderId  = deciderId === a.userId ? b.userId : a.userId;
+    game.runIt = { activeIds: act.map(p => p.userId), deciderId, leaderId, n: 1, equities: eq };
+    game.runItPending = true;
+    clearTimeout(game.runItTimer);
+    io.in(roomId).emit('runit_offer', { deciderId, leaderId, max: RUNIT_MAX, equities: eq });
+    io.in(roomId).emit('server_msg', `🎲 可协商「发几次牌」：由落后方选择次数，领先方同意`);
+    // 协商超时兜底：默认发 1 次，绝不卡住牌局
+    game.runItTimer = setTimeout(() => resolveRunIt(roomId, 1, 'timeout'), RUNIT_DECIDE_MS);
+    return true;
+}
+
+// 结束协商并执行：n<=1 走原单次跑马；n>1 执行多次发牌
+function resolveRunIt(roomId, n, reason) {
+    const game = roomGames[roomId];
+    if (!game || !game.runItPending) return;                 // 防重复结算
+    game.runItPending = false;
+    clearTimeout(game.runItTimer); game.runItTimer = null;
+    n = Math.max(1, Math.min(RUNIT_MAX, parseInt(n) || 1));
+    io.in(roomId).emit('runit_decided', { n, reason });
+    if (n <= 1) {
+        io.in(roomId).emit('server_msg', `🎲 本手发 1 次`);
+        clearTimeout(game.runoutTimer);
+        game.runoutTimer = setTimeout(() => advanceStage(roomId), RUNOUT_DELAY);
+        return;
+    }
+    io.in(roomId).emit('server_msg', `🎲 双方同意发 ${n} 次！底池均分为 ${n} 份`);
+    executeRunouts(roomId, n);
+}
+
+// 发 baseLen 之后剩余的公共牌（含烧牌），返回新发出的牌数组
+function dealRunStreets(game, baseLen) {
+    const out = [];
+    if (baseLen <= 0) { game.deck.drawCard(); out.push(game.deck.drawCard(), game.deck.drawCard(), game.deck.drawCard()); } // flop
+    if (baseLen <= 3) { game.deck.drawCard(); out.push(game.deck.drawCard()); }   // turn
+    if (baseLen <= 4) { game.deck.drawCard(); out.push(game.deck.drawCard()); }   // river
+    return out;
+}
+
+// 执行多次发牌：共享已发公共牌为底，剩余街发 n 组不同 runout，各自判赢家，底池均分 n 份
+function executeRunouts(roomId, n) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    clearTimeout(game.runoutTimer);
+    const ids = game.runIt ? game.runIt.activeIds : activePlayers(game).map(p => p.userId);
+    const contenders = ids.filter(id => game.holeCards[id]);
+    const baseLen = game.communityCards.length;
+    const base = game.communityCards.map(c => ({ suit: c.suit, rank: c.rank }));
+    const pot = game.pot;
+    const share = Math.floor(pot / n);
+    let remainder = pot - share * n;
+
+    const winByUser = {};
+    const runs = [];
+    for (let i = 0; i < n; i++) {
+        const newCards = dealRunStreets(game, baseLen);
+        const board = game.communityCards.concat(newCards);   // 该次完整 5 张
+        // 判该次赢家
+        let best = Infinity, winners = [];
+        for (const id of contenders) {
+            const sc = HandEvaluator.evaluate7Cards(board.concat(game.holeCards[id]));
+            if (sc < best) { best = sc; winners = [id]; }
+            else if (sc === best) winners.push(id);
+        }
+        // 该次奖金 = share (+ 第一份补余数)；平局再均分该份
+        let thisPot = share + (i === 0 ? remainder : 0);
+        const w = Math.floor(thisPot / winners.length);
+        let wr = thisPot - w * winners.length;
+        winners.forEach((id, k) => {
+            const amt = w + (k === 0 ? wr : 0);
+            winByUser[id] = (winByUser[id] || 0) + amt;
+        });
+        runs.push({
+            board: board.map(c => ({ suit: c.suit, rank: c.rank })),
+            winners, amount: thisPot,
+            categories: winners.reduce((m, id) => { m[id] = HandEvaluator.handCategory(HandEvaluator.evaluate7Cards(board.concat(game.holeCards[id]))); return m; }, {})
+        });
+    }
+    // 发放筹码
+    Object.keys(winByUser).forEach(id => {
+        const p = game.players.find(x => x.userId === id);
+        if (p) p.chips += winByUser[id];
+    });
+    const reveals = {};
+    contenders.forEach(id => { reveals[id] = game.holeCards[id].map(c => ({ suit: c.suit, rank: c.rank })); });
+
+    io.in(roomId).emit('runit_result', {
+        base, runs, n, potPerRun: share, totalByUser: winByUser, reveals
+    });
+    const label = Object.keys(winByUser).map(id => {
+        const p = game.players.find(x => x.userId === id);
+        return `${p ? p.username : id} +${winByUser[id]}`;
+    }).join('，');
+    io.in(roomId).emit('server_msg', `🏆 发 ${n} 次结果：${label}`);
+    io.in(roomId).emit('sfx', 'win');
+
+    // 牌谱：community 记第 1 次 runout，附多次发牌明细
+    game.communityCards = base.concat([]);   // 展示态回到 base（客户端用 runit_result 呈现各次）
+    if (game.hand) {
+        game.hand.community = runs[0].board.map(c => `${c.rank}${c.suit[0]}`);
+        game.hand.runIt = { n, runs: runs.map(r => ({ board: r.board.map(c => `${c.rank}${c.suit[0]}`), winners: r.winners })) };
+    }
+    saveHandHistory(game, winByUser);
+    game.pot = 0;
+    game.players.forEach(p => p.committed = 0);
+    game.phase = PHASES.SHOWDOWN;
+    game.actionOnIdx = -1;
+    game.runIt = null;
+    applyPendingLevelUp(roomId);
+    broadcastState(roomId);
+    maybeEndSNG(roomId);
+    if (!game.tournamentOver) scheduleNextHand(roomId);
 }
 
 function doShowdown(roomId) {
@@ -1069,6 +1206,8 @@ function startHand(roomId) {
     }
     clearTimeout(game.nextHandTimer);
     clearTimeout(game.runoutTimer);
+    clearTimeout(game.runItTimer);
+    game.runItPending = false; game.runIt = null;   // 清多次发牌协商残留
     game.rabbitStreets = 0;   // 重置「看后续牌」状态
     // 第一手开始：标记 running；SNG 启动升盲计时；现金桌启动训练时长倒计时
     if (game.status !== 'running') {
@@ -1497,7 +1636,7 @@ function endCashTable(roomId, reason) {
     const game = roomGames[roomId];
     if (!game || game.tournamentOver) return;
     game.tournamentOver = true; game.status = 'finished';
-    clearTimeout(game.tableTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearActionTimer(game);
+    clearTimeout(game.tableTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearTimeout(game.runItTimer); game.runItPending = false; clearActionTimer(game);
     for (const p of game.players) if (p.reserveTimer) clearTimeout(p.reserveTimer);
     const ranking = buildRanking(game);
     game.players.forEach(p => cashOut(p));   // 结算筹码→金币
@@ -2219,7 +2358,7 @@ io.on('connection', (socket) => {
             return;
         }
         // SNG：奖池（抽水后）给当前筹码最多者，并公布排名
-        clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearActionTimer(game);
+        clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearTimeout(game.runItTimer); game.runItPending = false; clearActionTimer(game);
         for (const p of game.players) if (p.reserveTimer) clearTimeout(p.reserveTimer);
         const prize = sngPrize(game.prizePool);
         const leader = [...game.players].sort((a, b) => b.chips - a.chips)[0];
@@ -2480,6 +2619,27 @@ io.on('connection', (socket) => {
 
         clearActionTimer(game);   // 玩家已行动，取消其计时
         afterAction(roomId);
+    });
+
+    // 多次发牌：落后方选发几次（1~5）。n=1 直接单次；n>1 交由领先方同意
+    socket.on('propose_runs', ({ n } = {}) => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game || !game.runItPending || !game.runIt) return;
+        if (game.runIt.deciderId !== user.id) { socket.emit('server_msg', '⚠️ 由落后方选择发牌次数'); return; }
+        n = Math.max(1, Math.min(RUNIT_MAX, parseInt(n) || 1));
+        if (n <= 1) { resolveRunIt(roomId, 1, 'single'); return; }
+        game.runIt.n = n;
+        io.in(roomId).emit('runit_proposal', { n, byUserId: user.id, leaderId: game.runIt.leaderId });
+        io.in(roomId).emit('server_msg', `🎲 落后方提议发 ${n} 次，等待领先方同意…`);
+    });
+    // 领先方回应：同意→发 n 次；拒绝→发 1 次
+    socket.on('respond_runs', ({ agree } = {}) => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game || !game.runItPending || !game.runIt) return;
+        if (game.runIt.leaderId !== user.id) { socket.emit('server_msg', '⚠️ 由领先方同意'); return; }
+        resolveRunIt(roomId, agree ? game.runIt.n : 1, agree ? 'agreed' : 'declined');
     });
 
     // 加时：仅当前行动玩家可用；每次 +15s 消耗 1 张时间卡；单次行动累计仍上限 EXTRA_MAX(2min)
