@@ -172,6 +172,13 @@ Android / iOS / PC
   - **牌谱完整记录多次发牌**（数据资产）：`hand.runIt={n,boards[],winners[],amounts[]}` 保留每次 runout；`community` 仍落第 1 次 board 向后兼容（stats/回放不破）；牌谱详情 `openHandDetail` 展示每组公共牌+赢家+金额。
 - **本地 socket 测试通过**：发 3 次逐街（每组 flop/turn/river 三街、时序 ~1.3s/街）、逐组飞池合计 10000、收尾摊牌不卡；站起/暂停/强制站起回归全通。
 
+## 🐛 多次发牌残留 bug + 牌堆兜底（2026-07-24，香港已上；测试服待网络）
+- **现象**：双方 all-in 发多次后"卡一下→公共牌不发任何牌→直接判胜负"，牌谱看似"只发了一次"。
+- **根因**：run-it 用 `#board.runit-on` 隐藏单行 `#community`、改显 `#runit-boards` 的 N 板；该 class **只在 preflop 过渡时 `clearRunit` 清**。若**下一手是普通单次跑马**（不触发 `runit_begin`）且那次过渡清理被漏 → `#community` 被一直藏住 → 那一手"没牌就判胜负"。牌谱**列表本就只显第 1 个 board**，被误读成"只发一次"（其实 run-it 那手是好的，bug 出在**紧跟的下一手**显示上）。
+- **修（三层冗余）**：①**自愈**——每个 `game_state` 后 `board.classList.toggle('runit-on', !!runitState)`：只要没有正在进行的多次发牌，公共牌必显，漏清也会被下一个 state 纠正；②`hole_cards`（新一手）+ `showdown_reveal`（普通摊牌=本手非 run-it）都 `clearRunit`。
+- **另修 run-it 引入的崩溃**：`maxRunsByDeck` 按剩余牌堆限制可发次数（`offerRunIt` 的 max + `resolveRunIt` 夹取），防 9-max 多人弃牌后牌堆不足发 N 次导致 `drawCard()` 返回 null 崩/卡；客户端次数按钮随 `max`。
+- **验证**：jsdom 加载**真实 index.html** 直接跑 `buildRunitBoards`/`runitDealStreet`/`clearRunit`——preflop 2 组各 5 张、翻后全押共享 flop+每组并列 2 张、clearRunit 复原 全对 ✅；socket 回归 runit/sidepot/sidepot2/standflow/hostfeat 全通 ✅。（确认渲染函数本身没问题，就是跨手残留 class。）
+
 ## 📝 用户反馈待办（2026-07-23）
 - ~~**🎲 allin 协商发多次**~~ **已完成**（见上「多次发牌」批次，2026-07-24）。
 - **待改进(已记录)**：
