@@ -151,8 +151,9 @@ Android / iOS / PC
 - 同意后**底池均分 N 份**，以**已发公共牌为共享底**，从牌堆**依次发 N 组不同 runout**（每组补齐剩余街+烧牌），各自判赢家分得该份（平局再均分该份，余数进第一份）。
 - **绝不卡住牌局**（用户第一优先级）：协商 **25s 超时** / 领先方拒绝 / 落后方选 1 → 都回落到**单次跑马**（复用原 `advanceStage`）。
 - 服务端 `server.js`：`offerRunIt`(判定+定 decider/leader)→`runit_offer`；`propose_runs({n})`→`runit_proposal`→`respond_runs({agree})`→`resolveRunIt`→`executeRunouts`(发 N 板、判赢、发金、`runit_result`)；`broadcastState.runIt` 供断线重连恢复；`startHand`/`endCashTable`/`dissolve` 清协商残留+定时器。牌谱 `hand.runIt={n,runs}`。
-- 客户端 `index.html`：`#runit-panel` 协商面板(落后方选次数按钮 / 领先方同意·拒绝 / 观众"协商中")+ `#runit-result` overlay(逐次公共牌小卡+赢家+金额+牌型)；新一手/重连自动清理。
-- **本地 socket 测试通过**：发 3 次(底池 10000 精确均分 3334/3333/3333、三组不同 runout、各自判赢家、收尾摊牌不卡)；站起/暂停/强制站起回归全通。
+- 客户端 `index.html`：`#runit-panel` 协商面板(落后方选次数按钮 / 领先方同意·拒绝 / 观众"协商中")；新一手/重连自动清理。
+- **动画流程（体感，2026-07-24 二次迭代）**：不再一次性弹出全部结果——改为**桌面依次发**：服务端 `executeRunouts` 分帧 `runit_begin`→逐组 `runit_run`(把这组公共牌发到真实 `#community`+双方比牌)→停顿→`runit_award`(该份底池**飞向本组赢家** `flyCoinsToWinner`+筹码到账+底池数递减)→收回共享底→下一组→`runit_done`(合计 toast)。即"第1牌面比一次→一方收池→第2牌面比一次→…"。复用 `game.runoutTimer`(cleanup 已覆盖)，`RUNIT_REVEAL_MS/RUNIT_AWARD_MS` 控节奏。
+- **本地 socket 测试通过**：发 3 次逐组飞池(admin1 +3334 / admin2 +3333 / admin1 +3333 = 10000)、时序正确、三组不同 runout、收尾摊牌不卡；站起/暂停/强制站起回归全通。
 
 ## 📝 用户反馈待办（2026-07-23）
 - ~~**🎲 allin 协商发多次**~~ **已完成**（见上「多次发牌」批次，2026-07-24）。
