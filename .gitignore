@@ -42,3 +42,6 @@ PokerServer/secret.key
 # 发信 SMTP 凭据（授权码，绝不入库/勿覆盖）
 PokerServer/mail.json
 backups_offsite/
+
+# 私有运维手册（生产 IP/SSH 别名/部署/管理员引导等；不入库，仅本地）
+OPS.local.md

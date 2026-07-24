@@ -10,6 +10,17 @@ Poker Dojo is a **server-authoritative** online Texas Hold'em game built for pla
 
 ---
 
+## 📸 Screenshots
+
+<!-- Drop images into docs/screenshots/ and uncomment:
+| Lobby | 9-max table | Run it N times |
+|---|---|---|
+| ![lobby](docs/screenshots/lobby.png) | ![table](docs/screenshots/table.png) | ![run-it](docs/screenshots/run-it.png) |
+-->
+_Screenshots coming soon — see [`docs/screenshots/`](./docs/screenshots/)._
+
+---
+
 ## ✨ Features
 
 - **Server-authoritative engine** — hole cards are private (`io.to(socketId)`), broadcasts carry only public info, every action is validated server-side. You cannot cheat by inspecting your own traffic.

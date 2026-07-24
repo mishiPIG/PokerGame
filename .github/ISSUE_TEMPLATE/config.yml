@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Security vulnerability / 安全漏洞（私下报告）
+    url: https://github.com/mishiPIG/PokerGame/security/advisories/new
+    about: Report privately via a security advisory — do NOT open a public issue. 请通过私有安全公告报告，勿公开提 Issue。

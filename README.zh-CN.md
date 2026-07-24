@@ -10,6 +10,17 @@
 
 ---
 
+## 📸 截图
+
+<!-- 把图片放到 docs/screenshots/ 再取消注释:
+| 大厅 | 9 人牌桌 | 多次发牌 |
+|---|---|---|
+| ![lobby](docs/screenshots/lobby.png) | ![table](docs/screenshots/table.png) | ![run-it](docs/screenshots/run-it.png) |
+-->
+_截图待补 —— 见 [`docs/screenshots/`](./docs/screenshots/)。_
+
+---
+
 ## ✨ 功能特性
 
 - **服务端权威架构** —— 底牌用 `io.to(socketId)` 私发,广播只含公共信息,所有操作服务端校验;玩家爬自己的流量也看不到对手底牌,无法作弊。

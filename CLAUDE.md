@@ -75,7 +75,7 @@ Android / iOS / PC
 
 ## 🎉 正式上线 + 签到 + 反馈 + 数据备份（2026-07-10，香港生产已上线）
 - **香港正式上线**：`https://pokerdojo.space` 对外开放，用户 **CYB** 已升管理员。生产数据（邮箱/金币/牌谱）为**核心资产必须保全**。
-- **数据自动备份（香港）**：`/root/PokerGame/backup.sh` 每日 04:00 cron，把 `data.json`/`hands.jsonl`/`feedback.jsonl` 快照到 `/root/PokerGame/backups/`（各留最近 30 份，自动清旧）；**异地副本**已 `scp` 到本地 `backups_offsite/`（gitignore，防服务器整机丢失）；deploy 脚本 tar 均排除这些数据文件（不覆盖）。换服务器仍须手动带走这些文件。
+- **数据自动备份（香港）**：每日 04:00 cron 快照 `data.json`/`hands.jsonl`/`feedback.jsonl`（各留最近 30 份，自动清旧）；**异地副本** `scp` 到本地 `backups_offsite/`（gitignore，防整机丢失）；deploy 脚本 tar 均排除这些数据文件（不覆盖）。换服务器须手动带走。（cron/路径细节见私有 `OPS.local.md`）
 - **每日签到（测试服，待验收）**：连续签到递增奖励表 `CHECKIN_REWARDS=[200,300,400,500,600,800,1000]`（第 1~7 天，7 天后封顶 1000，均值≈543/天），**断签重置**为第 1 天。日边界按香港时间 UTC+8。服务端 `GET /api/checkin/status`+`POST /api/checkin`（原子 `db.applyCheckin` 记 lastCheckin/checkinStreak+发金币）。客户端顶栏 🎁 按钮（未签到红点）+ 7 天进度网格弹窗。E2E：签到+200→重复签到 400→连签+300→断签重置+200 全通。
 - **Bug/建议反馈**：顶栏 🐞 按钮 → 文本+联系方式表单 → `POST /api/feedback`(requireAuth)。落库 `feedback.jsonl`（数据资产，纳入备份/deploy 不覆盖）**且同时发一封邮件到管理员邮箱**（`mailer.sendFeedback`，发给 mail.json 的 user，可 feedbackTo 覆盖；未配置则 DEV 打日志）。管理员 `GET /api/admin/feedback`。E2E：提交/空校验/管理员鉴权/UTF-8+emoji 往返/邮件回退 全通。
 - **✅ 已上香港生产**（2026-07-10 `deploy.sh`）：签到/反馈/更换邮箱三项已同步香港，端点 checkin/feedback/bind-email 齐全，data.json 未被覆盖（CYB 等用户数据完好），https://pokerdojo.space 验证 200/401 正常。
@@ -270,40 +270,14 @@ Android / iOS / PC
 - 游戏状态存储在服务器内存的 `roomGames` 对象中，Key 为房间号。
 - Socket 事件命名使用 snake_case（如 `join_room`、`start_deal`）。
 
-## 部署
-
-### 测试服务器（日常开发用）
-- **测试 URL**：`http://10.76.106.91:3000`（实验室内网，需在实验室网络/VPN 内访问）
-- **服务器**：实验室沙特服务器，Ubuntu 24.04，SSH host alias `5090`，用户 `caoy0d`（sudo 免密）
-- **路径**：`/home/caoy0d/PokerGame/PokerServer`，由 pm2 守护，进程名 `poker-test`
-- **更新流程**：本地改完代码 → 运行 `bash deploy-test.sh`（不走 git，仅 tar/scp 同步 + npm install + pm2 restart）
-- **选它做测试的原因**：深圳服务器跨境连接卡顿，测试不便；5090 在同实验室网络，直连 ~4ms
-- **密钥**：`~/.ssh/lab_5090`（config 中 `Host 5090` 已配 IdentityFile）
-
-### 生产服务器（正式发布用）—— 阿里云香港（2026-06 迁移，替代卡顿的深圳）
-- **生产 URL**：`http://47.76.61.168:3000`
-- **服务器**：阿里云香港，Ubuntu 22.04，x86_64，3.4Gi，SSH host alias `Hongkong`，用户 root
-- **路径**：`/root/PokerGame/PokerServer`，pm2 守护进程名 `poker`，已配开机自启（`pm2 startup` + `pm2 save`）
-- **密钥**：`~/.ssh/hk_deploy`（config 中 `Host Hongkong`）
-- **更新流程**：`bash deploy.sh "commit message"`（git push + tar/scp 同步含 avatars + npm install + pm2 restart/start）
-- **⚠️ 安全组**：需在阿里云控制台放行入站 **3000/tcp**（否则外网连不上；服务器 ufw 本身是关闭的）
-- **GitHub 仓库**：https://github.com/mishiPIG/PokerGame （public，版本备份）
-
-### 旧生产（深圳，备份/已弃用）
-- `http://47.112.8.25:3000`，SSH alias `Shenzhen`，跨境卡顿，已被香港取代
-
-> 日常迭代用 `deploy-test.sh`（5090 测试服）；功能稳定后用 `deploy.sh`（生产=香港）正式发布。
+## 部署（运维细节见私有文档）
+- **两套环境**：`deploy-test.sh`（测试服，pm2 `poker-test`）日常迭代；`deploy.sh "msg"`（生产=香港，pm2 `poker`）正式发布，无参则仅同步不走 git。两者均**从仓库根目录运行**，tar 排除 data.json/hands.jsonl/secret.key/mail.json（不覆盖生产数据）。
+- **⚠️ 生产 IP / SSH 别名 / 服务器路径 / 密钥位置 / 管理员引导 / 备份 / mail.json 等运维敏感细节已拆到私有 `OPS.local.md`（gitignore，不入库）**——公开仓库不再收录。改动部署流程时看那份。
 
 ## 管理员账号
 
 ### 创建 / 升级管理员
-SSH 进服务器后执行：
-```bash
-cd /root/PokerGame/PokerServer
-node create-admin.js <用户名> <密码>
-```
-- 若用户名**不存在**：新建账号并设为管理员，初始金币 10,000
-- 若用户名**已存在**：直接升级为管理员（密码参数此时无效）
+- 服务器上执行 `node create-admin.js <用户名> <密码>`（不存在则建号设管理员+初始 1 万金币；已存在则直接升管理员）。具体登录/路径见私有 `OPS.local.md`。
 
 ### 管理员功能
 登录后右上角出现 **⚙️ 管理** 黄色按钮，点击展开管理面板：
