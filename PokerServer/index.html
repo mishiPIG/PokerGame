@@ -974,11 +974,11 @@
             background: rgba(255,159,28,0.16); border: 1px solid rgba(255,159,28,0.5); color: #ffcf8a; }
         .ap-owner-btn:active { background: rgba(255,159,28,0.28); }
         /* 多次发牌协商面板 */
-        #runit-panel { position: fixed; left: 50%; top: 40%; transform: translate(-50%,-50%); z-index: 240;
+        #runit-panel { position: fixed; right: 10px; bottom: 96px; left: auto; top: auto; z-index: 240;
             background: linear-gradient(160deg,#20304d,#111b2c); color: #eaf1fb; border: 1px solid rgba(120,160,220,0.35);
-            border-radius: 14px; padding: 14px 16px; box-shadow: 0 16px 50px rgba(0,0,0,0.6); text-align: center; max-width: 90%;
+            border-radius: 14px; padding: 12px 14px; box-shadow: 0 16px 50px rgba(0,0,0,0.6); text-align: center; max-width: 262px;
             display: none; animation: ripop 0.2s ease; }
-        @keyframes ripop { from { opacity: 0; transform: translate(-50%,-46%) scale(0.94); } to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+        @keyframes ripop { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
         #runit-panel .ri-title { font-size: 15px; font-weight: bold; }
         #runit-panel .ri-hint { font-size: 11px; color: #9fb4d6; font-weight: normal; display: block; margin-top: 3px; }
         #runit-panel .ri-sub { font-size: 12px; color: #9fb4d6; margin-top: 6px; }
@@ -991,25 +991,23 @@
         #runit-panel .ri-btns .ri-no { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18); color: #cdd8ea; }
         /* 多次发牌桌面：N 组公共牌并列分行（共享底只显一行）*/
         #board.runit-on #community { display: none; }
-        #runit-boards { flex-direction: column; gap: 4px; align-items: center; margin-top: 4px; }
-        #runit-boards .rib-shared, #runit-boards .rib-row { display: flex; align-items: center; gap: 8px; padding: 2px 6px; border-radius: 8px; }
-        #runit-boards .rib-row.active { background: rgba(120,160,220,0.14); }
-        #runit-boards .rib-row.win { background: rgba(244,211,94,0.12); }
-        #runit-boards .rib-label { font-size: 10px; color: #9fb4d6; min-width: 34px; text-align: right; }
+        #runit-boards { flex-direction: column; gap: 5px; align-items: center; margin-top: 4px; }
+        #runit-boards .rib-shared, #runit-boards .rib-row { display: flex; align-items: center; gap: 8px; padding: 3px 8px; border-radius: 9px; transition: background 0.2s; }
+        #runit-boards .rib-row.active { background: rgba(120,160,220,0.16); }
+        #runit-boards .rib-row.win { background: rgba(244,211,94,0.14); box-shadow: inset 3px 0 0 #f4d35e; }
+        #runit-boards .rib-label { font-size: 11px; color: #9fb4d6; min-width: 38px; text-align: right; }
         #runit-boards .rib-shared .rib-label { color: #cdd8ea; }
-        #runit-boards .rib-slots { display: flex; gap: 3px; }
-        #runit-boards .rib-slot { width: 26px; height: 36px; border-radius: 3px; }
+        #runit-boards .rib-row.win .rib-label { color: #f4d35e; font-weight: bold; }
+        #runit-boards .rib-slots { display: flex; gap: 4px; }
+        #runit-boards .rib-slot { width: 34px; height: 46px; border-radius: 4px; }
         #runit-boards .rib-slot.ghost { visibility: hidden; }   /* 占位对齐（共享底位置留空）*/
-        #runit-boards .rib-slots .card { width: 26px; height: 36px; min-width: 26px; }
-        #runit-boards .rib-slots .card .rank { font-size: 11px; }
-        #runit-boards .rib-slots .card .suit { font-size: 10px; }
-        #runit-boards .rib-win { font-size: 11px; color: #f4d35e; min-width: 76px; }
-        #runit-boards .rib-win b { color: #7ee6a6; }
-        #runit-boards .rib-cat { color: #9fb4d6; }
+        #runit-boards .rib-slots .card { width: 34px; height: 46px; min-width: 34px; }
+        #runit-boards .rib-slots .card .rank { font-size: 15px; }
+        #runit-boards .rib-slots .card .suit { font-size: 13px; }
         @media (max-width: 480px) {
-            #runit-boards .rib-slot, #runit-boards .rib-slots .card { width: 22px; height: 30px; min-width: 22px; }
-            #runit-boards .rib-label { min-width: 28px; font-size: 9px; }
-            #runit-boards .rib-win { min-width: 60px; font-size: 10px; }
+            #runit-boards .rib-slot, #runit-boards .rib-slots .card { width: 29px; height: 40px; min-width: 29px; }
+            #runit-boards .rib-slots .card .rank { font-size: 13px; }
+            #runit-boards .rib-label { min-width: 32px; font-size: 10px; }
         }
         /* 多次发牌结果 */
         #runit-result { position: fixed; inset: 0; z-index: 242; background: rgba(6,10,18,0.62); display: none; align-items: center; justify-content: center; padding: 18px; }
@@ -2118,12 +2116,12 @@ function buildRunitBoards(m) {
     if (baseLen > 0) {   // 共享公共牌行（已发的 3/4 张，只显示一次）
         let s = '';
         for (let i = 0; i < 5; i++) s += i < baseLen ? formatCard(base[i]) : '<span class="rib-slot"></span>';
-        html += `<div class="rib-shared"><span class="rib-label">公共</span><div class="rib-slots">${s}</div><span class="rib-win"></span></div>`;
+        html += `<div class="rib-shared"><span class="rib-label">公共</span><div class="rib-slots">${s}</div></div>`;
     }
     for (let r = 0; r < n; r++) {   // 每组一行：前 baseLen 个位置留空对齐，剩余街是本组的牌
         let s = '';
         for (let i = 0; i < 5; i++) s += `<span class="rib-slot${i < baseLen ? ' ghost' : ''}"></span>`;
-        html += `<div class="rib-row" data-run="${r}"><span class="rib-label">第${r + 1}次</span><div class="rib-slots">${s}</div><span class="rib-win"></span></div>`;
+        html += `<div class="rib-row" data-run="${r}"><span class="rib-label">第${r + 1}次</span><div class="rib-slots">${s}</div></div>`;
     }
     el.innerHTML = html;
     el.style.display = 'flex';
@@ -2143,13 +2141,9 @@ function runitDealStreet(m) {
     document.querySelectorAll('#runit-boards .rib-row').forEach(rw => rw.classList.toggle('active', +rw.dataset.run === m.run));
 }
 function runitAward(m) {
+    // 该组比完：本行金色高亮（不再显示文字），筹码飞向本组赢家的座位（谁赢一目了然）
     const rowEl = document.querySelector(`#runit-boards .rib-row[data-run="${m.run}"]`);
-    if (rowEl) {
-        rowEl.classList.add('win'); rowEl.classList.remove('active');
-        const cat = (m.winners || []).map(w => m.categories && m.categories[w.userId]).filter(Boolean)[0] || '';
-        const wl = rowEl.querySelector('.rib-win');
-        if (wl) wl.innerHTML = (m.winners || []).map(w => `🏆 ${escapeHtml(nameOf(w.userId))} <b>+${w.amount}</b>`).join(' ') + (cat ? ` <span class="rib-cat">${escapeHtml(cat)}</span>` : '');
-    }
+    if (rowEl) { rowEl.classList.add('win'); rowEl.classList.remove('active'); }
     (m.winners || []).forEach(w => { flyCoinsToWinner(w.userId); winPopup(w.userId, w.amount); if (w.userId === myUserId) vibrate([30, 40, 30]); });
 }
 // 轻量非阻塞提示（自动消失，不像 alert 会卡住交互）
