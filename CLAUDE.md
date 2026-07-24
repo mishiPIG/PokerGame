@@ -152,8 +152,11 @@ Android / iOS / PC
 - **绝不卡住牌局**（用户第一优先级）：协商 **25s 超时** / 领先方拒绝 / 落后方选 1 → 都回落到**单次跑马**（复用原 `advanceStage`）。
 - 服务端 `server.js`：`offerRunIt`(判定+定 decider/leader)→`runit_offer`；`propose_runs({n})`→`runit_proposal`→`respond_runs({agree})`→`resolveRunIt`→`executeRunouts`(发 N 板、判赢、发金、`runit_result`)；`broadcastState.runIt` 供断线重连恢复；`startHand`/`endCashTable`/`dissolve` 清协商残留+定时器。牌谱 `hand.runIt={n,runs}`。
 - 客户端 `index.html`：`#runit-panel` 协商面板(落后方选次数按钮 / 领先方同意·拒绝 / 观众"协商中")；新一手/重连自动清理。
-- **动画流程（体感，2026-07-24 二次迭代）**：不再一次性弹出全部结果——改为**桌面依次发**：服务端 `executeRunouts` 分帧 `runit_begin`→逐组 `runit_run`(把这组公共牌发到真实 `#community`+双方比牌)→停顿→`runit_award`(该份底池**飞向本组赢家** `flyCoinsToWinner`+筹码到账+底池数递减)→收回共享底→下一组→`runit_done`(合计 toast)。即"第1牌面比一次→一方收池→第2牌面比一次→…"。复用 `game.runoutTimer`(cleanup 已覆盖)，`RUNIT_REVEAL_MS/RUNIT_AWARD_MS` 控节奏。
-- **本地 socket 测试通过**：发 3 次逐组飞池(admin1 +3334 / admin2 +3333 / admin1 +3333 = 10000)、时序正确、三组不同 runout、收尾摊牌不卡；站起/暂停/强制站起回归全通。
+- **动画流程（体感，2026-07-24 三次迭代）**：
+  - **逐街发牌（慢，同真实跑马节奏）**：`executeRunouts` 建时间线，每组按 **flop→停顿→turn→停顿→river→停顿** 发（`RUNIT_STREET_MS=1.3s`），该组 river 发完→比牌→该份底池**飞向本组赢家**（`flyCoinsToWinner`+筹码到账+底池递减）→下一组；`runit_begin`/`runit_street{run,street,cards}`/`runit_award{run,winners}`/`runit_done`。复用 `game.runoutTimer`（cleanup 已覆盖）。
+  - **N 板「都显示出来」不覆盖**：客户端 `#runit-boards` 共享底牌只显一行，每组各占一行留在桌上；**已发 3/4 张后 all-in** 则共享 flop/turn 只显示一次、**只把最后 1~2 张差异牌并列在原位置**（`baseLen<=0` 全并列=N 整行；`rib-slot.ghost` 占位对齐）；发牌时隐藏原单行 `#community`。
+  - **牌谱完整记录多次发牌**（数据资产）：`hand.runIt={n,boards[],winners[],amounts[]}` 保留每次 runout；`community` 仍落第 1 次 board 向后兼容（stats/回放不破）；牌谱详情 `openHandDetail` 展示每组公共牌+赢家+金额。
+- **本地 socket 测试通过**：发 3 次逐街（每组 flop/turn/river 三街、时序 ~1.3s/街）、逐组飞池合计 10000、收尾摊牌不卡；站起/暂停/强制站起回归全通。
 
 ## 📝 用户反馈待办（2026-07-23）
 - ~~**🎲 allin 协商发多次**~~ **已完成**（见上「多次发牌」批次，2026-07-24）。
