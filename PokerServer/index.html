@@ -998,17 +998,11 @@
         #runit-boards .rib-label { font-size: 11px; color: #9fb4d6; min-width: 38px; text-align: right; }
         #runit-boards .rib-shared .rib-label { color: #cdd8ea; }
         #runit-boards .rib-row.win .rib-label { color: #f4d35e; font-weight: bold; }
-        #runit-boards .rib-slots { display: flex; gap: 4px; }
-        #runit-boards .rib-slot { width: 34px; height: 46px; border-radius: 4px; }
+        #runit-boards .rib-slots { display: flex; gap: 5px; }
+        /* 与正式公共牌同尺寸（--card-w*1.2），不再偏小 */
+        #runit-boards .rib-slot { width: calc(var(--card-w) * 1.2); height: calc(var(--card-h) * 1.2); border-radius: 6px; }
         #runit-boards .rib-slot.ghost { visibility: hidden; }   /* 占位对齐（共享底位置留空）*/
-        #runit-boards .rib-slots .card { width: 34px; height: 46px; min-width: 34px; }
-        #runit-boards .rib-slots .card .rank { font-size: 15px; }
-        #runit-boards .rib-slots .card .suit { font-size: 13px; }
-        @media (max-width: 480px) {
-            #runit-boards .rib-slot, #runit-boards .rib-slots .card { width: 29px; height: 40px; min-width: 29px; }
-            #runit-boards .rib-slots .card .rank { font-size: 13px; }
-            #runit-boards .rib-label { min-width: 32px; font-size: 10px; }
-        }
+        #runit-boards .rib-slots .card { width: calc(var(--card-w) * 1.2); height: calc(var(--card-h) * 1.2); min-width: calc(var(--card-w) * 1.2); }
         /* 多次发牌结果 */
         #runit-result { position: fixed; inset: 0; z-index: 242; background: rgba(6,10,18,0.62); display: none; align-items: center; justify-content: center; padding: 18px; }
         #runit-result .rir-box { width: 100%; max-width: 400px; background: linear-gradient(160deg,#1b2740,#0e1626); color: #e7eefb;
