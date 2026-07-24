@@ -909,6 +909,15 @@
         #hd-board { text-align: center; padding: 12px; background: radial-gradient(ellipse at center,#1c3a34 0%,#0c1320 80%); }
         .hd-pot { font-size: 13px; color: #f4d35e; margin-bottom: 8px; }
         .hd-comm { --card-w: 32px; --card-h: 44px; display: flex; gap: 4px; justify-content: center; }
+        .hd-runit { margin-top: 4px; }
+        .hd-runit-t { font-size: 12px; color: #ffcf5c; text-align: center; margin-bottom: 6px; }
+        .hd-runit-row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; }
+        .hd-runit-no { font-size: 11px; color: #9fb4d6; min-width: 40px; }
+        .hd-runit-bd { display: flex; gap: 3px; }
+        .hd-runit-bd .card { width: 24px; height: 33px; min-width: 24px; }
+        .hd-runit-bd .card .rank { font-size: 10px; }
+        .hd-runit-bd .card .suit { font-size: 9px; }
+        .hd-runit-w { font-size: 11px; color: #f4d35e; flex: 1; }
         #hd-rows { flex: 1; overflow-y: auto; padding: 6px 10px 20px; }
         .hd-row { display: flex; align-items: center; gap: 8px; padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); }
         .hd-row.folded { opacity: 0.5; }
@@ -980,6 +989,28 @@
         #runit-panel .ri-btns button:active { background: rgba(120,160,220,0.34); }
         #runit-panel .ri-btns .ri-yes { background: rgba(46,204,113,0.2); border-color: rgba(46,204,113,0.6); color: #b7f5cf; }
         #runit-panel .ri-btns .ri-no { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18); color: #cdd8ea; }
+        /* 多次发牌桌面：N 组公共牌并列分行（共享底只显一行）*/
+        #board.runit-on #community { display: none; }
+        #runit-boards { flex-direction: column; gap: 4px; align-items: center; margin-top: 4px; }
+        #runit-boards .rib-shared, #runit-boards .rib-row { display: flex; align-items: center; gap: 8px; padding: 2px 6px; border-radius: 8px; }
+        #runit-boards .rib-row.active { background: rgba(120,160,220,0.14); }
+        #runit-boards .rib-row.win { background: rgba(244,211,94,0.12); }
+        #runit-boards .rib-label { font-size: 10px; color: #9fb4d6; min-width: 34px; text-align: right; }
+        #runit-boards .rib-shared .rib-label { color: #cdd8ea; }
+        #runit-boards .rib-slots { display: flex; gap: 3px; }
+        #runit-boards .rib-slot { width: 26px; height: 36px; border-radius: 3px; }
+        #runit-boards .rib-slot.ghost { visibility: hidden; }   /* 占位对齐（共享底位置留空）*/
+        #runit-boards .rib-slots .card { width: 26px; height: 36px; min-width: 26px; }
+        #runit-boards .rib-slots .card .rank { font-size: 11px; }
+        #runit-boards .rib-slots .card .suit { font-size: 10px; }
+        #runit-boards .rib-win { font-size: 11px; color: #f4d35e; min-width: 76px; }
+        #runit-boards .rib-win b { color: #7ee6a6; }
+        #runit-boards .rib-cat { color: #9fb4d6; }
+        @media (max-width: 480px) {
+            #runit-boards .rib-slot, #runit-boards .rib-slots .card { width: 22px; height: 30px; min-width: 22px; }
+            #runit-boards .rib-label { min-width: 28px; font-size: 9px; }
+            #runit-boards .rib-win { min-width: 60px; font-size: 10px; }
+        }
         /* 多次发牌结果 */
         #runit-result { position: fixed; inset: 0; z-index: 242; background: rgba(6,10,18,0.62); display: none; align-items: center; justify-content: center; padding: 18px; }
         #runit-result .rir-box { width: 100%; max-width: 400px; background: linear-gradient(160deg,#1b2740,#0e1626); color: #e7eefb;
@@ -1189,6 +1220,7 @@
         <div id="board">
             <div id="pot">💰 底池: 0</div>
             <div id="community"></div>
+            <div id="runit-boards" style="display:none"></div>
             <div id="table-notice" style="display:none"></div>
         </div>
         <!-- 所有座位绝对环形定位（含自己=底部）-->
@@ -1540,7 +1572,7 @@ let myGold       = 0;
 let myAvatar     = null;
 let myHoleCards  = [];
 let revealedCards = {};  // userId -> [{suit,rank},{suit,rank}]  (showdown)
-let runitTotal = 1, runitBoardWinners = [];   // 多次发牌：总次数 / 当前组赢家
+let runitState = null;   // 多次发牌桌面展示状态 { n, baseLen, filled:[] }
 let currentRoom  = '';
 let iCanPlay     = false;  // 是否有下场资格（房主/验证邀请/座上玩家）；公开列表进入者为 false
 let everConnected = false; // 是否已连接过（区分首次连接 vs 断线重连，重连不闪回大厅）
@@ -1897,26 +1929,14 @@ function connectSocket(token) {
     socket.on('runit_decided', (d) => { hideRunitPanel(); if (d && d.n > 1) toast(`🎲 本手发 ${d.n} 次`, 2000); });
     socket.on('runit_begin', (m) => {
         hideRunitPanel();
-        runitTotal = m && m.n || 1;
         if (m && m.reveals) { revealedCards = m.reveals; revealJustHappened = true; if (lastState) render(lastState); }
+        buildRunitBoards(m);   // 建 N 行（共享底只显示一次，剩余街分行/并列显示）
     });
-    socket.on('runit_run', (m) => {
-        // 这组公共牌由 game_state 发到桌上；顶部提示第几次 + 本组赢家
-        const wname = (m.winners || []).map(id => nameOf(id)).join(' / ');
-        showTableNotice(`🎲 第 ${m.index + 1} / ${m.n} 次　🏆 ${wname}`);
-        runitBoardWinners = m.winners || [];   // 本组公共牌高亮赢家用（可选）
-    });
-    socket.on('runit_award', (m) => {
-        (m.winners || []).forEach(w => {
-            flyCoinsToWinner(w.userId); winPopup(w.userId, w.amount);
-            if (w.userId === myUserId) vibrate([30, 40, 30]);
-        });
-        sndFlip(0);
-    });
+    socket.on('runit_street', (m) => runitDealStreet(m));   // 逐街发牌到对应行
+    socket.on('runit_award', (m) => runitAward(m));         // 该组比完 → 飞池给本组赢家
     socket.on('runit_done', (m) => {
         const t = Object.keys((m && m.totalByUser) || {}).map(id => `${nameOf(id)} +${m.totalByUser[id]}`).join('，');
         if (t) toast(`🎲 发牌结束　${t}`, 3600);
-        runitBoardWinners = [];
     });
 
     // 全押跑马实时胜率
@@ -1982,7 +2002,7 @@ function connectSocket(token) {
         if (state.phase === 'preflop' && lastState && lastState.phase !== 'preflop') {
             revealedCards = {}; showdownInfo = null; shownCards = {}; myShown = new Set();
             preAction = null; equityMap = {};   // 新一手清除预操作 + 胜率
-            hideRunitPanel();                    // 清多次发牌协商面板残留
+            hideRunitPanel(); clearRunit();       // 清多次发牌协商面板 + 桌面 N 板展示
             if (!state.players.some(p => p.userId === myUserId && !p.folded)) myHoleCards = [];
         }
         // 断线重连若正处协商中：恢复面板（否则错过 offer 事件会看不到）
@@ -2083,6 +2103,55 @@ function showRunitProposal(pr) {
 }
 function proposeRuns(n) { if (socket) socket.emit('propose_runs', { n }); const el = runitPanel(); el.innerHTML = `<div class="ri-title">🎲 已选发 ${n} 次，等待对方同意…</div>`; }
 function respondRuns(agree) { if (socket) socket.emit('respond_runs', { agree }); hideRunitPanel(); }
+
+// 多次发牌桌面：共享底牌只显示一次，剩余街 N 组「并列」分行显示（都留在桌上、不覆盖）
+function clearRunit() {
+    runitState = null;
+    const bd = document.getElementById('board'); if (bd) bd.classList.remove('runit-on');
+    const el = document.getElementById('runit-boards'); if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+}
+function buildRunitBoards(m) {
+    const el = document.getElementById('runit-boards'); if (!el || !m) return;
+    const baseLen = m.baseLen || 0, n = m.n || 1, base = m.base || [];
+    runitState = { n, baseLen, filled: Array(n).fill(0) };
+    let html = '';
+    if (baseLen > 0) {   // 共享公共牌行（已发的 3/4 张，只显示一次）
+        let s = '';
+        for (let i = 0; i < 5; i++) s += i < baseLen ? formatCard(base[i]) : '<span class="rib-slot"></span>';
+        html += `<div class="rib-shared"><span class="rib-label">公共</span><div class="rib-slots">${s}</div><span class="rib-win"></span></div>`;
+    }
+    for (let r = 0; r < n; r++) {   // 每组一行：前 baseLen 个位置留空对齐，剩余街是本组的牌
+        let s = '';
+        for (let i = 0; i < 5; i++) s += `<span class="rib-slot${i < baseLen ? ' ghost' : ''}"></span>`;
+        html += `<div class="rib-row" data-run="${r}"><span class="rib-label">第${r + 1}次</span><div class="rib-slots">${s}</div><span class="rib-win"></span></div>`;
+    }
+    el.innerHTML = html;
+    el.style.display = 'flex';
+    document.getElementById('board').classList.add('runit-on');   // 隐藏原单行公共牌，避免重复
+}
+function runitDealStreet(m) {
+    if (!runitState) return;
+    const slots = document.querySelector(`#runit-boards .rib-row[data-run="${m.run}"] .rib-slots`);
+    if (!slots) return;
+    const start = runitState.baseLen + runitState.filled[m.run];
+    (m.cards || []).forEach((c, k) => {
+        const slot = slots.children[start + k];
+        if (slot) slot.outerHTML = formatCard(c, true, k * 130);   // 替换占位为发牌动画
+    });
+    runitState.filled[m.run] += (m.cards || []).length;
+    sndFlip(0);
+    document.querySelectorAll('#runit-boards .rib-row').forEach(rw => rw.classList.toggle('active', +rw.dataset.run === m.run));
+}
+function runitAward(m) {
+    const rowEl = document.querySelector(`#runit-boards .rib-row[data-run="${m.run}"]`);
+    if (rowEl) {
+        rowEl.classList.add('win'); rowEl.classList.remove('active');
+        const cat = (m.winners || []).map(w => m.categories && m.categories[w.userId]).filter(Boolean)[0] || '';
+        const wl = rowEl.querySelector('.rib-win');
+        if (wl) wl.innerHTML = (m.winners || []).map(w => `🏆 ${escapeHtml(nameOf(w.userId))} <b>+${w.amount}</b>`).join(' ') + (cat ? ` <span class="rib-cat">${escapeHtml(cat)}</span>` : '');
+    }
+    (m.winners || []).forEach(w => { flyCoinsToWinner(w.userId); winPopup(w.userId, w.amount); if (w.userId === myUserId) vibrate([30, 40, 30]); });
+}
 // 轻量非阻塞提示（自动消失，不像 alert 会卡住交互）
 let _toastTimer = 0;
 function toast(msg, ms = 2600) {
@@ -2111,6 +2180,7 @@ function showLobby() {
     document.getElementById('table-view').style.display = 'none';
     // 清空牌桌渲染状态，避免回大厅再进残留上一局
     myHoleCards = []; revealedCards = {}; lastState = null;
+    hideRunitPanel(); clearRunit();
     prevCommunityCount = 0; holeJustDealt = false; revealJustHappened = false;
     prevFoldedSet = new Set(); foldingNow = new Set();
     shownCards = {}; myShown = new Set(); showJustHappened = false;
@@ -2868,8 +2938,21 @@ function openHandDetail(h) {
     const time = new Date(h.ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
     document.getElementById('hd-title').textContent = `牌谱详情 · ${h.mode === 'cash' ? '现金桌' : 'SNG'} ${h.sb}/${h.bb}`;
     const commHtml = [0, 1, 2, 3, 4].map(i => community[i] ? formatCard(community[i]) : emptySlot()).join('');
+    // 多次发牌（run it N times）：完整展示每组公共牌 + 该组赢家 + 该份金额
+    let runitHtml = '';
+    if (h.runIt && h.runIt.n > 1) {
+        const rr = h.runIt;
+        runitHtml = `<div class="hd-runit"><div class="hd-runit-t">🎲 本手发了 ${rr.n} 次（底池均分）</div>`
+            + (rr.boards || []).map((bd, i) => {
+                const cards = (bd || []).map(cs => formatCard(rpParseCard(cs))).join('');
+                const wn = ((rr.winners || [])[i] || []).map(id => { const s = seats.find(x => x.userId === id); return s ? s.username : id; }).join(' / ');
+                return `<div class="hd-runit-row"><span class="hd-runit-no">第${i + 1}次</span><div class="hd-runit-bd">${cards}</div>`
+                    + `<span class="hd-runit-w">🏆 ${escapeHtml(wn)} +${fmtChips((rr.amounts || [])[i] || 0)}</span></div>`;
+            }).join('') + `</div>`;
+    }
     document.getElementById('hd-board').innerHTML =
-        `<div class="hd-pot">${time} · 底池 <b>${fmtChips(pot)}</b></div><div class="hd-comm">${commHtml}</div>`;
+        `<div class="hd-pot">${time} · 底池 <b>${fmtChips(pot)}</b></div>`
+        + (runitHtml ? runitHtml : `<div class="hd-comm">${commHtml}</div>`);
     document.getElementById('hd-rows').innerHTML = seats.map(s => {
         const isMe = s.userId === myUserId;
         const folded = foldedSet.has(s.userId);

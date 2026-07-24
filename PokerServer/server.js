@@ -987,10 +987,19 @@ function dealRunStreets(game, baseLen) {
     return out;
 }
 
-// 执行多次发牌：共享已发公共牌为底，剩余街发 n 组不同 runout。桌面「依次」呈现：
-// 每次先把这组公共牌发到桌上→双方比牌→该份底池飞向赢家→收回底牌再发下一组。
-const RUNIT_REVEAL_MS = 1700;   // 一组公共牌发出后、判赢前的观看时间
-const RUNIT_AWARD_MS  = 1500;   // 该份底池飞向赢家后、进入下一组前的停顿
+// 执行多次发牌：共享已发公共牌为底，剩余街发 n 组不同 runout。桌面呈现方式：
+// N 组公共牌各占一行「都显示出来」（不覆盖），逐组逐街发牌（flop 停顿→turn 停顿→river 停顿），
+// 该组 river 发完后比牌→该份底池飞向本组赢家，再进入下一组。
+const RUNIT_STREET_MS = 1300;   // 每街发牌后停顿（保持和真实跑马节奏一致）
+const RUNIT_AWARD_MS  = 1600;   // 该份底池飞向赢家后、进入下一组前的停顿
+// 把某组剩余公共牌按街分块（flop 3 / turn 1 / river 1），随 baseLen 决定发哪些街
+function chunkRun(newCards, baseLen) {
+    const chunks = []; let k = 0;
+    if (baseLen <= 0) { chunks.push({ street: 'flop', cards: newCards.slice(0, 3) }); k = 3; }
+    if (baseLen <= 3) { chunks.push({ street: 'turn', cards: newCards.slice(k, k + 1) }); k += 1; }
+    if (baseLen <= 4) { chunks.push({ street: 'river', cards: newCards.slice(k, k + 1) }); k += 1; }
+    return chunks;
+}
 function executeRunouts(roomId, n) {
     const game = roomGames[roomId];
     if (!game) return;
@@ -1019,60 +1028,64 @@ function executeRunouts(roomId, n) {
         const w = Math.floor(thisPot / winners.length), wr = thisPot - w * winners.length;
         const awards = {};
         winners.forEach((id, k) => { const amt = w + (k === 0 ? wr : 0); awards[id] = amt; winByUser[id] = (winByUser[id] || 0) + amt; });
-        runs.push({ newCards, board, winners, awards, thisPot,
+        runs.push({ newCards, board, chunks: chunkRun(newCards, baseLen), winners, awards, thisPot,
             categories: winners.reduce((m, id) => { m[id] = HandEvaluator.handCategory(HandEvaluator.evaluate7Cards(board.concat(game.holeCards[id]))); return m; }, {}) });
     }
     const reveals = {};
     contenders.forEach(id => { reveals[id] = game.holeCards[id].map(c => ({ suit: c.suit, rank: c.rank })); });
 
     io.in(roomId).emit('server_msg', `🎲 开始发 ${n} 次…`);
-    io.in(roomId).emit('runit_begin', { n, base: base.map(c => ({ suit: c.suit, rank: c.rank })), reveals });
-    game.communityCards = base.slice();
-    broadcastState(roomId);
-    scheduleRun(roomId, { runs, base, winByUser, share }, 0);
-}
+    io.in(roomId).emit('runit_begin', { n, baseLen, base: base.map(c => ({ suit: c.suit, rank: c.rank })), reveals });
 
-// 逐组呈现第 i 组 runout（发牌→观看→飞池→收回→下一组）
-function scheduleRun(roomId, ctx, i) {
-    const game = roomGames[roomId];
-    if (!game) return;
-    const { runs, base, winByUser } = ctx;
-    if (i >= runs.length) return finishRunouts(roomId, ctx);
-    const run = runs[i];
-    game.communityCards = base.concat(run.newCards);   // 发这组完整公共牌（客户端动画发出新增牌 + 比牌）
-    io.in(roomId).emit('runit_run', { index: i, n: runs.length, categories: run.categories, winners: run.winners });
-    broadcastState(roomId);
-    clearTimeout(game.runoutTimer);
-    game.runoutTimer = setTimeout(() => {
+    // 时间线：逐组逐街发牌 + 每组末尾飞池，最后收尾
+    const steps = [];
+    runs.forEach((run, i) => {
+        run.chunks.forEach(ch => steps.push({ type: 'street', run: i, street: ch.street, cards: ch.cards.map(c => ({ suit: c.suit, rank: c.rank })), delay: RUNIT_STREET_MS }));
+        steps.push({ type: 'award', run: i, delay: RUNIT_AWARD_MS });
+    });
+    steps.push({ type: 'done' });
+
+    let si = 0;
+    const runStep = () => {
         const g = roomGames[roomId]; if (!g) return;
-        // 这组比完 → 该份底池飞向赢家（筹码到账 + 客户端飞币 + 底池数递减）
-        run.winners.forEach(id => { const p = g.players.find(x => x.userId === id); if (p) p.chips += run.awards[id]; });
-        g.pot = Math.max(0, g.pot - run.thisPot);
-        io.in(roomId).emit('runit_award', { index: i, n: runs.length, winners: run.winners.map(id => ({ userId: id, amount: run.awards[id] })) });
-        broadcastState(roomId);
-        g.runoutTimer = setTimeout(() => {
-            const g2 = roomGames[roomId]; if (!g2) return;
-            if (i + 1 < runs.length) { g2.communityCards = base.slice(); broadcastState(roomId); }   // 收回到共享底，再发下一组
-            g2.runoutTimer = setTimeout(() => scheduleRun(roomId, ctx, i + 1), 400);
-        }, RUNIT_AWARD_MS);
-    }, RUNIT_REVEAL_MS);
+        if (si >= steps.length) return;
+        const step = steps[si++];
+        if (step.type === 'street') {
+            io.in(roomId).emit('runit_street', { run: step.run, n, street: step.street, cards: step.cards });
+            g.runoutTimer = setTimeout(runStep, step.delay);
+        } else if (step.type === 'award') {
+            const run = runs[step.run];
+            run.winners.forEach(id => { const p = g.players.find(x => x.userId === id); if (p) p.chips += run.awards[id]; });
+            g.pot = Math.max(0, g.pot - run.thisPot);
+            io.in(roomId).emit('runit_award', { run: step.run, n, winners: run.winners.map(id => ({ userId: id, amount: run.awards[id] })), categories: run.categories });
+            broadcastState(roomId);
+            g.runoutTimer = setTimeout(runStep, step.delay);
+        } else {
+            finishRunouts(roomId, runs, base, winByUser);
+        }
+    };
+    game.runoutTimer = setTimeout(runStep, 600);   // 先让 begin 渲染出 N 行，再开始逐街发
 }
 
-// 全部发完：落库牌谱、收尾进摊牌、续局
-function finishRunouts(roomId, ctx) {
+// 全部发完：落库牌谱（完整记录多次发牌）、收尾进摊牌、续局
+function finishRunouts(roomId, runs, base, winByUser) {
     const game = roomGames[roomId];
     if (!game) return;
-    const { runs, base, winByUser } = ctx;
     io.in(roomId).emit('runit_done', { totalByUser: winByUser });
     io.in(roomId).emit('sfx', 'win');
-    game.communityCards = runs.length ? base.concat(runs[runs.length - 1].newCards) : base.slice();   // 展示态停在最后一组
+    game.communityCards = base.concat(runs.length ? runs[0].newCards : []);   // 主 community = 第 1 次（stats/回放用）
     const label = Object.keys(winByUser).map(id => { const p = game.players.find(x => x.userId === id); return `${p ? p.username : id} +${winByUser[id]}`; }).join('，');
     io.in(roomId).emit('server_msg', `🏆 发 ${runs.length} 次结果：${label}`);
+    // 牌谱：完整记录 N 组公共牌 + 各组赢家 + 各份金额（数据资产：run-it 需保留每次 runout）
     if (game.hand) {
-        game.hand.community = runs[0].board.map(c => `${c.rank}${c.suit[0]}`);
-        game.hand.runIt = { n: runs.length, runs: runs.map(r => ({ board: r.board.map(c => `${c.rank}${c.suit[0]}`), winners: r.winners })) };
+        game.hand.runIt = {
+            n: runs.length,
+            boards: runs.map(r => r.board.map(c => `${c.rank}${c.suit[0]}`)),
+            winners: runs.map(r => r.winners),
+            amounts: runs.map(r => r.thisPot)
+        };
     }
-    saveHandHistory(game, winByUser);
+    saveHandHistory(game, winByUser);   // community 落为第 1 次 board（向后兼容）
     game.pot = 0;
     game.players.forEach(p => p.committed = 0);
     game.phase = PHASES.SHOWDOWN;
