@@ -50,6 +50,15 @@ Android / iOS / PC
 - 每手生成 `deck.lastShuffleId`（crypto 随机 4 字节）并 `console.log('[deal] ... shuffleId=')` 审计，确认确有重洗
 - 已自检：两副不同、首张=黑桃A 频率 ≈1/52、各位置分布均匀
 
+## 🔴 行动流程严重bug修复 + 房主功能 + 9max布局（2026-07-24，本地验证通过；测试服5090当时SSH超时未部署）
+- **背景**：用户实战反馈多个"卡住牌局"的严重bug。共修 6 个行动流程bug（前 4 个见上一批 commit f985370，后 2 个本批新增），均围绕 `actionOnIdx`/行动推进。
+- **上批已修(f985370)**：①弃牌者本手进行中「站起围观」立即 `vacateSeat` splice 打乱 `actionOnIdx`→后面玩家无法行动 → 改为**本手进行中一律延后离座**(`vacateAfter`，`removeBustedPlayers` 处理)；②`findNextActionIdx` 只判 `canAct` 不判"已行动且已跟平"→已跟注者过一圈又被要求过牌 → 加 `needsToAct`；③`reserve_leave` 当前行动者留座→全桌干等到超时 → 弃牌坐出并推进；④加时按钮 400ms 防抖。
+- **本批新增(server.js)**：⑤**全押跑马死局**：若所有参与者因盲注/前注**全部全押**(常见于短码 heads-up 双方 all-in from blinds)，`startHand` 里 `actionOnIdx` 会算成 -1 但**没有任何东西触发跑马**→本手永久卡住。修：`startHand` 末尾若 `actionOnIdx<0` 直接 `advanceStage`(进全押亮牌+跑马)；heads-up 时若 SB 已下盲全押则顺延找下一个能行动者(避免超时误弃全押的 SB)。⑥`onActionTimeout` 兜底：`if(!canAct(player)){afterAction;return}`——**绝不把全押/已弃牌者按超时弃牌**(否则剥夺其应得池权)。
+- **房主新功能**：**⏸️ 暂停发牌**(`pause_dealing`/`resume_dealing`，owner-only)——暂停后**当前这手打完**不开新局(`game.paused`：`startHand`+`scheduleNextHand` 都 gate)，「继续」立即续局；桌内菜单按钮 `#tmPause` 动态切换文案，中央水印显示「⏸️ 房主已暂停发牌」。**🧍 强制玩家站起**(`force_stand({targetUserId})`，owner-only)——把某玩家移到观战席腾座位(复用 `standUpPlayer` 核心=本手进行中延后离座)，筹码保留至结束结算，TA 可自行回座；入口在**点头像弹层**(房主对其他在座玩家显示「移到观战席」按钮)。
+- **9-max布局**(`ringPos`)：M≥6 时顶部座位上提 5% 避开「房间号/盲注」中央水印(修筹码BB数与房间号重合)；「我」的左右两个座位(ringIndex 1 / M-1)上移6%+左右外扩4%，不再和自己挤在一起。
+- **点头像「本局盈亏」口径统一**：原取牌谱聚合 `stats.net`(与「当前战绩」面板的 `chips-buyIn` 可能不一致：中途手/补码/房号复用时漂移)→ 改为**同源当前牌桌状态**(`roomStatFor`：在座=chips-buyIn，站起者=vacated.net，已离开=statsHistory.net)，标签改「本房战绩」；手数也改同源。
+- **验证**：本地 LOCAL_DEV 起服(127.0.0.1:3000)+socket 测试：站起流程回归(弃牌者mid-hand站起不卡、正常摊牌)✅、暂停发牌(当前手打完停住/继续续局)✅、强制站起(腾座位转观众)✅；⑤全押死局因买入下限约束难自动构造，靠代码走查确认(仅 `actionOnIdx<0` 时触发，隔离安全)。client 内联脚本 vm 语法校验通过。**测试服 5090 当时 SSH 连不上(实验室网络)未部署**，待可达后 `deploy-test.sh`。
+
 ## 🎨 牌桌体感三批次（2026-07-03，已部署测试服，待验收）
 - **批次1 UI 重构（参考德扑之星 9-max）**：座位改**小方块头像**+名字上·筹码(BB)下 三层固定；**本手下注=头像顶小 chip 徽章**；**状态按需气泡**(弃牌灰/坐出灰/All in 红)；对手牌在头像上方、自己牌在下方、**牌型独立深色徽章绝不盖筹码**(修掉旧的覆盖式)；**All-in=火焰橙光**、**当前行动=呼吸金框+倒计时**(两者区分)；环形半径外扩(rx42/ry41)9 人不挤；顶部**合规横幅**「绿色竞技 远离赌博…」
 - **批次2 动画/触感**：下注 chip 弹入(betPop)、**赢额「+X」弹字**(winPopup)、**筹码数字滚动**(count-up easeOutCubic)、收池飞币(旧有)、**手机振动**(轮到我 45ms / 赢牌 pattern，navigator.vibrate)

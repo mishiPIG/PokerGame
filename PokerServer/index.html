@@ -960,6 +960,10 @@
         .ap-emotes { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
         .ap-emotes .emote-btn { font-size: 22px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
             border-radius: 10px; width: 42px; height: 42px; cursor: pointer; }
+        .ap-owner { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.09); }
+        .ap-owner-btn { width: 100%; padding: 10px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold;
+            background: rgba(255,159,28,0.16); border: 1px solid rgba(255,159,28,0.5); color: #ffcf8a; }
+        .ap-owner-btn:active { background: rgba(255,159,28,0.28); }
         /* 高牌定庄：座位上方翻出的牌 */
         .bd-card { --card-w: 32px; --card-h: 44px; position: fixed; z-index: 300; pointer-events: none;
             transform: translate(-50%, -100%); transform-origin: bottom center;
@@ -1223,6 +1227,7 @@
             <button class="cash-only" onclick="openRebuy();toggleTableMenu()">💵 补充记分牌</button>
             <button class="seat-only" onclick="reserveLeave();toggleTableMenu()">💺 留座离桌</button>
             <button class="seat-only" onclick="standUp();toggleTableMenu()">🧍 站起围观</button>
+            <button class="owner-only cash-only" id="tmPause" onclick="togglePauseDealing();toggleTableMenu()">⏸️ 暂停发牌</button>
             <button class="owner-only" onclick="openMatchSettings();toggleTableMenu()">⚙️ 比赛设置</button>
             <button onclick="leaveRoom();toggleTableMenu()">🚪 退出比赛</button>
             <button class="owner-only danger" onclick="dissolveRoom();toggleTableMenu()">🛑 解散比赛</button>
@@ -1430,6 +1435,7 @@
         <div class="ap-stats" id="ap-stats"><div class="ap-loading">加载中…</div></div>
         <div class="ap-emo-title" id="ap-emo-title">发表情</div>
         <div class="ap-emotes" id="ap-emotes"></div>
+        <div class="ap-owner" id="ap-owner" style="display:none"></div>
     </div>
 </div>
 
@@ -2185,6 +2191,8 @@ function toggleTableMenu() {
         m.querySelectorAll('.cash-only').forEach(e => e.style.display = (isCash && amSeated) ? '' : 'none');
         m.querySelectorAll('.seat-only').forEach(e => e.style.display = (isCash && amSeated) ? '' : 'none');
         m.querySelectorAll('.owner-only').forEach(e => e.style.display = isOwner ? '' : 'none');
+        const pb = document.getElementById('tmPause');
+        if (pb) pb.textContent = st.paused ? '▶️ 继续发牌' : '⏸️ 暂停发牌';
     }
     m.style.display = show ? '' : 'none';
 }
@@ -2196,6 +2204,24 @@ function reserveLeave() {
     if (socket) { socket.emit('reserve_leave'); alert('已留座离座，2 分钟内回来保留座位（点座位「回到座位」即可）'); }
 }
 function sitBack() { if (socket) socket.emit('sit_back'); }
+
+// 房主：暂停/继续发牌（暂停后当前这手打完不开新局）
+function togglePauseDealing() {
+    if (!socket) return;
+    if (lastState && lastState.paused) socket.emit('resume_dealing');
+    else { socket.emit('pause_dealing'); alert('已暂停发牌：当前这手打完后暂停，随时可点「继续发牌」恢复。'); }
+}
+// 房主：强制某玩家站起到观战席（腾出座位）
+function forceStand(targetUserId) {
+    if (!socket) return;
+    const st = lastState; if (!st) return;
+    const tp = (st.players || []).find(p => p.userId === targetUserId);
+    const nm = tp ? tp.username : '该玩家';
+    if (confirm(`把「${nm}」移到观战席？其座位将空出（筹码保留至结束结算，TA 可自行「回到座位」）。`)) {
+        socket.emit('force_stand', { targetUserId });
+        closeAvatarPopup();
+    }
+}
 
 // ===== 坐下/补码 买入弹窗 (A2/A3) =====
 let buyinMode = 'sit';
@@ -3247,6 +3273,14 @@ function openAvatarPopup(userId) {
     document.getElementById('ap-emo-title').textContent = isMe ? '发表情（所有人可见）' : `给「${name}」扔表情`;
     document.getElementById('ap-stats').innerHTML = '<div class="ap-loading">加载中…</div>';
     document.getElementById('ap-emotes').innerHTML = EMOTES.map(e => `<button class="emote-btn" onclick="sendPopupEmote('${e}')">${e}</button>`).join('');
+    // 房主管理：对其他在座玩家显示「移到观战席」（腾座位）
+    const apo = document.getElementById('ap-owner');
+    const iAmOwner = lastState.ownerUserId === myUserId;
+    const targetSeated = (lastState.players || []).some(x => x.userId === userId);
+    if (iAmOwner && !isMe && targetSeated && lastState.roomType === 'cash') {
+        apo.style.display = '';
+        apo.innerHTML = `<button class="ap-owner-btn" onclick="forceStand('${userId}')">🧍 移到观战席（腾出座位）</button>`;
+    } else { apo.style.display = 'none'; apo.innerHTML = ''; }
     document.getElementById('avatar-popup').style.display = 'flex';
     if (socket) socket.emit('req_player_stats', { targetUserId: userId });
 }
@@ -3256,14 +3290,29 @@ function sendPopupEmote(e) {
     if (socket) socket.emit('emote', { emote: e, targetUserId: target });
     closeAvatarPopup();
 }
+// 从当前牌桌状态取某人的「本房战绩」（与「当前战绩」面板同源：chips-buyIn），保证两处口径一致
+function roomStatFor(userId) {
+    if (!lastState) return null;
+    const p = (lastState.players || []).find(x => x.userId === userId);
+    if (p) return { net: (p.chips || 0) - (p.buyIn || 0), hands: p.handsPlayed || 0 };
+    const v = (lastState.vacated || []).find(x => x.userId === userId);
+    if (v) return { net: v.net || 0, hands: v.handsPlayed || 0 };
+    const h = (lastState.statsHistory || []).find(x => x.userId === userId);
+    if (h) return { net: h.net || 0, hands: h.handsPlayed || 0 };
+    return null;
+}
 function renderPlayerStats(userId, s) {
     if (userId !== avatarPopupUserId) return;
     s = s || {};
     const cell = (lab, val) => `<div class="ap-stat"><div class="ap-val">${val}</div><div class="ap-lab">${lab}</div></div>`;
+    // 手数/战绩取当前牌桌状态（与「当前战绩」面板一致），VPIP/PFR/3Bet/ATS 取牌谱聚合
+    const rs = roomStatFor(userId);
+    const handsVal = rs ? rs.hands : (s.totalHands || 0);
+    const netVal = rs ? rs.net : (s.net || 0);
     document.getElementById('ap-stats').innerHTML =
         cell('VPIP', (s.vpip || 0) + '%') + cell('PFR', (s.pfr || 0) + '%')
         + cell('3Bet', (s.threeBet || 0) + '%') + cell('ATS', (s.ats || 0) + '%')
-        + cell('手数', s.totalHands || 0) + cell('本局盈亏', (s.net > 0 ? '+' : '') + (s.net || 0));
+        + cell('手数', handsVal) + cell('本房战绩', (netVal > 0 ? '+' : '') + netVal);
 }
 function appendChat(username, text, mine) {
     const l = document.getElementById('chat-list'); if (!l) return;
@@ -3824,7 +3873,16 @@ function ringPos(ringIndex, M) {
     // 竖向半径收一点、整体下移，避免顶部座位贴边被裁；横向仍外扩留白
     const cx = 50, cy = 47, rx = 42, ry = 36;
     const ang = Math.PI / 2 + (2 * Math.PI * ringIndex / M);   // 0→底部；+ 使递增为顺时针
-    return { x: cx + rx * Math.cos(ang), y: cy + ry * Math.sin(ang) };
+    const c = Math.cos(ang), s = Math.sin(ang);
+    let x = cx + rx * c, y = cy + ry * s;
+    // 多人(6+)微调，避免相互/与中央水印遮挡：
+    if (M >= 6) {
+        if (s < -0.3) y -= 5;   // 上半部座位上提，顶部两个避开「房间号/盲注」中央水印
+        if (ringIndex === 1 || ringIndex === M - 1) {   // 「我」的左右两个：上移+外扩，别和自己挤在一起
+            y -= 6; x += (c < 0 ? -4 : 4);
+        }
+    }
+    return { x, y };
 }
 
 function renderSeats(state) {
@@ -4041,6 +4099,7 @@ function render(state) {
             + `现金桌 · 盲注 ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
             + (tableEndAt ? ` · <span id="table-remain"></span>` : '');
     }
+    if (state.paused) sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 房主已暂停发牌</span>`;
 
     // 公共牌：固定 5 个位置（已发的是牌，未发的占位空槽），避免发牌时布局跳动
     const comm = state.communityCards;

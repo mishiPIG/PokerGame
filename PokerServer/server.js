@@ -689,6 +689,7 @@ function broadcastState(roomId) {
         statsHistory: game.statsHistory || [],       // 已离开/淘汰玩家（战绩面板灰显）
         tableEndAt: game.tableEndAt || null,         // 现金桌训练结束时间戳
         pendingEnd: !!game.pendingEnd,               // 训练时长已到、本手结束后结算（房主可加时）
+        paused:      !!game.paused,                  // 房主暂停发牌（本手结束后不开新局，等继续）
         ownerUserId:    game.ownerUserId || null,
         status:         game.status || 'waiting',
         currentLevel:   game.currentLevel || 0,
@@ -789,6 +790,8 @@ function onActionTimeout(roomId) {
     if (!game || game.actionOnIdx < 0) return;
     const player = game.players[game.actionOnIdx];
     if (!player) return;
+    // 兜底：全押/已弃牌者不应被超时处理（否则会把已全押玩家误判为弃牌，剥夺其应得的池权）→ 直接推进
+    if (!canAct(player)) { afterAction(roomId); return; }
     const toCall = game.currentBet - player.currentBet;
     if (toCall <= 0) {
         player.hasActed = true;
@@ -1056,6 +1059,7 @@ function beginPlay(roomId) {
 function startHand(roomId) {
     const game = roomGames[roomId];
     if (!game) return;
+    if (game.paused) { broadcastState(roomId); return; }   // 房主已暂停发牌：不开新局，等「继续」
 
     const BB = gameBB(game), SB = gameSB(game);
     // 至少 2 名可参与玩家（有筹码、未坐出）才能开局
@@ -1157,7 +1161,16 @@ function startHand(roomId) {
     game.players.forEach(p => { if (!p.folded) p.handsPlayed = (p.handsPlayed || 0) + 1; });
 
     // preflop 第一个行动：heads-up = SB（按钮）；N≥3 = BB 后第一位（UTG）
-    game.actionOnIdx = headsUp ? sbIdx : findNextActionIdx(game, bbIdx);
+    // 注意：heads-up 时若 SB 已因下盲全押，则不能让 SB 行动（否则超时会误弃全押者）→ 顺延找下一个能行动的
+    let firstIdx = headsUp ? sbIdx : findNextActionIdx(game, bbIdx);
+    if (headsUp && !needsToAct(game.players[sbIdx], game)) firstIdx = findNextActionIdx(game, sbIdx);
+    game.actionOnIdx = firstIdx;
+    // 无人可行动（所有参与者已因盲注/前注全押）→ 没有玩家能下注，直接进入全押跑马，否则本手会永久卡住
+    if (game.actionOnIdx < 0) {
+        broadcastState(roomId);
+        advanceStage(roomId);
+        return;
+    }
     startActionTimer(roomId);
     broadcastState(roomId);
 }
@@ -1534,6 +1547,7 @@ function scheduleNextHand(roomId) {
         if (!g || g.tournamentOver || g.phase !== PHASES.SHOWDOWN) return;
         removeBustedPlayers(g);   // 结算后：SNG 淘汰 / 现金桌兑出离场者移除、坐出者保留、挂起补码生效
         if (g.pendingEnd) { endCashTable(roomId, '训练时长已到'); return; }   // 到点：本手已结束→结算收桌
+        if (g.paused) { io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（本手结束）'); broadcastState(roomId); return; }
         if (liveCount(g) >= 2) startHand(roomId);
         else broadcastState(roomId);   // 人不够：停摆，等补码/坐下（坐出状态已标记）
     }, 5000);
@@ -1569,6 +1583,36 @@ function vacateSeat(game, idx) {
     // 同步调整当前行动索引，避免 splice 后 actionOnIdx 指错人导致行动卡住/错位
     if (game.actionOnIdx > idx) game.actionOnIdx--;
     else if (game.actionOnIdx === idx) game.actionOnIdx = -1;   // 正被移除者恰是当前行动位（正常已改为 mid-hand 不 vacate，这里兜底）
+}
+
+// 让某座位玩家站起围观（自己主动 or 房主强制）。本手进行中一律延后离座(vacateAfter)，绝不 mid-hand splice。
+function standUpPlayer(roomId, idx, byOwner) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    const p = game.players[idx];
+    if (!p) return;
+    const handInProgress = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
+    io.in(roomId).emit('server_msg', byOwner
+        ? `🧍 房主请 ${p.username} 到观战席（座位空出，筹码保留至结束结算）`
+        : `🧍 ${p.username} 站起围观（座位空出，筹码保留至结束结算）`);
+    if (handInProgress) {
+        // 本手进行中：延后到本手结束再真正离座（removeBustedPlayers 处理），避免 splice 打乱 actionOnIdx
+        p.vacateAfter = true;
+        if (!p.folded) {
+            p.folded = true; p.hasActed = true;
+            if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
+            else if (isBettingRoundComplete(game)) advanceStage(roomId);
+            else broadcastState(roomId);
+        } else broadcastState(roomId);
+    } else {
+        vacateSeat(game, idx);   // 局间(WAITING/SHOWDOWN)：立即离座安全
+        broadcastState(roomId);
+    }
+    broadcastRoomList();
+    if (byOwner) {
+        const s = io.sockets.sockets.get(p.socketId);
+        if (s) s.emit('server_msg', '⚠️ 房主已把你移到观战席（筹码保留，可点「回到座位」重新入座）');
+    }
 }
 
 // 站起围观者回座：从 vacatedPlayers 取出、带原筹码放回一个空座（不重复扣买入），并清掉 vacated 记录。
@@ -1996,27 +2040,43 @@ io.on('connection', (socket) => {
         if (!game || game.roomType !== 'cash') { socket.emit('server_msg', '⚠️ 仅现金桌可站起'); return; }
         const idx = game.players.findIndex(p => p.userId === user.id);
         if (idx < 0) return;
-        const p = game.players[idx];
-        const handInProgress = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
-        io.in(roomId).emit('server_msg', `🧍 ${user.username} 站起围观（座位空出，筹码保留至结束结算）`);
-        if (handInProgress) {
-            // 本手进行中：一律延后到本手结束再离座（removeBustedPlayers 处理），绝不 mid-hand splice
-            // 否则 splice 会打乱 actionOnIdx，导致后面的玩家无法行动。
-            p.vacateAfter = true;
-            if (!p.folded) {
-                // 未弃牌：先弃牌打完本手，并推进行动
-                p.folded = true; p.hasActed = true;
-                if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
-                else if (isBettingRoundComplete(game)) advanceStage(roomId);
-                else broadcastState(roomId);
-            } else {
-                broadcastState(roomId);   // 已弃牌：仅标记，本手结束后离座
-            }
-        } else {
-            vacateSeat(game, idx);   // 局间(WAITING/SHOWDOWN)：立即离座安全
-            broadcastState(roomId);
-        }
-        broadcastRoomList();
+        standUpPlayer(roomId, idx, false);
+    });
+
+    // 房主强制某玩家站起到观战席（腾出座位，让退出游戏的玩家让位）。筹码保留、结束时结算。
+    socket.on('force_stand', ({ targetUserId }) => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game || game.roomType !== 'cash') { socket.emit('server_msg', '⚠️ 仅现金桌可操作'); return; }
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可强制玩家站起'); return; }
+        if (targetUserId === user.id) { socket.emit('server_msg', '⚠️ 不能强制自己，请用「站起围观」'); return; }
+        const idx = game.players.findIndex(p => p.userId === targetUserId);
+        if (idx < 0) { socket.emit('server_msg', '⚠️ 该玩家不在座'); return; }
+        standUpPlayer(roomId, idx, true);
+    });
+
+    // 房主暂停/继续发牌：暂停后本手结束不开新局；继续后立即续局
+    socket.on('pause_dealing', () => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game) return;
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可暂停发牌'); return; }
+        game.paused = true;
+        io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（当前这手打完后暂停，可随时继续）');
+        broadcastState(roomId);
+    });
+    socket.on('resume_dealing', () => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game) return;
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可继续发牌'); return; }
+        if (!game.paused) return;
+        game.paused = false;
+        io.in(roomId).emit('server_msg', '▶️ 房主已继续发牌');
+        // 若当前在局间且满足开局条件，立即续上一局
+        if (game.status === 'running' && (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) && liveCount(game) >= 2) {
+            startHand(roomId);
+        } else broadcastState(roomId);
     });
 
     // 留座离座（现金桌）：保留座位、坐出本手，2 分钟内不回来自动站起兑出
