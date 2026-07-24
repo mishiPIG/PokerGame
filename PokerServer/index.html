@@ -1870,6 +1870,7 @@ function connectSocket(token) {
         revealedCards = {};  // 新一局清除 showdown 展示
         showdownInfo = null; myHand = null;
         shownCards = {}; myShown = new Set();  // 清除上一局主动亮牌
+        hideRunitPanel(); clearRunit();        // 新一局：清多次发牌协商面板 + 桌面 N 板残留（防公共牌被 runit-on 一直藏着）
         holeJustDealt = true;  // 发牌动画在随后的 game_state(preflop) 渲染时统一播放（我的牌 + 对手牌背交替飞入）
         // 发牌音效：依次发 4 张（双方各 2 张），节奏与视觉延迟对齐
         sndDeal(0); sndDeal(1); sndDeal(2); sndDeal(3);
@@ -1942,6 +1943,7 @@ function connectSocket(token) {
     });
 
     socket.on('showdown_reveal', (data) => {
+        clearRunit();   // 普通摊牌（非多次发牌）→ 清掉上一手多次发牌的桌面残留，避免 runit-on 一直藏住公共牌
         // 兼容旧结构（纯 reveals 对象）与新结构（含牌型高亮）
         if (data && data.reveals) {
             revealedCards = data.reveals;
@@ -2005,6 +2007,9 @@ function connectSocket(token) {
         if (lastState) lastState.players.forEach(p => prevBets[p.userId] = p.currentBet);
         lastState = state;
         render(state);
+        // 公共牌隐藏与否只跟随「是否正在多次发牌」(runitState)——即便某次清理被漏掉，下一个 state 也会自愈，
+        // 杜绝「上一手多次发牌的 runit-on 残留把这一手公共牌一直藏住」的 bug。
+        document.getElementById('board').classList.toggle('runit-on', !!runitState);
         // 面板打开时随状态实时刷新
         if (document.getElementById('stats-panel').style.display !== 'none') renderStats(state);
         if (document.getElementById('match-modal').style.display !== 'none') renderMatchInfo(state);
@@ -2071,8 +2076,10 @@ function showRunitOffer(o) {
     const el = runitPanel();
     const eqTxt = (id) => (o.equities && o.equities[id] != null) ? ` <span class="ri-eq">${o.equities[id]}%</span>` : '';
     if (o.deciderId === myUserId) {
+        const maxN = Math.max(2, Math.min(5, o.max || 5));   // 牌堆不足时服务端会给更小的 max
+        const btns = Array.from({ length: maxN }, (_, i) => i + 1);
         el.innerHTML = `<div class="ri-title">🎲 发几次牌？<span class="ri-hint">（你落后，可要求多发几次分摊运气）</span></div>`
-            + `<div class="ri-btns">` + [1, 2, 3, 4, 5].map(n => `<button onclick="proposeRuns(${n})">${n}</button>`).join('') + `</div>`;
+            + `<div class="ri-btns">` + btns.map(n => `<button onclick="proposeRuns(${n})">${n}</button>`).join('') + `</div>`;
     } else if (o.leaderId === myUserId) {
         el.innerHTML = `<div class="ri-title">🎲 等待对方选择发牌次数…</div>`
             + `<div class="ri-sub">你领先${eqTxt(myUserId)}，对方可提议发多次</div>`;

@@ -996,10 +996,12 @@ function offerRunIt(roomId, act) {
     const ea = eq[a.userId] ?? 50, eb = eq[b.userId] ?? 50;
     const deciderId = ea <= eb ? a.userId : b.userId;        // 落后方（胜率低）选发几次
     const leaderId  = deciderId === a.userId ? b.userId : a.userId;
-    game.runIt = { activeIds: act.map(p => p.userId), deciderId, leaderId, n: 1, equities: eq };
+    const maxRuns = Math.min(RUNIT_MAX, maxRunsByDeck(game));  // 牌堆不足则少给几次，防崩/卡
+    if (maxRuns < 2) return false;                             // 只够发 1 次 → 无需协商，照常单次跑马
+    game.runIt = { activeIds: act.map(p => p.userId), deciderId, leaderId, n: 1, equities: eq, maxRuns };
     game.runItPending = true;
     clearTimeout(game.runItTimer);
-    io.in(roomId).emit('runit_offer', { deciderId, leaderId, max: RUNIT_MAX, equities: eq });
+    io.in(roomId).emit('runit_offer', { deciderId, leaderId, max: maxRuns, equities: eq });
     io.in(roomId).emit('server_msg', `🎲 可协商「发几次牌」：由落后方选择次数，领先方同意`);
     // 协商超时兜底：默认发 1 次，绝不卡住牌局
     game.runItTimer = setTimeout(() => resolveRunIt(roomId, 1, 'timeout'), RUNIT_DECIDE_MS);
@@ -1012,7 +1014,7 @@ function resolveRunIt(roomId, n, reason) {
     if (!game || !game.runItPending) return;                 // 防重复结算
     game.runItPending = false;
     clearTimeout(game.runItTimer); game.runItTimer = null;
-    n = Math.max(1, Math.min(RUNIT_MAX, parseInt(n) || 1));
+    n = Math.max(1, Math.min(RUNIT_MAX, maxRunsByDeck(game), parseInt(n) || 1));   // 再按牌堆兜底夹一次
     io.in(roomId).emit('runit_decided', { n, reason });
     if (n <= 1) {
         io.in(roomId).emit('server_msg', `🎲 本手发 1 次`);
@@ -1022,6 +1024,15 @@ function resolveRunIt(roomId, n, reason) {
     }
     io.in(roomId).emit('server_msg', `🎲 双方同意发 ${n} 次！底池均分为 ${n} 份`);
     executeRunouts(roomId, n);
+}
+
+// 牌堆还够发几次（每次 = 剩余街的牌 + 每街 1 张烧牌）——防多人多次弃牌后牌堆不足发 N 次而崩/卡
+function maxRunsByDeck(game) {
+    const baseLen = game.communityCards.length;
+    const streets = baseLen <= 0 ? 3 : (baseLen <= 3 ? 2 : 1);
+    const perRun = (5 - baseLen) + streets;            // 需发的公共牌 + 每街 1 张烧牌
+    const avail = (game.deck && game.deck.cards) ? game.deck.cards.length : 0;
+    return Math.max(1, Math.floor(avail / Math.max(1, perRun)));
 }
 
 // 发 baseLen 之后剩余的公共牌（含烧牌），返回新发出的牌数组
