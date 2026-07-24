@@ -1540,6 +1540,7 @@ let myGold       = 0;
 let myAvatar     = null;
 let myHoleCards  = [];
 let revealedCards = {};  // userId -> [{suit,rank},{suit,rank}]  (showdown)
+let runitTotal = 1, runitBoardWinners = [];   // 多次发牌：总次数 / 当前组赢家
 let currentRoom  = '';
 let iCanPlay     = false;  // 是否有下场资格（房主/验证邀请/座上玩家）；公开列表进入者为 false
 let everConnected = false; // 是否已连接过（区分首次连接 vs 断线重连，重连不闪回大厅）
@@ -1890,11 +1891,33 @@ function connectSocket(token) {
         if (lastState) render(lastState);
     });
 
-    // ===== 多次发牌（run it N times）=====
+    // ===== 多次发牌（run it N times）：桌面依次发、每组比牌后飞池给赢家 =====
     socket.on('runit_offer', (o) => showRunitOffer(o));
     socket.on('runit_proposal', (pr) => showRunitProposal(pr));
     socket.on('runit_decided', (d) => { hideRunitPanel(); if (d && d.n > 1) toast(`🎲 本手发 ${d.n} 次`, 2000); });
-    socket.on('runit_result', (r) => { hideRunitPanel(); showRunitResult(r); });
+    socket.on('runit_begin', (m) => {
+        hideRunitPanel();
+        runitTotal = m && m.n || 1;
+        if (m && m.reveals) { revealedCards = m.reveals; revealJustHappened = true; if (lastState) render(lastState); }
+    });
+    socket.on('runit_run', (m) => {
+        // 这组公共牌由 game_state 发到桌上；顶部提示第几次 + 本组赢家
+        const wname = (m.winners || []).map(id => nameOf(id)).join(' / ');
+        showTableNotice(`🎲 第 ${m.index + 1} / ${m.n} 次　🏆 ${wname}`);
+        runitBoardWinners = m.winners || [];   // 本组公共牌高亮赢家用（可选）
+    });
+    socket.on('runit_award', (m) => {
+        (m.winners || []).forEach(w => {
+            flyCoinsToWinner(w.userId); winPopup(w.userId, w.amount);
+            if (w.userId === myUserId) vibrate([30, 40, 30]);
+        });
+        sndFlip(0);
+    });
+    socket.on('runit_done', (m) => {
+        const t = Object.keys((m && m.totalByUser) || {}).map(id => `${nameOf(id)} +${m.totalByUser[id]}`).join('，');
+        if (t) toast(`🎲 发牌结束　${t}`, 3600);
+        runitBoardWinners = [];
+    });
 
     // 全押跑马实时胜率
     socket.on('equity', (m) => { equityMap = m || {}; if (lastState) renderSeats(lastState); });
@@ -2060,27 +2083,6 @@ function showRunitProposal(pr) {
 }
 function proposeRuns(n) { if (socket) socket.emit('propose_runs', { n }); const el = runitPanel(); el.innerHTML = `<div class="ri-title">🎲 已选发 ${n} 次，等待对方同意…</div>`; }
 function respondRuns(agree) { if (socket) socket.emit('respond_runs', { agree }); hideRunitPanel(); }
-
-function showRunitResult(r) {
-    let el = document.getElementById('runit-result');
-    if (!el) { el = document.createElement('div'); el.id = 'runit-result'; el.onclick = (e) => { if (e.target === el) el.style.display = 'none'; }; document.body.appendChild(el); }
-    const rows = (r.runs || []).map((run, i) => {
-        const cards = run.board.map(c => formatCard(c)).join('');
-        const wname = run.winners.map(id => nameOf(id)).join(' / ');
-        const cat = run.winners.map(id => run.categories && run.categories[id]).filter(Boolean)[0] || '';
-        return `<div class="rir-row"><div class="rir-no">第 ${i + 1} 次</div>`
-            + `<div class="rir-board">${cards}</div>`
-            + `<div class="rir-win">🏆 ${escapeHtml(wname)} <span class="rir-amt">+${run.amount}</span>${cat ? ` <span class="rir-cat">${escapeHtml(cat)}</span>` : ''}</div></div>`;
-    }).join('');
-    const totals = Object.keys(r.totalByUser || {}).map(id => `${escapeHtml(nameOf(id))} +${r.totalByUser[id]}`).join('，');
-    el.innerHTML = `<div class="rir-box"><div class="rir-title">🎲 发 ${r.n} 次结果</div>${rows}`
-        + `<div class="rir-total">合计：${totals}</div>`
-        + `<button class="rir-close" onclick="document.getElementById('runit-result').style.display='none'">知道了</button></div>`;
-    el.style.display = 'flex';
-    // 展示一段时间后自动淡出（不阻塞续局）
-    clearTimeout(window._rirTimer);
-    window._rirTimer = setTimeout(() => { if (el) el.style.display = 'none'; }, 9000);
-}
 // 轻量非阻塞提示（自动消失，不像 alert 会卡住交互）
 let _toastTimer = 0;
 function toast(msg, ms = 2600) {

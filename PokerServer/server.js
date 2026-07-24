@@ -987,7 +987,10 @@ function dealRunStreets(game, baseLen) {
     return out;
 }
 
-// 执行多次发牌：共享已发公共牌为底，剩余街发 n 组不同 runout，各自判赢家，底池均分 n 份
+// 执行多次发牌：共享已发公共牌为底，剩余街发 n 组不同 runout。桌面「依次」呈现：
+// 每次先把这组公共牌发到桌上→双方比牌→该份底池飞向赢家→收回底牌再发下一组。
+const RUNIT_REVEAL_MS = 1700;   // 一组公共牌发出后、判赢前的观看时间
+const RUNIT_AWARD_MS  = 1500;   // 该份底池飞向赢家后、进入下一组前的停顿
 function executeRunouts(roomId, n) {
     const game = roomGames[roomId];
     if (!game) return;
@@ -995,60 +998,79 @@ function executeRunouts(roomId, n) {
     const ids = game.runIt ? game.runIt.activeIds : activePlayers(game).map(p => p.userId);
     const contenders = ids.filter(id => game.holeCards[id]);
     const baseLen = game.communityCards.length;
-    const base = game.communityCards.map(c => ({ suit: c.suit, rank: c.rank }));
+    const base = game.communityCards.slice();          // Card 对象（共享底：已发的公共牌）
     const pot = game.pot;
     const share = Math.floor(pot / n);
-    let remainder = pot - share * n;
+    const remainder = pot - share * n;
 
+    // 预先从牌堆连续发好 N 组不同 runout，算好各自赢家/该份金额（发放推迟到动画到该组时）
     const winByUser = {};
     const runs = [];
     for (let i = 0; i < n; i++) {
         const newCards = dealRunStreets(game, baseLen);
-        const board = game.communityCards.concat(newCards);   // 该次完整 5 张
-        // 判该次赢家
+        const board = base.concat(newCards);
         let best = Infinity, winners = [];
         for (const id of contenders) {
             const sc = HandEvaluator.evaluate7Cards(board.concat(game.holeCards[id]));
             if (sc < best) { best = sc; winners = [id]; }
             else if (sc === best) winners.push(id);
         }
-        // 该次奖金 = share (+ 第一份补余数)；平局再均分该份
-        let thisPot = share + (i === 0 ? remainder : 0);
-        const w = Math.floor(thisPot / winners.length);
-        let wr = thisPot - w * winners.length;
-        winners.forEach((id, k) => {
-            const amt = w + (k === 0 ? wr : 0);
-            winByUser[id] = (winByUser[id] || 0) + amt;
-        });
-        runs.push({
-            board: board.map(c => ({ suit: c.suit, rank: c.rank })),
-            winners, amount: thisPot,
-            categories: winners.reduce((m, id) => { m[id] = HandEvaluator.handCategory(HandEvaluator.evaluate7Cards(board.concat(game.holeCards[id]))); return m; }, {})
-        });
+        const thisPot = share + (i === 0 ? remainder : 0);
+        const w = Math.floor(thisPot / winners.length), wr = thisPot - w * winners.length;
+        const awards = {};
+        winners.forEach((id, k) => { const amt = w + (k === 0 ? wr : 0); awards[id] = amt; winByUser[id] = (winByUser[id] || 0) + amt; });
+        runs.push({ newCards, board, winners, awards, thisPot,
+            categories: winners.reduce((m, id) => { m[id] = HandEvaluator.handCategory(HandEvaluator.evaluate7Cards(board.concat(game.holeCards[id]))); return m; }, {}) });
     }
-    // 发放筹码
-    Object.keys(winByUser).forEach(id => {
-        const p = game.players.find(x => x.userId === id);
-        if (p) p.chips += winByUser[id];
-    });
     const reveals = {};
     contenders.forEach(id => { reveals[id] = game.holeCards[id].map(c => ({ suit: c.suit, rank: c.rank })); });
 
-    io.in(roomId).emit('runit_result', {
-        base, runs, n, potPerRun: share, totalByUser: winByUser, reveals
-    });
-    const label = Object.keys(winByUser).map(id => {
-        const p = game.players.find(x => x.userId === id);
-        return `${p ? p.username : id} +${winByUser[id]}`;
-    }).join('，');
-    io.in(roomId).emit('server_msg', `🏆 发 ${n} 次结果：${label}`);
-    io.in(roomId).emit('sfx', 'win');
+    io.in(roomId).emit('server_msg', `🎲 开始发 ${n} 次…`);
+    io.in(roomId).emit('runit_begin', { n, base: base.map(c => ({ suit: c.suit, rank: c.rank })), reveals });
+    game.communityCards = base.slice();
+    broadcastState(roomId);
+    scheduleRun(roomId, { runs, base, winByUser, share }, 0);
+}
 
-    // 牌谱：community 记第 1 次 runout，附多次发牌明细
-    game.communityCards = base.concat([]);   // 展示态回到 base（客户端用 runit_result 呈现各次）
+// 逐组呈现第 i 组 runout（发牌→观看→飞池→收回→下一组）
+function scheduleRun(roomId, ctx, i) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    const { runs, base, winByUser } = ctx;
+    if (i >= runs.length) return finishRunouts(roomId, ctx);
+    const run = runs[i];
+    game.communityCards = base.concat(run.newCards);   // 发这组完整公共牌（客户端动画发出新增牌 + 比牌）
+    io.in(roomId).emit('runit_run', { index: i, n: runs.length, categories: run.categories, winners: run.winners });
+    broadcastState(roomId);
+    clearTimeout(game.runoutTimer);
+    game.runoutTimer = setTimeout(() => {
+        const g = roomGames[roomId]; if (!g) return;
+        // 这组比完 → 该份底池飞向赢家（筹码到账 + 客户端飞币 + 底池数递减）
+        run.winners.forEach(id => { const p = g.players.find(x => x.userId === id); if (p) p.chips += run.awards[id]; });
+        g.pot = Math.max(0, g.pot - run.thisPot);
+        io.in(roomId).emit('runit_award', { index: i, n: runs.length, winners: run.winners.map(id => ({ userId: id, amount: run.awards[id] })) });
+        broadcastState(roomId);
+        g.runoutTimer = setTimeout(() => {
+            const g2 = roomGames[roomId]; if (!g2) return;
+            if (i + 1 < runs.length) { g2.communityCards = base.slice(); broadcastState(roomId); }   // 收回到共享底，再发下一组
+            g2.runoutTimer = setTimeout(() => scheduleRun(roomId, ctx, i + 1), 400);
+        }, RUNIT_AWARD_MS);
+    }, RUNIT_REVEAL_MS);
+}
+
+// 全部发完：落库牌谱、收尾进摊牌、续局
+function finishRunouts(roomId, ctx) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    const { runs, base, winByUser } = ctx;
+    io.in(roomId).emit('runit_done', { totalByUser: winByUser });
+    io.in(roomId).emit('sfx', 'win');
+    game.communityCards = runs.length ? base.concat(runs[runs.length - 1].newCards) : base.slice();   // 展示态停在最后一组
+    const label = Object.keys(winByUser).map(id => { const p = game.players.find(x => x.userId === id); return `${p ? p.username : id} +${winByUser[id]}`; }).join('，');
+    io.in(roomId).emit('server_msg', `🏆 发 ${runs.length} 次结果：${label}`);
     if (game.hand) {
         game.hand.community = runs[0].board.map(c => `${c.rank}${c.suit[0]}`);
-        game.hand.runIt = { n, runs: runs.map(r => ({ board: r.board.map(c => `${c.rank}${c.suit[0]}`), winners: r.winners })) };
+        game.hand.runIt = { n: runs.length, runs: runs.map(r => ({ board: r.board.map(c => `${c.rank}${c.suit[0]}`), winners: r.winners })) };
     }
     saveHandHistory(game, winByUser);
     game.pot = 0;
