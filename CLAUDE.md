@@ -179,6 +179,14 @@ Android / iOS / PC
 - **另修 run-it 引入的崩溃**：`maxRunsByDeck` 按剩余牌堆限制可发次数（`offerRunIt` 的 max + `resolveRunIt` 夹取），防 9-max 多人弃牌后牌堆不足发 N 次导致 `drawCard()` 返回 null 崩/卡；客户端次数按钮随 `max`。
 - **验证**：jsdom 加载**真实 index.html** 直接跑 `buildRunitBoards`/`runitDealStreet`/`clearRunit`——preflop 2 组各 5 张、翻后全押共享 flop+每组并列 2 张、clearRunit 复原 全对 ✅；socket 回归 runit/sidepot/sidepot2/standflow/hostfeat 全通 ✅。（确认渲染函数本身没问题，就是跨手残留 class。）
 
+## 🔴 重构引入的崩溃 bug 复查（2026-07-26，香港已上）
+- **背景**：用户玩 SNG 结束后解散/退出时"服务器整体卡一下、无关的现金桌也没了"——实为**未捕获异常崩溃 → pm2 重启 → 内存所有牌局清空**。重构漏了依赖注入,是这类"运行到特定路径才 ReferenceError 崩全服"的 bug。
+- **抓到并修的两个崩溃(同一类)**：①`db is not defined` @ `membership-events.js`(SNG 开赛前退出退还报名费分支漏解构 `db`);②`onActionTimeout is not defined` @ `poker-action-events.js`(**加时后再超时**,定时器调用未解构的函数→崩;有进程兜底后降级为"卡住该手")。都补上解构。
+- **系统性复查(防还有第三个)**：用 **eslint `no-undef`** 全量扫 `src/`(专抓"用了没定义")——修完两个后**干净**;再写脚本**交叉核对**每个 event 文件从 `tableService`(89 key)/`config`/`runtime`/`bind`(77 key) 解构的名字是否真实存在——**全部对得上**,确认无同类隐患。（教训：重构后必跑 eslint no-undef,语法检查抓不到这类。）
+- **进程级兜底**：`server.js` 加 `uncaughtException`/`unhandledRejection` 只记录不退出——以后任何处理器再抛未捕获异常,只让"那一次操作"失败,不再连累全服清空所有牌局。
+- **顺带两个玩法修**：①**SNG 不发多次**(`offerRunIt` 加 `roomType!=='cash'` 直接 return false,锦标赛固定发 1 次);②**掉线/离桌者给正常行动时间**(去掉 away 的 800ms 秒判)——防网络波动瞬断被直接弃牌,到点仍是无注过牌/面对下注才弃、重连重置计时。
+- **验证**：SNG 全押不弹协商直接摊牌 ✅;SNG 退出退还+不崩 ✅;现金桌多次发牌/边池/站起/房主/单会话 回归全通 ✅。
+
 ## 🧩 朋友大重构 + UTG Straddle（2026-07-25，PR #5 已合并，测试服已上）
 - **重构（朋友 dreamingwill/develop，"只拆文件不改逻辑"）**：`server.js` 3000 行 → 86 行组装入口 + 几十个 `src/` 模块（工厂函数 `createXxxService({deps})` + 依赖注入；唯一共享状态 `src/runtime.js` 的 `roomGames`）；`index.html` 4116 行 → 骨架 + `public/css/*` + `public/js/*`（数字前缀=加载顺序）。两个"总装车间"：`src/table/table-service.js`（拼大厅/座位/比赛/引擎）、`src/games/poker/poker-service.js`（拼德扑引擎子服务：rules/pot/showdown/state-presenter/hand-service/run-it/straddle）。socket 事件按类拆到 `src/socket/events/*`。设计文档见 `docs/refactor/`。
 - **⚠️ 重构后 deploy 脚本必须打包 `src public` 目录**（我已修 `deploy.sh`/`deploy-test.sh`：tar 追加 `src public`，`data.json`→`data.json*`）——否则只传顶层文件会 `MODULE_NOT_FOUND` 宕机。改部署流程记得带上。
