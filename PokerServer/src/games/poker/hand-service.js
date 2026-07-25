@@ -24,14 +24,15 @@ function startActionTimer(roomId) {
     if (game.actionOnIdx < 0) { game.actionDeadline = null; return; }
     game.extraAddedThisTurn = 0;
     game.actionStartedAt = Date.now();   // 用于记录思考时间（牌谱）
-    // 离桌挂机的玩家：快速自动行动，避免每步等满 15s
     const actor = game.players[game.actionOnIdx];
     if (actor && game.straddleDecision?.status === 'pending'
         && game.straddleDecision.offeredAt
         && actor.userId === game.straddleDecision.candidateUserId) {
         cancelVisibleStraddleForTurn(roomId); // 当前手再次轮到他：当前决策优先，Straddle 默认取消
     }
-    const ms = (actor && actor.away) ? 800 : ACTION_TIME;
+    // 掉线/离桌者也给「正常行动时间」，不再 800ms 秒判——防网络波动瞬断被直接弃牌；
+    // 到点由 onActionTimeout 处理：无注则自动过牌(留在局里)、面对下注才弃牌。重连后计时重置。
+    const ms = ACTION_TIME;
     game.actionDeadline = Date.now() + ms;
     game.actionTotalMs = ms;
     game.actionTimer = setTimeout(() => onActionTimeout(roomId), ms);

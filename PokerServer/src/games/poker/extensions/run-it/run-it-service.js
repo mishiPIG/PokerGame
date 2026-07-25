@@ -6,6 +6,7 @@ function createRunItService({ io, roomGames, HandEvaluator, equity, config, acti
 function offerRunIt(roomId, act) {
     const game = roomGames[roomId];
     if (!game) return false;
+    if (game.roomType !== 'cash') return false;              // 只有现金桌才协商多次发牌；SNG(锦标赛)固定发 1 次
     if (!act || act.length !== 2) return false;              // 只有恰两人对局才协商；多人固定发 1 次
     if (game.communityCards.length >= 5) return false;       // 已到河牌，无牌可发
     // 计算双方胜率，定「落后方=选次数」「领先方=同意」
