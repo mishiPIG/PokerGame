@@ -179,6 +179,13 @@ Android / iOS / PC
 - **另修 run-it 引入的崩溃**：`maxRunsByDeck` 按剩余牌堆限制可发次数（`offerRunIt` 的 max + `resolveRunIt` 夹取），防 9-max 多人弃牌后牌堆不足发 N 次导致 `drawCard()` 返回 null 崩/卡；客户端次数按钮随 `max`。
 - **验证**：jsdom 加载**真实 index.html** 直接跑 `buildRunitBoards`/`runitDealStreet`/`clearRunit`——preflop 2 组各 5 张、翻后全押共享 flop+每组并列 2 张、clearRunit 复原 全对 ✅；socket 回归 runit/sidepot/sidepot2/standflow/hostfeat 全通 ✅。（确认渲染函数本身没问题，就是跨手残留 class。）
 
+## 🧩 朋友大重构 + UTG Straddle（2026-07-25，PR #5 已合并，测试服已上）
+- **重构（朋友 dreamingwill/develop，"只拆文件不改逻辑"）**：`server.js` 3000 行 → 86 行组装入口 + 几十个 `src/` 模块（工厂函数 `createXxxService({deps})` + 依赖注入；唯一共享状态 `src/runtime.js` 的 `roomGames`）；`index.html` 4116 行 → 骨架 + `public/css/*` + `public/js/*`（数字前缀=加载顺序）。两个"总装车间"：`src/table/table-service.js`（拼大厅/座位/比赛/引擎）、`src/games/poker/poker-service.js`（拼德扑引擎子服务：rules/pot/showdown/state-presenter/hand-service/run-it/straddle）。socket 事件按类拆到 `src/socket/events/*`。设计文档见 `docs/refactor/`。
+- **⚠️ 重构后 deploy 脚本必须打包 `src public` 目录**（我已修 `deploy.sh`/`deploy-test.sh`：tar 追加 `src public`，`data.json`→`data.json*`）——否则只传顶层文件会 `MODULE_NOT_FOUND` 宕机。改部署流程记得带上。
+- **验证（我）**：朋友 13 个测试 + 我的 5 个 socket 回归（多次发牌/未跟注退还/边池合并/站起/房主）全过 → **我的修复行为完整保留**；straddle 端到端通过；jsdom 加载真实组件化前端 0 错误、关键函数齐全；express 本就 5.2.1（没动）。合并基点=我最新 main，**没丢任何修复**。
+- **UTG Straddle（现状=单人开关版，默认关闭 `allowUtgStraddle`，上线不启用即安全）**：现金桌房主可开；开启后下一手 UTG 可选贴 2BB、preflop 最后行动；开手校验候选人=真 UTG+座位没变+筹码够，不符则作废；15s 决策窗口 + 局间 4.5s 兜底。服务端 `straddle-service.js` + `hand-service.js`；事件 `straddle_offer`/`straddle_decision`/`straddle_posted`。
+- **🔜 Straddle 正确逻辑（用户 2026-07-25 反馈，后续再做，较复杂）**：应是**链式/连续 straddle（re-straddle）**——当前局进行时下一局 **UTG** 浮出"下一手要不要 straddle"；他点了→下一局 **UTG+1** 浮出 **straddle×2**（翻倍）；以此类推每人可再翻倍，**最多一路 straddle 到翻前 all-in**；每有人接受，**下一局开池的有效 BB 数也随之改变**。现在只是单人 UTG 版，先默认关不启用，等后续重做成链式。
+
 ## 📝 用户反馈待办（2026-07-23）
 - ~~**🎲 allin 协商发多次**~~ **已完成**（见上「多次发牌」批次，2026-07-24）。
 - **待改进(已记录)**：
