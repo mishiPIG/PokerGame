@@ -15,6 +15,9 @@ function registerDisconnectEvents(context) {
         const idx = game.players.findIndex(p => p.userId === user.id);
         if (idx < 0) return;
         const player = game.players[idx];
+        // 只有「当前生效的那个 socket」掉线才影响玩家：被单会话踢掉的旧标签页断开时，
+        // player.socketId 可能已指向新页面，此时不应把在玩的玩家误标记为掉线。
+        if (player.socketId && player.socketId !== socket.id) return;
         player.away = true;   // 标记掉线（座位保留，可重连）
 
         io.to(roomId).emit('server_msg', `🔌 ${user.username} 掉线（保留座位，可重连）`);

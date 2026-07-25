@@ -45,6 +45,28 @@ function hideReconnecting() {
     const el = document.getElementById('reconnecting-toast');
     if (el) el.style.display = 'none';
 }
+// 账号在别处打开被踢下线：全屏遮罩提示 + 「在此页继续」按钮（刷新即抢回本页会话）
+function showKickedNotice(reason) {
+    hideReconnecting();
+    let el = document.getElementById('kicked-overlay');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'kicked-overlay';
+        el.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;'
+            + 'background:rgba(6,10,18,0.88);padding:24px';
+        el.innerHTML = '<div style="max-width:340px;background:linear-gradient(160deg,#1b2740,#0e1626);color:#e7eefb;'
+            + 'border-radius:16px;padding:22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.1)">'
+            + '<div style="font-size:34px;margin-bottom:8px">🔒</div>'
+            + '<div style="font-size:16px;font-weight:bold;margin-bottom:8px">此页面已断开</div>'
+            + '<div id="kicked-reason" style="font-size:13px;color:#9fb4d6;line-height:1.6;margin-bottom:16px"></div>'
+            + '<button onclick="location.reload()" style="width:100%;padding:11px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:bold;'
+            + 'background:rgba(120,160,220,0.25);border:1px solid rgba(120,160,220,0.6);color:#eaf1fb">在此页面继续（刷新）</button></div>';
+        document.body.appendChild(el);
+    }
+    document.getElementById('kicked-reason').textContent =
+        (reason || '你的账号在其他页面打开了。') + ' 为保证手牌不外泄，同一账号只能在一个页面使用。';
+    el.style.display = 'flex';
+}
 // 公共牌下方一行提示（如"某某想看转牌"），几秒后自动消失
 let _noticeTimer = 0;
 function showTableNotice(text) {

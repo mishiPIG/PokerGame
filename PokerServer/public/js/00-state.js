@@ -10,6 +10,7 @@ let runitState = null;   // 多次发牌桌面展示状态 { n, baseLen, filled:
 let currentRoom  = '';
 let iCanPlay     = false;  // 是否有下场资格（房主/验证邀请/座上玩家）；公开列表进入者为 false
 let everConnected = false; // 是否已连接过（区分首次连接 vs 断线重连，重连不闪回大厅）
+let sessionKicked = false;  // 被单会话踢下线（账号在别处打开）：此页停止重连，显示提示
 let mySeated     = false; // 我当前是否已入座（用于坐下入座动画/音效触发）
 let equityMap    = {};    // 全押跑马实时胜率 { userId: pct }
 let roomInviteInfo = null;

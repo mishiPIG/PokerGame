@@ -23,7 +23,15 @@ function connectSocket(token) {
         }
         everConnected = true;
     });
-    socket.on('disconnect', () => { showReconnecting(); });   // 断线：显示「重连中」而非弹回大厅
+    socket.on('disconnect', () => { if (sessionKicked) return; showReconnecting(); });   // 断线：显示「重连中」而非弹回大厅
+
+    // 单会话：账号在别处（新页面/设备）打开 → 此页停止重连并提示，避免两页互相踢的死循环
+    socket.on('session_kicked', (m) => {
+        sessionKicked = true;
+        try { socket.io.opts.reconnection = false; } catch {}   // 关掉自动重连（否则会反过来把新页面踢下线）
+        try { socket.disconnect(); } catch {}
+        showKickedNotice(m && m.reason);
+    });
 
     socket.on('connect_error', (err) => {
         localStorage.removeItem('token');
