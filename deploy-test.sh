@@ -14,6 +14,11 @@ SERVER_PATH="/home/caoy0d/PokerGame/PokerServer"
 PM2_APP="poker-test"
 TEST_URL="http://10.76.106.91:3000"
 
+# Step 0: 部署前安全体检（eslint no-undef + 解构交叉核对）——专抓"用了但没定义/没准备好"的崩溃隐患，不过就中止。
+echo "🔎 部署前安全检查（防「用了没定义」导致上线后崩溃）..."
+( cd "$SCRIPT_DIR/PokerServer" && npm run check ) || { echo "❌ 安全检查未通过，已中止部署——请先修复上面报告的问题。"; exit 1; }
+echo "✅ 安全检查通过"
+
 # Step 1: 打包源码（排除 node_modules 和 data.json，避免覆盖服务器测试数据）
 echo "🚀 同步代码到测试服务器（5090）..."
 DEPLOY_TMP="/tmp/poker_test_$$.tar.gz"

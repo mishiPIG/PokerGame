@@ -5,12 +5,17 @@
   "main": "index.js",
   "scripts": {
     "dev": "LOCAL_DEV=1 node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "check": "eslint . && node tools/check-destructures.js",
+    "preflight": "npm run check"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "express": "^5.2.1",

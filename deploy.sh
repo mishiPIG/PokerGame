@@ -13,6 +13,12 @@ SERVER_PATH="/root/PokerGame/PokerServer"
 PM2_APP="poker"
 PUBLIC_URL="http://47.76.61.168:3000"
 
+# Step 0: 部署前安全体检（eslint no-undef + 解构交叉核对）——专抓"用了但没定义/没准备好"的崩溃隐患。
+# 不过就中止部署，绝不把会崩全服的代码上线。（首次需在 PokerServer 里 npm install 装上 eslint）
+echo "🔎 部署前安全检查（防「用了没定义」导致上线后崩溃）..."
+( cd "$SCRIPT_DIR/PokerServer" && npm run check ) || { echo "❌ 安全检查未通过，已中止部署——请先修复上面报告的问题再部署。"; exit 1; }
+echo "✅ 安全检查通过"
+
 # Step 1: Git 提交（如果提供了 commit message）
 if [ -n "$1" ]; then
     echo "📝 提交并推送到 GitHub..."

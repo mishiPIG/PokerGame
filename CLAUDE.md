@@ -303,6 +303,7 @@ Android / iOS / PC
 
 ## 部署（运维细节见私有文档）
 - **两套环境**：`deploy-test.sh`（测试服，pm2 `poker-test`）日常迭代；`deploy.sh "msg"`（生产=香港，pm2 `poker`）正式发布，无参则仅同步不走 git。两者均**从仓库根目录运行**，tar 排除 data.json/hands.jsonl/secret.key/mail.json（不覆盖生产数据）。
+- **🔒 部署前安全关卡（2026-07-26 加）**：`deploy.sh`/`deploy-test.sh` 会先跑 `npm run check`（= `eslint` 的 `no-undef` + `tools/check-destructures.js` 解构交叉核对），**不过就中止部署**——专挡"用了但没定义/解构了不存在的名字"这类运行时才崩全服的隐患（`db`/`onActionTimeout` 就是这类）。首次需在 `PokerServer` 里 `npm install`（eslint 是 devDependency，服务器 `--omit=dev` 不装）。改代码后 lint 报错=有崩溃隐患,先修再部署。
 - **⚠️ 上香港前必查有没有人在玩**（2026-07-25 教训：曾在有人玩时上香港把人挤掉线）：`pm2 restart` = 进程重启 = **内存 `roomGames`(所有进行中牌局)清空**——不只是掉线，玩家**买入的金币已扣、筹码只在内存**，重启没走结算 → **在局筹码/金币直接丢失**。所以：默认只上测试服；上香港前 SSH 查近期 `[deal]` 日志/连接数确认无人在玩，有人就等空闲再上。
 - **🔜 待办（优雅关停）**：重启前对所有活跃现金桌 `endCashTable` 结算 / 退还在局筹码到金币，避免生产重启丢玩家筹码（现无持久化，纯内存）。
 - **⚠️ 生产 IP / SSH 别名 / 服务器路径 / 密钥位置 / 管理员引导 / 备份 / mail.json 等运维敏感细节已拆到私有 `OPS.local.md`（gitignore，不入库）**——公开仓库不再收录。改动部署流程时看那份。
