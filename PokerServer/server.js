@@ -14,6 +14,7 @@ const mailer = require('./mailer');
 const config = require('./src/config');
 const { createRuntime } = require('./src/runtime');
 const { createAuth } = require('./src/auth');
+const { seedLocalDevUsers } = require('./src/dev-seed');
 const { createTableService } = require('./src/table/table-service');
 const { registerAdminRoutes } = require('./src/http/register-admin-routes');
 const { registerVoiceModule } = require('./src/voice/voice-module');
@@ -43,20 +44,7 @@ app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
 // 仅供本机联调：每次 npm run dev 保证两个双人测试账号可登录。
 // 此分支受 LOCAL_DEV 显式环境变量保护，普通 node server.js / pm2 都不会执行。
-if (LOCAL_DEV) {
-    for (const [username, password] of [
-        ['test', 'test'],
-        ['test2', 'test2'],
-        ['test3', 'test3'],
-        ['test4', 'test4']
-    ]) {
-        const hash = bcrypt.hashSync(password, 8);
-        const existing = db.getUserByUsername(username);
-        if (existing) db.setPassword(existing.id, hash);
-        else db.createUser(username, hash, false, null);
-    }
-    console.log('🧪 本地开发账号已就绪：test～test4（密码与账号相同）');
-}
+seedLocalDevUsers({ enabled: LOCAL_DEV, db, bcrypt });
 
 
 
