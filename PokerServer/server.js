@@ -52,13 +52,18 @@ const JWT_SECRET = (() => {
 // 仅供本机联调：每次 npm run dev 保证两个双人测试账号可登录。
 // 此分支受 LOCAL_DEV 显式环境变量保护，普通 node server.js / pm2 都不会执行。
 if (LOCAL_DEV) {
-    for (const [username, password] of [['test', 'test'], ['test2', 'test2']]) {
+    for (const [username, password] of [
+        ['test', 'test'],
+        ['test2', 'test2'],
+        ['test3', 'test3'],
+        ['test4', 'test4']
+    ]) {
         const hash = bcrypt.hashSync(password, 8);
         const existing = db.getUserByUsername(username);
         if (existing) db.setPassword(existing.id, hash);
         else db.createUser(username, hash, false, null);
     }
-    console.log('🧪 本地开发账号已就绪：test / test，test2 / test2');
+    console.log('🧪 本地开发账号已就绪：test～test4（密码与账号相同）');
 }
 
 // 标准 SNG 升盲表（级别 0 起，初始 25/50；SB=BB/2，每级 BB ×1.3~1.5 取整，行业标准结构）
@@ -111,6 +116,8 @@ function timeCardsFor(game, chips) {
 const RUNOUT_DELAY = 1400;    // all-in 摊牌跑马，每条街发牌间隔
 const RUNIT_MAX    = 5;       // 多次发牌上限（两人 all-in 协商发几次）
 const RUNIT_DECIDE_MS = 25000;// 多次发牌协商超时→默认发 1 次（绝不卡住牌局）
+const STRADDLE_DECISION_MS = 15000; // 完成当前手首次行动后的安全选择窗口
+const STRADDLE_INTERMISSION_MS = 4500; // 局间兜底；短于 5s 续局计时且绝不延迟下一手
 const FIXED_BUYIN  = 50;      // 旧默认（保留兼容）
 const SNG_BUYIN_TIERS = [110, 220, 550, 1100];   // SNG 报名费档位（2 人冠军得 200/400/1000/2000）
 // SNG 冠军实得 = 奖池 × 10/11（平台抽 1/11 ≈ 9%）：110×2=220→200，1100×2=2200→2000
@@ -120,6 +127,114 @@ const BUYIN_RATE   = 0.11;    // 例：110 金币 → 1000 筹码
 const CASHOUT_RATE = 0.10;    // 例：1000 筹码 → 100 金币
 
 const roomGames = {};
+
+function clearStraddleDecision(game, status = 'invalidated') {
+    if (!game || !game.straddleDecision) return;
+    clearTimeout(game.straddleDecision.timer);
+    game.straddleDecision.timer = null;
+    if (game.straddleDecision.status === 'pending') game.straddleDecision.status = status;
+}
+
+// 按预计可参与阵容计算下一手位置。game.buttonSeat 是当前/上一手按钮。
+function projectedPositions(game, players = game.players.filter(p =>
+    !p.sittingOut && (p.chips + (p.currentBet || 0) + (p.committed || 0)) > 0)) {
+    const ordered = players.slice().sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
+    if (ordered.length < 2) return null;
+    const seats = ordered.map(p => p.seat);
+    let buttonSeat;
+    if (game.buttonSeat == null || game.buttonSeat < 0) buttonSeat = seats[0];
+    else {
+        buttonSeat = seats.find(s => s > game.buttonSeat);
+        if (buttonSeat == null) buttonSeat = seats[0];
+    }
+    const buttonPos = ordered.findIndex(p => p.seat === buttonSeat);
+    const sbPos = ordered.length === 2 ? buttonPos : (buttonPos + 1) % ordered.length;
+    const bbPos = (sbPos + 1) % ordered.length;
+    const utgPos = ordered.length >= 3 ? (bbPos + 1) % ordered.length : -1;
+    return {
+        ordered, buttonSeat,
+        sb: ordered[sbPos], bb: ordered[bbPos],
+        utg: utgPos >= 0 ? ordered[utgPos] : null
+    };
+}
+
+function emitStraddleOffer(game, socket) {
+    const d = game && game.straddleDecision;
+    if (!d || d.status !== 'pending' || !d.offeredAt || d.deadlineAt <= Date.now()) return;
+    if (!socket || socket.user?.id !== d.candidateUserId) return;
+    socket.emit('straddle_offer', {
+        targetHandSeq: d.targetHandSeq,
+        amount: d.amount,
+        deadlineAt: d.deadlineAt
+    });
+}
+
+function showStraddleDecision(roomId, durationMs = STRADDLE_DECISION_MS) {
+    const game = roomGames[roomId];
+    const d = game && game.straddleDecision;
+    if (!d || d.status !== 'pending') return false;
+    const actorId = game.actionOnIdx >= 0 ? game.players[game.actionOnIdx]?.userId : null;
+    if (actorId === d.candidateUserId) return false;
+    clearTimeout(d.timer);
+    d.offeredAt = Date.now();
+    d.deadlineAt = d.offeredAt + durationMs;
+    d.timer = setTimeout(() => {
+        const g = roomGames[roomId];
+        if (!g || g.straddleDecision !== d || d.status !== 'pending') return;
+        d.status = 'expired'; d.timer = null;
+        const p = g.players.find(x => x.userId === d.candidateUserId);
+        const s = p && io.sockets.sockets.get(p.socketId);
+        if (s) s.emit('straddle_decision_result', { targetHandSeq: d.targetHandSeq, status: 'expired' });
+    }, durationMs);
+    emitStraddleOffer(game, io.sockets.sockets.get(
+        game.players.find(x => x.userId === d.candidateUserId)?.socketId
+    ));
+    return true;
+}
+
+function prepareNextStraddleDecision(roomId) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    clearStraddleDecision(game);
+    game.straddleDecision = null;
+    if (game.roomType !== 'cash' || !game.config.allowUtgStraddle) return;
+    if (game.status !== 'running'
+        || game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) return;
+    const pos = projectedPositions(game);
+    if (!pos || !pos.utg || pos.ordered.length < 3) return;
+    const amount = gameBB(game) * 2;
+    const projectedStack = pos.utg.chips + (pos.utg.currentBet || 0) + (pos.utg.committed || 0);
+    if (projectedStack < gameAnte(game) + amount) return;
+    const d = game.straddleDecision = {
+        sourceHandSeq: game.handSeq,
+        targetHandSeq: game.handSeq + 1,
+        candidateUserId: pos.utg.userId,
+        candidateSeat: pos.utg.seat,
+        amount,
+        status: 'pending',
+        offeredAt: null,
+        deadlineAt: null,
+        timer: null
+    };
+}
+
+function cancelVisibleStraddleForTurn(roomId) {
+    const game = roomGames[roomId];
+    const d = game && game.straddleDecision;
+    if (!d || d.status !== 'pending' || !d.offeredAt) return;
+    clearStraddleDecision(game, 'expired');
+    const p = game.players.find(x => x.userId === d.candidateUserId);
+    const s = p && io.sockets.sockets.get(p.socketId);
+    if (s) s.emit('straddle_decision_result', { targetHandSeq: d.targetHandSeq, status: 'expired' });
+}
+
+function maybeShowStraddleAfterAction(roomId, actedUserId) {
+    const game = roomGames[roomId];
+    const d = game && game.straddleDecision;
+    if (!d || d.status !== 'pending' || d.offeredAt || d.candidateUserId !== actedUserId) return;
+    if (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) return;
+    showStraddleDecision(roomId);
+}
 const CONFIGURED_PUBLIC_ORIGIN = (process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
 const inviteCodeFailuresByUser = new Map();
 const inviteCodeFailuresByIp = new Map();
@@ -721,6 +836,10 @@ function broadcastState(roomId) {
         smallBlind: gameSB(game),
         bigBlind: gameBB(game),
         ante:       gameAnte(game),
+        allowUtgStraddle: !!game.config?.allowUtgStraddle,
+        straddle: game.straddle ? {
+            type: 'utg', userId: game.straddle.userId, amount: game.straddle.amount
+        } : null,
         minBuyIn:   game.config?.minBuyIn || 0,
         maxBuyIn:   game.config?.maxBuyIn || 0,
         minBet:     gameBB(game),                                       // 本街首注最小额
@@ -829,6 +948,11 @@ function startActionTimer(roomId) {
     game.actionStartedAt = Date.now();   // 用于记录思考时间（牌谱）
     // 离桌挂机的玩家：快速自动行动，避免每步等满 15s
     const actor = game.players[game.actionOnIdx];
+    if (actor && game.straddleDecision?.status === 'pending'
+        && game.straddleDecision.offeredAt
+        && actor.userId === game.straddleDecision.candidateUserId) {
+        cancelVisibleStraddleForTurn(roomId); // 当前手再次轮到他：当前决策优先，Straddle 默认取消
+    }
     const ms = (actor && actor.away) ? 800 : ACTION_TIME;
     game.actionDeadline = Date.now() + ms;
     game.actionTotalMs = ms;
@@ -853,6 +977,7 @@ function onActionTimeout(roomId) {
         io.in(roomId).emit('server_msg', `⏱ ${player.username} 超时自动弃牌`);
     }
     afterAction(roomId);
+    maybeShowStraddleAfterAction(roomId, player.userId);
 }
 
 // 一次行动后推进：本街结束则进下一阶段，否则轮到下一位并重启计时
@@ -1292,6 +1417,11 @@ function startHand(roomId) {
     if (game.paused) { broadcastState(roomId); return; }   // 房主已暂停发牌：不开新局，等「继续」
 
     const BB = gameBB(game), SB = gameSB(game);
+    const targetHandSeq = (game.handSeq || 0) + 1;
+    const acceptedStraddle = game.straddleDecision
+        && game.straddleDecision.status === 'accepted'
+        && game.straddleDecision.targetHandSeq === targetHandSeq
+        ? game.straddleDecision : null;
     // 至少 2 名可参与玩家（有筹码、未坐出）才能开局
     if (liveCount(game) < 2) {
         io.in(roomId).emit('server_msg', `⏳ 在座可玩玩家不足 2 人，等待补码 / 入座`);
@@ -1301,6 +1431,8 @@ function startHand(roomId) {
     clearTimeout(game.runoutTimer);
     clearTimeout(game.runItTimer);
     game.runItPending = false; game.runIt = null;   // 清多次发牌协商残留
+    clearStraddleDecision(game);
+    game.straddleDecision = null;
     game.rabbitStreets = 0;   // 重置「看后续牌」状态
     // 第一手开始：标记 running；SNG 启动升盲计时；现金桌启动训练时长倒计时
     if (game.status !== 'running') {
@@ -1320,13 +1452,14 @@ function startHand(roomId) {
     else { bseat = liveSeats.find(s => s > game.buttonSeat); if (bseat == null) bseat = liveSeats[0]; }
     game.buttonSeat = bseat;
     game.buttonIdx = game.players.findIndex(p => p.seat === bseat);
+    game.handSeq = targetHandSeq;
 
     game.deck.reset(); game.deck.shuffle();
     console.log(`[deal] 房间 ${roomId} 新一手已重新洗牌（crypto） shuffleId=${game.deck.lastShuffleId}`);
     game.holeCards = {}; game.communityCards = [];
     game.shownCards = {};   // 本局主动亮牌记录（userId -> Set(牌索引)）
     game.allinRevealed = false;   // 全押亮牌标志
-    game.pot = 0; game.currentBet = 0;
+    game.pot = 0; game.currentBet = 0; game.straddle = null;
     game.lastRaiseSize = BB;   // 本街最小加注增量（每条街在 collectBetsToPot 重置）
     game.players.forEach(p => {
         p.currentBet = 0; p.committed = 0; p.allIn = false; p.hasActed = false;
@@ -1343,15 +1476,10 @@ function startHand(roomId) {
     const bbIdx = nextLiveIdx(game, sbIdx);
     const sb = game.players[sbIdx];
     const bb = game.players[bbIdx];
-    const sbAmt = Math.min(SB, sb.chips);
-    const bbAmt = Math.min(BB, bb.chips);
-    sb.chips -= sbAmt; sb.currentBet = sbAmt;
-    bb.chips -= bbAmt; bb.currentBet = bbAmt;
-    if (sb.chips === 0) sb.allIn = true;
-    if (bb.chips === 0) bb.allIn = true;
-    game.currentBet = bbAmt;
+    const utgIdx = live >= 3 ? nextLiveIdx(game, bbIdx) : -1;
+    const utg = utgIdx >= 0 ? game.players[utgIdx] : null;
 
-    // 前注 ante（现金桌可选）：直接进底池，不计入当前下注
+    // 前注 ante（现金桌可选）：先收 Ante，再收盲注/Straddle；直接进底池，不计入当前下注。
     const ante = gameAnte(game);
     if (ante > 0) {
         game.players.forEach(p => {
@@ -1363,8 +1491,42 @@ function startHand(roomId) {
         game.pot = game.players.reduce((s, p) => s + (p.committed || 0), 0);
     }
 
+    const sbAmt = Math.min(SB, sb.chips);
+    const bbAmt = Math.min(BB, bb.chips);
+    sb.chips -= sbAmt; sb.currentBet = sbAmt;
+    bb.chips -= bbAmt; bb.currentBet = bbAmt;
+    if (sb.chips === 0) sb.allIn = true;
+    if (bb.chips === 0) bb.allIn = true;
+    game.currentBet = bbAmt;
+
+    // 开手时按最终阵容重新校验：必须仍是该 UTG、仍能完整支付 2BB。
+    const straddleAmt = BB * 2;
+    const straddleValid = game.roomType === 'cash'
+        && game.config.allowUtgStraddle
+        && acceptedStraddle
+        && acceptedStraddle.candidateUserId === utg?.userId
+        && acceptedStraddle.candidateSeat === utg?.seat
+        && acceptedStraddle.amount === straddleAmt
+        && utg.chips >= straddleAmt;
+    if (straddleValid) {
+        utg.chips -= straddleAmt;
+        utg.currentBet = straddleAmt;
+        if (utg.chips === 0) utg.allIn = true;
+        game.currentBet = straddleAmt;
+        game.lastRaiseSize = straddleAmt;
+        game.straddle = { type: 'utg', userId: utg.userId, amount: straddleAmt };
+    } else if (acceptedStraddle) {
+        const p = game.players.find(x => x.userId === acceptedStraddle.candidateUserId);
+        const s = p && io.sockets.sockets.get(p.socketId);
+        if (s) s.emit('straddle_decision_result', { targetHandSeq, status: 'invalidated' });
+    }
+
     io.in(roomId).emit('server_msg', `\n--- 🎲 新一局开始 ---`);
     io.in(roomId).emit('server_msg', `💰 SB: ${sb.username} (${sbAmt}) | BB: ${bb.username} (${bbAmt})`);
+    if (game.straddle) {
+        io.in(roomId).emit('server_msg', `🔥 ${utg.username} UTG Straddle ${straddleAmt}`);
+        io.in(roomId).emit('straddle_posted', { userId: utg.userId, amount: straddleAmt });
+    }
 
     game.players.forEach(p => {
         if (p.folded) return;   // 坐出玩家不发牌
@@ -1379,8 +1541,9 @@ function startHand(roomId) {
 
     // 牌谱记录初始化（数据资产：玩家×模式×时序）——仅记录参与本手的玩家
     game.hand = {
-        ts: Date.now(), roomId, mode: game.roomType,
+        ts: Date.now(), roomId, mode: game.roomType, handSeq: game.handSeq,
         sb: SB, bb: BB, ante,
+        straddle: game.straddle ? { ...game.straddle } : null,
         buttonUserId: game.players[game.buttonIdx]?.userId || null,
         seats: game.players.filter(p => !p.folded).map(p => ({
             userId: p.userId, username: p.username,
@@ -1388,13 +1551,16 @@ function startHand(roomId) {
             startChips: p.chips + p.currentBet + (p.committed || 0),   // 还原下盲前筹码
             hole: game.holeCards[p.userId].map(c => `${c.rank}${c.suit[0]}`)
         })),
-        actions: []   // { userId, street, action, amount, thinkMs }（amount=该街行动后的 currentBet 总额）
+        actions: game.straddle ? [{
+            userId: game.straddle.userId, street: PHASES.PREFLOP,
+            action: 'straddle', amount: game.straddle.amount, thinkMs: 0
+        }] : []   // amount=该街行动后的 currentBet 总额
     };
     game.players.forEach(p => { if (!p.folded) p.handsPlayed = (p.handsPlayed || 0) + 1; });
 
     // preflop 第一个行动：heads-up = SB（按钮）；N≥3 = BB 后第一位（UTG）
     // 注意：heads-up 时若 SB 已因下盲全押，则不能让 SB 行动（否则超时会误弃全押者）→ 顺延找下一个能行动的
-    let firstIdx = headsUp ? sbIdx : findNextActionIdx(game, bbIdx);
+    let firstIdx = headsUp ? sbIdx : findNextActionIdx(game, game.straddle ? utgIdx : bbIdx);
     if (headsUp && !needsToAct(game.players[sbIdx], game)) firstIdx = findNextActionIdx(game, sbIdx);
     game.actionOnIdx = firstIdx;
     // 无人可行动（所有参与者已因盲注/前注全押）→ 没有玩家能下注，直接进入全押跑马，否则本手会永久卡住
@@ -1405,6 +1571,7 @@ function startHand(roomId) {
     }
     startActionTimer(roomId);
     broadcastState(roomId);
+    prepareNextStraddleDecision(roomId);
 }
 
 // 记录一次行动到牌谱
@@ -1554,6 +1721,7 @@ function roomSummary(roomId, userId) {
         sb:         g.config?.sb || 0,
         bb:         g.config?.bb || 0,
         ante:       g.config?.ante || 0,
+        allowUtgStraddle: !!g.config?.allowUtgStraddle,
         minBuyIn:   g.config?.minBuyIn || 0,
         // 我是否本房成员/有下场资格（在座 / 站起 / 输过房号授权）→ 列表显示「重新加入」而非「观战」
         isMember:   !!(userId && (g.players.some(p => p.userId === userId)
@@ -1730,6 +1898,7 @@ function endCashTable(roomId, reason) {
     if (!game || game.tournamentOver) return;
     game.tournamentOver = true; game.status = 'finished';
     clearTimeout(game.tableTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearTimeout(game.runItTimer); game.runItPending = false; clearActionTimer(game);
+    clearStraddleDecision(game);
     for (const p of game.players) if (p.reserveTimer) clearTimeout(p.reserveTimer);
     const ranking = buildRanking(game);
     game.players.forEach(p => cashOut(p));   // 结算筹码→金币
@@ -1773,6 +1942,10 @@ function scheduleNextHand(roomId) {
     const game = roomGames[roomId];
     if (!game || game.tournamentOver) return;
     if (game.roomType !== 'sng' && game.roomType !== 'cash') return;
+    // 若当前手始终没有安全展示时机，利用已有 5 秒局间做最后兜底；不延迟下一手。
+    if (game.straddleDecision?.status === 'pending') {
+        showStraddleDecision(roomId, STRADDLE_INTERMISSION_MS);
+    }
     clearTimeout(game.nextHandTimer);
     game.nextHandTimer = setTimeout(() => {
         const g = roomGames[roomId];
@@ -2101,6 +2274,7 @@ io.on('connection', (socket) => {
                 name:      (cfg.name || '').toString().trim().slice(0, 20) || `${user.username}的现金桌`,
                 maxPlayers: clampInt(cfg.maxPlayers, 2, 9, 6),
                 sb, bb, ante: clampInt(cfg.ante, 0, 80, 0), minBuyIn, maxBuyIn,
+                allowUtgStraddle: cfg.allowUtgStraddle === true,
                 durationH: [0.5, 1, 2, 3, 4, 5, 6].includes(+cfg.durationH) ? +cfg.durationH : 2
             },
             prizePool: 0, tournamentOver: false,
@@ -2160,6 +2334,7 @@ io.on('connection', (socket) => {
                 scheduleNextHand(roomId);
             }
             broadcastState(roomId);
+            emitStraddleOffer(game, socket); // 重连时恢复仍在有效期内的一次性选择卡
             broadcastRoomList();
             return;
         }
@@ -2297,6 +2472,61 @@ io.on('connection', (socket) => {
         io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（当前这手打完后暂停，可随时继续）');
         broadcastState(roomId);
     });
+
+    socket.on('set_utg_straddle', ({ enabled }) => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game || game.roomType !== 'cash') return;
+        if (game.ownerUserId !== user.id) {
+            socket.emit('server_msg', '⚠️ 只有房主可修改 Straddle 设置'); return;
+        }
+        const next = enabled === true;
+        if (!!game.config.allowUtgStraddle === next) return;
+        game.config.allowUtgStraddle = next;
+        if (!next) {
+            const d = game.straddleDecision;
+            if (d && d.status === 'pending') {
+                const p = game.players.find(x => x.userId === d.candidateUserId);
+                const s = p && io.sockets.sockets.get(p.socketId);
+                if (s) s.emit('straddle_decision_result', {
+                    targetHandSeq: d.targetHandSeq, status: 'invalidated'
+                });
+            }
+            clearStraddleDecision(game);
+            game.straddleDecision = null;
+        } else if (game.status === 'running'
+            && game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) {
+            prepareNextStraddleDecision(roomId);
+        }
+        io.in(roomId).emit('server_msg', next
+            ? '🔥 房主已开启 UTG Straddle（2BB），下一手起生效'
+            : '房主已关闭 UTG Straddle');
+        broadcastState(roomId);
+        broadcastRoomList();
+    });
+
+    socket.on('straddle_decision', ({ targetHandSeq, accept }) => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        const d = game && game.straddleDecision;
+        if (!game || game.roomType !== 'cash' || !d) return;
+        if (d.status !== 'pending' || !d.offeredAt || d.deadlineAt <= Date.now()
+            || d.targetHandSeq !== parseInt(targetHandSeq)
+            || d.candidateUserId !== user.id) {
+            socket.emit('straddle_decision_result', {
+                targetHandSeq: parseInt(targetHandSeq), status: 'invalidated'
+            });
+            return;
+        }
+        clearTimeout(d.timer); d.timer = null;
+        d.status = accept === true ? 'accepted' : 'declined';
+        socket.emit('straddle_decision_result', {
+            targetHandSeq: d.targetHandSeq,
+            status: d.status,
+            amount: d.amount
+        });
+    });
+
     socket.on('resume_dealing', () => {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
@@ -2712,6 +2942,7 @@ io.on('connection', (socket) => {
 
         clearActionTimer(game);   // 玩家已行动，取消其计时
         afterAction(roomId);
+        maybeShowStraddleAfterAction(roomId, player.userId);
     });
 
     // 多次发牌：落后方选发几次（1~5）。n=1 直接单次；n>1 交由领先方同意
@@ -2786,5 +3017,11 @@ const onListening = () => {
     const host = LOCAL_DEV ? '127.0.0.1' : '0.0.0.0';
     console.log(`🚀 扑克服务器已启动！${host}:${PORT}${LOCAL_DEV ? ' (本地开发模式)' : ''}`);
 };
-if (LOCAL_DEV) server.listen(PORT, '127.0.0.1', onListening);
-else server.listen(PORT, onListening);
+if (require.main === module) {
+    if (LOCAL_DEV) server.listen(PORT, '127.0.0.1', onListening);
+    else server.listen(PORT, onListening);
+}
+
+module.exports = {
+    _test: { projectedPositions, STRADDLE_DECISION_MS, STRADDLE_INTERMISSION_MS }
+};

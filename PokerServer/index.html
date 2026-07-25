@@ -57,6 +57,18 @@
             display: flex; flex-direction: column; align-items: center; gap: 8px;
             pointer-events: none;   /* 容器透传：透明空隙不拦截，下方头像可点 */
         }
+        #straddle-offer { position:absolute; left:50%; bottom:155px; transform:translateX(-50%);
+            z-index:31; display:flex; align-items:center; justify-content:center; gap:7px;
+            max-width:calc(100% - 24px); padding:4px 7px; color:rgba(255,255,255,.82);
+            font-size:12px; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,.9);
+            background:rgba(8,24,17,.18); border:0; border-radius:8px; box-shadow:none; }
+        #straddle-offer .so-prompt b { color:rgba(255,224,166,.9); font-weight:700; }
+        #straddle-offer button { padding:2px 5px; border:0; border-radius:4px; cursor:pointer;
+            font:inherit; font-weight:700; background:transparent; text-shadow:inherit; }
+        #straddle-offer .so-yes { color:rgba(255,220,158,.92); }
+        #straddle-offer .so-no { color:rgba(255,255,255,.62); }
+        #straddle-offer button:hover { background:rgba(255,255,255,.09); }
+        #straddle-offer .so-time { font-size:10px; color:rgba(255,255,255,.42); }
         #action-bar button, #action-bar input, #action-bar .size-quick { pointer-events: auto; }
         /* 精调面板展开时给个底板，便于看清滑条
            注意：不要用 backdrop-filter:blur——拖动滑条会每帧重算模糊，手机上严重卡顿。
@@ -1182,6 +1194,8 @@
                     <input type="range" id="ccBlind" min="0" max="7" step="1" value="1" oninput="updateCashLabels()"></label>
                 <label>Ante 前注：<b id="ccAnteVal">0</b>
                     <input type="range" id="ccAnte" min="0" max="80" step="10" value="0" oninput="updateCashLabels()"></label>
+                <label class="toggle-label"><input type="checkbox" id="ccStraddle">
+                    允许 UTG Straddle（固定 2BB）</label>
                 <label>单桌最大人数：<b id="ccMaxVal">6</b> 人
                     <input type="range" id="ccMax" min="2" max="9" step="1" value="6" oninput="updateCashLabels()"></label>
                 <label>单次最小带入：<b id="ccMinVal">2,000</b>
@@ -1204,6 +1218,12 @@
     <!-- ===== 牌桌 ===== -->
     <div id="table-view" style="display:none">
     <div id="table-area">
+        <div id="straddle-offer" style="display:none">
+            <span class="so-prompt">下一手 UTG · Straddle <b id="straddle-offer-amount"></b>？</span>
+            <button class="so-yes" onclick="answerStraddle(true)">是</button>
+            <button class="so-no" onclick="answerStraddle(false)">否</button>
+            <span class="so-time" id="straddle-offer-time"></span>
+        </div>
         <!-- 合规横幅（纯娱乐定位）-->
         <div id="compliance-banner">绿色竞技 · 远离赌博 · 谨防诈骗 · 健康生活</div>
         <!-- 中央水印（房名/级别/邀请码）-->
@@ -1572,6 +1592,38 @@ let mySeated     = false; // 我当前是否已入座（用于坐下入座动画
 let equityMap    = {};    // 全押跑马实时胜率 { userId: pct }
 let roomInviteInfo = null;
 let pendingInviteToken = '';
+let straddleOffer = null; // { targetHandSeq, amount, deadlineAt }，仅本次限时邀请
+let straddleOfferTimer = null;
+
+function hideStraddleOffer() {
+    straddleOffer = null;
+    clearInterval(straddleOfferTimer); straddleOfferTimer = null;
+    const el = document.getElementById('straddle-offer');
+    if (el) el.style.display = 'none';
+}
+function renderStraddleOffer() {
+    if (!straddleOffer) return;
+    const remain = Math.max(0, Math.ceil((straddleOffer.deadlineAt - Date.now()) / 1000));
+    if (remain <= 0) { hideStraddleOffer(); return; }
+    document.getElementById('straddle-offer-amount').textContent = straddleOffer.amount;
+    document.getElementById('straddle-offer-time').textContent = `${remain}s`;
+    document.getElementById('straddle-offer').style.display = '';
+    requestAnimationFrame(positionStraddleOffer);
+}
+function positionStraddleOffer() {
+    const offer = document.getElementById('straddle-offer');
+    const hero = document.querySelector('#ring-layer .ring-seat.bottom');
+    const view = document.getElementById('table-view');
+    if (!offer || offer.style.display === 'none' || !hero || !view) return;
+    const hr = hero.getBoundingClientRect(), vr = view.getBoundingClientRect();
+    offer.style.bottom = Math.min(vr.height * 0.63, vr.bottom - hr.top + 18) + 'px';
+}
+function answerStraddle(accept) {
+    if (!straddleOffer || !socket) return;
+    const targetHandSeq = straddleOffer.targetHandSeq;
+    hideStraddleOffer(); // 两个选择都立即隐藏，不作为常驻控件
+    socket.emit('straddle_decision', { targetHandSeq, accept: accept === true });
+}
 
 // 邀请链接使用 fragment，先暂存到当前标签页，再从地址栏清除；登录/注册完成后继续处理。
 function capturePendingInvite() {
@@ -1973,6 +2025,28 @@ function connectSocket(token) {
         if (o && o.style.display !== 'none') buildSettingsPanel();
     });
 
+    socket.on('straddle_offer', (offer) => {
+        if (!offer || !offer.targetHandSeq || offer.deadlineAt <= Date.now()) return;
+        // 同一邀请在重连恢复时可能再次收到，不重置服务端截止时间。
+        straddleOffer = {
+            targetHandSeq: offer.targetHandSeq,
+            amount: offer.amount,
+            deadlineAt: offer.deadlineAt
+        };
+        clearInterval(straddleOfferTimer);
+        renderStraddleOffer();
+        straddleOfferTimer = setInterval(renderStraddleOffer, 250);
+    });
+    socket.on('straddle_decision_result', (result) => {
+        if (straddleOffer && result.targetHandSeq !== straddleOffer.targetHandSeq) return;
+        hideStraddleOffer();
+        if (result.status === 'accepted') toast(`🔥 已选择：下一局 Straddle ${result.amount}`, 2600);
+        else if (result.status === 'invalidated') toast('座位或筹码状态变化，Straddle 已取消', 3000);
+    });
+    socket.on('straddle_posted', ({ userId, amount }) => {
+        if (userId === myUserId) toast(`🔥 本局已 Straddle ${amount}`, 2400);
+    });
+
     // 网络延迟测量：每 3s 一次
     socket.on('latency_pong', (t) => {
         const ms = Date.now() - t;
@@ -2168,6 +2242,7 @@ function showLobby() {
     cancelVoiceRecording();
     stopVoicePlayback();
     clearVoiceBubbles();
+    hideStraddleOffer();
     currentRoom = '';
     localStorage.removeItem('currentRoom');
     document.body.classList.remove('in-room');
@@ -2240,6 +2315,7 @@ function submitCreate() {
             name: document.getElementById('ccName').value,
             sb, bb,
             ante: parseInt(document.getElementById('ccAnte').value),
+            allowUtgStraddle: document.getElementById('ccStraddle').checked,
             maxPlayers: parseInt(document.getElementById('ccMax').value),
             minBuyIn: parseInt(document.getElementById('ccMin').value),
             maxBuyIn: parseInt(document.getElementById('ccCap').value),
@@ -2871,6 +2947,7 @@ function buildReplayFrames(h) {
         players[btnI].pos = 'BTN';
         players[sbI].pos = (players[sbI].pos ? players[sbI].pos + '/' : '') + 'SB';
         players[bbI].pos = players[bbI].pos ? players[bbI].pos + '/BB' : 'BB';
+        if (n >= 3) players[(bbI + 1) % n].pos = 'UTG';
     }
     let pot = 0, community = 0, street = 'preflop';
     const frames = [];
@@ -2880,9 +2957,15 @@ function buildReplayFrames(h) {
     const bbP = players.find(p => (p.pos || '').includes('BB'));
     if (sbP) { const v = Math.min(h.sb, sbP.stack); sbP.stack -= v; sbP.bet = v; }
     if (bbP) { const v = Math.min(h.bb, bbP.stack); bbP.stack -= v; bbP.bet = v; }
-    snap(`发牌 · 盲注 ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''}`, null);
+    if (h.straddle && byId[h.straddle.userId]) {
+        const sp = byId[h.straddle.userId];
+        sp.stack -= h.straddle.amount; sp.bet = h.straddle.amount;
+    }
+    snap(`发牌 · 盲注 ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''}`
+        + (h.straddle ? ` · UTG Straddle ${h.straddle.amount}` : ''), null);
     const stName = { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌' };
     for (const a of (h.actions || [])) {
+        if (a.action === 'straddle') continue;
         if (a.street !== street) {
             players.forEach(p => { pot += p.bet; p.bet = 0; });
             street = a.street;
@@ -2911,7 +2994,7 @@ function buildReplayFrames(h) {
 }
 // ===== 牌谱详情（清爽 breakdown，参考商业软件截图3）=====
 let curDetailHand = null;
-const HD_ACT = { fold: { t: '弃', c: 'f' }, check: { t: '过', c: 'ck' }, call: { t: '跟', c: 'c' }, bet: { t: '下', c: 'b' }, raise: { t: '加', c: 'r' } };
+const HD_ACT = { fold: { t: '弃', c: 'f' }, check: { t: '过', c: 'ck' }, call: { t: '跟', c: 'c' }, bet: { t: '下', c: 'b' }, raise: { t: '加', c: 'r' }, straddle: { t: 'STR', c: 'r' } };
 const HD_STREET = { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌' };
 function handPositions(seats, buttonUserId) {
     const order = seats.slice().sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
@@ -3048,7 +3131,7 @@ function rpSpeed() {
 function renderHistActions(h) {
     const nameOf = {}; (h.seats || []).forEach(s => nameOf[s.userId] = s.username);
     const streetName = { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌' };
-    const A = { fold: '弃', check: '过', call: '跟', bet: '下注', raise: '加注', allin: '全下' };
+    const A = { fold: '弃', check: '过', call: '跟', bet: '下注', raise: '加注', allin: '全下', straddle: 'Straddle' };
     return (h.actions || []).map(a =>
         `<span class="ha">${streetName[a.street] || a.street}·${escapeHtml(nameOf[a.userId] || '?')} ${A[a.action] || a.action}${a.amount ? ' ' + a.amount : ''}</span>`
     ).join('') || '<span style="opacity:.5">无动作</span>';
@@ -3068,6 +3151,7 @@ function renderMatchInfo(st) {
     ];
     if (isCash) {
         rows.push(['带入区间', `${(st.minBuyIn || 0).toLocaleString()} ~ ${st.maxBuyIn > 0 ? st.maxBuyIn.toLocaleString() : '无限制'}`]);
+        rows.push(['UTG Straddle', st.allowUtgStraddle ? '🔥 已开启 · 2BB' : '未开启']);
         if (st.tableEndAt) {
             const rem = Math.max(0, Math.floor((st.tableEndAt - Date.now()) / 60000));
             rows.push(['剩余时长', `约 ${rem} 分钟`]);
@@ -3077,6 +3161,9 @@ function renderMatchInfo(st) {
     let html = rows.map(([k, v]) => `<div class="mi-row"><span>${k}</span><b>${v}</b></div>`).join('');
     // 现金桌房主：比赛加时
     if (isCash && isOwner) {
+        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">UTG Straddle（下一手起生效）</span>
+            <div class="tier-row"><button type="button" class="ext-btn" onclick="setUtgStraddle(${!st.allowUtgStraddle})">
+            ${st.allowUtgStraddle ? '关闭 Straddle' : '开启 Straddle 2BB'}</button></div></div>`;
         html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">比赛加时（分钟）</span>
             <div class="tier-row">` +
             [15, 30, 60, 90, 120].map(m => `<button type="button" class="ext-btn" onclick="extendMatch(${m})">+${m}</button>`).join('') +
@@ -3085,6 +3172,10 @@ function renderMatchInfo(st) {
     if (!isOwner) html += '<div class="mi-note">仅房主可加时 / 结束比赛</div>';
     document.getElementById('match-info').innerHTML = html;
     document.querySelectorAll('#match-modal .owner-only').forEach(e => e.style.display = isOwner ? '' : 'none');
+}
+function setUtgStraddle(enabled) {
+    if (!socket) return;
+    socket.emit('set_utg_straddle', { enabled: enabled === true });
 }
 function extendMatch(minutes) {
     if (!socket) return;
@@ -4193,8 +4284,9 @@ function buildSeat(p, state) {
     }
 
     // 本手下注：贴在头像顶部的小 chip 徽章
+    const isStraddler = state.straddle && state.straddle.userId === p.userId;
     const betBadge = p.currentBet > 0
-        ? `<div class="bet-badge"><span class="chip-dot"></span>${fmtChips(p.currentBet)}</div>` : '';
+        ? `<div class="bet-badge"><span class="chip-dot"></span>${isStraddler ? 'STR ' : ''}${fmtChips(p.currentBet)}</div>` : '';
     // 全押跑马实时胜率徽章（仅跑马中，摊牌前）
     const eqPct = equityMap[p.userId];
     const equityBadge = (eqPct != null && !p.folded && state.phase !== 'showdown' && state.phase !== 'waiting')
@@ -4285,6 +4377,7 @@ function render(state) {
         nextLevelAt = 0; tableEndAt = state.tableEndAt || 0;
         sng.innerHTML = `${escapeHtml(state.roomName)} · ${roomNoHtml()}<br>`
             + `现金桌 · 盲注 ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
+            + (state.allowUtgStraddle ? ' · STR 2BB' : '')
             + (tableEndAt ? ` · <span id="table-remain"></span>` : '');
     }
     if (state.paused) sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 房主已暂停发牌</span>`;
@@ -4463,7 +4556,7 @@ function positionPreBar() {
     const hr = hero.getBoundingClientRect(), vr = view.getBoundingClientRect();
     bar.style.bottom = (vr.bottom - (hr.top + hr.height / 2) - 16) + 'px';   // 人物中线
 }
-window.addEventListener('resize', () => { if (lastState) { positionActionBar(); positionPreBar(); } });
+window.addEventListener('resize', () => { if (lastState) { positionActionBar(); positionPreBar(); positionStraddleOffer(); } });
 
 // 配置下注：轮到我且能下注/加注时，显示快捷比例（含金额）；精调面板默认收起
 function setupSizing(state, me, myTurn) {
