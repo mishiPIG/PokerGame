@@ -29,7 +29,19 @@
 - 390×844 移动端视口无横向溢出，登录页样式无可观察变化；
 - 首页、CSS、JavaScript 和头像资源均返回 HTTP 200。
 
-第二阶段的状态管理和依赖边界治理不属于本次保守拆分范围，仍按第 13 节作为后续工作。
+第二阶段职责治理已于 2026-07-25 在第一阶段提交之后继续完成：
+
+- 新增 `05-utils.js`，统一承载 `escapeHtml`、`hashHue` 和 `AVATARS`；
+- `renderRoomList` 和比赛设置逻辑已归入 `30-room.js`；
+- `toggleFullscreen` 已归入 `50-audio-settings.js`；
+- `toggleReady`、`startGame`、`addTime` 和 `rabbitDeal` 已归入 `70-actions.js`；
+- `40-profile-history.js` 已拆为 `40-profile.js`、`41-history.js` 和 `42-replay.js`；
+- `40-panels.css` 已按设置、牌桌菜单、聊天语音、通用弹窗、回放、个人资料和牌谱拆为 7 个文件；
+- `00-state.js` 已移除所有 DOM 查询和操作，只保留共享状态及无 DOM 的状态辅助逻辑；
+- 新增前端结构测试，约束资源加载顺序、模块唯一归属和 state 模块边界；
+- 第二阶段完成后 JavaScript 语法检查、CSS 字节等价检查、Node.js 测试和浏览器回归均通过。
+
+单一状态对象、Socket 事件与 DOM 的完全解耦、移除内联事件及 ES Modules 属于影响范围更大的后续演进，见第 13 节。
 
 ## 2. 目标
 
@@ -494,9 +506,9 @@ table-renderer.js
 - 管理员面板正常；
 - Android Capacitor 薄壳可以正常加载线上资源。
 
-## 13. 第二阶段方向
+## 13. 后续依赖治理方向
 
-完成本设计中的机械拆分并稳定一段时间后，再考虑真正的依赖边界治理：
+第一、二阶段完成并稳定后，再逐步推进更深层的依赖治理：
 
 1. 使用单一 `state` 对象替代散落的全局变量；
 2. 让 Socket 层只负责事件转发，不直接操作 DOM；
@@ -506,7 +518,7 @@ table-renderer.js
 6. 再评估 ES Modules、TypeScript 或构建工具；
 7. 最后评估是否需要前端框架。
 
-第二阶段不应与第一阶段混合提交。
+这些工作不应与本次职责迁移混合提交。每项都需要补充相应的行为测试后单独实施。
 
 ## 14. 完成标准
 

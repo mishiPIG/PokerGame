@@ -247,54 +247,28 @@ function renderQuickBets() {
 function setDisplayBBChecked(v) { if (v !== displayBB) toggleDisplayBB(); }
 function setSoundChecked(v) { if (v !== soundOn) toggleSound(); }
 
-function renderRoomList(rooms) {
-    const box = document.getElementById('room-list');
-    document.getElementById('room-count').textContent = rooms.length ? `(${rooms.length})` : '';
-    if (!rooms.length) {
-        box.innerHTML = '<div class="room-empty">暂无房间，点「创建比赛」发起一局</div>';
-        return;
+// 全屏切换：彻底隐藏手机浏览器工具栏
+function toggleFullscreen() {
+    const el = document.documentElement;
+    const d = document;
+    if (!d.fullscreenElement && !d.webkitFullscreenElement) {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen;
+        if (req) req.call(el);
+        else alert('当前浏览器不支持全屏，建议把网页「添加到主屏幕」后从图标打开');
+    } else {
+        const exit = d.exitFullscreen || d.webkitExitFullscreen;
+        if (exit) exit.call(d);
     }
-    box.innerHTML = rooms.map(r => {
-        const full    = r.playerCount >= r.maxPlayers;
-        const running = r.status === 'running';
-        // 我是本房成员 → 始终可「重新进入」（重连回桌）；否则进行中/已满则灰
-        let btnLabel, disabled, cls = '';
-        if (r.isMember) { btnLabel = '重新进入'; disabled = false; cls = 'rejoin'; }
-        else            { btnLabel = '👀 观战';  disabled = false; }   // 非成员：只能观战（下场需验证邀请）
-        const isCash = r.roomType === 'cash';
-        const tag  = isCash ? `<span class="rc-tag cash">现金桌</span>` : `<span class="rc-tag">SNG·升盲</span>`;
-        const meta = isCash
-            ? `👤 ${r.playerCount}/${r.maxPlayers} · 盲注 ${r.sb}/${r.bb}${r.ante ? ' · ante '+r.ante : ''} · 带入≥${(r.minBuyIn||0).toLocaleString()}`
-            : `👤 ${r.playerCount}/${r.maxPlayers} · ⏱ ${r.levelMinutes}min · 🪙报名 ${r.buyIn}`;
-        return `<div class="room-card">
-            <div class="rc-main">
-                <div class="rc-name">${escapeHtml(r.name)}</div>
-                <div class="rc-meta"><span class="rc-owner">${escapeHtml(r.ownerName)}</span>${tag} ${meta}</div>
-            </div>
-            <button class="rc-join ${cls}" ${disabled ? 'disabled' : ''} onclick="joinRoomId('${r.roomId}')">${btnLabel}</button>
-        </div>`;
-    }).join('');
 }
-function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-}
-function hashHue(s) { let h = 0; for (const c of (s || '?')) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
-// 预设头像（打包在服务器本地 /avatars，无外网依赖；加载失败回退首字母色块）
-const AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/a${i + 1}.svg`);
+document.addEventListener('fullscreenchange', () => {
+    const b = document.getElementById('btnFullscreen');
+    if (b) b.textContent = document.fullscreenElement ? '⛶ 退出全屏' : '⛶ 全屏';
+});
 
-function toggleReady() {
-    if (currentRoom && socket) socket.emit('toggle_ready', currentRoom);
-}
-function startGame() {
-    if (socket) socket.emit('start_game');
-}
-let _lastAddTime = 0;
-function addTime() {
-    if (!currentRoom || !socket) return;
-    if (Date.now() - _lastAddTime < 400) return;   // 防抖：快速连点只生效一次，避免误触/异常
-    _lastAddTime = Date.now();
-    socket.emit('add_time', currentRoom);
-}
-function rabbitDeal() {
-    if (currentRoom && socket) socket.emit('rabbit_deal', currentRoom);
+// ===== 显示单位设置 =====
+function toggleDisplayBB() {
+    displayBB = !displayBB;
+    localStorage.setItem('displayBB', displayBB ? '1' : '0');
+    const c = document.getElementById('set-bb'); if (c) c.checked = displayBB;
+    if (lastState) render(lastState);
 }

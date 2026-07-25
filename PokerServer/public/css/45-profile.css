@@ -1,0 +1,54 @@
+        /* ===== 消息收件箱 ===== */
+        .inbox-badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 3px;
+            background: #ef476f; color: #fff; border-radius: 8px; font-size: 10px; line-height: 16px;
+            text-align: center; font-weight: bold; }
+        .inbox-item { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+            border-left: 3px solid #5a6a82; }
+        .inbox-item.unread { border-left-color: #ef476f; background: rgba(239,71,111,0.08); }
+        .ib-time { font-size: 11px; color: #8fa2c4; margin-bottom: 4px; }
+        .ib-text { font-size: 13px; color: #d7e0f0; line-height: 1.6; }
+
+        /* ===== 个人主页 ===== */
+        #profile-overlay { position: fixed; inset: 0; z-index: 190; background: rgba(0,0,0,0.6);
+            display: flex; align-items: center; justify-content: center; padding: 16px; }
+        .profile-box { background: linear-gradient(160deg,#1b2740,#0e1626); color: #e7eefb;
+            width: 100%; max-width: 440px; max-height: 88vh; border-radius: 16px; padding: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6); display: flex; flex-direction: column; }
+        .prof-tabs { display: flex; gap: 8px; margin: 12px 0; }
+        .prof-tab { flex: 1; padding: 9px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.05);
+            color: #cdd9ef; border-radius: 10px; font-weight: bold; font-size: 14px; cursor: pointer; }
+        .prof-tab.active { background: #3a86ff; border-color: #3a86ff; color: #fff; }
+        .prof-pane { overflow-y: auto; }
+        .pi-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; text-align: center; }
+        .pi-name { font-size: 20px; font-weight: bold; }
+        .pi-gold { font-size: 15px; color: #f4d35e; margin-top: 6px; }
+        #pi-email { text-align: left; }
+        .pi-email-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #cdd9ef; }
+        .mini-btn { background: #3a86ff; color: #fff; border: none; border-radius: 8px; padding: 5px 12px;
+            font-size: 12px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
+        .be-input { width: 100%; box-sizing: border-box; margin-top: 8px; border-radius: 8px; padding: 8px 10px;
+            border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color: #fff; font-size: 13px; }
+        .be-msg { font-size: 12px; color: #8fa2c4; margin-top: 6px; min-height: 15px; }
+        /* 签到 / 反馈弹窗 */
+        .c-overlay { position: fixed; inset: 0; z-index: 195; background: rgba(0,0,0,0.6);
+            display: flex; align-items: center; justify-content: center; padding: 16px; }
+        .c-box { background: linear-gradient(160deg,#1b2740,#0e1626); color: #e7eefb;
+            width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; border-radius: 16px; padding: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+        .ci-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+        .ci-day { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+            padding: 10px 4px; text-align: center; font-size: 12px; }
+        .ci-day .cd-d { opacity: .7; font-size: 11px; }
+        .ci-day .cd-r { color: #f4d35e; font-weight: bold; margin-top: 3px; }
+        .ci-day.claimed { background: rgba(58,134,255,0.18); border-color: #3a86ff; }
+        .ci-day.claimed::after { content: "✓"; display: block; color: #4ade80; font-weight: bold; }
+        .ci-day.today { border-color: #f4d35e; box-shadow: 0 0 0 2px rgba(244,211,94,0.35) inset; }
+        .ci-claim { width: 100%; padding: 12px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold;
+            cursor: pointer; background: linear-gradient(90deg,#f4d35e,#f59e0b); color: #3a2600; }
+        .ci-claim:disabled { background: rgba(255,255,255,0.1); color: #8fa2c4; cursor: default; }
+        .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .stat-card { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 10px 6px; text-align: center; }
+        .sc-val { font-size: 17px; font-weight: bold; color: #e7eefb; }
+        .sc-key { font-size: 10.5px; color: #8fa2c4; margin-top: 3px; line-height: 1.2; }
+        .curve-svg { width: 100%; height: 120px; background: rgba(0,0,0,0.25); border-radius: 10px; margin-top: 6px; }
+

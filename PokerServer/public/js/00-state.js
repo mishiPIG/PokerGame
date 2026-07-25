@@ -17,36 +17,6 @@ let pendingInviteToken = '';
 let straddleOffer = null; // { targetHandSeq, amount, deadlineAt }，仅本次限时邀请
 let straddleOfferTimer = null;
 
-function hideStraddleOffer() {
-    straddleOffer = null;
-    clearInterval(straddleOfferTimer); straddleOfferTimer = null;
-    const el = document.getElementById('straddle-offer');
-    if (el) el.style.display = 'none';
-}
-function renderStraddleOffer() {
-    if (!straddleOffer) return;
-    const remain = Math.max(0, Math.ceil((straddleOffer.deadlineAt - Date.now()) / 1000));
-    if (remain <= 0) { hideStraddleOffer(); return; }
-    document.getElementById('straddle-offer-amount').textContent = straddleOffer.amount;
-    document.getElementById('straddle-offer-time').textContent = `${remain}s`;
-    document.getElementById('straddle-offer').style.display = '';
-    requestAnimationFrame(positionStraddleOffer);
-}
-function positionStraddleOffer() {
-    const offer = document.getElementById('straddle-offer');
-    const hero = document.querySelector('#ring-layer .ring-seat.bottom');
-    const view = document.getElementById('table-view');
-    if (!offer || offer.style.display === 'none' || !hero || !view) return;
-    const hr = hero.getBoundingClientRect(), vr = view.getBoundingClientRect();
-    offer.style.bottom = Math.min(vr.height * 0.63, vr.bottom - hr.top + 18) + 'px';
-}
-function answerStraddle(accept) {
-    if (!straddleOffer || !socket) return;
-    const targetHandSeq = straddleOffer.targetHandSeq;
-    hideStraddleOffer(); // 两个选择都立即隐藏，不作为常驻控件
-    socket.emit('straddle_decision', { targetHandSeq, accept: accept === true });
-}
-
 // 邀请链接使用 fragment，先暂存到当前标签页，再从地址栏清除；登录/注册完成后继续处理。
 function capturePendingInvite() {
     const match = location.hash.match(/^#\/join\/([A-Za-z0-9_-]{20,128})$/);
@@ -74,14 +44,6 @@ let tableEndAt         = 0;     // 现金桌训练结束时间戳(ms)，0 表示
 let lastActionOnUserId = null;  // 上次行动者，用于「轮到我」提示音去重
 let warnedThisTurn     = false; // 本回合是否已播放 5s 警告音
 let inputLockUntil     = 0;     // 发牌/翻牌后短暂锁定行动，防误触
-function lockInput(ms) {
-    inputLockUntil = Date.now() + ms;
-    const ab = document.getElementById('action-bar');
-    if (!ab) return;
-    ab.classList.add('locked');
-    clearTimeout(window._unlockT);
-    window._unlockT = setTimeout(() => ab.classList.remove('locked'), ms);
-}
 function inputLocked() { return Date.now() < inputLockUntil; }
 let prevFoldedSet      = new Set();  // 上次渲染时已弃牌的玩家
 let foldingNow         = new Set();  // 正在播放弃牌动画的玩家（短暂）
@@ -102,10 +64,3 @@ function fmtChips(amount) {
     }
     return Math.round(amount).toLocaleString();
 }
-function toggleDisplayBB() {
-    displayBB = !displayBB;
-    localStorage.setItem('displayBB', displayBB ? '1' : '0');
-    const c = document.getElementById('set-bb'); if (c) c.checked = displayBB;
-    if (lastState) render(lastState);
-}
-

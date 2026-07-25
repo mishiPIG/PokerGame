@@ -1,20 +1,11 @@
-// 全屏切换：彻底隐藏手机浏览器工具栏
-function toggleFullscreen() {
-    const el = document.documentElement;
-    const d = document;
-    if (!d.fullscreenElement && !d.webkitFullscreenElement) {
-        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen;
-        if (req) req.call(el);
-        else alert('当前浏览器不支持全屏，建议把网页「添加到主屏幕」后从图标打开');
-    } else {
-        const exit = d.exitFullscreen || d.webkitExitFullscreen;
-        if (exit) exit.call(d);
-    }
+function lockInput(ms) {
+    inputLockUntil = Date.now() + ms;
+    const ab = document.getElementById('action-bar');
+    if (!ab) return;
+    ab.classList.add('locked');
+    clearTimeout(window._unlockT);
+    window._unlockT = setTimeout(() => ab.classList.remove('locked'), ms);
 }
-document.addEventListener('fullscreenchange', () => {
-    const b = document.getElementById('btnFullscreen');
-    if (b) b.textContent = document.fullscreenElement ? '⛶ 退出全屏' : '⛶ 全屏';
-});
 // 主动亮牌：摊牌阶段点自己的牌亮给对手看（点哪张亮哪张）
 function showMyCard(index) {
     if (!currentRoom || !socket) return;
@@ -165,3 +156,20 @@ function updateConfirmLabel(v) {
     document.getElementById('btnConfirmBet').textContent = (isBet ? '确认下注 ' : '确认加注到 ') + fmtChips(val);
 }
 
+// ===== 房间内游戏控制 =====
+function toggleReady() {
+    if (currentRoom && socket) socket.emit('toggle_ready', currentRoom);
+}
+function startGame() {
+    if (socket) socket.emit('start_game');
+}
+let _lastAddTime = 0;
+function addTime() {
+    if (!currentRoom || !socket) return;
+    if (Date.now() - _lastAddTime < 400) return;   // 防抖：快速连点只生效一次，避免误触/异常
+    _lastAddTime = Date.now();
+    socket.emit('add_time', currentRoom);
+}
+function rabbitDeal() {
+    if (currentRoom && socket) socket.emit('rabbit_deal', currentRoom);
+}

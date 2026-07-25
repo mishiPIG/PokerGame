@@ -1,4 +1,34 @@
 // ===== 大厅 / 房间 =====
+function hideStraddleOffer() {
+    straddleOffer = null;
+    clearInterval(straddleOfferTimer); straddleOfferTimer = null;
+    const el = document.getElementById('straddle-offer');
+    if (el) el.style.display = 'none';
+}
+function renderStraddleOffer() {
+    if (!straddleOffer) return;
+    const remain = Math.max(0, Math.ceil((straddleOffer.deadlineAt - Date.now()) / 1000));
+    if (remain <= 0) { hideStraddleOffer(); return; }
+    document.getElementById('straddle-offer-amount').textContent = straddleOffer.amount;
+    document.getElementById('straddle-offer-time').textContent = `${remain}s`;
+    document.getElementById('straddle-offer').style.display = '';
+    requestAnimationFrame(positionStraddleOffer);
+}
+function positionStraddleOffer() {
+    const offer = document.getElementById('straddle-offer');
+    const hero = document.querySelector('#ring-layer .ring-seat.bottom');
+    const view = document.getElementById('table-view');
+    if (!offer || offer.style.display === 'none' || !hero || !view) return;
+    const hr = hero.getBoundingClientRect(), vr = view.getBoundingClientRect();
+    offer.style.bottom = Math.min(vr.height * 0.63, vr.bottom - hr.top + 18) + 'px';
+}
+function answerStraddle(accept) {
+    if (!straddleOffer || !socket) return;
+    const targetHandSeq = straddleOffer.targetHandSeq;
+    hideStraddleOffer(); // 两个选择都立即隐藏，不作为常驻控件
+    socket.emit('straddle_decision', { targetHandSeq, accept: accept === true });
+}
+
 function showReconnecting() {
     let el = document.getElementById('reconnecting-toast');
     if (!el) {
@@ -487,3 +517,79 @@ function renderStats(st) {
         `<span class="spec-chip">${escapeHtml(s.username)}</span>`).join('') || '<span style="opacity:.5">无</span>';
 }
 
+// ===== 大厅房间列表 =====
+function renderRoomList(rooms) {
+    const box = document.getElementById('room-list');
+    document.getElementById('room-count').textContent = rooms.length ? `(${rooms.length})` : '';
+    if (!rooms.length) {
+        box.innerHTML = '<div class="room-empty">暂无房间，点「创建比赛」发起一局</div>';
+        return;
+    }
+    box.innerHTML = rooms.map(r => {
+        const full    = r.playerCount >= r.maxPlayers;
+        const running = r.status === 'running';
+        // 我是本房成员 → 始终可「重新进入」（重连回桌）；否则进行中/已满则灰
+        let btnLabel, disabled, cls = '';
+        if (r.isMember) { btnLabel = '重新进入'; disabled = false; cls = 'rejoin'; }
+        else            { btnLabel = '👀 观战';  disabled = false; }   // 非成员：只能观战（下场需验证邀请）
+        const isCash = r.roomType === 'cash';
+        const tag  = isCash ? `<span class="rc-tag cash">现金桌</span>` : `<span class="rc-tag">SNG·升盲</span>`;
+        const meta = isCash
+            ? `👤 ${r.playerCount}/${r.maxPlayers} · 盲注 ${r.sb}/${r.bb}${r.ante ? ' · ante '+r.ante : ''} · 带入≥${(r.minBuyIn||0).toLocaleString()}`
+            : `👤 ${r.playerCount}/${r.maxPlayers} · ⏱ ${r.levelMinutes}min · 🪙报名 ${r.buyIn}`;
+        return `<div class="room-card">
+            <div class="rc-main">
+                <div class="rc-name">${escapeHtml(r.name)}</div>
+                <div class="rc-meta"><span class="rc-owner">${escapeHtml(r.ownerName)}</span>${tag} ${meta}</div>
+            </div>
+            <button class="rc-join ${cls}" ${disabled ? 'disabled' : ''} onclick="joinRoomId('${r.roomId}')">${btnLabel}</button>
+        </div>`;
+    }).join('');
+}
+
+// ===== 比赛设置 (C10) =====
+function openMatchSettings() { renderMatchInfo(lastState); document.getElementById('match-modal').style.display = 'flex'; }
+function closeMatchSettings() { document.getElementById('match-modal').style.display = 'none'; }
+function renderMatchInfo(st) {
+    if (!st) return;
+    const isCash = st.roomType === 'cash';
+    const rows = [
+        ['类型', isCash ? '现金桌' : 'SNG 升盲'],
+        ['入场状态', iCanPlay ? '🔐 已获下场资格' : '👀 观战中'],
+        ['盲注', `${st.smallBlind}/${st.bigBlind}` + (st.ante ? ` · ante ${st.ante}` : '')],
+        ['最大人数', st.maxPlayers],
+    ];
+    if (isCash) {
+        rows.push(['带入区间', `${(st.minBuyIn || 0).toLocaleString()} ~ ${st.maxBuyIn > 0 ? st.maxBuyIn.toLocaleString() : '无限制'}`]);
+        rows.push(['UTG Straddle', st.allowUtgStraddle ? '🔥 已开启 · 2BB' : '未开启']);
+        if (st.tableEndAt) {
+            const rem = Math.max(0, Math.floor((st.tableEndAt - Date.now()) / 60000));
+            rows.push(['剩余时长', `约 ${rem} 分钟`]);
+        }
+    } else rows.push(['当前级别', (st.currentLevel || 0) + 1]);
+    const isOwner = st.ownerUserId === myUserId;
+    let html = rows.map(([k, v]) => `<div class="mi-row"><span>${k}</span><b>${v}</b></div>`).join('');
+    // 现金桌房主：比赛加时
+    if (isCash && isOwner) {
+        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">UTG Straddle（下一手起生效）</span>
+            <div class="tier-row"><button type="button" class="ext-btn" onclick="setUtgStraddle(${!st.allowUtgStraddle})">
+            ${st.allowUtgStraddle ? '关闭 Straddle' : '开启 Straddle 2BB'}</button></div></div>`;
+        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">比赛加时（分钟）</span>
+            <div class="tier-row">` +
+            [15, 30, 60, 90, 120].map(m => `<button type="button" class="ext-btn" onclick="extendMatch(${m})">+${m}</button>`).join('') +
+            `</div></div>`;
+    }
+    if (!isOwner) html += '<div class="mi-note">仅房主可加时 / 结束比赛</div>';
+    document.getElementById('match-info').innerHTML = html;
+    document.querySelectorAll('#match-modal .owner-only').forEach(e => e.style.display = isOwner ? '' : 'none');
+}
+function setUtgStraddle(enabled) {
+    if (!socket) return;
+    socket.emit('set_utg_straddle', { enabled: enabled === true });
+}
+function extendMatch(minutes) {
+    if (!socket) return;
+    if (!confirm(`确定为本场比赛加时 +${minutes} 分钟？`)) return;
+    socket.emit('extend_match', { minutes });
+    alert(`已加时 +${minutes} 分钟`);
+}

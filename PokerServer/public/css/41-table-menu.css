@@ -1,0 +1,21 @@
+        /* ===== 环形空座 / 观战 ===== */
+        .empty-seat { width: 52px; height: 52px; border-radius: 10px; display: flex; align-items: center;
+            justify-content: center; font-size: 13px; color: rgba(255,255,255,0.34);
+            border: 1.5px dashed rgba(255,255,255,0.18); background: rgba(255,255,255,0.03); }
+        .empty-seat.sit { color: #9fc6ff; border-color: rgba(120,170,255,0.55);
+            background: rgba(58,134,255,0.12); cursor: pointer; font-weight: bold; transition: .15s; }
+        .empty-seat.sit:hover { background: rgba(58,134,255,0.28); color: #fff; }
+        .spectator-hint { text-align: center; color: rgba(255,255,255,0.55); font-size: 13px; padding: 8px; }
+        .wait-host { color: #ffd166; font-size: 14px; padding: 10px; text-align: center; }
+        #btnStart.start { background: linear-gradient(180deg,#06d6a0,#04a37a); }
+
+        /* ===== 桌内菜单 (B7) ===== */
+        .tbl-pop { position: absolute; left: 6px; bottom: 88px; z-index: 60;
+            background: rgba(13,22,36,0.96); border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 14px; padding: 10px; box-shadow: 0 8px 30px rgba(0,0,0,0.6); }
+        .tm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .tm-grid button { background: rgba(255,255,255,0.08); color: #eaf0fb; border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px; padding: 11px 10px; font-size: 13px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+        .tm-grid button:hover { background: rgba(255,255,255,0.16); }
+        .tm-grid button.danger { color: #ff8585; border-color: rgba(255,90,90,0.4); }
+
