@@ -7,7 +7,7 @@ function createJoinRoomHandler(context) {
     return roomId => membershipService.joinRoom(socket, user, roomId);
 }
 function registerMembershipEvents(context) {
-    const { socket, user, io, roomGames, lobbySockets, PHASES, broadcastState, broadcastRoomList,
+    const { socket, user, io, db, roomGames, lobbySockets, PHASES, broadcastState, broadcastRoomList,
         clearActionTimer, afterAction, isBettingRoundComplete, advanceStage, liveCount,
         restoreVacatedPlayer, seatPlayer, occupiedSeats, standUpPlayer, clearStraddleDecision,
         prepareNextStraddleDecision, emitStraddleOffer, scheduleNextHand, listRooms,

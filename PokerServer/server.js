@@ -59,6 +59,16 @@ registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAut
 auth.registerSocketAuth(io);
 registerSocketHandlers({ io, db, stats, Deck, config, runtime, tableService, syncRecentVoices: voiceModule.syncRecentVoices });
 
+// 防崩溃兜底：某个 socket 事件处理器/异步里抛出未捕获异常时，只记录日志、绝不让整个进程崩溃。
+// （进程崩溃 = pm2 重启 = 内存里所有正在进行的牌局清空 + 玩家在局筹码丢失，代价极大——
+//  宁可让"出错的那一次操作"静默失败，也不能连累全服所有人。）
+process.on('uncaughtException', (err) => {
+    console.error('[uncaughtException] 已捕获，进程继续运行：', (err && err.stack) || err);
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('[unhandledRejection] 已捕获，进程继续运行：', (reason && reason.stack) || reason);
+});
+
 const PORT = process.env.PORT || 3000;
 const onListening = () => {
     const host = LOCAL_DEV ? '127.0.0.1' : '0.0.0.0';
