@@ -19,6 +19,7 @@ const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } 
 const LOCAL_DEV = process.env.LOCAL_DEV === '1';
 app.use(express.json());
 app.use('/avatars', express.static(__dirname + '/avatars'));   // 本地头像图片
+app.use(express.static(path.join(__dirname, 'public')));        // 仅暴露前端静态资源，禁止暴露数据/密钥文件
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
 const PHASES = {

@@ -1,0 +1,279 @@
+        /* ===== Table ===== */
+        /* 桌面风格主题 */
+        body.theme-blue   #table-area { background: radial-gradient(ellipse at center,#1d5a7a 0%,#0d2f44 75%) !important; }
+        body.theme-green  #table-area { background: radial-gradient(ellipse at center,#2d6a4f 0%,#1b4332 75%) !important; }
+        body.theme-gray   #table-area { background: radial-gradient(ellipse at center,#3a3f44 0%,#1c1f22 75%) !important; }
+        body.theme-purple #table-area { background: radial-gradient(ellipse at center,#4a2d6a 0%,#2a1b43 75%) !important; }
+        /* 四色扑克默认常开：黑桃黑、红心红、方块蓝、梅花绿，一眼分清花色 */
+        #table-area {
+            background: radial-gradient(ellipse at center, #2d6a4f 0%, #1b4332 78%);
+            border: none; border-radius: 0; padding: 6px 8px;
+            box-shadow: inset 0 0 60px rgba(0,0,0,0.4);
+            margin: 0; position: relative;
+        }
+        #phase-indicator {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.5); padding: 4px 14px; border-radius: 12px;
+            font-size: 12px; color: #ddd; letter-spacing: 1px;
+        }
+
+        /* ===== Seat（德扑之星式：名上·头像·筹码下 三层；牌朝外；状态按需气泡）===== */
+        .seat { display: flex; flex-direction: column; align-items: center; gap: 1px; position: relative; padding: 2px; }
+        .seat .name { font-weight: 600; font-size: 11px; color: #cfd8e6; max-width: 74px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; margin-bottom: 7px; }
+        .seat .chips { font-size: 12px; color: #e8c14a; font-weight: bold; line-height: 1.2; margin-top: 9px; }
+        .seat .chips.clickable { cursor: pointer; }
+        .seat.folded { opacity: 0.5; }
+        .seat.away-seat .avatar { filter: grayscale(1) brightness(0.7); }
+        .seat.away-seat .name { color: #8a93a3; }
+        /* 头像块（小方块 + 顶部下注 chip + 庄家 D + 倒计时）*/
+        .avatar-block { position: relative; width: 46px; height: 46px; }
+        .avatar { position: absolute; inset: 0; border-radius: 11px; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: bold; font-size: 17px; border: 2px solid rgba(255,255,255,0.22); }
+        .avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .dealer-btn { position: absolute; bottom: -3px; right: -6px; z-index: 4;
+            width: 18px; height: 18px; border-radius: 50%; color: #1a1a1a; font-size: 11px; font-weight: bold;
+            background: radial-gradient(circle at 35% 30%, #fff, #d8d8d8 65%); border: 1px solid #b0b0b0;
+            display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.45); }
+        /* 本手下注：贴头像顶部小 chip */
+        .bet-badge { position: absolute; top: -7px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+            display: inline-flex; align-items: center; gap: 3px; z-index: 5;
+            background: linear-gradient(135deg,#f4d35e,#ee9b00); color: #241a00;
+            padding: 1px 7px; border-radius: 10px; font-weight: bold; font-size: 10.5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.45); border: 1.5px solid #fff6da; }
+        .bet-badge .chip-dot { width: 8px; height: 8px; border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, #fff, #06d6a0 60%); border: 1px solid #0a8; }
+        /* 全押胜率徽章（跑马时头像左上跳动）*/
+        .equity-badge { position: absolute; top: -10px; left: -8px; z-index: 6;
+            background: linear-gradient(135deg,#12b886,#0ca678); color: #fff; font-size: 10.5px; font-weight: 800;
+            padding: 1px 6px; border-radius: 9px; box-shadow: 0 2px 5px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.5); }
+        /* 当前行动：呼吸金框 + 倒计时数字（区别于 All-in 火光）*/
+        .seat.acting .avatar { border-color: #f4d35e; }
+        .seat.acting .avatar-block { animation: actGlow 1.1s ease-in-out infinite; border-radius: 12px; }
+        @keyframes actGlow { 0%,100% { box-shadow: 0 0 0 2px rgba(244,211,94,0.5), 0 0 10px rgba(244,211,94,0.4); }
+            50% { box-shadow: 0 0 0 2px rgba(244,211,94,0.95), 0 0 22px rgba(244,211,94,0.85); } }
+        /* 环形倒计时进度条：绕头像一圈，剩余时间用 --p(1→0) 驱动 conic-gradient 收缩 */
+        .avatar-ring { position: absolute; inset: -4px; border-radius: 14px; z-index: 0; pointer-events: none;
+            background: conic-gradient(from -90deg, #f4d35e calc(var(--p,1) * 360deg), rgba(0,0,0,0.4) 0deg); }
+        .seat.acting .avatar { z-index: 1; }   /* 头像盖住环心，只露 4px 环边 */
+        .avatar-ring.low { background: conic-gradient(from -90deg, #ff3b3b calc(var(--p,1) * 360deg), rgba(0,0,0,0.45) 0deg);
+            animation: ringLowPulse 0.5s ease-in-out infinite; }
+        @keyframes ringLowPulse { 50% { filter: brightness(1.7) saturate(1.4); } }
+        /* 剩 5 秒：整个座位红光闪烁（盖过行动金光）*/
+        .seat.lowtime .avatar-block { animation: lowFlash 0.45s ease-in-out infinite !important; }
+        @keyframes lowFlash { 0%,100% { box-shadow: 0 0 0 2px rgba(255,55,55,0.65), 0 0 12px 2px rgba(255,40,40,0.5); }
+            50% { box-shadow: 0 0 0 3px rgba(255,70,70,1), 0 0 26px 7px rgba(255,40,40,0.9); } }
+        .avatar-secs { position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+            background: #10151f; color: #f4d35e; font-size: 11px; font-weight: bold; z-index: 6;
+            padding: 0 5px; border-radius: 8px; border: 1px solid rgba(244,211,94,0.6); font-variant-numeric: tabular-nums; }
+        .avatar-secs.low { color: #ff6b6b; border-color: rgba(255,90,90,0.8); }
+        /* All-in：火焰/橙光高亮 */
+        .seat.allin .avatar-block { animation: allinFire 0.9s ease-in-out infinite; border-radius: 12px; }
+        .seat.allin .cards-zone .card { box-shadow: 0 0 10px 2px rgba(255,110,20,0.85); }
+        @keyframes allinFire { 0%,100% { box-shadow: 0 0 0 2px rgba(255,120,20,0.7), 0 0 12px 2px rgba(255,90,10,0.6); }
+            50% { box-shadow: 0 0 0 3px rgba(255,165,45,0.98), 0 0 26px 6px rgba(255,90,10,0.9); } }
+        /* 赢家：金光 */
+        .seat.winner .avatar-block { animation: winnerGlow 0.7s ease-in-out infinite; border-radius: 12px; }
+        @keyframes winnerGlow { 0%,100% { box-shadow: 0 0 0 2px rgba(244,211,94,0.7), 0 0 16px 3px rgba(244,211,94,0.6); }
+            50% { box-shadow: 0 0 0 3px #f4d35e, 0 0 34px 8px rgba(244,211,94,0.95); } }
+        /* 状态气泡（按需）*/
+        .status-bubble { position: absolute; top: -10px; right: -12px; z-index: 7; font-size: 10.5px; font-weight: bold;
+            padding: 2px 8px; border-radius: 10px; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.45); }
+        .status-bubble.wait { background: #566275; color: #e8eef7; }
+        .status-bubble.fold { background: #454d5c; color: #cdd4e0; }
+        .status-bubble.allin { background: #e23b3b; color: #fff; }
+        .ready-badge { position: absolute; top: -12px; left: -8px; z-index: 7; font-size: 11px; font-weight: bold;
+            padding: 2px 8px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.4); }
+        .ready-badge.yes { background: #06d6a0; color: #0a1f1a; }
+        .ready-badge.no  { background: rgba(255,255,255,0.12); color: #ccc; border: 1px solid rgba(255,255,255,0.2); }
+        /* 对手亮牌：覆盖在头像上（省空间、不顶出屏幕）；牌型徽章压在牌下沿 */
+        .opp-cards { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 8;
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; width: max-content; }
+        .ring-seat .opp-cards .card, .ring-seat .opp-cards .empty-slot {
+            width: calc(var(--card-w) * 0.95); height: calc(var(--card-h) * 0.95);
+            box-shadow: 0 3px 9px rgba(0,0,0,0.7); }
+        /* 自己：横向 左=名/头像/筹码，右=两张牌（大）*/
+        .self-body { display: flex; flex-direction: row; align-items: center; gap: 9px; }
+        .self-info { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+        .self-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+        .ring-seat.bottom .self-cards .card, .ring-seat.bottom .self-cards .empty-slot {
+            width: calc(var(--card-w) * 1.4); height: calc(var(--card-h) * 1.4); }
+        .hand-type-badge { width: 100%; text-align: center; font-size: 10.5px; font-weight: bold; color: #e7eefb;
+            background: rgba(0,0,0,0.62); padding: 1px 6px; border-radius: 7px; margin-top: 1px; }
+        .hand-type-badge.win { color: #f4d35e; }
+        /* 下注 chip 弹入 */
+        .bet-badge { animation: betPop 0.22s cubic-bezier(0.34,1.56,0.64,1); }
+        @keyframes betPop { from { transform: translateX(-50%) scale(0.4); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+        /* 赢额「+X」弹字 */
+        .win-pop { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); z-index: 12;
+            font-size: 16px; font-weight: 800; color: #ffe08a; white-space: nowrap;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.8); pointer-events: none; animation: winPopUp 1.6s ease-out forwards; }
+        @keyframes winPopUp { 0% { opacity: 0; transform: translate(-50%, 6px) scale(0.7); }
+            20% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+            75% { opacity: 1; transform: translate(-50%, -22px) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -46px) scale(0.95); } }
+
+        /* ===== Card（随屏幕尺寸连续缩放，取宽/高较小者）===== */
+        :root { --card-w: clamp(22px, min(8.5vw, 5dvh), 40px); --card-h: calc(var(--card-w) * 1.39); }
+        .card {
+            display: inline-flex; flex-direction: column; justify-content: space-between;
+            width: var(--card-w); height: var(--card-h); border-radius: 6px; background: #fff;
+            border: 1px solid #ddd; padding: calc(var(--card-w) * 0.09) calc(var(--card-w) * 0.11);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.35); font-weight: bold; user-select: none;
+        }
+        .card.red { color: #e01e1e; }
+        .card.black { color: #17181c; }
+        /* 四色默认常开（放在 red/black 之后以覆盖之）：黑桃黑·红心红·方块蓝·梅花绿，一眼分清花色 */
+        .card.suit-spades   { color: #17181c; }
+        .card.suit-hearts   { color: #e01e1e; }
+        .card.suit-diamonds { color: #1667e0; }
+        .card.suit-clubs    { color: #109b46; }
+        .card.back {
+            background: repeating-linear-gradient(45deg,#1e3a5f 0,#1e3a5f 5px,#2c5aa0 5px,#2c5aa0 10px);
+            border-color: #1e3a5f;
+        }
+        /* 数字+花色是唯一关键信息 → 尽量放大、居中、清晰，一眼即知无需细辨 */
+        .card { align-items: center; }
+        .card .rank { font-size: calc(var(--card-w) * 0.62); line-height: 1; font-weight: 800; letter-spacing: -0.5px; }
+        .card .suit { font-size: calc(var(--card-w) * 0.6); align-self: center; line-height: 1; margin-top: calc(var(--card-w) * -0.02); }
+        .empty-slot { width: var(--card-w); height: var(--card-h); border: 2px dashed rgba(255,255,255,0.12); border-radius: 6px; }
+        /* 发牌入场动画：从上方翻入 */
+        .card.deal-in { animation: dealIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+        @keyframes dealIn {
+            from { opacity: 0; transform: translateY(-28px) rotateZ(-10deg) scale(0.88); }
+            to   { opacity: 1; transform: none; }
+        }
+        /* 弃牌动画：牌向下旋转飞出淡出 */
+        .card.fold-out { animation: foldOut 0.46s ease-in forwards; }
+        @keyframes foldOut {
+            to { opacity: 0; transform: translate(28px, 46px) rotateZ(32deg) scale(0.78); }
+        }
+        /* 亮牌翻转动画 */
+        .card.flip-in { animation: flipIn 0.42s ease-out backwards; transform-style: preserve-3d; }
+        @keyframes flipIn {
+            from { transform: rotateY(90deg) scale(0.9); opacity: 0; }
+            to   { transform: none; opacity: 1; }
+        }
+        /* 摊牌阶段可点击亮牌的自己手牌 */
+        .card.showable { cursor: pointer; box-shadow: 0 0 0 2px rgba(244,211,94,0.6), 0 2px 5px rgba(0,0,0,0.35); }
+        .card.showable:hover { transform: translateY(-4px); transition: transform 0.12s; }
+        .card.showable.shown { box-shadow: 0 0 0 2px #06d6a0, 0 2px 5px rgba(0,0,0,0.35); cursor: default; }
+        .fly-coin { position: fixed; z-index: 50; font-size: 22px; pointer-events: none; will-change: transform, opacity; }
+        .show-hint { font-size: 11px; color: #f4d35e; margin: 2px 0; animation: hintPulse 1.2s ease-in-out infinite; }
+        @keyframes hintPulse { 50% { opacity: 0.5; } }
+        /* showdown 牌型高亮：组成最强牌的牌拉出+金光，其余变灰 */
+        .card.hl { position: relative; z-index: 2;
+            transform: translateY(-12px) scale(1.06);
+            box-shadow: 0 0 16px 3px rgba(244,211,94,0.9); }
+        .card.hl.reveal-anim { animation: pullOut 0.5s cubic-bezier(0.22,1,0.36,1) backwards; }
+        @keyframes pullOut {
+            from { transform: translateY(0) scale(1); box-shadow: 0 2px 5px rgba(0,0,0,0.35); }
+            to   { transform: translateY(-12px) scale(1.06); box-shadow: 0 0 16px 3px rgba(244,211,94,0.9); }
+        }
+        .card.dim { filter: brightness(0.72); opacity: 0.6; }   /* 只压暗，保留四色，仍能看清点数花色 */
+        .card.dim.reveal-anim { animation: dimOut 0.5s ease-out backwards; }
+        @keyframes dimOut { from { filter: none; opacity: 1; } to { filter: brightness(0.72); opacity: 0.6; } }
+        .hand-type { font-size: 13px; font-weight: bold; color: #f4d35e; margin: 2px 0;
+            text-shadow: 0 0 8px rgba(244,211,94,0.6); animation: dealIn 0.4s ease-out backwards; }
+        .my-hand-type { font-size: 12px; font-weight: bold; color: #06d6a0; margin: 2px 0; }
+        /* 行牌中：我当前最强 5 张的高亮（绿环，区别于 showdown 金光拉出）*/
+        .card.mine { box-shadow: 0 0 0 2px #06d6a0, 0 2px 6px rgba(0,0,0,0.4); }
+
+        /* ===== Table center ===== */
+        /* 中央水印（绝对居中于牌桌上半）*/
+        #table-info { position: absolute; left: 50%; top: 20%; transform: translate(-50%,-50%);
+            text-align: center; color: rgba(255,255,255,0.3); font-size: 12px; line-height: 1.6;
+            letter-spacing: 0.5px; pointer-events: none; z-index: 1; width: 90%; }
+        #table-info .room-no { color: rgba(244,211,94,0.55); font-weight: bold; letter-spacing: 1px; }
+        #table-info #next-level { color: rgba(244,211,94,0.55); }
+        /* 底池竖排（商业级）：中间总底池、上主池/上一轮、下各边池 */
+        #pot { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-bottom: 8px; }
+        .pot-total { font-size: 19px; font-weight: bold; color: #f4d35e; text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.32); padding: 1px 12px; border-radius: 12px; }
+        .pot-row { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: bold;
+            color: #e7eefb; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+        .pot-row.prev { color: #9fb0cc; }
+        /* 筹码堆小图标（顶部亮环 + 侧壁，像一叠筹码）*/
+        .pot-chip { display: inline-block; width: 13px; height: 15px; border-radius: 3px;
+            background: linear-gradient(#7fb4ff, #3a7bd5); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
+        .pot-chip.gold  { background: linear-gradient(#ffe08a, #e0a200); box-shadow: inset 0 3px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.5); }
+        .pot-chip.green { background: linear-gradient(#8fe6a8, #2fae5f); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
+        #community { display: flex; justify-content: center; gap: 5px; min-height: var(--card-h); }
+        /* 公共牌下方一行提示（如"谁想看转牌"）*/
+        #table-notice { display: table; margin: 8px auto 0; text-align: center; font-size: 13px; font-weight: bold; color: #f4d35e;
+            background: rgba(0,0,0,0.45); border-radius: 10px; padding: 4px 12px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.7); animation: dealIn 0.3s ease-out; }
+        #community .card, #community .empty-slot { width: calc(var(--card-w) * 1.2); height: calc(var(--card-h) * 1.2); }
+
+        /* ===== Action bar ===== */
+        #action-bar {
+            display: flex; flex-direction: column; gap: 8px; align-items: center;
+            padding: 10px;
+        }
+        /* 发牌/翻牌瞬间锁定，防误触 */
+        #action-bar.locked #buttons-row, #action-bar.locked #quick-bet-group, #action-bar.locked #sizing-row {
+            pointer-events: none; opacity: 0.45;
+        }
+        #buttons-row { display: flex; gap: 14px; justify-content: center; flex-wrap: nowrap; align-items: center; }
+        /* 主行动按钮做成圆形悬浮球（更小，不挡公共牌）*/
+        #buttons-row .action-btn {
+            width: 40px; height: 40px; min-width: 0; border-radius: 50%; padding: 0;
+            font-size: 10px; line-height: 1.02; text-align: center; white-space: pre-line;
+            display: inline-flex; align-items: center; justify-content: center;
+            box-shadow: 0 3px 9px rgba(0,0,0,0.45);
+        }
+        /* 弃牌做成红色 ✕ 大图标 */
+        #buttons-row .action-btn.fold { font-size: 18px; font-weight: 400; }
+        #sizing-row {
+            display: flex; flex-direction: column; gap: 8px; align-items: center;
+            width: 100%; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px;
+        }
+        /* 半圆弧环绕：池比例小球沿上半圆分布（位置由 JS 内联设置）(B6) */
+        .size-quick-group { position: relative; margin: 0 auto 2px; }
+        .size-quick {
+            position: absolute; width: 40px; height: 40px; border-radius: 50%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05;
+            border: 1.5px solid rgba(244,211,94,0.5); background: radial-gradient(circle at 50% 35%, rgba(244,211,94,0.22), rgba(244,211,94,0.06));
+            color: #f4d35e; font-size: 10px; font-weight: bold; cursor: pointer;
+            transition: background 0.15s, transform 0.1s; box-shadow: 0 2px 7px rgba(0,0,0,0.4);
+        }
+        .size-quick small { font-size: 8.5px; font-weight: normal; opacity: 0.8; }
+        .size-quick:hover { background: rgba(244,211,94,0.25); }
+        .size-quick:active { background: rgba(244,211,94,0.4); }
+        .size-slider-group { display: flex; gap: 10px; align-items: center; flex: 1; min-width: 0; }
+        #sizing-row { width: 100%; max-width: 480px; }
+        /* 加注滑条：大拇指块 + touch-action:none（手机拖动不被页面滚动手势抢走 → 灵敏） */
+        #betSlider { flex: 1; min-width: 0; cursor: pointer; -webkit-appearance: none; appearance: none;
+            height: 36px; background: transparent; touch-action: none; }
+        #betSlider::-webkit-slider-runnable-track { height: 9px; border-radius: 5px;
+            background: linear-gradient(90deg,#06d6a0 var(--fill,0%), rgba(255,255,255,0.18) var(--fill,0%)); }
+        #betSlider::-webkit-slider-thumb { -webkit-appearance: none; width: 32px; height: 32px; margin-top: -12px;
+            border-radius: 50%; background: #06d6a0; border: 3px solid #fff; box-shadow: 0 2px 7px rgba(0,0,0,0.55); }
+        #betSlider::-moz-range-track { height: 9px; border-radius: 5px; background: rgba(255,255,255,0.18); }
+        #betSlider::-moz-range-progress { height: 9px; border-radius: 5px; background: #06d6a0; }
+        #betSlider::-moz-range-thumb { width: 32px; height: 32px; border-radius: 50%; background: #06d6a0;
+            border: 3px solid #fff; box-shadow: 0 2px 7px rgba(0,0,0,0.55); }
+        #btnConfirmBet { flex-shrink: 0; white-space: nowrap; }
+        .action-btn {
+            padding: 10px 16px; border: none; border-radius: 6px; font-weight: bold;
+            font-size: 14px; cursor: pointer; color: white; min-width: 72px;
+            transition: filter 0.15s, transform 0.15s;
+        }
+        .action-btn:hover:not(:disabled) { filter: brightness(1.18); transform: translateY(-1px); }
+        .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .action-btn.fold  { background: #d62828; }
+        .action-btn.check { background: #5a7fa3; }
+        .action-btn.call  { background: #3a86ff; }
+        .action-btn.bet, .action-btn.raise { background: radial-gradient(circle at 50% 35%, #ffe08a, #f4b740); color: #4a2e00; }
+        /* 精准加注很少用：与弃牌/跟注同样小（不再做大金球）*/
+        #buttons-row .action-btn.bet, #buttons-row .action-btn.raise { font-size: 10px; }
+        .action-btn.addtime { background: #ff9f1c; color: #1a1a1a; }
+        .action-btn.rabbit { background: #9b5de5; color: #fff; }
+        #raiseAmount {
+            width: 90px; padding: 8px 10px; background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px;
+            font-size: 14px; text-align: center;
+        }
+        #raiseAmount:disabled { opacity: 0.3; }
+

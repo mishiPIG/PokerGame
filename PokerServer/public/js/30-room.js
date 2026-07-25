@@ -1,0 +1,489 @@
+// ===== 大厅 / 房间 =====
+function showReconnecting() {
+    let el = document.getElementById('reconnecting-toast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'reconnecting-toast';
+        el.textContent = '🔌 连接中断，重连中…';
+        el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:8px;'
+            + 'background:rgba(214,64,64,0.96);color:#fff;font-size:13px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,0.4)';
+        document.body.appendChild(el);
+    }
+    el.style.display = 'block';
+}
+function hideReconnecting() {
+    const el = document.getElementById('reconnecting-toast');
+    if (el) el.style.display = 'none';
+}
+// 公共牌下方一行提示（如"某某想看转牌"），几秒后自动消失
+let _noticeTimer = 0;
+function showTableNotice(text) {
+    const el = document.getElementById('table-notice');
+    if (!el) return;
+    el.textContent = text;
+    el.style.display = '';
+    clearTimeout(_noticeTimer);
+    _noticeTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+// ===== 多次发牌（run it N times）UI =====
+function nameOf(userId) {
+    const st = lastState || {};
+    const p = (st.players || []).find(x => x.userId === userId) || (st.spectators || []).find(x => x.userId === userId);
+    return p ? p.username : '玩家';
+}
+function runitPanel() {
+    let el = document.getElementById('runit-panel');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'runit-panel';
+        document.body.appendChild(el);
+    }
+    return el;
+}
+function hideRunitPanel() { const el = document.getElementById('runit-panel'); if (el) el.style.display = 'none'; }
+function showRunitOffer(o) {
+    const el = runitPanel();
+    const eqTxt = (id) => (o.equities && o.equities[id] != null) ? ` <span class="ri-eq">${o.equities[id]}%</span>` : '';
+    if (o.deciderId === myUserId) {
+        const maxN = Math.max(2, Math.min(5, o.max || 5));   // 牌堆不足时服务端会给更小的 max
+        const btns = Array.from({ length: maxN }, (_, i) => i + 1);
+        el.innerHTML = `<div class="ri-title">🎲 发几次牌？<span class="ri-hint">（你落后，可要求多发几次分摊运气）</span></div>`
+            + `<div class="ri-btns">` + btns.map(n => `<button onclick="proposeRuns(${n})">${n}</button>`).join('') + `</div>`;
+    } else if (o.leaderId === myUserId) {
+        el.innerHTML = `<div class="ri-title">🎲 等待对方选择发牌次数…</div>`
+            + `<div class="ri-sub">你领先${eqTxt(myUserId)}，对方可提议发多次</div>`;
+    } else {
+        el.innerHTML = `<div class="ri-title">🎲 双方协商发牌中…</div>`;
+    }
+    el.style.display = 'block';
+}
+function showRunitProposal(pr) {
+    const el = runitPanel();
+    if (pr.leaderId === myUserId) {
+        el.innerHTML = `<div class="ri-title">🎲 对方想发 <b>${pr.n}</b> 次</div>`
+            + `<div class="ri-sub">同意则底池均分 ${pr.n} 份、各发一次不同公共牌</div>`
+            + `<div class="ri-btns"><button class="ri-yes" onclick="respondRuns(true)">同意发 ${pr.n} 次</button>`
+            + `<button class="ri-no" onclick="respondRuns(false)">只发 1 次</button></div>`;
+    } else {
+        el.innerHTML = `<div class="ri-title">🎲 已提议发 <b>${pr.n}</b> 次，等待领先方同意…</div>`;
+    }
+    el.style.display = 'block';
+}
+function proposeRuns(n) { if (socket) socket.emit('propose_runs', { n }); const el = runitPanel(); el.innerHTML = `<div class="ri-title">🎲 已选发 ${n} 次，等待对方同意…</div>`; }
+function respondRuns(agree) { if (socket) socket.emit('respond_runs', { agree }); hideRunitPanel(); }
+
+// 多次发牌桌面：共享底牌只显示一次，剩余街 N 组「并列」分行显示（都留在桌上、不覆盖）
+function clearRunit() {
+    runitState = null;
+    const bd = document.getElementById('board'); if (bd) bd.classList.remove('runit-on');
+    const el = document.getElementById('runit-boards'); if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+}
+function buildRunitBoards(m) {
+    const el = document.getElementById('runit-boards'); if (!el || !m) return;
+    const baseLen = m.baseLen || 0, n = m.n || 1, base = m.base || [];
+    runitState = { n, baseLen, filled: Array(n).fill(0) };
+    let html = '';
+    if (baseLen > 0) {   // 共享公共牌行（已发的 3/4 张，只显示一次）
+        let s = '';
+        for (let i = 0; i < 5; i++) s += i < baseLen ? formatCard(base[i]) : '<span class="rib-slot"></span>';
+        html += `<div class="rib-shared"><span class="rib-label">公共</span><div class="rib-slots">${s}</div></div>`;
+    }
+    for (let r = 0; r < n; r++) {   // 每组一行：前 baseLen 个位置留空对齐，剩余街是本组的牌
+        let s = '';
+        for (let i = 0; i < 5; i++) s += `<span class="rib-slot${i < baseLen ? ' ghost' : ''}"></span>`;
+        html += `<div class="rib-row" data-run="${r}"><span class="rib-label">第${r + 1}次</span><div class="rib-slots">${s}</div></div>`;
+    }
+    el.innerHTML = html;
+    el.style.display = 'flex';
+    document.getElementById('board').classList.add('runit-on');   // 隐藏原单行公共牌，避免重复
+}
+function runitDealStreet(m) {
+    if (!runitState) return;
+    const slots = document.querySelector(`#runit-boards .rib-row[data-run="${m.run}"] .rib-slots`);
+    if (!slots) return;
+    const start = runitState.baseLen + runitState.filled[m.run];
+    (m.cards || []).forEach((c, k) => {
+        const slot = slots.children[start + k];
+        if (slot) slot.outerHTML = formatCard(c, true, k * 130);   // 替换占位为发牌动画
+    });
+    runitState.filled[m.run] += (m.cards || []).length;
+    sndFlip(0);
+    document.querySelectorAll('#runit-boards .rib-row').forEach(rw => rw.classList.toggle('active', +rw.dataset.run === m.run));
+}
+function runitAward(m) {
+    // 该组比完：本行金色高亮（不再显示文字），筹码飞向本组赢家的座位（谁赢一目了然）
+    const rowEl = document.querySelector(`#runit-boards .rib-row[data-run="${m.run}"]`);
+    if (rowEl) { rowEl.classList.add('win'); rowEl.classList.remove('active'); }
+    (m.winners || []).forEach(w => { flyCoinsToWinner(w.userId); winPopup(w.userId, w.amount); if (w.userId === myUserId) vibrate([30, 40, 30]); });
+}
+// 轻量非阻塞提示（自动消失，不像 alert 会卡住交互）
+let _toastTimer = 0;
+function toast(msg, ms = 2600) {
+    let el = document.getElementById('mini-toast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'mini-toast';
+        el.style.cssText = 'position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:9998;max-width:82%;'
+            + 'background:rgba(18,27,43,0.96);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;line-height:1.4;'
+            + 'text-align:center;box-shadow:0 6px 22px rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.15);pointer-events:none;';
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.display = 'block';
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { el.style.display = 'none'; }, ms);
+}
+function showLobby() {
+    cancelVoiceRecording();
+    stopVoicePlayback();
+    clearVoiceBubbles();
+    hideStraddleOffer();
+    currentRoom = '';
+    localStorage.removeItem('currentRoom');
+    document.body.classList.remove('in-room');
+    document.getElementById('lobby-view').style.display = '';
+    document.getElementById('table-view').style.display = 'none';
+    // 清空牌桌渲染状态，避免回大厅再进残留上一局
+    myHoleCards = []; revealedCards = {}; lastState = null;
+    hideRunitPanel(); clearRunit();
+    prevCommunityCount = 0; holeJustDealt = false; revealJustHappened = false;
+    prevFoldedSet = new Set(); foldingNow = new Set();
+    shownCards = {}; myShown = new Set(); showJustHappened = false;
+    showdownInfo = null; myHand = null; mySeated = false; prevChipsShown = {}; roomInviteInfo = null;
+    // 关闭所有桌内面板/弹窗
+    ['table-menu','buyin-modal','stats-panel','history-panel','match-modal','invite-modal','inbox-panel','profile-overlay','chat-panel','replay-overlay'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+    if (socket) socket.emit('enter_lobby');
+    refreshInboxBadge();
+    refreshCheckinDot();
+}
+function showTable() {
+    document.getElementById('lobby-view').style.display = 'none';
+    document.getElementById('table-view').style.display = '';
+    document.body.classList.add('in-room');
+}
+let createTab = 'sng';
+const CASH_BLINDS = [[10,20],[20,40],[30,60],[50,100],[100,200],[200,400],[300,600],[500,1000]];
+// SNG 报名费档位（2 人冠军奖励参考；多人时奖池随人数变大）
+const SNG_TIERS = [[110, 200], [220, 400], [550, 1000], [1100, 2000]];
+let sngBuyin = 110;
+function renderSngTiers() {
+    const row = document.getElementById('sngBuyinRow');
+    row.innerHTML = SNG_TIERS.map(([fee, prize]) =>
+        `<button type="button" class="tier-btn${fee === sngBuyin ? ' sel' : ''}" onclick="selectSngTier(${fee})">
+            🪙${fee}<small>冠军≈${prize}</small></button>`).join('');
+}
+function selectSngTier(fee) { sngBuyin = fee; renderSngTiers(); }
+// 现金桌训练时长档位（小时）
+const CASH_DUR_TIERS = [0.5, 1, 2, 3, 4, 5, 6];
+let ccDur = 2;
+function renderCcDur() {
+    const row = document.getElementById('ccDurRow');
+    row.innerHTML = CASH_DUR_TIERS.map(h =>
+        `<button type="button" class="tier-btn${h === ccDur ? ' sel' : ''}" onclick="selectCcDur(${h})">${h}h</button>`).join('');
+}
+function selectCcDur(h) { ccDur = h; renderCcDur(); }
+function showCreateForm() { document.getElementById('create-form').style.display = ''; switchCreateTab(createTab); updateCashLabels(); renderSngTiers(); renderCcDur(); }
+function hideCreateForm() { document.getElementById('create-form').style.display = 'none'; }
+function switchCreateTab(t) {
+    createTab = t;
+    document.getElementById('create-sng').style.display  = t === 'sng' ? '' : 'none';
+    document.getElementById('create-cash').style.display = t === 'cash' ? '' : 'none';
+    document.getElementById('ctTabSng').classList.toggle('active', t === 'sng');
+    document.getElementById('ctTabCash').classList.toggle('active', t === 'cash');
+}
+function updateCashLabels() {
+    const [sb, bb] = CASH_BLINDS[parseInt(document.getElementById('ccBlind').value)];
+    document.getElementById('ccBlindVal').textContent = `${sb} / ${bb}`;
+    document.getElementById('ccAnteVal').textContent = document.getElementById('ccAnte').value;
+    document.getElementById('ccMaxVal').textContent = document.getElementById('ccMax').value;
+    document.getElementById('ccMinVal').textContent = (+document.getElementById('ccMin').value).toLocaleString();
+    const cap = +document.getElementById('ccCap').value;
+    document.getElementById('ccCapVal').textContent = cap === 0 ? '无限制' : cap.toLocaleString();
+}
+function submitCreate() {
+    if (!socket) return;
+    if (createTab === 'cash') {
+        const [sb, bb] = CASH_BLINDS[parseInt(document.getElementById('ccBlind').value)];
+        socket.emit('create_cash_room', {
+            name: document.getElementById('ccName').value,
+            sb, bb,
+            ante: parseInt(document.getElementById('ccAnte').value),
+            allowUtgStraddle: document.getElementById('ccStraddle').checked,
+            maxPlayers: parseInt(document.getElementById('ccMax').value),
+            minBuyIn: parseInt(document.getElementById('ccMin').value),
+            maxBuyIn: parseInt(document.getElementById('ccCap').value),
+            durationH: ccDur
+        });
+    } else {
+        socket.emit('create_room', {
+            name:          document.getElementById('cfgName').value,
+            startingStack: parseInt(document.getElementById('cfgStack').value),
+            levelMinutes:  parseInt(document.getElementById('cfgLevel').value),
+            maxPlayers:    parseInt(document.getElementById('cfgMax').value),
+            buyIn:         sngBuyin
+        });
+    }
+    hideCreateForm();
+}
+function sanitizeJoinCode() {
+    const input = document.getElementById('joinRoomInput');
+    input.value = input.value.replace(/\D/g, '').slice(0, 4);
+}
+// 输入四位房间码：服务端校验成功后才授予下场资格。
+function joinByCode() {
+    const code = document.getElementById('joinRoomInput').value.trim();
+    if (!/^\d{4}$/.test(code)) { toast('请输入四位数字房间码'); return; }
+    if (!socket || !socket.connected) { toast('正在连接服务器，请稍后'); return; }
+    const btn = document.getElementById('joinCodeBtn');
+    btn.disabled = true;
+    socket.emit('join_by_code', { code });
+    clearTimeout(window._joinCodeUnlock);
+    window._joinCodeUnlock = setTimeout(() => { btn.disabled = false; }, 4000);
+}
+// 从大厅列表点进 = 只观战；服务端已授权成员则重新加入。
+function joinRoomId(roomId) {
+    if (!roomId || !socket) return;
+    socket.emit('join_room', { roomId });
+}
+
+function openInvite(requestInfo = true) {
+    const modal = document.getElementById('invite-modal');
+    modal.style.display = 'flex';
+    if (!roomInviteInfo) {
+        document.getElementById('invite-loading').style.display = '';
+        document.getElementById('invite-content').style.display = 'none';
+    }
+    if (requestInfo && socket) socket.emit('get_room_invite');
+}
+function closeInvite() { document.getElementById('invite-modal').style.display = 'none'; }
+function renderInviteInfo() {
+    if (!roomInviteInfo) return;
+    document.getElementById('invite-loading').style.display = 'none';
+    document.getElementById('invite-content').style.display = '';
+    document.getElementById('invite-code').textContent = roomInviteInfo.joinCode;
+    document.getElementById('invite-url').textContent = roomInviteInfo.inviteUrl;
+    const lock = document.getElementById('invite-lock-btn');
+    lock.textContent = roomInviteInfo.entryLocked ? '🔒 已锁定入场' : '🔓 开放入场';
+    lock.classList.toggle('locked', !!roomInviteInfo.entryLocked);
+}
+async function copyText(text, successMessage) {
+    if (!text) return;
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const area = document.createElement('textarea');
+            area.value = text;
+            area.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+            document.body.appendChild(area);
+            area.select();
+            const ok = document.execCommand('copy');
+            area.remove();
+            if (!ok) throw new Error('copy failed');
+        }
+        toast(successMessage);
+    } catch {
+        toast('复制失败，请长按内容手动复制');
+    }
+}
+function copyRoomCode() {
+    copyText(roomInviteInfo?.joinCode, `房间码 ${roomInviteInfo?.joinCode || ''} 已复制`);
+}
+function copyInviteUrl() {
+    copyText(roomInviteInfo?.inviteUrl, '邀请链接已复制');
+}
+function toggleEntryLock() {
+    if (!socket || !roomInviteInfo) return;
+    socket.emit('set_entry_locked', { locked: !roomInviteInfo.entryLocked });
+}
+function resetRoomInvite() {
+    if (!socket || !roomInviteInfo) return;
+    if (!confirm('重置后，已经发出的旧链接和旧房间码会立即失效；已加入的朋友不受影响。确定重置？')) return;
+    socket.emit('reset_room_invite');
+}
+function leaveRoom() {
+    if (!socket) return;
+    const isCash = lastState && lastState.roomType === 'cash';
+    const amSeated = lastState && lastState.players && lastState.players.some(p => p.userId === myUserId);
+    if (isCash && amSeated) {
+        if (!confirm('离开牌桌：座位与筹码【保留】，只在本局结束/解散时才统一结算金币；之后可随时「重新进入」接上原座位与盈亏（战绩不清零）。确定离开？')) return;
+    }
+    socket.emit('leave_room');
+}
+function dissolveRoom() {
+    if (!socket) return;
+    const isCash = lastState && lastState.roomType === 'cash';
+    const msg = isCash
+        ? '确定解散牌桌？各家将按汇率把剩余筹码兑回金币、全部回到大厅。'
+        : '确定解散比赛？比赛将结束，奖池归当前筹码领先者。';
+    if (confirm(msg)) socket.emit('dissolve_room');
+}
+function closeResult() {
+    document.getElementById('result-overlay').style.display = 'none';
+    leaveRoom();
+}
+
+// ===== 桌内菜单 (B7) =====
+function toggleTableMenu() {
+    const m = document.getElementById('table-menu');
+    const show = m.style.display === 'none';
+    if (show) {
+        const st = lastState || {};
+        const isCash  = st.roomType === 'cash';
+        const isOwner = st.ownerUserId === myUserId;
+        const amSeated = st.players && st.players.some(p => p.userId === myUserId);
+        m.querySelectorAll('.cash-only').forEach(e => e.style.display = (isCash && amSeated) ? '' : 'none');
+        m.querySelectorAll('.seat-only').forEach(e => e.style.display = (isCash && amSeated) ? '' : 'none');
+        m.querySelectorAll('.owner-only').forEach(e => e.style.display = isOwner ? '' : 'none');
+        const pb = document.getElementById('tmPause');
+        if (pb) pb.textContent = st.paused ? '▶️ 继续发牌' : '⏸️ 暂停发牌';
+    }
+    m.style.display = show ? '' : 'none';
+}
+// 站起围观 / 留座离座 / 回到座位
+function standUp() {
+    if (socket && confirm('确定站起围观？将【离开座位】（座位空出、他人可坐），筹码保留至结束/解散时结算；可随时「回到座位」带原筹码回来。')) socket.emit('stand_up');
+}
+function reserveLeave() {
+    if (socket) { socket.emit('reserve_leave'); alert('已留座离座，2 分钟内回来保留座位（点座位「回到座位」即可）'); }
+}
+function sitBack() { if (socket) socket.emit('sit_back'); }
+
+// 房主：暂停/继续发牌（暂停后当前这手打完不开新局）
+function togglePauseDealing() {
+    if (!socket) return;
+    if (lastState && lastState.paused) socket.emit('resume_dealing');
+    else { socket.emit('pause_dealing'); alert('已暂停发牌：当前这手打完后暂停，随时可点「继续发牌」恢复。'); }
+}
+// 房主：强制某玩家站起到观战席（腾出座位）
+function forceStand(targetUserId) {
+    if (!socket) return;
+    const st = lastState; if (!st) return;
+    const tp = (st.players || []).find(p => p.userId === targetUserId);
+    const nm = tp ? tp.username : '该玩家';
+    if (confirm(`把「${nm}」移到观战席？其座位将空出（筹码保留至结束结算，TA 可自行「回到座位」）。`)) {
+        socket.emit('force_stand', { targetUserId });
+        closeAvatarPopup();
+    }
+}
+
+// ===== 坐下/补码 买入弹窗 (A2/A3) =====
+let buyinMode = 'sit';
+let pendingSeat = -1;
+function openSitDown(seat) {
+    const st = lastState; if (!st || st.roomType !== 'cash') return;
+    if (st.players.some(p => p.userId === myUserId)) { return; }   // 已入座
+    // 站起围观者回座：带原筹码直接回座，不弹买入框、不再扣金币
+    if ((st.vacatedUserIds || []).includes(myUserId)) {
+        if (socket) socket.emit('sit_down', { seat: (seat == null ? -1 : seat) });
+        return;
+    }
+    // 观战者无下场资格：提示，不弹买入框
+    if (!iCanPlay) { toast('👀 观战中，无法入座——请使用房主分享的邀请链接或四位房间码加入'); return; }
+    buyinMode = 'sit';
+    pendingSeat = (seat == null ? -1 : seat);
+    const min = st.minBuyIn || 2000;
+    const max = st.maxBuyIn > 0 ? st.maxBuyIn : Math.max(min * 4, 8000);
+    setupBuyin(`坐下带入 · ${pendingSeat >= 0 ? (pendingSeat + 1) + ' 号位' : ''}`, [min, max, min], false, false, st.bigBlind || 20);
+}
+const REBUY_TIERS_BB = [50, 100, 150, 200, 250, 300, 400, 500];   // 补码梯度（BB）
+let buyinValue = 0;   // 当前选定的带入/补码记分牌数
+function openRebuy() {
+    const st = lastState; if (!st || st.roomType !== 'cash') return;
+    const me = st.players.find(p => p.userId === myUserId);
+    if (!me) { alert('请先坐下入座'); return; }
+    buyinMode = 'rebuy';
+    const bb = st.bigBlind || 20;
+    const cap = st.maxBuyIn > 0 ? (st.maxBuyIn - me.chips - (me.pendingRebuy || 0)) : Infinity;   // 受带入上限约束
+    // 生成 ≤cap 的 BB 梯度
+    const tiers = REBUY_TIERS_BB.map(x => x * bb).filter(c => c <= cap);
+    setupBuyin('补充记分牌', tiers.length ? tiers : [Math.min(50 * bb, cap)], true, !!me.autoRebuy, bb);
+}
+// tiers: 记分牌数组（梯度按钮）；showAuto: 显示自动补码；bb: 大盲（用于标签）
+function setupBuyin(title, tiers, showAuto, autoOn, bb) {
+    document.getElementById('bm-title').textContent = title;
+    const tierBox = document.getElementById('bm-tiers');
+    const slider = document.getElementById('bm-slider');
+    if (buyinMode === 'rebuy') {
+        slider.style.display = 'none';
+        tierBox.style.display = 'flex';
+        tierBox.innerHTML = tiers.map(c =>
+            `<button type="button" class="bm-tier" data-c="${c}" onclick="selectBuyinTier(${c})">${Math.round(c / bb)}BB<small>${c.toLocaleString()}</small></button>`).join('');
+        selectBuyinTier(tiers[0]);
+    } else {
+        tierBox.style.display = 'none';
+        slider.style.display = '';
+        const [min, max, def] = tiers;   // 坐下模式：tiers=[min,max,def]
+        const step = Math.max(100, Math.round(min / 4 / 100) * 100) || 500;
+        slider.min = min; slider.max = max; slider.step = step;
+        slider.value = Math.min(Math.max(def, min), max);
+        onBuyinSlide();
+    }
+    document.getElementById('bm-auto-wrap').style.display = showAuto ? '' : 'none';
+    document.getElementById('bm-auto').checked = autoOn;
+    document.getElementById('bm-gold').textContent = (myGold || 0).toLocaleString();
+    document.getElementById('buyin-modal').style.display = 'flex';
+}
+function selectBuyinTier(chips) {
+    buyinValue = chips;
+    document.querySelectorAll('#bm-tiers .bm-tier').forEach(b => b.classList.toggle('sel', +b.dataset.c === chips));
+    updateBuyinDisplay(chips);
+}
+function onBuyinSlide() {
+    buyinValue = +document.getElementById('bm-slider').value;
+    updateBuyinDisplay(buyinValue);
+}
+function updateBuyinDisplay(v) {
+    document.getElementById('bm-val').textContent = v.toLocaleString();
+    document.getElementById('bm-cost').textContent = Math.ceil(v * 0.11);
+}
+function closeBuyin() { document.getElementById('buyin-modal').style.display = 'none'; }
+function confirmBuyin() {
+    if (!socket || !buyinValue) return;
+    if (buyinMode === 'sit') {
+        socket.emit('sit_down', { buyInChips: buyinValue, seat: pendingSeat });
+    } else {
+        const auto = document.getElementById('bm-auto').checked;
+        socket.emit('rebuy', { amount: buyinValue, auto });
+    }
+    closeBuyin();
+}
+
+// ===== 当前战绩面板 (C8) =====
+function openStats() { renderStats(lastState); document.getElementById('stats-panel').style.display = ''; }
+function closeStats() { document.getElementById('stats-panel').style.display = 'none'; }
+function renderStats(st) {
+    if (!st) return;
+    const body = document.getElementById('stats-body');
+    const row = (name, buyIn, hands, net, dim, tag) => {
+        const sign = net >= 0 ? '+' : '';
+        const col = net >= 0 ? '#4ade80' : '#f87171';
+        return `<tr style="${dim ? 'opacity:0.42' : ''}"><td>${escapeHtml(name)}${tag}</td>
+            <td>${(buyIn || 0).toLocaleString()}</td><td>${hands || 0}</td>
+            <td style="color:${col}">${sign}${(net || 0).toLocaleString()}</td></tr>`;
+    };
+    const curIds = new Set((st.players || []).map(p => p.userId));
+    // 汇总在座 + 已离开，统一按盈利从多到少排序
+    const rows = (st.players || []).map(p => {
+        const inactive = p.standing || p.reserved || p.away || p.sittingOut;
+        const tag = (p.userId === myUserId ? ' (你)' : '') + (p.standing ? ' 🧍' : p.reserved ? ' 💺' : p.away ? ' 📴' : p.sittingOut ? ' 💤' : '');
+        return { name: p.username, buyIn: p.buyIn, hands: p.handsPlayed, net: (p.chips || 0) - (p.buyIn || 0), dim: inactive, tag };
+    });
+    // 站起围观者（已离座但带入过）：灰显保留战绩，不清空
+    (st.vacated || []).filter(v => !curIds.has(v.userId)).forEach(v =>
+        rows.push({ name: v.username, buyIn: v.buyIn, hands: v.handsPlayed, net: v.net || 0, dim: true, tag: ' 🧍围观' }));
+    const shownIds = new Set([...curIds, ...(st.vacated || []).map(v => v.userId)]);
+    (st.statsHistory || []).filter(h => !shownIds.has(h.userId)).forEach(h =>
+        rows.push({ name: h.username, buyIn: h.buyIn, hands: h.handsPlayed, net: h.net || 0, dim: true, tag: ' 🚪已离开' }));
+    rows.sort((a, b) => b.net - a.net);
+    body.innerHTML = rows.map(r => row(r.name, r.buyIn, r.hands, r.net, r.dim, r.tag)).join('')
+        || '<tr><td colspan="4" style="text-align:center;opacity:.6">暂无在座玩家</td></tr>';
+    const specs = st.spectators || [];
+    document.getElementById('spec-count').textContent = `观众 (${specs.length})`;
+    document.getElementById('spec-list').innerHTML = specs.map(s =>
+        `<span class="spec-chip">${escapeHtml(s.username)}</span>`).join('') || '<span style="opacity:.5">无</span>';
+}
+

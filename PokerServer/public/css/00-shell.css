@@ -1,0 +1,116 @@
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; overflow-x: hidden; max-width: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(180deg, #0d1b2a, #1b263b);
+            color: #e8e8e8; padding: 0;
+            max-width: 720px; margin: 0 auto; overflow: hidden;
+        }
+        /* 整屏不滚动布局：游戏区填满视口，牌桌弹性收缩，行动栏常驻底部 */
+        #game-section { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+        #lobby-view  { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; }
+        #table-view  { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+        #table-area  { flex: 1; min-height: 0; overflow: hidden;
+                       display: flex; flex-direction: column; justify-content: flex-start;
+                       transition: padding-bottom 0.15s; }
+        /* 合规横幅 */
+        #compliance-banner { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); z-index: 3;
+            font-size: 10.5px; letter-spacing: 1px; color: rgba(255,255,255,0.32); white-space: nowrap;
+            pointer-events: none; }
+        /* 环形座位层 + 中央牌面：全绝对定位，行动浮层不再推动布局 */
+        #ring-layer { position: absolute; inset: 0; pointer-events: none; transform-origin: 50% 46%; }
+        /* 坐下入座：整圈座位旋转入位动画 */
+        #ring-layer.rotating { animation: ringRotateIn 0.6s cubic-bezier(0.22,1,0.36,1); }
+        @keyframes ringRotateIn {
+            0%   { transform: rotate(-22deg) scale(0.94); opacity: 0.45; }
+            60%  { opacity: 1; }
+            100% { transform: rotate(0deg) scale(1); opacity: 1; }
+        }
+        #ring-layer .ring-seat, #ring-layer .empty-seat { pointer-events: auto; }
+        .ring-seat { position: absolute; transform: translate(-50%, -50%); }
+        #board { position: absolute; left: 50%; top: 39%; transform: translate(-50%, -50%);
+            text-align: center; z-index: 2; pointer-events: none; }
+        #spectator-banner { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%);
+            background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.7); font-size: 13px;
+            padding: 6px 16px; border-radius: 16px; white-space: nowrap; z-index: 5; }
+        #user-bar, #admin-panel { flex-shrink: 0; }
+        /* 预操作：两个小按钮分列在「自己人物」左右两侧（贴近中部好点，不遮手牌）*/
+        #preaction-bar { position: absolute; left: 0; right: 0; bottom: 120px; z-index: 18;
+            display: flex; justify-content: center; align-items: center;
+            gap: clamp(150px, 52vw, 250px); pointer-events: none; }
+        .pa-btn { pointer-events: auto; padding: 8px 14px; border-radius: 11px; font-size: 13px; font-weight: bold;
+            background: rgba(13,22,36,0.92); border: 1.5px solid rgba(255,255,255,0.24); color: #cdd9ef; cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.45); }
+        .pa-btn.sel { background: #3a86ff; border-color: #3a86ff; color: #fff; box-shadow: 0 0 0 2px rgba(58,134,255,0.35); }
+        /* 行动悬浮球：悬浮在「自己座位+手牌」的正上方（德扑之星式），不遮挡手牌 */
+        #action-bar {
+            position: absolute; left: 6px; right: 6px; bottom: 150px; z-index: 20;
+            background: none; border: none; box-shadow: none;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+            pointer-events: none;   /* 容器透传：透明空隙不拦截，下方头像可点 */
+        }
+        #straddle-offer { position:absolute; left:50%; bottom:155px; transform:translateX(-50%);
+            z-index:31; display:flex; align-items:center; justify-content:center; gap:7px;
+            max-width:calc(100% - 24px); padding:4px 7px; color:rgba(255,255,255,.82);
+            font-size:12px; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,.9);
+            background:rgba(8,24,17,.18); border:0; border-radius:8px; box-shadow:none; }
+        #straddle-offer .so-prompt b { color:rgba(255,224,166,.9); font-weight:700; }
+        #straddle-offer button { padding:2px 5px; border:0; border-radius:4px; cursor:pointer;
+            font:inherit; font-weight:700; background:transparent; text-shadow:inherit; }
+        #straddle-offer .so-yes { color:rgba(255,220,158,.92); }
+        #straddle-offer .so-no { color:rgba(255,255,255,.62); }
+        #straddle-offer button:hover { background:rgba(255,255,255,.09); }
+        #straddle-offer .so-time { font-size:10px; color:rgba(255,255,255,.42); }
+        #action-bar button, #action-bar input, #action-bar .size-quick { pointer-events: auto; }
+        /* 精调面板展开时给个底板，便于看清滑条
+           注意：不要用 backdrop-filter:blur——拖动滑条会每帧重算模糊，手机上严重卡顿。
+           背景已近乎不透明(0.98)，无需模糊。 */
+        #sizing-row { background: rgba(13,22,36,0.98) !important;
+            border: 1px solid rgba(255,255,255,0.14); contain: layout paint; }
+        /* 拖动加注条时：暂停座位呼吸光/火光/环形等持续 box-shadow 重绘（手机 GPU 每帧重算=卡）*/
+        body.sizing-open .seat.acting .avatar-block,
+        body.sizing-open .seat.allin .avatar-block,
+        body.sizing-open .seat.winner .avatar-block,
+        body.sizing-open .avatar-ring,
+        body.sizing-open .seat.lowtime .avatar-block { animation: none !important; }
+        body.in-room .lobby-only { display: none !important; }
+        body:not(.in-room) .room-only { display: none !important; }
+        body.in-room #user-bar { display: none; }   /* 牌局中顶栏隐藏，控制移到底部 */
+        /* 底部控制栏 */
+        #table-controls {
+            position: absolute; left: 0; right: 0; bottom: 0; z-index: 15;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 4px 8px; pointer-events: none;
+        }
+        body:not(.in-room) #table-controls { display: none; }
+        #table-controls .tc-left, #table-controls .tc-right { display: flex; gap: 8px; pointer-events: auto; }
+        .tc-btn {
+            min-width: 38px; height: 34px; padding: 0 8px; border-radius: 9px;
+            background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.18); color: #fff;
+            font-size: 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;
+        }
+        .tc-btn:disabled { opacity: 0.4; }
+        .tc-btn.disabled { opacity: 0.5; }
+        .tc-btn #tcAddInfo { font-size: 11px; }
+        .set-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .sa-btn { flex: 1; min-width: 110px; background: #3a4a60; color: #fff; border: none;
+            border-radius: 8px; padding: 10px; font-size: 14px; font-weight: bold; cursor: pointer; }
+        .sa-btn.danger { background: #6a2a2a; color: #ff9a9a; }
+        /* 窄屏 / 矮屏进一步压缩间距，保证整屏不滚动 */
+        @media (max-width: 480px) {
+            #user-bar { padding: 5px 10px; gap: 6px; font-size: 13px; margin-bottom: 6px; }
+            #user-bar button { padding: 3px 8px; font-size: 11px; }
+            #table-topbar { padding: 5px 8px; gap: 6px; margin-bottom: 5px; }
+            #sng-info { font-size: 11px; }
+            #table-topbar .leave-btn, #table-topbar .sound-btn, #table-topbar .dissolve-btn,
+            button.start { padding: 4px 8px; font-size: 12px; }
+            #table-area { padding: 8px 6px; }
+            .seat { padding: 4px 6px; }
+            .seat .name { font-size: 11px; }
+            .seat .chips { font-size: 12px; }
+            .pot-total { font-size: 16px; } #pot { margin-bottom: 5px; }
+            #action-bar { padding: 7px; gap: 6px; margin: 0; }
+            .action-btn { padding: 8px 10px; min-width: 52px; font-size: 12px; }
+            .size-quick { padding: 4px 9px; font-size: 11px; }
+        }
+
