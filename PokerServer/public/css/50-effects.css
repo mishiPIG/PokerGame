@@ -1,0 +1,78 @@
+        /* 多次发牌协商面板 */
+        #runit-panel { position: fixed; right: 10px; bottom: 96px; left: auto; top: auto; z-index: 240;
+            background: linear-gradient(160deg,#20304d,#111b2c); color: #eaf1fb; border: 1px solid rgba(120,160,220,0.35);
+            border-radius: 14px; padding: 12px 14px; box-shadow: 0 16px 50px rgba(0,0,0,0.6); text-align: center; max-width: 262px;
+            display: none; animation: ripop 0.2s ease; }
+        @keyframes ripop { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
+        #runit-panel .ri-title { font-size: 15px; font-weight: bold; }
+        #runit-panel .ri-hint { font-size: 11px; color: #9fb4d6; font-weight: normal; display: block; margin-top: 3px; }
+        #runit-panel .ri-sub { font-size: 12px; color: #9fb4d6; margin-top: 6px; }
+        #runit-panel .ri-eq { color: #7ee6a6; font-weight: bold; }
+        #runit-panel .ri-btns { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+        #runit-panel .ri-btns button { min-width: 42px; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: bold;
+            background: rgba(120,160,220,0.18); border: 1px solid rgba(120,160,220,0.5); color: #eaf1fb; }
+        #runit-panel .ri-btns button:active { background: rgba(120,160,220,0.34); }
+        #runit-panel .ri-btns .ri-yes { background: rgba(46,204,113,0.2); border-color: rgba(46,204,113,0.6); color: #b7f5cf; }
+        #runit-panel .ri-btns .ri-no { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18); color: #cdd8ea; }
+        /* 多次发牌桌面：N 组公共牌并列分行（共享底只显一行）*/
+        #board.runit-on #community { display: none; }
+        #runit-boards { flex-direction: column; gap: 5px; align-items: center; margin-top: 4px; }
+        #runit-boards .rib-shared, #runit-boards .rib-row { display: flex; align-items: center; gap: 8px; padding: 3px 8px; border-radius: 9px; transition: background 0.2s; }
+        #runit-boards .rib-row.active { background: rgba(120,160,220,0.16); }
+        #runit-boards .rib-row.win { background: rgba(244,211,94,0.14); box-shadow: inset 3px 0 0 #f4d35e; }
+        #runit-boards .rib-label { font-size: 11px; color: #9fb4d6; min-width: 38px; text-align: right; }
+        #runit-boards .rib-shared .rib-label { color: #cdd8ea; }
+        #runit-boards .rib-row.win .rib-label { color: #f4d35e; font-weight: bold; }
+        #runit-boards .rib-slots { display: flex; gap: 5px; }
+        /* 与正式公共牌同尺寸（--card-w*1.2），不再偏小 */
+        #runit-boards .rib-slot { width: calc(var(--card-w) * 1.2); height: calc(var(--card-h) * 1.2); border-radius: 6px; }
+        #runit-boards .rib-slot.ghost { visibility: hidden; }   /* 占位对齐（共享底位置留空）*/
+        #runit-boards .rib-slots .card { width: calc(var(--card-w) * 1.2); height: calc(var(--card-h) * 1.2); min-width: calc(var(--card-w) * 1.2); }
+        /* 多次发牌结果 */
+        #runit-result { position: fixed; inset: 0; z-index: 242; background: rgba(6,10,18,0.62); display: none; align-items: center; justify-content: center; padding: 18px; }
+        #runit-result .rir-box { width: 100%; max-width: 400px; background: linear-gradient(160deg,#1b2740,#0e1626); color: #e7eefb;
+            border-radius: 16px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); max-height: 86vh; overflow-y: auto; }
+        #runit-result .rir-title { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 10px; }
+        #runit-result .rir-row { display: flex; align-items: center; gap: 8px; padding: 8px 4px; border-top: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap; }
+        #runit-result .rir-no { font-size: 12px; color: #9fb4d6; min-width: 44px; }
+        #runit-result .rir-board { display: flex; gap: 2px; --card-w: 22px; --card-h: 30px; }
+        #runit-result .rir-board .card { width: 22px; height: 30px; font-size: 9px; }
+        #runit-result .rir-win { font-size: 12px; color: #f4d35e; flex: 1; min-width: 90px; }
+        #runit-result .rir-amt { color: #7ee6a6; font-weight: bold; }
+        #runit-result .rir-cat { color: #9fb4d6; }
+        #runit-result .rir-total { text-align: center; font-size: 13px; margin-top: 10px; color: #cdd8ea; }
+        #runit-result .rir-close { display: block; width: 100%; margin-top: 12px; padding: 10px; border-radius: 10px; cursor: pointer;
+            background: rgba(120,160,220,0.2); border: 1px solid rgba(120,160,220,0.5); color: #eaf1fb; font-weight: bold; }
+        /* 高牌定庄：座位上方翻出的牌 */
+        .bd-card { --card-w: 32px; --card-h: 44px; position: fixed; z-index: 300; pointer-events: none;
+            transform: translate(-50%, -100%); transform-origin: bottom center;
+            animation: bdFlip 0.44s cubic-bezier(0.22,1,0.36,1) backwards; }
+        .bd-card .card { box-shadow: 0 3px 10px rgba(0,0,0,0.6); }
+        .bd-card.win { animation: bdFlip 0.44s cubic-bezier(0.22,1,0.36,1) backwards, bdWinGlow 0.8s ease-in-out 0.5s infinite; }
+        .bd-card.win .card { box-shadow: 0 0 0 3px #f4d35e, 0 0 18px 4px rgba(244,211,94,0.9); }
+        @keyframes bdFlip { from { transform: translate(-50%,-100%) rotateY(90deg) scale(0.8); opacity: 0; }
+            to { transform: translate(-50%,-100%) rotateY(0) scale(1); opacity: 1; } }
+        @keyframes bdWinGlow { 50% { transform: translate(-50%,-108%) scale(1.12); } }
+        .fly-emote { position: fixed; z-index: 9990; font-size: 32px; pointer-events: none; will-change: transform, opacity;
+            margin-left: -16px; margin-top: -16px; --dx: 0px; --dy: 0px;
+            animation: flyEmoteAnim 0.64s cubic-bezier(0.34,1.2,0.5,1) forwards; }
+        @keyframes flyEmoteAnim {
+            0%   { transform: translate(0,0) scale(0.55); opacity: 0.35; }
+            25%  { opacity: 1; }
+            100% { transform: translate(var(--dx), var(--dy)) scale(1.5); opacity: 1; }
+        }
+        .hist-item { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+            cursor: pointer; border-left: 3px solid #555; }
+        .hist-item.win { border-left-color: #4ade80; }
+        .hist-item.lose { border-left-color: #5a6a82; }
+        .hi-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; align-items: center; }
+        .hi-time { color: #8fa2c4; font-size: 11px; }
+        .hi-hole { font-weight: bold; letter-spacing: 1px; }
+        .hi-net { color: #4ade80; font-size: 12px; }
+        .hi-body { display: none; margin-top: 8px; font-size: 12px; color: #b7c4dd; line-height: 1.7; }
+        .hist-item.open .hi-body { display: block; }
+        .hi-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+        .ha { background: rgba(255,255,255,0.07); border-radius: 8px; padding: 2px 7px; font-size: 11px; }
+        .match-info { font-size: 14px; color: #2a3a52; }
+        .mi-row { display: flex; justify-content: space-between; padding: 9px 2px; border-bottom: 1px solid #dde4ef; }
+        .mi-note { margin-top: 10px; color: #8a97ab; font-size: 12px; text-align: center; }

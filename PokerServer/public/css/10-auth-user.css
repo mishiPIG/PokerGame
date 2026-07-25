@@ -1,0 +1,63 @@
+        /* ===== Auth overlay ===== */
+        #auth-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+            display: flex; align-items: center; justify-content: center; z-index: 200;
+        }
+        #auth-box {
+            background: #1a2a3a; border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px; padding: 32px; width: 340px;
+        }
+        #auth-box h1 { text-align: center; color: #f4d35e; margin-bottom: 4px; font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .auth-logo { width: 44px; height: 44px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.4); vertical-align: middle; }
+        .auth-sub { text-align: center; color: #8fa2c4; font-size: 12px; margin-bottom: 20px; letter-spacing: 0.5px; }
+        .auth-tabs { display: flex; margin-bottom: 20px; border-radius: 8px; overflow: hidden; }
+        .auth-tab {
+            flex: 1; padding: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: bold;
+            background: rgba(255,255,255,0.06); color: #aaa; transition: all 0.15s;
+        }
+        .auth-tab.active { background: #3a86ff; color: #fff; }
+        .auth-field { width: 100%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            color: #fff; border-radius: 6px; padding: 10px 12px; font-size: 14px; margin-bottom: 10px; }
+        .auth-field::placeholder { color: #888; }
+        .auth-submit { width: 100%; padding: 11px; background: #3a86ff; color: white; border: none;
+            border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; transition: filter 0.15s; }
+        .auth-submit:hover { filter: brightness(1.15); }
+        .auth-hint { text-align: center; font-size: 12px; color: #888; margin-top: 10px; }
+        .auth-link { color: #6ca0ff; cursor: pointer; }
+        .auth-link:hover { text-decoration: underline; }
+        #auth-error { color: #ff6b6b; font-size: 13px; min-height: 18px; margin-top: 8px; text-align: center; }
+
+        /* ===== User bar ===== */
+        #user-bar {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px; padding: 8px 14px; margin-bottom: 10px;
+        }
+        #user-bar .uname { font-weight: bold; color: #f4d35e; }
+        #user-bar .gold  { color: #ffd700; }
+        #user-bar .bar-spacer { flex: 1; }
+        #latency {
+            position: fixed; top: 10px; right: 12px; z-index: 60;
+            font-size: 10px; color: #06d6a0; font-weight: bold; white-space: nowrap;
+            background: rgba(0,0,0,0.45); padding: 2px 7px; border-radius: 10px;
+        }
+        #user-bar button { background: transparent; border: 1px solid rgba(255,255,255,0.2);
+            color: #aaa; border-radius: 5px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+        .icon-btn {
+            width: 36px; height: 32px; padding: 0; font-size: 16px; line-height: 1;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.1) !important; border: 1px solid rgba(255,255,255,0.2) !important;
+            border-radius: 7px !important; color: #fff !important; cursor: pointer;
+        }
+        .icon-btn:hover { background: rgba(255,255,255,0.2) !important; }
+        .icon-btn.danger { background: rgba(214,40,40,0.25) !important; border-color: rgba(214,40,40,0.5) !important; }
+
+        /* ===== 准备按钮（牌桌顶栏）===== */
+        button.start {
+            background: #06d6a0; color: #0a1f1a; border: none; border-radius: 5px;
+            padding: 8px 16px; font-weight: bold; font-size: 14px; cursor: pointer; transition: filter 0.15s;
+        }
+        button.start.readied { background: #ff9f1c; color: #1a1a1a; }
+        button.start:hover:not(:disabled) { filter: brightness(1.15); }
+        button.start:disabled { opacity: 0.4; cursor: not-allowed; }
+

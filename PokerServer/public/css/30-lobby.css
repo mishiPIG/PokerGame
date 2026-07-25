@@ -1,0 +1,144 @@
+        /* ===== Admin panel ===== */
+        #admin-panel {
+            background: rgba(255,200,0,0.06); border: 1px solid rgba(255,200,0,0.25);
+            border-radius: 10px; padding: 14px; margin-bottom: 12px;
+        }
+        #admin-panel h3 { color: #f4d35e; font-size: 14px; margin-bottom: 10px; }
+        #admin-panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        #admin-panel th { color: #888; font-weight: normal; text-align: left; padding: 4px 6px; }
+        #admin-panel td { padding: 4px 6px; border-top: 1px solid rgba(255,255,255,0.05); }
+        #admin-panel input[type=number] {
+            width: 100px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+            color: #fff; border-radius: 4px; padding: 3px 6px; font-size: 13px;
+        }
+        #admin-panel button {
+            background: #f4d35e; color: #1a1a1a; border: none; border-radius: 4px;
+            padding: 3px 10px; font-size: 13px; font-weight: bold; cursor: pointer;
+        }
+        #admin-panel button:hover { filter: brightness(1.1); }
+        #admin-msg { font-size: 12px; color: #06d6a0; margin-top: 6px; min-height: 16px; }
+
+        /* ===== 大厅 ===== */
+        #lobby-view { max-width: 720px; margin: 0 auto; }
+        .lobby-top { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .lobby-entry {
+            flex: 1; min-width: 200px; background: rgba(58,134,255,0.12);
+            border: 1px solid rgba(58,134,255,0.3); border-radius: 12px; padding: 16px;
+        }
+        .lobby-entry.create { cursor: pointer; background: rgba(244,211,94,0.12); border-color: rgba(244,211,94,0.35); }
+        .lobby-entry.create:hover { background: rgba(244,211,94,0.2); }
+        .le-title { font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+        .le-sub { font-size: 12px; color: #9bb; }
+        .le-join-row { display: flex; gap: 8px; margin-top: 8px; }
+        .le-join-row input { flex: 1; min-width: 0; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
+            color: #fff; border-radius: 6px; padding: 8px; font-size: 14px; }
+        .le-join-row button { flex-shrink: 0; }
+        .le-join-row button, .rc-join, #create-form button {
+            background: #3a86ff; color: #fff; border: none; border-radius: 6px;
+            padding: 8px 16px; font-weight: bold; font-size: 14px; cursor: pointer;
+        }
+        #create-form {
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; padding: 16px; margin-bottom: 16px;
+        }
+        #create-form h3 { color: #f4d35e; font-size: 15px; margin-bottom: 12px; }
+        #create-form label { display: block; font-size: 13px; color: #cde; margin-bottom: 12px; }
+        #create-form label b { color: #f4d35e; }
+        /* 报名费用 div 包裹（避免 label 在手机端拦截按钮点击）*/
+        .cfg-field { margin-bottom: 12px; }
+        .cfg-field .cfg-label { display: block; font-size: 13px; color: #cde; margin-bottom: 6px; }
+        #create-form input[type=text], #create-form input[type=number] {
+            display: block; width: 100%; margin-top: 4px; background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 8px; font-size: 14px;
+        }
+        #create-form input[type=range] { display: block; width: 100%; margin-top: 6px; accent-color: #3a86ff; }
+        .create-actions { display: flex; gap: 10px; }
+        .ct-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+        .ct-tab { flex: 1; padding: 9px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.05);
+            color: #9bb; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; }
+        .ct-tab.active { background: #f4d35e; color: #1a1a1a; border-color: #f4d35e; }
+        .rc-tag.cash { background: rgba(6,214,160,0.18); color: #06d6a0; }
+        #create-form button.confirm { background: #06d6a0; color: #0a1f1a; }
+        #create-form button.cancel  { background: rgba(255,255,255,0.12); }
+        .room-list-title { font-size: 14px; color: #9bb; margin: 8px 0; }
+        .room-card {
+            display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+        }
+        .rc-main { flex: 1; }
+        .rc-name { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+        .rc-meta { font-size: 12px; color: #9bb; }
+        .rc-owner { color: #cde; margin-right: 6px; }
+        .rc-tag { background: rgba(244,211,94,0.18); color: #f4d35e; padding: 1px 7px; border-radius: 8px; margin-right: 6px; }
+        .rc-join { min-width: 72px; }
+        .rc-join:disabled { opacity: 0.4; cursor: not-allowed; }
+        .rc-join.rejoin { background: #06d6a0; color: #0a1f1a; }
+        .room-empty { color: rgba(255,255,255,0.3); text-align: center; padding: 30px; font-size: 14px; }
+
+        /* ===== 牌桌顶栏 ===== */
+        #table-topbar {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+            padding: 8px 12px; background: rgba(0,0,0,0.25); border-radius: 8px;
+        }
+        #table-topbar .leave-btn {
+            background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+        }
+        #table-topbar .leave-btn:hover { background: rgba(214,40,40,0.4); }
+        #sng-info { flex: 1; font-size: 13px; color: #cde; }
+        #sng-info #next-level { color: #f4d35e; }
+        #sng-info .room-no { color: #f4d35e; font-weight: bold; letter-spacing: 1px; }
+        #table-topbar .sound-btn {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; padding: 6px 10px; font-size: 14px; cursor: pointer;
+        }
+        #table-topbar .dissolve-btn {
+            background: rgba(214,40,40,0.25); color: #ff8a8a; border: 1px solid rgba(214,40,40,0.5);
+            border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+        }
+        #table-topbar .dissolve-btn:hover { background: rgba(214,40,40,0.45); }
+        .cfg-note { font-size: 12px; color: #9bb; margin-bottom: 12px;
+            background: rgba(58,134,255,0.1); padding: 8px 10px; border-radius: 6px; }
+        .tier-row { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+        .tier-btn { flex: 1; min-width: 64px; display: flex; flex-direction: column; align-items: center;
+            padding: 8px 6px; border: 1.5px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05);
+            color: #e7eefb; border-radius: 10px; font-weight: bold; font-size: 14px; cursor: pointer; }
+        /* 比赛设置是浅色弹窗：加时按钮与标签需深色，否则看不清 */
+        #match-modal .cfg-label { color: #3a4d70; }
+        .ext-btn { flex: 1; min-width: 58px; padding: 10px 6px; border-radius: 10px; cursor: pointer;
+            border: 1.5px solid #7ea3d8; background: #dbe8fb; color: #1d3a6b; font-weight: bold; font-size: 15px; }
+        .ext-btn:hover { background: #c6dbf7; }
+        .ext-btn:active { transform: scale(0.96); }
+        .tier-btn small { font-size: 10px; font-weight: normal; opacity: 0.7; margin-top: 2px; }
+        .tier-btn.sel { border-color: #f4d35e; background: linear-gradient(180deg,#f4d35e,#e0a200);
+            color: #3a2600; box-shadow: 0 0 0 3px rgba(244,211,94,0.3), 0 3px 8px rgba(0,0,0,0.4); transform: translateY(-1px); }
+        .tier-btn.sel small { opacity: 0.85; }
+
+        /* ===== 比赛结算 ===== */
+        #result-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 150;
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+        }
+        .result-box {
+            background: linear-gradient(160deg, #1e3550, #142336); border: 1px solid rgba(244,211,94,0.4);
+            border-radius: 18px; padding: 28px 32px; text-align: center; max-width: 320px; width: 100%;
+            box-shadow: 0 16px 50px rgba(0,0,0,0.6);
+        }
+        .result-trophy { font-size: 56px; animation: trophyPop 0.5s cubic-bezier(0.22,1,0.36,1) backwards; }
+        @keyframes trophyPop { from { transform: scale(0.3); opacity: 0; } to { transform: none; opacity: 1; } }
+        .result-title { font-size: 22px; font-weight: bold; color: #f4d35e; margin: 10px 0 6px; }
+        .result-sub { font-size: 15px; color: #cde; margin-bottom: 14px; }
+        .result-sub b { color: #f4d35e; font-size: 18px; }
+        #result-ranking { width: 100%; max-width: 320px; margin: 0 auto 18px; max-height: 40vh; overflow-y: auto; }
+        .rk-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px;
+            background: rgba(255,255,255,0.05); margin-bottom: 5px; font-size: 14px; }
+        .rk-row.me { background: rgba(244,211,94,0.15); border: 1px solid rgba(244,211,94,0.4); }
+        .rk-no { width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; background: rgba(255,255,255,0.12);
+            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+        .rk-row:nth-child(1) .rk-no { background: #f4d35e; color: #2a1c00; }
+        .rk-name { flex: 1; text-align: left; color: #e7eefb; }
+        .rk-net { font-weight: bold; }
+        .result-btn { background: #f4d35e; color: #1a1a1a; border: none; border-radius: 8px;
+            padding: 11px 28px; font-size: 15px; font-weight: bold; cursor: pointer; }
+        .result-btn:hover { filter: brightness(1.1); }
+

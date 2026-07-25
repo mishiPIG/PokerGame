@@ -1,0 +1,41 @@
+        /* ===== 通用弹窗 ===== */
+        .modal-mask { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.55);
+            display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .modal-box { background: #eef3fb; border-radius: 18px; padding: 22px; width: 100%; max-width: 360px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .modal-box h3 { margin: 0 0 14px; text-align: center; color: #1d2b45; }
+        .modal-actions { display: flex; gap: 12px; margin-top: 18px; }
+        .modal-actions button { flex: 1; padding: 12px; border: none; border-radius: 12px; font-size: 15px; font-weight: bold; cursor: pointer; }
+        .modal-actions .cancel { background: #fff; color: #5a6a82; border: 1px solid #cdd6e3; }
+        .modal-actions .confirm { background: #3a86ff; color: #fff; }
+        .modal-actions .confirm.danger { background: #ef476f; }
+        .invite-note { margin: -4px 0 14px; text-align: center; color: #60718b; font-size: 12px; line-height: 1.5; }
+        .invite-field { margin: 12px 0; }
+        .invite-label { display: block; color: #52627a; font-size: 12px; margin-bottom: 5px; font-weight: bold; }
+        .invite-copy-row { display: flex; gap: 8px; }
+        .invite-value { flex: 1; min-width: 0; border: 1px solid #cdd6e3; border-radius: 10px;
+            background: #fff; color: #24344e; padding: 10px 11px; font-size: 13px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap; }
+        .invite-value.code { text-align: center; letter-spacing: 7px; font-size: 25px; font-weight: 800; color: #245ec7; }
+        .invite-copy-row button { flex: 0 0 auto; border: none; border-radius: 10px; padding: 0 13px;
+            background: #3a86ff; color: #fff; font-weight: bold; cursor: pointer; }
+        .invite-manage { display: flex; gap: 8px; margin-top: 14px; }
+        .invite-manage button { flex: 1; border: 1px solid #c7d1df; border-radius: 10px; padding: 10px 7px;
+            background: #fff; color: #33445e; font-weight: bold; cursor: pointer; }
+        .invite-manage button.locked { background: #e9f8f2; color: #087b58; border-color: #8cd8bd; }
+        .invite-manage button.reset { color: #c34858; border-color: #e6a9b1; }
+        .bm-amt { text-align: center; font-size: 30px; font-weight: 800; color: #ef6c2d; margin: 6px 0 2px; }
+        .bm-amt small { font-size: 13px; color: #7a8aa2; font-weight: normal; }
+        #buyin-modal input[type=range] { width: 100%; margin: 14px 0 10px; }
+        .bm-tier-row { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 10px; justify-content: center; }
+        .bm-tier { flex: 0 0 auto; min-width: 58px; display: flex; flex-direction: column; align-items: center;
+            padding: 7px 8px; border: 1.5px solid #cdd6e3; background: #fff; color: #2a3a52;
+            border-radius: 10px; font-weight: bold; font-size: 14px; cursor: pointer; }
+        .bm-tier small { font-size: 10px; font-weight: normal; color: #7a8aa2; margin-top: 1px; }
+        .bm-tier.sel { border-color: #3a86ff; background: linear-gradient(180deg,#5a9bff,#3a86ff); color: #fff; }
+        .bm-tier.sel small { color: rgba(255,255,255,0.85); }
+        .bm-info { display: flex; justify-content: space-between; font-size: 14px; color: #44546e; }
+        .bm-info b { color: #ef6c2d; }
+        .bm-auto { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: #44546e; }
+        .bm-auto input { width: 16px; height: 16px; }
+
