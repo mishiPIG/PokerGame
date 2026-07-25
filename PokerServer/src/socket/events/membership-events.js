@@ -13,7 +13,7 @@ function registerMembershipEvents(context) {
         prepareNextStraddleDecision, emitStraddleOffer, scheduleNextHand, listRooms,
         endCashTable, sngPrize, buildRanking, sendMatchResult, extendTable, chargeRebuy,
         gameBB, BUYIN_RATE, CASHOUT_RATE, clampInt, joinAsSpectator, startHand, listSpectators,
-        scheduleEmptyCleanup } = bind(context);
+        scheduleEmptyCleanup, startRoundIfNeeded } = bind(context);
     // 坐下入座（现金桌坐下式）：观众点空座位 → 带入筹码正式入座
     socket.on('sit_down', ({ buyInChips, seat }) => {
         const roomId = socket.currentRoom;
@@ -21,8 +21,16 @@ function registerMembershipEvents(context) {
         if (!game) return;
         if (game.roomType !== 'cash') { socket.emit('server_msg', '⚠️ 该房间无需坐下'); return; }
         if (game.players.find(p => p.userId === user.id)) { socket.emit('server_msg', '⚠️ 你已入座'); return; }
+        // 鱿鱼游戏：活跃轮中非轮次成员不能坐下（§6.2）
+        if (game.squid && game.squid.round && game.squid.round.status === 'active') {
+            if (!game.squid.round.participants.some(p => p.userId === user.id)) {
+                socket.emit('server_msg', `🦑 鱿鱼轮进行中（剩余 ${game.squid.round.remainingTokens} 枚令牌），本轮结束后可坐下`);
+                return;
+            }
+        }
         // 站起围观者点座位坐下：带原筹码回座（不重复扣买入 + 清 vacated 记录），杜绝「两个自己」
         if (restoreVacatedPlayer(roomId, socket, user, seat)) return;
+
         // 防陌生人捣乱：从大厅列表点进来的是观战，必须先验证邀请链接或四位房间码。
         if (socket.playRoom !== roomId) { socket.emit('server_msg', '👀 你在观战——请使用邀请链接或四位房间码加入后再入座'); return; }
         if (game.players.length >= game.config.maxPlayers) { socket.emit('server_msg', '⚠️ 座位已满'); return; }
@@ -44,6 +52,12 @@ function registerMembershipEvents(context) {
         const idx = game.players.findIndex(p => p.userId === user.id);
         if (idx < 0) return;
         standUpPlayer(roomId, idx, false);
+        // §6.3: Update squid presence (standing, keep tokens + escrow)
+        if (game.squid && game.squid.round) {
+            const p = game.squid.round.participants.find(pp => pp.userId === user.id);
+            if (p) p.presence = 'standing';
+        }
+        if (game.squid?.lifecycle === 'pending_funding' && startRoundIfNeeded) startRoundIfNeeded(game);
     });
 
     // 房主强制某玩家站起到观战席（腾出座位，让退出游戏的玩家让位）。筹码保留、结束时结算。
@@ -56,6 +70,11 @@ function registerMembershipEvents(context) {
         const idx = game.players.findIndex(p => p.userId === targetUserId);
         if (idx < 0) { socket.emit('server_msg', '⚠️ 该玩家不在座'); return; }
         standUpPlayer(roomId, idx, true);
+        // §6.3: Update squid presence for forced player
+        if (game.squid && game.squid.round) {
+            const p = game.squid.round.participants.find(pp => pp.userId === targetUserId);
+            if (p) p.presence = 'standing';
+        }
     });
 
     // 房主暂停/继续发牌：暂停后本手结束不开新局；继续后立即续局
@@ -166,6 +185,11 @@ function registerMembershipEvents(context) {
             else if (isBettingRoundComplete(game)) advanceStage(roomId);
             else broadcastState(roomId);
         } else broadcastState(roomId);
+        // §6.3: Update squid presence for reserve_leave
+        if (game.squid && game.squid.round) {
+            const sp = game.squid.round.participants.find(pp => pp.userId === user.id);
+            if (sp) sp.presence = 'reserved';
+        }
         broadcastRoomList();
     });
 
@@ -174,6 +198,11 @@ function registerMembershipEvents(context) {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game) return;
+        if (game.squid?.round?.status === 'active'
+            && !game.squid.round.participants.some(p => p.userId === user.id)) {
+            socket.emit('server_msg', `🦑 鱿鱼轮进行中（剩余 ${game.squid.round.remainingTokens} 枚令牌），本轮结束后可回座`);
+            return;
+        }
         // 站起围观回座：从 vacatedPlayers 带原筹码回一个空座（与 sit_down 共用同一逻辑，避免重复条目）
         if (restoreVacatedPlayer(roomId, socket, user, -1)) return;
         const p = game.players.find(pl => pl.userId === user.id);
@@ -203,6 +232,11 @@ function registerMembershipEvents(context) {
                     // 接上原座位、带入与盈亏（战绩不清零）。
                     if (p.reserveTimer) { clearTimeout(p.reserveTimer); p.reserveTimer = null; }
                     p.standing = true; p.away = true; p.reserved = false; p.sittingOut = true;
+                    // §6.3: Update squid presence (offline, keep tokens + escrow)
+                    if (game.squid && game.squid.round) {
+                        const sp = game.squid.round.participants.find(pp => pp.userId === user.id);
+                        if (sp) sp.presence = 'offline';
+                    }
                     socket.leave(roomId);
                     socket.emit('left_room');
                     io.to(roomId).emit('server_msg', `🚪 ${user.username} 离开牌桌（座位与筹码保留，结束时结算）`);

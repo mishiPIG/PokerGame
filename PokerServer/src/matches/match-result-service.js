@@ -13,8 +13,15 @@ function recordLeft(game, p) {
 // 构建结束排名：现金=按盈亏(筹码)；SNG=冠军→淘汰倒序(盈亏金币)
 function buildRanking(game, winnerId, prize) {
     if (game.roomType === 'cash') {
-        const cur = game.players.map(p => ({ userId: p.userId, username: p.username, net: (p.chips || 0) - (p.buyIn || 0) }));
-        const vac = (game.vacatedPlayers || []).map(v => ({ userId: v.userId, username: v.username, net: (v.chips || 0) - (v.buyIn || 0) }));
+        // §7.9: Include squid escrow in table assets for ranking
+        const squidEscrow = (userId) => {
+            const round = game.squid && game.squid.round;
+            if (!round) return 0;
+            const p = round.participants.find(pp => pp.userId === userId);
+            return p ? (p.escrow || 0) : 0;
+        };
+        const cur = game.players.map(p => ({ userId: p.userId, username: p.username, net: (p.chips || 0) + squidEscrow(p.userId) - (p.buyIn || 0) }));
+        const vac = (game.vacatedPlayers || []).map(v => ({ userId: v.userId, username: v.username, net: (v.chips || 0) + squidEscrow(v.userId) - (v.buyIn || 0) }));
         const covered = new Set([...cur, ...vac].map(r => r.userId));
         const hist = (game.statsHistory || []).filter(h => !covered.has(h.userId))
             .map(h => ({ userId: h.userId, username: h.username, net: h.net }));

@@ -33,6 +33,7 @@ function extendTable(roomId, addMs) {
     if (!game || game.roomType !== 'cash') return;
     game.extraMs = (game.extraMs || 0) + addMs;
     game.pendingEnd = false;   // 加时了 → 取消「本手后结束」的挂起
+    game.pendingEndAfterSquid = false; // 若已转为等鱿鱼轮结束，加时同样取消收桌
     if (game.tableEndAt) {
         game.tableEndAt = Math.max(game.tableEndAt, Date.now()) + addMs;   // 若已过点，从现在起加
         clearTimeout(game.tableTimer);
@@ -49,9 +50,20 @@ function extendTable(roomId, addMs) {
 function endCashTable(roomId, reason) {
     const game = roomGames[roomId];
     if (!game || game.tournamentOver) return;
+
+    // §6.11: If there's an active squid round, defer table end until round completes
+    if (game.squid && game.squid.round && game.squid.round.status === 'active') {
+        game.pendingEndAfterSquid = true;
+        io.in(roomId).emit('server_msg', '🦑 比赛将在本轮鱿鱼游戏完成后结束');
+        broadcastState(roomId);
+        return;
+    }
+
     game.tournamentOver = true; game.status = 'finished';
     clearTimeout(game.tableTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearTimeout(game.runItTimer); game.runItPending = false; clearActionTimer(game);
     clearStraddleDecision(game);
+    // Clear any squid claim timer
+    if (game.squid && game.squid.claimTimer) { clearTimeout(game.squid.claimTimer); game.squid.claimTimer = null; }
     for (const p of game.players) if (p.reserveTimer) clearTimeout(p.reserveTimer);
     const ranking = buildRanking(game);
     game.players.forEach(p => cashOut(p));   // 结算筹码→金币
@@ -85,7 +97,16 @@ function scheduleNextHand(roomId) {
         const g = roomGames[roomId];
         if (!g || g.tournamentOver || g.phase !== PHASES.SHOWDOWN) return;
         removeBustedPlayers(g);   // 结算后：SNG 淘汰 / 现金桌兑出离场者移除、坐出者保留、挂起补码生效
-        if (g.pendingEnd) { endCashTable(roomId, '训练时长已到'); return; }   // 到点：本手已结束→结算收桌
+        if (g.pendingEnd) {
+            if (g.squid?.round?.status === 'active') {
+                g.pendingEnd = false;
+                g.pendingEndAfterSquid = true;
+                io.in(roomId).emit('server_msg', '🦑 训练时长已到，将继续发牌至本轮鱿鱼游戏结算');
+            } else {
+                endCashTable(roomId, '训练时长已到');
+                return;
+            }
+        }
         if (g.paused) { io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（本手结束）'); broadcastState(roomId); return; }
         if (liveCount(g) >= 2) startHand(roomId);
         else broadcastState(roomId);   // 人不够：停摆，等补码/坐下（坐出状态已标记）

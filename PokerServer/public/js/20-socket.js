@@ -72,10 +72,12 @@ function connectSocket(token) {
     });
 
     socket.on('left_room', () => {
+        hideSquidClaim(); currentSquid = null;
         showLobby();
     });
 
     socket.on('room_dissolved', () => {
+        hideSquidClaim(); currentSquid = null;
         showLobby();
     });
 
@@ -177,6 +179,70 @@ function connectSocket(token) {
     // 全押跑马实时胜率
     socket.on('equity', (m) => { equityMap = m || {}; if (lastState) renderSeats(lastState); });
 
+    // ===== Squid game events (§7.7) =====
+    socket.on('squid_round_started', (data) => {
+        toast('🦑 鱿鱼游戏本轮开始：' + data.totalTokens + ' 枚令牌，每枚罚金 ' + data.penaltyBB + 'BB', 4000);
+        if (lastState && lastState.squid) {
+            lastState.squid.round = {
+                totalTokens: data.totalTokens,
+                awardedTokens: 0,
+                remainingTokens: data.totalTokens,
+                penaltyBB: data.penaltyBB,
+                unitChips: data.unitChips,
+                guaranteePerPlayer: data.guaranteePerPlayer
+            };
+        }
+    });
+
+    socket.on('squid_funding_required', (data) => {
+        const list = (data.shortfalls || []).map(function(s) { return s.username + ' 差 ' + s.short + ' 筹码'; }).join('；');
+        toast('🦑 鱿鱼游戏保证金不足：' + list, 6000);
+    });
+
+    socket.on('squid_token_awarded', (data) => {
+        var displayName = data.username || nameOf(data.userId) || data.userId;
+        var msg = '🦑 ' + displayName + ' 秀牌领取了 1 枚鱿鱼令牌！（' + data.round.awardedTokens + '/' + data.round.totalTokens + '）';
+        toast(msg, 3000);
+        // Update local state
+        if (lastState && lastState.squid && lastState.squid.round) {
+            lastState.squid.round.awardedTokens = data.round.awardedTokens;
+            lastState.squid.round.remainingTokens = data.round.remainingTokens;
+        }
+        if (data.cards) {
+            shownCards[data.userId] = data.cards.map(function(card, index) {
+                return { index: index, suit: card.suit, rank: card.rank };
+            });
+            showJustHappened = true;
+            if (lastState) render(lastState);
+        }
+        hideSquidClaim();
+        // Animate token flying to winner
+        if (typeof animateSquidToken === 'function') animateSquidToken(data.userId);
+    });
+
+    socket.on('squid_claim_expired', (data) => {
+        hideSquidClaim();
+        toast('🦑 领取窗口已过期', 2000);
+    });
+
+    socket.on('squid_round_settled', (data) => {
+        var parts = data.participants.map(function(p) {
+            // 保证金退回只是解锁，不是盈利；只展示罚金的净流入/流出。
+            var net = p.net != null ? p.net : (p.income || 0) - (p.loss || 0);
+            return p.username + ' ' + (net >= 0 ? '+' : '') + net;
+        }).join('，');
+        toast('🦑 本轮鱿鱼游戏结算完成：' + parts, 5000);
+        // Clear local squid state after settlement
+        currentSquid = null;
+        if (lastState) lastState.squid = null;
+    });
+
+    socket.on('squid_round_cancelled', (data) => {
+        toast('🦑 本轮鱿鱼游戏已取消：' + (data.reason || '保证金已退还'), 4000);
+        currentSquid = null;
+        if (lastState) lastState.squid = null;
+    });
+
     socket.on('show_cards', ({ userId, cards }) => {
         shownCards[userId] = cards;
         showJustHappened = true;
@@ -267,10 +333,19 @@ function connectSocket(token) {
         if (state.runIt && (!document.getElementById('runit-panel') || document.getElementById('runit-panel').style.display === 'none')) {
             showRunitOffer(state.runIt);
         }
+        // Squid claim window (§4.5): show 10s claim UI for eligible winner
+        if (state.squid && state.squid.claim && state.squid.claim.userId === myUserId) {
+            showSquidClaim(state.squid.claim, state.squid.round);
+        } else {
+            hideSquidClaim();
+        }
+        // Update squid round state
+        currentSquid = state.squid || null;
         const prevBets = {};
         if (lastState) lastState.players.forEach(p => prevBets[p.userId] = p.currentBet);
         lastState = state;
         render(state);
+        positionSquidClaimPanel();
         // 公共牌隐藏与否只跟随「是否正在多次发牌」(runitState)——即便某次清理被漏掉，下一个 state 也会自愈，
         // 杜绝「上一手多次发牌的 runit-on 残留把这一手公共牌一直藏住」的 bug。
         document.getElementById('board').classList.toggle('runit-on', !!runitState);
@@ -291,4 +366,3 @@ function connectSocket(token) {
         }
     });
 }
-

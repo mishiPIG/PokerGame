@@ -1,6 +1,6 @@
 'use strict';
 
-function createShowdownService({ io, roomGames, HandEvaluator, activePlayers, buildSidePots, returnUncalledBets, hooks }) {
+function createShowdownService({ io, roomGames, HandEvaluator, activePlayers, buildSidePots, returnUncalledBets, hooks, squid }) {
     const { saveHandHistory, applyPendingLevelUp, broadcastState, maybeEndSNG, scheduleNextHand } = hooks;
 function doShowdown(roomId) {
     const game = roomGames[roomId];
@@ -24,21 +24,31 @@ function doShowdown(roomId) {
     const pots = buildSidePots(game);
     const winShare = {};   // userId -> 赢得总额
     const potResults = []; // 逐池结果（主池在前，边池在后），供客户端依次飞币动画
+    const handOutcomeParts = []; // §7.3: standardized parts for squid
+
     pots.forEach((pot, idx) => {
         if (!pot.eligible.length) return;
         const best = Math.min(...pot.eligible.map(p => scoreOf[p.userId]));
         const winners = pot.eligible.filter(p => scoreOf[p.userId] === best);
         const split = Math.floor(pot.amount / winners.length);
         const rem = pot.amount - split * winners.length;
+        const winnerEntries = [];
         winners.forEach((w, i) => {
             const amt = split + (i === 0 ? rem : 0);
             w.chips += amt;
             winShare[w.userId] = (winShare[w.userId] || 0) + amt;
+            winnerEntries.push({ userId: w.userId, amount: amt });
         });
         potResults.push({
             amount: pot.amount, main: idx === 0,
             label: idx === 0 ? '主池' : `边池${idx}`,
             winners: winners.map(w => ({ userId: w.userId, amount: split + 0 }))
+        });
+        handOutcomeParts.push({
+            type: idx === 0 ? 'main' : 'side',
+            index: idx,
+            amount: pot.amount,
+            winners: winnerEntries
         });
     });
 
@@ -67,7 +77,16 @@ function doShowdown(roomId) {
     }).join('，');
     io.in(roomId).emit('server_msg', `🏆 ${label}（边池数 ${pots.length}）`);
 
-    saveHandHistory(game, winShare);   // 牌谱落库
+    // Build hand outcome for squid extension (§7.3)
+    const handOutcome = {
+        roomId: game.roomId || '',
+        handSeq: game.handSeq || 0,
+        totalPotAwarded: Object.values(winShare).reduce((s, v) => s + v, 0),
+        awards: { ...winShare },
+        parts: handOutcomeParts,
+        endedByFold: false
+    };
+
     game.pot = 0;
     game.players.forEach(p => p.committed = 0);
     game.actionOnIdx = -1;
@@ -75,7 +94,14 @@ function doShowdown(roomId) {
     broadcastState(roomId);
     io.in(roomId).emit('sfx', 'win');
     maybeEndSNG(roomId);
-    if (!game.tournamentOver) scheduleNextHand(roomId);
+    if (!game.tournamentOver) {
+        // Squid claim window may defer scheduleNextHand (§4.5)
+        const deferred = squid && squid.onHandSettled(game, handOutcome, winShare);
+        if (!deferred) {
+            saveHandHistory(game, winShare);
+            scheduleNextHand(roomId);
+        }
+    } else saveHandHistory(game, winShare);
 }
 
 

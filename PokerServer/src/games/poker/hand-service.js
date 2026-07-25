@@ -1,6 +1,6 @@
 'use strict';
 
-function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config, rules, pots, presenter, straddle, runIt, showdown, history, hooks }) {
+function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config, rules, pots, presenter, straddle, runIt, showdown, history, squid, hooks }) {
     const { PHASES, ACTION_TIME, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, STANDARD_BLIND_LEVELS, gameSB, gameBB, gameAnte, timeCardsFor } = config;
     const { activePlayers, canAct, needsToAct, findNextActionIdx, isBettingRoundComplete } = rules;
     const { collectBetsToPot, returnUncalledBets } = pots;
@@ -10,6 +10,33 @@ function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config,
     const { doShowdown } = showdown;
     const { recordAction, saveHandHistory } = history;
     const { applyPendingLevelUp, maybeEndSNG, scheduleNextHand, startLevelTimer, startTableTimer, broadcastRoomList } = hooks;
+
+// ===== Hand outcome builder (for squid extension) =====
+
+function buildHandOutcome(game, winShare, parts, endedByFold = false) {
+    const totalPotAwarded = Object.values(winShare || {}).reduce((s, v) => s + v, 0);
+    const awards = {};
+    for (const [userId, amount] of Object.entries(winShare || {})) {
+        if (amount > 0) awards[userId] = amount;
+    }
+    return {
+        roomId: game.roomId || '',
+        handSeq: game.handSeq || 0,
+        totalPotAwarded,
+        awards,
+        parts: parts || [],
+        endedByFold
+    };
+}
+
+// Called after hand settlement to potentially defer scheduleNextHand for squid claim window.
+// Returns true if scheduleNextHand was deferred (squid will call it later).
+function afterHandSettled(roomId, game, handOutcome, winShare) {
+    if (squid && handOutcome) {
+        return squid.onHandSettled(game, handOutcome, winShare);
+    }
+    return false;
+}
 // ===== 行动计时器（服务器权威）=====
 
 function clearActionTimer(game) {
@@ -123,23 +150,37 @@ function advanceStage(roomId) {
         const active = activePlayers(game);
         if (active.length <= 1) {
             collectBetsToPot(game);
+            let winShare = {};
+            let handOutcomeParts = [];
             if (active.length === 1) {
                 const winner = active[0];
                 winner.chips += game.pot;   // 其余全弃，独得全部投入
                 io.in(roomId).emit('server_msg', `🏆 ${winner.username} 赢得底池 ${game.pot}（其余弃牌）`);
                 io.in(roomId).emit('sfx', 'win');
-                saveHandHistory(game, { [winner.userId]: game.pot });
-            } else {
-                saveHandHistory(game, {});
+                winShare = { [winner.userId]: game.pot };
+                handOutcomeParts = [{
+                    type: 'main', index: 0, amount: game.pot,
+                    winners: [{ userId: winner.userId, amount: game.pot }]
+                }];
             }
             game.pot = 0;
             game.players.forEach(p => p.committed = 0);
             game.phase = PHASES.SHOWDOWN;
             game.actionOnIdx = -1;
+
+            // Build hand outcome for squid extension (§7.3)
+            const handOutcome = buildHandOutcome(game, winShare, handOutcomeParts, active.length === 1);
+
             applyPendingLevelUp(roomId);
             broadcastState(roomId);
             maybeEndSNG(roomId);
-            if (!game.tournamentOver) scheduleNextHand(roomId);
+            if (!game.tournamentOver) {
+                // Squid claim window may defer scheduleNextHand (§4.5)
+                if (!afterHandSettled(roomId, game, handOutcome, winShare)) {
+                    saveHandHistory(game, winShare);
+                    scheduleNextHand(roomId);
+                }
+            } else saveHandHistory(game, winShare);
             return;
         }
         collectBetsToPot(game);
@@ -244,6 +285,14 @@ function startHand(roomId) {
     const game = roomGames[roomId];
     if (!game) return;
     if (game.paused) { broadcastState(roomId); return; }   // 房主已暂停发牌：不开新局，等「继续」
+
+    // Squid: try to start a new round before dealing (§3.2, §7.4)
+    if (squid) squid.startRoundIfNeeded(game);
+    // If squid is pending_funding, don't deal — escrow must be resolved first (§3.5)
+    if (game.squid && game.squid.lifecycle === 'pending_funding') {
+        broadcastState(roomId);
+        return;
+    }
 
     const BB = gameBB(game), SB = gameSB(game);
     const targetHandSeq = (game.handSeq || 0) + 1;
@@ -368,6 +417,9 @@ function startHand(roomId) {
         ]);
     });
 
+    // Notify squid extension that a new hand has started (§7.4)
+    if (squid) squid.onHandStarted(game);
+
     // 牌谱记录初始化（数据资产：玩家×模式×时序）——仅记录参与本手的玩家
     game.hand = {
         ts: Date.now(), roomId, mode: game.roomType, handSeq: game.handSeq,
@@ -405,7 +457,7 @@ function startHand(roomId) {
 
 // 记录一次行动到牌谱
 
-    return { clearActionTimer, startActionTimer, onActionTimeout, afterAction, dealCommunity, emitEquity, advanceStage, tryStartHand, canPlay, liveCount, nextLiveIdx, drawForButton, beginPlay, startHand };
+    return { clearActionTimer, startActionTimer, onActionTimeout, afterAction, dealCommunity, emitEquity, advanceStage, tryStartHand, canPlay, liveCount, nextLiveIdx, drawForButton, beginPlay, startHand, buildHandOutcome, afterHandSettled };
 }
 
 module.exports = { createHandService };

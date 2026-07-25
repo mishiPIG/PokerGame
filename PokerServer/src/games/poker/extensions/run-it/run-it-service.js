@@ -1,6 +1,6 @@
 'use strict';
 
-function createRunItService({ io, roomGames, HandEvaluator, equity, config, activePlayers, hooks }) {
+function createRunItService({ io, roomGames, HandEvaluator, equity, config, activePlayers, hooks, squid }) {
     const { RUNIT_MAX, RUNIT_DECIDE_MS, RUNOUT_DELAY, PHASES } = config;
     const { broadcastState, saveHandHistory, applyPendingLevelUp, maybeEndSNG, scheduleNextHand, advanceStage } = hooks;
 function offerRunIt(roomId, act) {
@@ -164,7 +164,22 @@ function finishRunouts(roomId, runs, base, winByUser) {
             amounts: runs.map(r => r.thisPot)
         };
     }
-    saveHandHistory(game, winByUser);   // community 落为第 1 次 board（向后兼容）
+    // Build hand outcome for squid extension (§7.3, §7.4)
+    const handOutcomeParts = runs.map((run, i) => ({
+        type: 'runout',
+        index: i,
+        amount: run.thisPot,
+        winners: run.winners.map(id => ({ userId: id, amount: run.awards[id] || 0 }))
+    }));
+    const handOutcome = {
+        roomId: game.roomId || '',
+        handSeq: game.handSeq || 0,
+        totalPotAwarded: Object.values(winByUser).reduce((s, v) => s + v, 0),
+        awards: { ...winByUser },
+        parts: handOutcomeParts,
+        endedByFold: false
+    };
+
     game.pot = 0;
     game.players.forEach(p => p.committed = 0);
     game.phase = PHASES.SHOWDOWN;
@@ -173,7 +188,14 @@ function finishRunouts(roomId, runs, base, winByUser) {
     applyPendingLevelUp(roomId);
     broadcastState(roomId);
     maybeEndSNG(roomId);
-    if (!game.tournamentOver) scheduleNextHand(roomId);
+    if (!game.tournamentOver) {
+        // Squid claim window may defer scheduleNextHand (§4.5)
+        const deferred = squid && squid.onHandSettled(game, handOutcome, winByUser);
+        if (!deferred) {
+            saveHandHistory(game, winByUser);   // community 落为第 1 次 board（向后兼容）
+            scheduleNextHand(roomId);
+        }
+    } else saveHandHistory(game, winByUser);
 }
 
 

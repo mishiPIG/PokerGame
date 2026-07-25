@@ -1,6 +1,6 @@
 'use strict';
 
-function createStatePresenter({ io, db, roomGames, PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, livePots, HandEvaluator }) {
+function createStatePresenter({ io, db, roomGames, PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, livePots, HandEvaluator, squidPublicState }) {
 function broadcastState(roomId) {
     const game = roomGames[roomId];
     if (!game) return;
@@ -70,6 +70,12 @@ function broadcastState(roomId) {
             timeCards:  p.timeCards || 0           // 剩余时间卡（加时消耗）
         }))
     };
+    // Squid game extension state (§7.6)
+    if (squidPublicState) {
+        const squidState = squidPublicState(game);
+        if (squidState) state.squid = squidState;
+    }
+
     io.in(roomId).emit('game_state', state);
     emitHandHints(roomId);
 }

@@ -6,6 +6,7 @@ const { registerTableControlEvents } = require('./events/table-control-events');
 const { registerPokerCardEvents } = require('./events/poker-card-events');
 const { registerSocialEvents } = require('./events/social-events');
 const { registerPokerActionEvents } = require('./events/poker-action-events');
+const { registerSquidEvents } = require('./events/squid-events');
 const { registerDisconnectEvents } = require('./events/disconnect-events');
 
 function registerSocketHandlers(deps) {
@@ -23,6 +24,7 @@ function registerSocketHandlers(deps) {
         registerPokerCardEvents(context);
         registerSocialEvents(context);
         registerPokerActionEvents(context);
+        registerSquidEvents(context);
         registerDisconnectEvents(context);
     });
 }

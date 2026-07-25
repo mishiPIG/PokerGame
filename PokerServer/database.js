@@ -138,6 +138,25 @@ module.exports = {
         catch (e) { console.error('appendHand failed', e.message); }
     },
 
+    // 鱿鱼游戏轮次审计：每轮一行追加到 squid-rounds.jsonl（§7.10，数据资产，需备份/迁移）
+    appendSquidRound(record) {
+        try { fs.appendFileSync(path.join(__dirname, 'squid-rounds.jsonl'), JSON.stringify(record) + '\n'); }
+        catch (e) { console.error('appendSquidRound failed', e.message); }
+    },
+
+    // 检查轮次是否已记录（幂等检查）
+    squidRoundExists(roundId) {
+        const file = path.join(__dirname, 'squid-rounds.jsonl');
+        if (!fs.existsSync(file)) return false;
+        try {
+            const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+            for (let i = lines.length - 1; i >= 0; i--) {
+                try { if (JSON.parse(lines[i]).roundId === roundId) return true; } catch { /* skip */ }
+            }
+        } catch { return false; }
+        return false;
+    },
+
     // 读取某玩家参与的最近 N 手牌谱（按时序倒序）；可按模式筛选
     getHandsForUser(userId, { limit = 30, offset = 0, mode = null, room = null } = {}) {
         const file = path.join(__dirname, 'hands.jsonl');

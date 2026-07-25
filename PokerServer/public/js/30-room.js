@@ -103,6 +103,74 @@ function showRunitProposal(pr) {
 function proposeRuns(n) { if (socket) socket.emit('propose_runs', { n }); const el = runitPanel(); el.innerHTML = `<div class="ri-title">🎲 已选发 ${n} 次，等待对方同意…</div>`; }
 function respondRuns(agree) { if (socket) socket.emit('respond_runs', { agree }); hideRunitPanel(); }
 
+// ===== Squid claim UI (§4.4, §4.5, §7.8) =====
+var currentSquid = null;
+var squidClaimTimer = null;
+
+function squidClaimPanel() {
+    var el = document.getElementById('squid-claim-panel');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'squid-claim-panel';
+        document.body.appendChild(el);
+    }
+    return el;
+}
+
+function positionSquidClaimPanel() {
+    var el = document.getElementById('squid-claim-panel');
+    var cards = document.querySelector('.seat[data-uid="' + myUserId + '"] .self-cards');
+    if (!el || el.style.display === 'none' || !cards) return;
+    var rect = cards.getBoundingClientRect();
+    var gap = 14;
+    var halfWidth = el.offsetWidth / 2;
+    var centerY = rect.top + rect.height / 2 - el.offsetHeight / 2;
+
+    // 固定在手牌右侧，并限制在网页视口内；不再回退到左侧设置面板区域。
+    var desiredCenterX = rect.right + gap + halfWidth;
+    el.style.left = Math.min(window.innerWidth - halfWidth - 8, desiredCenterX) + 'px';
+    el.style.top = Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 8, centerY)) + 'px';
+}
+
+function showSquidClaim(claim, round) {
+    var el = squidClaimPanel();
+    var remain = Math.max(0, Math.ceil((claim.deadlineAt - Date.now()) / 1000));
+    el.innerHTML = '<div class="squid-claim-line">🦑 秀牌领取令牌？ <span id="squid-claim-timer">' + remain + 's</span></div>'
+        + '<div class="squid-claim-actions">'
+        + '<button class="claim" onclick="claimSquidToken()">秀牌领取</button>'
+        + '<button class="decline" onclick="declineSquidToken()">不秀牌</button>'
+        + '</div>';
+    el.style.display = 'block';
+    requestAnimationFrame(positionSquidClaimPanel);
+    clearInterval(squidClaimTimer);
+    squidClaimTimer = setInterval(function() {
+        var rem = Math.max(0, Math.ceil((claim.deadlineAt - Date.now()) / 1000));
+        var timerEl = document.getElementById('squid-claim-timer');
+        if (timerEl) timerEl.textContent = rem + 's';
+        positionSquidClaimPanel();
+        if (rem <= 0) { hideSquidClaim(); }
+    }, 500);
+}
+
+function hideSquidClaim() {
+    var el = document.getElementById('squid-claim-panel');
+    if (el) el.style.display = 'none';
+    clearInterval(squidClaimTimer);
+    squidClaimTimer = null;
+}
+
+function claimSquidToken() {
+    if (!socket || !lastState) return;
+    socket.emit('claim_squid_token', { roomId: currentRoom, handSeq: lastState.squid?.claim?.handSeq || 0 });
+    hideSquidClaim();
+}
+
+function declineSquidToken() {
+    if (!socket || !lastState) return;
+    socket.emit('decline_squid_token', { roomId: currentRoom, handSeq: lastState.squid?.claim?.handSeq || 0 });
+    hideSquidClaim();
+}
+
 // 多次发牌桌面：共享底牌只显示一次，剩余街 N 组「并列」分行显示（都留在桌上、不覆盖）
 function clearRunit() {
     runitState = null;
@@ -562,6 +630,18 @@ function renderMatchInfo(st) {
     if (isCash) {
         rows.push(['带入区间', `${(st.minBuyIn || 0).toLocaleString()} ~ ${st.maxBuyIn > 0 ? st.maxBuyIn.toLocaleString() : '无限制'}`]);
         rows.push(['UTG Straddle', st.allowUtgStraddle ? '🔥 已开启 · 2BB' : '未开启']);
+        // Squid game status
+        if (st.squid) {
+            const sq = st.squid;
+            if (sq.round) {
+                rows.push(['🦑 鱿鱼令牌', `${sq.round.awardedTokens}/${sq.round.totalTokens}（剩余${sq.round.remainingTokens}枚）`]);
+                rows.push(['鱿鱼罚金', `${sq.round.penaltyBB}BB/枚（已锁定${sq.round.guaranteePerPlayer}保证金）`]);
+            } else if (sq.lifecycle === 'pending_start') {
+                rows.push(['🦑 鱿鱼游戏', `已开启（罚金${sq.pendingPenaltyBB}BB/枚），下一手开始`]);
+            } else if (sq.lifecycle === 'pending_funding') {
+                rows.push(['🦑 鱿鱼游戏', `资金不足，等待补码`]);
+            }
+        }
         if (st.tableEndAt) {
             const rem = Math.max(0, Math.floor((st.tableEndAt - Date.now()) / 60000));
             rows.push(['剩余时长', `约 ${rem} 分钟`]);
@@ -569,8 +649,38 @@ function renderMatchInfo(st) {
     } else rows.push(['当前级别', (st.currentLevel || 0) + 1]);
     const isOwner = st.ownerUserId === myUserId;
     let html = rows.map(([k, v]) => `<div class="mi-row"><span>${k}</span><b>${v}</b></div>`).join('');
-    // 现金桌房主：比赛加时
+    // 现金桌房主：比赛加时 + 鱿鱼游戏
     if (isCash && isOwner) {
+        // ---- Squid game config (§3.1) ----
+        const sq = st.squid || {};
+        const sqActive = sq.lifecycle === 'active' || sq.lifecycle === 'stopping_after_round';
+        const sqEnabled = sq.enabled || sqActive;
+        const sqPBB = sq.pendingPenaltyBB || 2;
+        const sqRounds = sq.targetRounds == null ? 1 : sq.targetRounds;
+        html += '<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">🦑 鱿鱼游戏</span>';
+        html += '<div class="tier-row"><button type="button" class="ext-btn" onclick="setSquidConfig(' + (!sqEnabled) + ',' + sqPBB + ',' + sqRounds + ')">';
+        html += (sqEnabled ? (sq.stopAfterRound ? '关闭（本轮后停止）' : '关闭鱿鱼游戏') : '开启鱿鱼游戏') + '</button></div>';
+        if (sqEnabled) {
+            html += '<div style="margin-top:4px"><span class="cfg-label">每枚令牌罚金 (BB)' + (sqActive ? '（当前轮锁定）' : '') + '</span>';
+            html += '<div class="tier-row">';
+            [2, 3, 4, 5].forEach(function(_n) {
+                html += '<button type="button" class="ext-btn' + (_n === sqPBB ? ' selected' : '') + '" onclick="setSquidConfig(true,' + _n + ',' + sqRounds + ')">' + _n + 'BB</button>';
+            });
+            html += '</div></div>';
+            html += '<div style="margin-top:4px"><span class="cfg-label">开启轮数</span><div class="tier-row">';
+            [1, 2, 3, 5].forEach(function(_r) {
+                html += '<button type="button" class="ext-btn' + (_r === sqRounds ? ' selected' : '') + '" onclick="setSquidConfig(true,' + sqPBB + ',' + _r + ')">' + _r + '轮</button>';
+            });
+            html += '<button type="button" class="ext-btn' + (sqRounds === 0 ? ' selected' : '') + '" onclick="setSquidConfig(true,' + sqPBB + ',0)">一直开启</button>';
+            html += '</div></div>';
+            if (sqActive && sq.round) {
+                html += '<div style="margin-top:2px;font-size:0.8em;color:#f80">当前轮：' + sq.round.awardedTokens + '/' + sq.round.totalTokens
+                    + ' 令牌 · 已完成 ' + (sq.completedRounds || 0) + (sqRounds ? '/' + sqRounds + ' 轮' : ' 轮') + '</div>';
+            }
+            html += '</div>';
+        }
+        html += '</div>';
+
         html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">UTG Straddle（下一手起生效）</span>
             <div class="tier-row"><button type="button" class="ext-btn" onclick="setUtgStraddle(${!st.allowUtgStraddle})">
             ${st.allowUtgStraddle ? '关闭 Straddle' : '开启 Straddle 2BB'}</button></div></div>`;
@@ -586,6 +696,31 @@ function renderMatchInfo(st) {
 function setUtgStraddle(enabled) {
     if (!socket) return;
     socket.emit('set_utg_straddle', { enabled: enabled === true });
+}
+function setSquidConfig(enabled, penaltyBB, rounds) {
+    if (!socket) return;
+    var selectedPenalty = parseInt(penaltyBB) || 2;
+    var parsedRounds = parseInt(rounds);
+    var selectedRounds = [1, 2, 3, 5].includes(parsedRounds) ? parsedRounds : 0;
+    socket.emit('set_squid_config', {
+        enabled: enabled === true,
+        penaltyBB: selectedPenalty,
+        rounds: selectedRounds
+    });
+    // 先在本地立即标出选中项；服务端 game_state 返回后再以权威状态校准。
+    if (lastState && enabled === true) {
+        lastState.squid = lastState.squid || {
+            enabled: true,
+            lifecycle: 'pending_start',
+            completedRounds: 0
+        };
+        lastState.squid.enabled = true;
+        lastState.squid.pendingPenaltyBB = selectedPenalty;
+        lastState.squid.targetRounds = selectedRounds;
+        renderMatchInfo(lastState);
+        toast('🦑 已选择：' + selectedPenalty + 'BB · '
+            + (selectedRounds === 0 ? '一直开启' : '开启 ' + selectedRounds + ' 轮'), 1800);
+    }
 }
 function extendMatch(minutes) {
     if (!socket) return;

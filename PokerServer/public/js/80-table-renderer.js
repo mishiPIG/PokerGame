@@ -199,6 +199,10 @@ function buildSeat(p, state) {
     const eqPct = equityMap[p.userId];
     const equityBadge = (eqPct != null && !p.folded && state.phase !== 'showdown' && state.phase !== 'waiting')
         ? `<div class="equity-badge">${eqPct}%</div>` : '';
+    const squidParticipant = state.squid?.round?.participants?.find(sp => sp.userId === p.userId);
+    const squidTokenBadge = squidParticipant && squidParticipant.tokens > 0
+        ? `<div class="squid-token-badge" title="当前拥有 ${squidParticipant.tokens} 枚鱿鱼令牌">🦑<b>${squidParticipant.tokens}</b></div>`
+        : '';
 
     // 头像（小方块）+ 行动倒计时数字
     const initial = (p.username || '?').charAt(0).toUpperCase();
@@ -228,7 +232,7 @@ function buildSeat(p, state) {
     const oppCardsOverlay = (!isMe && cardsHtml)
         ? `<div class="opp-cards">${cardsHtml}${handTypeBadge}</div>` : '';
     const avatarBlock = `<div class="avatar-block" onclick="openAvatarPopup('${p.userId}')" style="cursor:pointer">
-        ${betBadge}${equityBadge}
+        ${betBadge}${equityBadge}${squidTokenBadge}
         <div class="avatar" style="background:hsl(${hue},45%,42%)">${escapeHtml(initial)}${avatarImg}</div>
         ${isBtn ? '<div class="dealer-btn">D</div>' : ''}
         ${showRing ? `<div class="avatar-ring" id="seat-ring"></div><div class="avatar-secs" id="seat-timer-num">${secs0}</div>` : ''}
@@ -288,7 +292,15 @@ function render(state) {
             + (state.allowUtgStraddle ? ' · STR 2BB' : '')
             + (tableEndAt ? ` · <span id="table-remain"></span>` : '');
     }
-    if (state.paused) sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 房主已暂停发牌</span>`;
+    if (state.paused) sng.innerHTML += '<br><span style="color:#ffcf5c">⏸️ 房主已暂停发牌</span>';
+
+    // Squid round progress (§7.8)
+    if (state.squid && state.squid.round) {
+        var sr = state.squid.round;
+        sng.innerHTML += '<br><span style="color:#f80">🦑 鱿鱼令牌 ' + sr.awardedTokens + '/' + sr.totalTokens
+            + ' · 罚金 ' + sr.penaltyBB + 'BB/枚'
+            + ' · 保证金 ' + sr.guaranteePerPlayer + '</span>';
+    }
 
     // 公共牌：固定 5 个位置（已发的是牌，未发的占位空槽），避免发牌时布局跳动
     const comm = state.communityCards;
@@ -490,4 +502,3 @@ function setupSizing(state, me, myTurn) {
     document.getElementById('raiseAmount').disabled = false;
     if (row.style.display === 'none') updateConfirmLabel(minTo);
 }
-

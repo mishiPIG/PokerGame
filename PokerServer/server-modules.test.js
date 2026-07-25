@@ -102,3 +102,28 @@ test('lobby service creates a cryptographically random room invite', () => {
     assert.equal(invite.entryLocked, false);
     assert.equal(invite.version, 1);
 });
+
+test('room socket context exposes Squid event handlers from the table service', () => {
+    const { bind } = require('./src/socket/events/room-context');
+    const squidMethods = {
+        requestConfigChange() {},
+        claimToken() {},
+        declineToken() {}
+    };
+    const bound = bind({
+        socket: {},
+        user: {},
+        io: {},
+        db: {},
+        stats: {},
+        Deck: {},
+        config: {},
+        runtime: { roomGames: {}, lobbySockets: new Set() },
+        tableService: squidMethods,
+        syncRecentVoices() {}
+    });
+
+    assert.equal(bound.requestConfigChange, squidMethods.requestConfigChange);
+    assert.equal(bound.claimToken, squidMethods.claimToken);
+    assert.equal(bound.declineToken, squidMethods.declineToken);
+});

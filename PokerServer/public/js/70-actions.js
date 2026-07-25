@@ -62,6 +62,15 @@ function act(action) {
     preAction = null; updatePreBar();   // 手动行动即取消预操作
     if (currentRoom && socket) socket.emit('player_action', { roomId: currentRoom, action });
 }
+// 可免费过牌时，弃牌需要二次确认，避免误触；面对下注时仍可一键弃牌。
+function actFold() {
+    if (inputLocked() || !lastState || lastState.actionOnUserId !== myUserId) return;
+    const me = lastState.players.find(p => p.userId === myUserId);
+    if (!me) return;
+    const canCheck = lastState.currentBet - me.currentBet <= 0;
+    if (canCheck && !confirm('当前可以过牌，确定仍要弃牌吗？')) return;
+    act('fold');
+}
 // ===== 预操作（不轮到我时提前勾选，到点自动执行）=====
 let preAction = null, preCallBet = 0;
 function togglePre(a) {
