@@ -4,14 +4,13 @@
 const path = require('path');
 const { createDatabaseService } = require('../src/storage/database-service');
 
-const databasePath = process.argv[2] || process.env.POKER_DB_PATH;
-if (!databasePath) {
-    console.error('用法: node scripts/verify-sqlite.js /path/to/pokerdojo.sqlite');
-    process.exitCode = 1;
-} else {
+const baseDir = path.resolve(__dirname, '..');
+// 本机未指定路径时检查默认开发库；生产环境必须通过 POKER_DB_PATH 显式指定外置数据库。
+const databasePath = process.argv[2] || process.env.POKER_DB_PATH || path.join(baseDir, '.local', 'pokerdojo.sqlite');
+{
     const service = createDatabaseService({
         databasePath,
-        baseDir: path.resolve(__dirname, '..'),
+        baseDir,
         allowCreate: false
     });
     try {
