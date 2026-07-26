@@ -86,7 +86,8 @@ LOCAL_DEV=1 PORT=3000 node server.js
 
 规划中:AI 对战(用每位玩家的牌谱训练) · 更多管理员功能 · 头像上传/改名 · 破产救济 · SQLite/Postgres 迁移。
 
-详细开发笔记与历史见 `CLAUDE.md`。
+版本记录见 [`CHANGELOG.md`](./CHANGELOG.md)，旧版详细开发笔记见
+[`docs/archive/`](./docs/archive/)。
 
 ---
 

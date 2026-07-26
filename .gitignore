@@ -46,3 +46,5 @@ backups_offsite/
 # 私有运维手册 + 本地备份脚本（含生产 IP/SSH 别名/服务器路径，会下载密钥；不入库，仅本地）
 OPS.local.md
 backup-hk.sh
+
+PokerServer/.local

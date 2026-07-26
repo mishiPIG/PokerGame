@@ -86,7 +86,8 @@ Done: multiplayer engine + real side pots · SNG & cash tables · run-it-N-times
 
 Planned: AI opponents (trained on per-player hand histories) · richer admin tools · avatar upload/rename · bankruptcy relief · SQLite/Postgres migration.
 
-See `CLAUDE.md` for detailed development notes and history.
+See [`CHANGELOG.md`](./CHANGELOG.md) for release history and
+[`docs/archive/`](./docs/archive/) for the legacy development notes.
 
 ---
 

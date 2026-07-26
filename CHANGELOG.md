@@ -35,4 +35,4 @@ All notable changes to Poker Dojo. This project loosely follows
 - C# hand-evaluator prototype (Cactus Kev + Senzee perfect hash) → JS port.
 - Socket.IO multi-room heads-up engine, staged betting, user accounts (JWT, gold economy), table UX v1–v2, production deployment.
 
-_For detailed development notes, see `CLAUDE.md`._
+_For legacy development notes, see [`docs/archive/`](./docs/archive/)._
