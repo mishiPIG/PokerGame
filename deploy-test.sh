@@ -49,7 +49,10 @@ if [ -f "$DB_PATH" ]; then
   POKER_DB_PATH="$DB_PATH" node scripts/migrate-sqlite.js
 else
   test -f data.json || { echo '❌ 首次切换缺少 data.json，拒绝创建空数据库'; exit 1; }
-  node scripts/migrate-json-to-sqlite.js --database "$DB_PATH" --data data.json --hands hands.jsonl --feedback feedback.jsonl
+  IMPORT_DB="$DB_PATH.importing-$(date +%Y%m%d-%H%M%S)-$$"
+  node scripts/migrate-json-to-sqlite.js --database "$IMPORT_DB" --data data.json --hands hands.jsonl --feedback feedback.jsonl
+  node scripts/verify-sqlite.js "$IMPORT_DB"
+  mv "$IMPORT_DB" "$DB_PATH"
 fi
 node scripts/verify-sqlite.js "$DB_PATH"
 POKER_DB_PATH="$DB_PATH" NODE_ENV=production pm2 restart "$PM2_APP" --update-env ||

@@ -56,8 +56,6 @@ seedLocalDevUsers({ enabled: LOCAL_DEV, db, bcrypt });
 
 const tableService = createTableService({ io, db, stats, equity, Card, Deck, HandEvaluator, crypto, config, runtime });
 const { projectedPositions } = tableService;
-const recoveredMatches = tableService.persistence.recoverAll();
-tableService.restoreRecoveredTimers(recoveredMatches);
 
 registerAdminRoutes({ app, db, requireAdmin });
 const voiceModule = registerVoiceModule({ app, io, db, roomGames, requireAuth, express, crypto, fs, path, baseDir: __dirname });
@@ -73,6 +71,9 @@ const onListening = () => {
     console.log(`🚀 扑克服务器已启动！${host}:${PORT}${LOCAL_DEV ? ' (本地开发模式)' : ''}`);
 };
 if (require.main === module) {
+    // 只有真正启动服务时才恢复牌局和计时器。测试或工具仅 require 本模块时不得产生后台定时器。
+    const recoveredMatches = tableService.persistence.recoverAll();
+    tableService.restoreRecoveredTimers(recoveredMatches);
     let shuttingDown = false;
     const shutdown = (signal, error = null) => {
         if (shuttingDown) return;

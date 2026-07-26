@@ -1,5 +1,7 @@
 # SQLite 持久化与牌局恢复重构设计
 
+服务器首次切换与后续发布的操作步骤见 [DEPLOYMENT.md](./DEPLOYMENT.md)。
+
 ## 实施状态
 
 本文档记录“德扑道场 Poker Dojo”从当前文件存储迁移到 SQLite，并使活跃牌局具备崩溃恢复能力的目标设计。
