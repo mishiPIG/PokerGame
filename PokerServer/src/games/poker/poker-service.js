@@ -11,23 +11,23 @@ const { createHandService } = require('./hand-service');
 
 // Poker hand orchestration only. Match and room policies are supplied as hooks so
 // the existing public table-service API can remain unchanged during this refactor.
-function createPokerService({ io, db, equity, Deck, HandEvaluator, config, runtime, hooks }) {
+function createPokerService({ io, db, equity, Deck, HandEvaluator, config, runtime, hooks, persistence }) {
     const { PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, STRADDLE_DECISION_MS } = config;
     const { roomGames } = runtime;
     const pokerRules = createPokerRules();
-    const handHistoryService = createHandHistoryService({ db });
+    const handHistoryService = createHandHistoryService({ db, persistence, roomGames });
     const potService = createPotService({ io, roomGames, gameBB });
-    const statePresenter = createStatePresenter({ io, db, roomGames, PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, livePots: potService.livePots, HandEvaluator });
-    const straddleService = createStraddleService({ io, roomGames, PHASES, gameBB, gameAnte, STRADDLE_DECISION_MS });
+    const statePresenter = createStatePresenter({ io, db, roomGames, PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, livePots: potService.livePots, HandEvaluator, persistence });
+    const straddleService = createStraddleService({ io, roomGames, PHASES, gameBB, gameAnte, STRADDLE_DECISION_MS, persistence });
 
     const runItService = createRunItService({
-        io, roomGames, HandEvaluator, equity, config, activePlayers: pokerRules.activePlayers,
-        hooks: { broadcastState: statePresenter.broadcastState, saveHandHistory: handHistoryService.saveHandHistory, applyPendingLevelUp: hooks.applyPendingLevelUp, maybeEndSNG: hooks.maybeEndSNG, scheduleNextHand: hooks.scheduleNextHand, advanceStage: (...args) => handService.advanceStage(...args) }
+        io, roomGames, HandEvaluator, equity, config, persistence, activePlayers: pokerRules.activePlayers,
+        hooks: { broadcastState: statePresenter.broadcastState, saveHandHistory: handHistoryService.saveHandHistory, commitHandHistory: handHistoryService.commitHandHistory, applyPendingLevelUp: hooks.applyPendingLevelUp, maybeEndSNG: hooks.maybeEndSNG, scheduleNextHand: hooks.scheduleNextHand, advanceStage: (...args) => handService.advanceStage(...args) }
     });
     const showdownService = createShowdownService({
         io, roomGames, HandEvaluator, activePlayers: pokerRules.activePlayers,
         buildSidePots: potService.buildSidePots, returnUncalledBets: potService.returnUncalledBets,
-        hooks: { saveHandHistory: handHistoryService.saveHandHistory, applyPendingLevelUp: hooks.applyPendingLevelUp, broadcastState: statePresenter.broadcastState, maybeEndSNG: hooks.maybeEndSNG, scheduleNextHand: hooks.scheduleNextHand }
+        hooks: { saveHandHistory: handHistoryService.saveHandHistory, commitHandHistory: handHistoryService.commitHandHistory, applyPendingLevelUp: hooks.applyPendingLevelUp, broadcastState: statePresenter.broadcastState, maybeEndSNG: hooks.maybeEndSNG, scheduleNextHand: hooks.scheduleNextHand }
     });
     const handService = createHandService({
         io, roomGames, Deck, HandEvaluator, equity, config, rules: pokerRules, pots: potService,

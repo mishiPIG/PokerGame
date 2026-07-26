@@ -9,9 +9,42 @@ const { registerPokerActionEvents } = require('./events/poker-action-events');
 const { registerDisconnectEvents } = require('./events/disconnect-events');
 
 function registerSocketHandlers(deps) {
-    const { io, db } = deps;
+    const { io, db, runtime, tableService } = deps;
     io.on('connection', (socket) => {
         const user = socket.user;
+        const rawOn = socket.on.bind(socket);
+        socket.on = (event, handler) => rawOn(event, (...args) => {
+            const handleError = error => {
+                console.error(`[socket-error] event=${event} userId=${user.id}`, error?.stack || error);
+                const roomId = socket.currentRoom;
+                const game = roomId && runtime.roomGames[roomId];
+                if (game) {
+                    game.paused = true;
+                    game.recoveryError = {
+                        event,
+                        message: String(error?.message || error),
+                        at: Date.now()
+                    };
+                    try {
+                        tableService.persistence.commit(roomId, 'operation_failed', user.id, {
+                            event,
+                            message: game.recoveryError.message
+                        });
+                    } catch (persistError) {
+                        console.error('[socket-error] failed to persist paused state', persistError?.stack || persistError);
+                    }
+                }
+                socket.emit('server_msg', '⚠️ 本次操作失败，牌桌已安全暂停，请稍后重试或重新连接');
+            };
+            try {
+                const result = handler(...args);
+                if (result && typeof result.then === 'function') result.catch(handleError);
+                return result;
+            } catch (error) {
+                handleError(error);
+                return undefined;
+            }
+        });
         // 单会话：同一账号新开页面/设备连接 → 踢掉该账号之前的连接（最新生效）。
         // 否则底牌是私发给单个 socketId 的，多标签会导致其中一个页面看不到自己的手牌。
         for (const [, s] of io.sockets.sockets) {

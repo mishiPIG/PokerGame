@@ -1,7 +1,7 @@
 'use strict';
 const { createRoomLifecycle } = require('../rooms/room-lifecycle');
 
-function createCashMatchService({ io, db, roomGames, lobbySockets, config, hooks }) {
+function createCashMatchService({ io, db, roomGames, lobbySockets, config, persistence, hooks }) {
     const { CASHOUT_RATE, PHASES, gameBB, STRADDLE_INTERMISSION_MS } = config;
     const { buildRanking, sendMatchResult, clearActionTimer, clearStraddleDecision, showStraddleDecision, broadcastState, broadcastRoomList, listRooms, removeBustedPlayers, liveCount, startHand } = hooks;
 // 现金桌训练时长倒计时：到点自动结束并结算排名
@@ -28,6 +28,12 @@ function startTableTimer(roomId) {
     clearTimeout(game.tableTimer);
     game.tableTimer = setTimeout(() => onTableTimeUp(roomId), ms);
 }
+function restoreTableTimer(roomId) {
+    const game = roomGames[roomId];
+    if (!game || game.roomType !== 'cash' || !game.tableEndAt || game.tournamentOver) return;
+    clearTimeout(game.tableTimer);
+    game.tableTimer = setTimeout(() => onTableTimeUp(roomId), Math.max(0, game.tableEndAt - Date.now()));
+}
 function extendTable(roomId, addMs) {
     const game = roomGames[roomId];
     if (!game || game.roomType !== 'cash') return;
@@ -48,7 +54,7 @@ function extendTable(roomId, addMs) {
 // 结束现金桌：结算所有在座筹码→金币，公布排名+发消息，全员（含观众）回大厅
 function endCashTable(roomId, reason) {
     const game = roomGames[roomId];
-    if (!game || game.tournamentOver) return;
+    if (!game || game._persistenceFinished) return;
     game.tournamentOver = true; game.status = 'finished';
     clearTimeout(game.tableTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearTimeout(game.runItTimer); game.runItPending = false; clearActionTimer(game);
     clearStraddleDecision(game);
@@ -64,11 +70,16 @@ function endCashTable(roomId, reason) {
         const s = io.sockets.sockets.get(sid);
         if (s) { s.leave(roomId); s.currentRoom = null; lobbySockets.add(s.id); if (s.user) s.emit('room_list', listRooms(s.user.id)); }
     }
+    persistence.finish(roomId, 'finished');
     delete roomGames[roomId];
     broadcastRoomList();
 }
 
-const { scheduleEmptyCleanup } = createRoomLifecycle({ io, roomGames, hooks: { endCashTable, clearActionTimer, broadcastRoomList } });
+const { scheduleEmptyCleanup } = createRoomLifecycle({
+    io,
+    roomGames,
+    hooks: { endCashTable, clearActionTimer, broadcastRoomList, finishRoom: persistence.finish }
+});
 
 // 一局结束后自动开下一局（SNG/现金桌进行中，无需重新准备）
 // 注意：总是排一次定时清理（标记坐出/兑出/生效补码），即使人数不足也要让坐出状态落地
@@ -81,6 +92,7 @@ function scheduleNextHand(roomId) {
         showStraddleDecision(roomId, STRADDLE_INTERMISSION_MS);
     }
     clearTimeout(game.nextHandTimer);
+    game.nextHandAt = Date.now() + 5000;
     game.nextHandTimer = setTimeout(() => {
         const g = roomGames[roomId];
         if (!g || g.tournamentOver || g.phase !== PHASES.SHOWDOWN) return;
@@ -90,22 +102,62 @@ function scheduleNextHand(roomId) {
         if (liveCount(g) >= 2) startHand(roomId);
         else broadcastState(roomId);   // 人不够：停摆，等补码/坐下（坐出状态已标记）
     }, 5000);
+    persistence.commit(roomId, 'next_hand_scheduled', null, { nextHandAt: game.nextHandAt });
+}
+
+function restoreNextHandTimer(roomId) {
+    const game = roomGames[roomId];
+    if (!game?.nextHandAt || game.tournamentOver) return;
+    clearTimeout(game.nextHandTimer);
+    game.nextHandTimer = setTimeout(() => {
+        const g = roomGames[roomId];
+        if (!g || g.tournamentOver || g.phase !== PHASES.SHOWDOWN) return;
+        removeBustedPlayers(g);
+        if (g.pendingEnd) { endCashTable(roomId, '训练时长已到'); return; }
+        if (g.paused) { broadcastState(roomId); return; }
+        if (liveCount(g) >= 2) startHand(roomId);
+        else broadcastState(roomId);
+    }, Math.max(0, game.nextHandAt - Date.now()));
 }
 
 // 现金桌兑出：剩余筹码按汇率兑回金币，返回兑出金币数
 function cashOut(p) {
+    if (p.settledAt) return p.settlementGold || 0;
     const payout = Math.max(0, Math.floor((p.chips || 0) * CASHOUT_RATE));
-    if (payout > 0) {
-        const fresh = db.getUserById(p.userId).gold;
-        db.setGold(p.userId, fresh + payout);
-        const s = io.sockets.sockets.get(p.socketId);
-        if (s) s.emit('gold_update', { gold: fresh + payout });
+    const roomId = Object.keys(roomGames).find(id => {
+        const game = roomGames[id];
+        return game.players.includes(p) || (game.vacatedPlayers || []).includes(p);
+    });
+    const game = roomId && roomGames[roomId];
+    const previousSettlement = { settlementGold: p.settlementGold, settledAt: p.settledAt };
+    p.settlementGold = payout;
+    p.settledAt = Date.now();
+    try {
+        if (payout > 0) {
+            const committed = persistence.commitWithWallet(roomId, [{
+                userId: p.userId,
+                delta: payout,
+                type: 'cash_cashout',
+                matchId: game.matchId,
+                operationKey: `cash-cashout:${game.matchId}:${p.userId}`,
+                metadata: { chips: p.chips || 0 }
+            }], 'cash_cashout', p.userId, { payout });
+            const balance = committed.wallets[0].balance;
+            const s = io.sockets.sockets.get(p.socketId);
+            if (s) s.emit('gold_update', { gold: balance });
+        } else if (roomId) {
+            persistence.commit(roomId, 'cash_cashout', p.userId, { payout: 0 });
+        }
+    } catch (error) {
+        p.settlementGold = previousSettlement.settlementGold;
+        p.settledAt = previousSettlement.settledAt;
+        throw error;
     }
     return payout;
 }
 
 
-    return { onTableTimeUp, startTableTimer, extendTable, endCashTable, scheduleEmptyCleanup, scheduleNextHand, cashOut };
+    return { onTableTimeUp, startTableTimer, restoreTableTimer, extendTable, endCashTable, scheduleEmptyCleanup, scheduleNextHand, restoreNextHandTimer, cashOut };
 }
 
 module.exports = { createCashMatchService };

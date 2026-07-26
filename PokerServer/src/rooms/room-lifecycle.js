@@ -5,7 +5,7 @@ const EMPTY_GRACE_MS = 180000;
 // Shared room-close policy. It deliberately receives the current cash-table
 // operations as hooks so it does not own Poker or settlement rules.
 function createRoomLifecycle({ io, roomGames, hooks }) {
-    const { endCashTable, clearActionTimer, broadcastRoomList } = hooks;
+    const { endCashTable, clearActionTimer, broadcastRoomList, finishRoom } = hooks;
 
     function scheduleEmptyCleanup(roomId) {
         const game = roomGames[roomId];
@@ -20,7 +20,9 @@ function createRoomLifecycle({ io, roomGames, hooks }) {
             if (hasChips) endCashTable(roomId, '房间空置已关闭');
             else {
                 clearTimeout(g.levelTimer); clearTimeout(g.nextHandTimer); clearTimeout(g.runoutTimer);
-                clearTimeout(g.tableTimer); clearActionTimer(g); delete roomGames[roomId]; broadcastRoomList();
+                clearTimeout(g.tableTimer); clearActionTimer(g);
+                if (finishRoom) finishRoom(roomId, 'cancelled');
+                delete roomGames[roomId]; broadcastRoomList();
             }
         }, EMPTY_GRACE_MS);
     }

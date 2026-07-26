@@ -4,7 +4,7 @@ function registerTableControlEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
     const { PHASES, STANDARD_BLIND_LEVELS, SNG_BUYIN_TIERS, BUYIN_RATE, CASHOUT_RATE, RUNIT_MAX, EXTRA_MAX, EXTRA_STEP, ACTION_TIME, gameBB, sngPrize } = config;
     const { roomGames, lobbySockets } = runtime;
-    const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction, buildRanking, sendMatchResult } = tableService;
+    const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction, buildRanking, sendMatchResult, persistence } = tableService;
     // 解散/提前结束：仅房主。现金桌=结算筹码+公布排名；SNG=奖池给筹码领先者+公布排名
     socket.on('dissolve_room', () => {
         const roomId = socket.currentRoom;
@@ -25,9 +25,24 @@ function registerTableControlEvents(context) {
             const prize = sngPrize(game.prizePool);
             const leader = [...game.players].sort((a, b) => b.chips - a.chips)[0];
             if (leader && prize > 0) {
-                const fresh = db.getUserById(leader.userId).gold;
-                db.setGold(leader.userId, fresh + prize);
-                if (leader.socketId) io.to(leader.socketId).emit('gold_update', { gold: fresh + prize });
+                const oldSettlement = { settlementGold: leader.settlementGold, settledAt: leader.settledAt };
+                leader.settlementGold = prize;
+                leader.settledAt = Date.now();
+                try {
+                    const committed = persistence.commitWithWallet(roomId, [{
+                        userId: leader.userId,
+                        delta: prize,
+                        type: 'sng_prize',
+                        matchId: game.matchId,
+                        operationKey: `sng-prize:${game.matchId}:${leader.userId}`,
+                        metadata: { reason: 'owner_dissolve', prizePool: game.prizePool }
+                    }], 'sng_prize', leader.userId, { prize, reason: 'owner_dissolve' });
+                    if (leader.socketId) io.to(leader.socketId).emit('gold_update', { gold: committed.wallets[0].balance });
+                } catch (error) {
+                    leader.settlementGold = oldSettlement.settlementGold;
+                    leader.settledAt = oldSettlement.settledAt;
+                    throw error;
+                }
             }
             sendMatchResult(roomId, `【${game.config.name}】房主提前结束`, buildRanking(game, leader && leader.userId, prize));
         }
@@ -37,6 +52,7 @@ function registerTableControlEvents(context) {
             const s = io.sockets.sockets.get(p.socketId);
             if (s) { s.leave(roomId); s.currentRoom = null; lobbySockets.add(s.id); s.emit('room_list', listRooms(p.userId)); }
         }
+        persistence.finish(roomId, 'finished');
         delete roomGames[roomId];
         broadcastRoomList();
     });

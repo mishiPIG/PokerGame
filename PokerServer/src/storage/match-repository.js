@@ -3,6 +3,46 @@
 const crypto = require('crypto');
 
 function createMatchRepository(db) {
+    const upsertPlayerStmt = db.prepare(`
+        INSERT INTO match_players (
+            match_id, user_id, username_snapshot, seat, player_status,
+            buyin_gold_total, buyin_chips_total, current_chips, hands_played,
+            settlement_gold, settled_at_ms, joined_at_ms, left_at_ms
+        ) VALUES (
+            @match_id, @user_id, @username_snapshot, @seat, @player_status,
+            @buyin_gold_total, @buyin_chips_total, @current_chips, @hands_played,
+            @settlement_gold, @settled_at_ms, @joined_at_ms, @left_at_ms
+        )
+        ON CONFLICT(match_id, user_id) DO UPDATE SET
+            username_snapshot = excluded.username_snapshot,
+            seat = excluded.seat,
+            player_status = excluded.player_status,
+            buyin_gold_total = MAX(match_players.buyin_gold_total, excluded.buyin_gold_total),
+            buyin_chips_total = MAX(match_players.buyin_chips_total, excluded.buyin_chips_total),
+            current_chips = excluded.current_chips,
+            hands_played = excluded.hands_played,
+            settlement_gold = COALESCE(excluded.settlement_gold, match_players.settlement_gold),
+            settled_at_ms = COALESCE(excluded.settled_at_ms, match_players.settled_at_ms),
+            left_at_ms = COALESCE(excluded.left_at_ms, match_players.left_at_ms)
+    `);
+    function upsertPlayer(params) {
+        const now = Date.now();
+        upsertPlayerStmt.run({
+            match_id: params.matchId,
+            user_id: params.userId,
+            username_snapshot: params.username,
+            seat: params.seat ?? null,
+            player_status: params.status || 'seated',
+            buyin_gold_total: params.buyinGoldTotal || 0,
+            buyin_chips_total: params.buyinChipsTotal || 0,
+            current_chips: params.currentChips || 0,
+            hands_played: params.handsPlayed || 0,
+            settlement_gold: params.settlementGold ?? null,
+            settled_at_ms: params.settledAt || null,
+            joined_at_ms: params.joinedAt || now,
+            left_at_ms: params.leftAt || null
+        });
+    }
     const insertMatch = db.prepare(`
         INSERT INTO matches (
             id, room_code, room_type, status, owner_user_id, name, config_json,
@@ -44,6 +84,7 @@ function createMatchRepository(db) {
         });
         insertState.run(id, 1, params.handSeq || 0, params.phase || 'waiting', JSON.stringify(params.snapshot), now);
         insertEvent.run(id, 1, 'match_created', params.ownerUserId, JSON.stringify({ roomCode: String(params.roomCode) }), now);
+        for (const player of params.players || []) upsertPlayer({ ...player, matchId: id });
         return { id, stateVersion: 1 };
     });
 
@@ -92,6 +133,7 @@ function createMatchRepository(db) {
             JSON.stringify(params.eventPayload || {}),
             now
         );
+        for (const player of params.players || []) upsertPlayer({ ...player, matchId: params.matchId });
         return { stateVersion: nextVersion };
     });
 
@@ -103,50 +145,14 @@ function createMatchRepository(db) {
             return commitTx(params);
         },
         upsertPlayer(params) {
-            const now = Date.now();
-            db.prepare(`
-                INSERT INTO match_players (
-                    match_id, user_id, username_snapshot, seat, player_status,
-                    buyin_gold_total, buyin_chips_total, current_chips, hands_played,
-                    settlement_gold, settled_at_ms, joined_at_ms, left_at_ms
-                ) VALUES (
-                    @match_id, @user_id, @username_snapshot, @seat, @player_status,
-                    @buyin_gold_total, @buyin_chips_total, @current_chips, @hands_played,
-                    @settlement_gold, @settled_at_ms, @joined_at_ms, @left_at_ms
-                )
-                ON CONFLICT(match_id, user_id) DO UPDATE SET
-                    username_snapshot = excluded.username_snapshot,
-                    seat = excluded.seat,
-                    player_status = excluded.player_status,
-                    buyin_gold_total = excluded.buyin_gold_total,
-                    buyin_chips_total = excluded.buyin_chips_total,
-                    current_chips = excluded.current_chips,
-                    hands_played = excluded.hands_played,
-                    settlement_gold = excluded.settlement_gold,
-                    settled_at_ms = excluded.settled_at_ms,
-                    left_at_ms = excluded.left_at_ms
-            `).run({
-                match_id: params.matchId,
-                user_id: params.userId,
-                username_snapshot: params.username,
-                seat: params.seat ?? null,
-                player_status: params.status || 'seated',
-                buyin_gold_total: params.buyinGoldTotal || 0,
-                buyin_chips_total: params.buyinChipsTotal || 0,
-                current_chips: params.currentChips || 0,
-                hands_played: params.handsPlayed || 0,
-                settlement_gold: params.settlementGold ?? null,
-                settled_at_ms: params.settledAt || null,
-                joined_at_ms: params.joinedAt || now,
-                left_at_ms: params.leftAt || null
-            });
+            upsertPlayer(params);
         },
         findRecoverable() {
             return db.prepare(`
                 SELECT m.*, s.snapshot_json, s.state_version AS snapshot_version
                 FROM matches m
                 JOIN active_match_states s ON s.match_id = m.id
-                WHERE m.status IN ('waiting', 'running', 'paused', 'recovery_needed')
+                WHERE m.status IN ('waiting', 'running', 'paused', 'finished', 'recovery_needed')
                 ORDER BY m.created_at_ms
             `).all().map(row => ({
                 ...row,

@@ -12,8 +12,12 @@ function defaultDatabasePath(baseDir) {
     return process.env.POKER_DB_PATH || path.join(baseDir, '.local', 'pokerdojo.sqlite');
 }
 
-function createDatabaseService({ databasePath, baseDir = path.resolve(__dirname, '../..') } = {}) {
-    const db = openSqlite(databasePath || defaultDatabasePath(baseDir));
+function createDatabaseService({
+    databasePath,
+    baseDir = path.resolve(__dirname, '../..'),
+    allowCreate = process.env.NODE_ENV !== 'production' || process.env.POKER_ALLOW_CREATE_DB === '1'
+} = {}) {
+    const db = openSqlite(databasePath || defaultDatabasePath(baseDir), { allowCreate });
     const users = createUserRepository(db);
     const wallet = createWalletRepository(db);
     const content = createContentRepository(db);

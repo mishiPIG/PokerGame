@@ -37,7 +37,10 @@ function applyMigrations(db) {
     }
 }
 
-function openSqlite(databasePath) {
+function openSqlite(databasePath, { allowCreate = true } = {}) {
+    if (databasePath !== ':memory:' && !allowCreate && !fs.existsSync(databasePath)) {
+        throw new Error(`DATABASE_NOT_FOUND:${databasePath}`);
+    }
     ensureParent(databasePath);
     const db = new Database(databasePath);
     db.pragma('foreign_keys = ON');

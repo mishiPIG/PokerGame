@@ -55,6 +55,11 @@ function createWalletRepository(db) {
             return adjustTx(params);
         },
         setBalance({ userId, gold, operationKey, metadata = {} }) {
+            const existing = findOperation.get(operationKey);
+            if (existing) {
+                if (existing.user_id !== userId || existing.balance_after !== gold) throw new Error('IDEMPOTENCY_CONFLICT');
+                return { applied: false, balance: existing.balance_after, transactionId: existing.id };
+            }
             const row = getBalance.get(userId);
             if (!row) throw new Error('USER_NOT_FOUND');
             if (!Number.isInteger(gold) || gold < 0) throw new Error('INVALID_GOLD');

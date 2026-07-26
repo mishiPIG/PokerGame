@@ -1,9 +1,11 @@
 'use strict';
 
-function createStatePresenter({ io, db, roomGames, PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, livePots, HandEvaluator }) {
+function createStatePresenter({ io, db, roomGames, PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, livePots, HandEvaluator, persistence }) {
 function broadcastState(roomId) {
     const game = roomGames[roomId];
     if (!game) return;
+    if (persistence) persistence.commit(roomId, game._pendingPersistenceEvent || 'state_committed');
+    delete game._pendingPersistenceEvent;
     const state = {
         phase: game.phase,
         pot: game.pot,

@@ -1,6 +1,6 @@
 'use strict';
 
-function createSeatService({ io, db, roomGames, lobbySockets, config, hooks }) {
+function createSeatService({ io, db, roomGames, lobbySockets, config, persistence, hooks }) {
     const { PHASES, BUYIN_RATE, CASHOUT_RATE, gameBB, timeCardsFor } = config;
     const { clampInt, broadcastState, broadcastRoomList, clearActionTimer, afterAction, isBettingRoundComplete, advanceStage, scheduleNextHand, liveCount, cashOut, recordLeft } = hooks;
 // 站起围观：把玩家移出座位（座位腾空、可被他人坐下），转为观众；筹码存入 vacatedPlayers，
@@ -87,11 +87,36 @@ function chargeRebuy(game, p, chips) {
     if (!fresh) return false;
     const cost = Math.ceil(chips * BUYIN_RATE);
     if (fresh.gold < cost) return false;
-    db.setGold(p.userId, fresh.gold - cost);
-    if (p.socketId) io.to(p.socketId).emit('gold_update', { gold: fresh.gold - cost });
+    const roomId = Object.keys(roomGames).find(id => roomGames[id] === game);
+    if (!roomId || !game.matchId) return false;
+    const before = {
+        pendingRebuy: p.pendingRebuy || 0,
+        buyIn: p.buyIn || 0,
+        buyInGold: p.buyInGold || 0,
+        timeCards: p.timeCards || 0,
+        rebuySeq: p.rebuySeq || 0
+    };
     p.pendingRebuy = (p.pendingRebuy || 0) + chips;
     p.buyIn = (p.buyIn || 0) + chips;
+    p.buyInGold = (p.buyInGold || 0) + cost;
     p.timeCards = (p.timeCards || 0) + timeCardsFor(game, chips);   // 补码同步补时间卡
+    p.rebuySeq = (p.rebuySeq || 0) + 1;
+    try {
+        const committed = persistence.commitWithWallet(roomId, [{
+            userId: p.userId,
+            delta: -cost,
+            type: 'cash_rebuy',
+            matchId: game.matchId,
+            operationKey: `cash-rebuy:${game.matchId}:${p.userId}:${p.rebuySeq}`,
+            metadata: { chips }
+        }], 'cash_rebuy', p.userId, { chips, cost });
+        const balance = committed.wallets[0].balance;
+        if (p.socketId) io.to(p.socketId).emit('gold_update', { gold: balance });
+    } catch (error) {
+        Object.assign(p, before);
+        if (error.message !== 'INSUFFICIENT_GOLD') console.error('[wallet] cash rebuy failed', error);
+        return false;
+    }
     return true;
 }
 
@@ -137,6 +162,26 @@ function removeBustedPlayers(game) {
     if (game.buttonIdx >= game.players.length) game.buttonIdx = 0;
 }
 
+function restoreReserveTimers(roomId) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    game.players.forEach(p => {
+        if (!p.reserved || !p.reserveLeaveAt) return;
+        clearTimeout(p.reserveTimer);
+        p.reserveTimer = setTimeout(() => {
+            const g = roomGames[roomId];
+            const player = g && g.players.find(x => x.userId === p.userId);
+            if (!player || !player.reserved) return;
+            player.reserved = false;
+            player.standing = true;
+            player.sittingOut = true;
+            player.reserveTimer = null;
+            broadcastState(roomId);
+            broadcastRoomList();
+        }, Math.max(0, p.reserveLeaveAt - Date.now()));
+    });
+}
+
 // 入座：SNG=扣报名费+固定起始筹码；现金桌=金币按汇率买入筹码
 // 以观众身份进桌（不入座、不带入）：用于现金桌「坐下式」入座
 function joinAsSpectator(roomId, socket) {
@@ -167,21 +212,22 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
     }
     if (seat < 0) { socket.emit('server_msg', '⚠️ 没有空座位'); return false; }
     let chips;
+    let cost;
+    let walletType;
+    let operationKey;
     if (game.roomType === 'cash') {
         const maxB = game.config.maxBuyIn || 1e9;
         chips = clampInt(buyInChips, game.config.minBuyIn, maxB, game.config.minBuyIn);
-        const cost = Math.ceil(chips * BUYIN_RATE);
+        cost = Math.ceil(chips * BUYIN_RATE);
         if (fresh.gold < cost) { socket.emit('server_msg', `⚠️ 金币不足：买入 ${chips} 筹码需 ${cost} 金币（当前 ${fresh.gold}）`); return false; }
-        db.setGold(user.id, fresh.gold - cost); user.gold = fresh.gold - cost;
-        socket.emit('gold_update', { gold: user.gold });
+        walletType = 'cash_buyin';
+        operationKey = `cash-buyin:${game.matchId}:${user.id}`;
     } else {
         const fee = game.config.buyIn || 0;
         if (fresh.gold < fee) { socket.emit('server_msg', `⚠️ 金币不足报名费 ${fee}（当前 ${fresh.gold}）`); return false; }
-        if (fee > 0) {
-            db.setGold(user.id, fresh.gold - fee); user.gold = fresh.gold - fee;
-            game.prizePool = (game.prizePool || 0) + fee;
-            socket.emit('gold_update', { gold: user.gold });
-        }
+        cost = fee;
+        walletType = 'sng_entry';
+        operationKey = `sng-entry:${game.matchId}:${user.id}`;
         chips = game.config.startingStack;
     }
     lobbySockets.delete(socket.id);
@@ -191,18 +237,48 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
     const newP = {
         userId: user.id, socketId: socket.id, username: user.username, seat,
         avatar: db.getUserById(user.id)?.avatar || null,
-        chips, currentBet: 0, buyIn: chips,   // 入座即记录带入额（战绩 net=chips-buyIn=0，避免首次广播显示 +chips）
+        chips, currentBet: 0, buyIn: chips, buyInGold: cost || 0,
+        joinedAt: Date.now(),
         timeCards: timeCardsFor(game, chips),   // 按买入BB×时长发时间卡（加时消耗）
         folded: inHand, allIn: false, hasActed: false, ready: false   // 中途加入则本局坐出（下一局开局重置）
     };
     // 牌局进行中：追加到末尾（避免打乱在用的数组索引），坐出本手；局间则按座位插入
+    let insertedAt;
     if (inHand) {
         game.players.push(newP);
+        insertedAt = game.players.length - 1;
     } else {
         let ins = game.players.findIndex(p => p.seat > seat);
         if (ins < 0) ins = game.players.length;
         game.players.splice(ins, 0, newP);
+        insertedAt = ins;
         if (ins <= game.buttonIdx) game.buttonIdx++;
+    }
+    if (game.roomType === 'sng' && cost > 0) game.prizePool = (game.prizePool || 0) + cost;
+    try {
+        const changes = cost > 0 ? [{
+            userId: user.id,
+            delta: -cost,
+            type: walletType,
+            matchId: game.matchId,
+            operationKey,
+            metadata: { chips, roomId }
+        }] : [];
+        const committed = changes.length
+            ? persistence.commitWithWallet(roomId, changes, walletType, user.id, { chips, cost })
+            : { wallets: [], match: persistence.commit(roomId, 'player_seated', user.id, { chips }) };
+        if (changes.length) {
+            user.gold = committed.wallets[0].balance;
+            socket.emit('gold_update', { gold: user.gold });
+        }
+    } catch (error) {
+        const idx = game.players.indexOf(newP);
+        if (idx >= 0) game.players.splice(idx, 1);
+        if (!inHand && insertedAt <= game.buttonIdx && game.buttonIdx > 0) game.buttonIdx--;
+        if (game.roomType === 'sng' && cost > 0) game.prizePool = Math.max(0, game.prizePool - cost);
+        if (error.message === 'INSUFFICIENT_GOLD') socket.emit('server_msg', '⚠️ 金币不足');
+        else console.error('[wallet] seat buy-in failed', error);
+        return false;
     }
     socket.emit('room_joined', { roomId, canPlay: socket.playRoom === roomId });
     socket.to(roomId).emit('server_msg', `🪑 ${user.username} 入座 ${seat + 1} 号位`);
@@ -211,7 +287,7 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
     return true;
 }
 
-    return { vacateSeat, standUpPlayer, restoreVacatedPlayer, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer };
+    return { vacateSeat, standUpPlayer, restoreVacatedPlayer, chargeRebuy, removeBustedPlayers, restoreReserveTimers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer };
 }
 
 module.exports = { createSeatService };

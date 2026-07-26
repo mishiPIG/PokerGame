@@ -7,7 +7,7 @@ function createJoinRoomHandler(context) {
     return roomId => membershipService.joinRoom(socket, user, roomId);
 }
 function registerMembershipEvents(context) {
-    const { socket, user, io, db, roomGames, lobbySockets, PHASES, broadcastState, broadcastRoomList,
+    const { socket, user, io, db, roomGames, lobbySockets, PHASES, broadcastState, broadcastRoomList, persistence,
         clearActionTimer, afterAction, isBettingRoundComplete, advanceStage, liveCount,
         restoreVacatedPlayer, seatPlayer, occupiedSeats, standUpPlayer, clearStraddleDecision,
         prepareNextStraddleDecision, emitStraddleOffer, scheduleNextHand, listRooms,
@@ -121,6 +121,7 @@ function registerMembershipEvents(context) {
             status: d.status,
             amount: d.amount
         });
+        persistence.commit(roomId, 'straddle_decided', user.id, { status: d.status, targetHandSeq: d.targetHandSeq });
     });
 
     socket.on('resume_dealing', () => {
@@ -219,20 +220,56 @@ function registerMembershipEvents(context) {
                     } else { broadcastState(roomId); broadcastRoomList(); }
                 } else if (game.status === 'waiting') {
                     // SNG 开赛前退出：退还报名费、移除座位（仅"从未开赛"才退，避免结束后离场被误退款）
-                    if (game.config.buyIn > 0) {
-                        const fresh = db.getUserById(user.id).gold;
-                        db.setGold(user.id, fresh + game.config.buyIn);
-                        game.prizePool = Math.max(0, (game.prizePool || 0) - game.config.buyIn);
-                        user.gold = fresh + game.config.buyIn;
-                        socket.emit('gold_update', { gold: user.gold });
-                    }
+                    const refund = game.config.buyIn || 0;
+                    const oldPrizePool = game.prizePool || 0;
+                    const oldButtonIdx = game.buttonIdx;
+                    const oldSettlement = {
+                        settlementGold: p.settlementGold,
+                        settledAt: p.settledAt,
+                        leftAt: p.leftAt
+                    };
+                    if (refund > 0) game.prizePool = Math.max(0, (game.prizePool || 0) - refund);
                     game.players.splice(idx, 1);
                     if (game.buttonIdx >= game.players.length) game.buttonIdx = 0;
+                    try {
+                        if (refund > 0) {
+                            p.settlementGold = refund; p.settledAt = Date.now(); p.leftAt = Date.now();
+                            const committed = persistence.commitWithWallet(roomId, [{
+                                userId: user.id,
+                                delta: refund,
+                                type: 'sng_refund',
+                                matchId: game.matchId,
+                                operationKey: `sng-refund:${game.matchId}:${user.id}`,
+                                metadata: { reason: 'left_before_start' }
+                            }], 'sng_refund', user.id, { refund }, [{
+                                userId: p.userId,
+                                username: p.username,
+                                seat: p.seat,
+                                status: 'settled',
+                                buyinGoldTotal: p.buyInGold || refund,
+                                buyinChipsTotal: p.buyIn || 0,
+                                currentChips: p.chips || 0,
+                                handsPlayed: p.handsPlayed || 0,
+                                settlementGold: refund,
+                                settledAt: p.settledAt,
+                                joinedAt: p.joinedAt,
+                                leftAt: p.leftAt
+                            }]);
+                            user.gold = committed.wallets[0].balance;
+                            socket.emit('gold_update', { gold: user.gold });
+                        } else persistence.commit(roomId, 'player_left', user.id);
+                    } catch (error) {
+                        game.players.splice(idx, 0, p);
+                        game.prizePool = oldPrizePool;
+                        game.buttonIdx = oldButtonIdx;
+                        Object.assign(p, oldSettlement);
+                        throw error;
+                    }
                     socket.leave(roomId);
                     io.to(roomId).emit('server_msg', `🚪 ${user.username} 离开房间`);
                     if (game.players.length === 0) {
                         clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer);
-                        clearActionTimer(game); delete roomGames[roomId];
+                        clearActionTimer(game); persistence.finish(roomId, 'cancelled'); delete roomGames[roomId];
                     } else broadcastState(roomId);
                 } else if (game.tournamentOver || game.status === 'finished') {
                     // SNG 已分出胜负：奖金已结算，【不退报名费】；直接离开（房间会在宽限后自动解散）
@@ -241,7 +278,7 @@ function registerMembershipEvents(context) {
                     socket.leave(roomId); socket.emit('left_room');
                     if (game.players.length === 0) {
                         clearTimeout(game.dissolveTimer); clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer);
-                        clearTimeout(game.runoutTimer); clearActionTimer(game); delete roomGames[roomId]; broadcastRoomList();
+                        clearTimeout(game.runoutTimer); clearActionTimer(game); persistence.finish(roomId, 'finished'); delete roomGames[roomId]; broadcastRoomList();
                     } else broadcastState(roomId);
                 } else {
                     // SNG 开赛后退出：保留座位（离桌挂机），本局自动弃牌推进
