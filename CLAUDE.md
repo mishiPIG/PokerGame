@@ -179,6 +179,16 @@ Android / iOS / PC
 - **另修 run-it 引入的崩溃**：`maxRunsByDeck` 按剩余牌堆限制可发次数（`offerRunIt` 的 max + `resolveRunIt` 夹取），防 9-max 多人弃牌后牌堆不足发 N 次导致 `drawCard()` 返回 null 崩/卡；客户端次数按钮随 `max`。
 - **验证**：jsdom 加载**真实 index.html** 直接跑 `buildRunitBoards`/`runitDealStreet`/`clearRunit`——preflop 2 组各 5 张、翻后全押共享 flop+每组并列 2 张、clearRunit 复原 全对 ✅；socket 回归 runit/sidepot/sidepot2/standflow/hostfeat 全通 ✅。（确认渲染函数本身没问题，就是跨手残留 class。）
 
+## 🎯 SNG 结束流程修复 + 优雅关停待办（2026-07-26）
+- **SNG 结束现状**：分出胜负(仅 1 人有筹码)时 `maybeEndSNG` **会自动结算**——奖金 `db.setGold` 发给冠军(落盘、崩溃不丢)+ 公布排名 + 站内信。但之前**不自动解散房间**,要手动退出/解散,而手动退出正好踩中那个 `db` 崩溃。
+- **本批修的两个真·经济漏洞(逻辑洞,正是要提前抓的那种)**：
+  1. **输家离场被错误退款**：`leave_room` 用 `status!=='running'` 判"开赛前退款",但**已结束**的 SNG(status='finished')也满足 → **输了的人点返回大厅居然退还报名费**(白拿钱)。改为只有 `status==='waiting'`(从未开赛)才退;新增 `finished` 分支=直接离开不退款。
+  2. **解散重复发奖**：`dissolve_room` 对**已自然结束**的 SNG 会**再给筹码最多者发一次奖**(双倍)。加 `if(!game.tournamentOver)` 守卫,已结束只清房不再发奖/弹排名。
+- **新增自动解散**：`maybeEndSNG` 分出胜负后**留 25s 看排名再自动解散房间**(`finalizeSngRoom`:清定时器/emit room_dissolved/踢回大厅/删房)。玩家看完排名自动回大厅,无需手动解散。
+- **验证**：SNG 打到分出胜负→冠军净+90(扣110报名+200奖)、输家离场金币不变(不退款)、25s 后 room_dissolved 自动解散 ✅;sngnorunit/sngleave(开赛前退款仍在)/多次发牌/边池/站起/房主/单会话 回归全通 ✅。
+- **🔜 优雅关停待办(用户 2026-07-26 定为高优先,真实提升)**：重启前**先广播提醒 → 等所有房间当前手牌打完 → 结算保存数据 → 再退出**。至少现金桌在关停时 `endCashTable`(在局筹码退回金币),不丢钱。**要点(用户强调)**:不能硬切,要等当前手结束+提前广播。
+- **🔜 更远待办(步骤2,后面再做)**：**牌局状态持久化+重启恢复**(快照 roomGames 落盘、启动读回、玩家重连续打)——做到部署/重启对进行中的牌局近乎无感。核心诉求:**崩溃/重启绝不能影响正在进行的牌局(商业化底线)**。见 [[feedback_no_crashes_lint_gate]]。
+
 ## 🔴 重构引入的崩溃 bug 复查（2026-07-26，香港已上）
 - **背景**：用户玩 SNG 结束后解散/退出时"服务器整体卡一下、无关的现金桌也没了"——实为**未捕获异常崩溃 → pm2 重启 → 内存所有牌局清空**。重构漏了依赖注入,是这类"运行到特定路径才 ReferenceError 崩全服"的 bug。
 - **抓到并修的两个崩溃(同一类)**：①`db is not defined` @ `membership-events.js`(SNG 开赛前退出退还报名费分支漏解构 `db`);②`onActionTimeout is not defined` @ `poker-action-events.js`(**加时后再超时**,定时器调用未解构的函数→崩;有进程兜底后降级为"卡住该手")。都补上解构。

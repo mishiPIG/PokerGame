@@ -18,16 +18,19 @@ function registerTableControlEvents(context) {
             return;
         }
         // SNG：奖池（抽水后）给当前筹码最多者，并公布排名
-        clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearTimeout(game.runItTimer); game.runItPending = false; clearActionTimer(game);
+        clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearTimeout(game.runItTimer); clearTimeout(game.dissolveTimer); game.runItPending = false; clearActionTimer(game);
         for (const p of game.players) if (p.reserveTimer) clearTimeout(p.reserveTimer);
-        const prize = sngPrize(game.prizePool);
-        const leader = [...game.players].sort((a, b) => b.chips - a.chips)[0];
-        if (leader && prize > 0) {
-            const fresh = db.getUserById(leader.userId).gold;
-            db.setGold(leader.userId, fresh + prize);
-            if (leader.socketId) io.to(leader.socketId).emit('gold_update', { gold: fresh + prize });
+        // ⚠️ 已自然结束(tournamentOver)的 SNG 奖金已在 maybeEndSNG 发过——此时解散只清房，绝不再发奖/再弹排名（防重复发奖）
+        if (!game.tournamentOver) {
+            const prize = sngPrize(game.prizePool);
+            const leader = [...game.players].sort((a, b) => b.chips - a.chips)[0];
+            if (leader && prize > 0) {
+                const fresh = db.getUserById(leader.userId).gold;
+                db.setGold(leader.userId, fresh + prize);
+                if (leader.socketId) io.to(leader.socketId).emit('gold_update', { gold: fresh + prize });
+            }
+            sendMatchResult(roomId, `【${game.config.name}】房主提前结束`, buildRanking(game, leader && leader.userId, prize));
         }
-        sendMatchResult(roomId, `【${game.config.name}】房主提前结束`, buildRanking(game, leader && leader.userId, prize));
         io.in(roomId).emit('server_msg', `🛑 房主解散了房间`);
         io.in(roomId).emit('room_dissolved');
         for (const p of game.players) {

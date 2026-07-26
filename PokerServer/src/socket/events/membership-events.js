@@ -217,8 +217,8 @@ function registerMembershipEvents(context) {
                         else broadcastState(roomId);
                         broadcastRoomList();
                     } else { broadcastState(roomId); broadcastRoomList(); }
-                } else if (game.status !== 'running') {
-                    // SNG 开赛前退出：退还报名费、移除座位
+                } else if (game.status === 'waiting') {
+                    // SNG 开赛前退出：退还报名费、移除座位（仅"从未开赛"才退，避免结束后离场被误退款）
                     if (game.config.buyIn > 0) {
                         const fresh = db.getUserById(user.id).gold;
                         db.setGold(user.id, fresh + game.config.buyIn);
@@ -233,6 +233,15 @@ function registerMembershipEvents(context) {
                     if (game.players.length === 0) {
                         clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer);
                         clearActionTimer(game); delete roomGames[roomId];
+                    } else broadcastState(roomId);
+                } else if (game.tournamentOver || game.status === 'finished') {
+                    // SNG 已分出胜负：奖金已结算，【不退报名费】；直接离开（房间会在宽限后自动解散）
+                    game.players.splice(idx, 1);
+                    if (game.buttonIdx >= game.players.length) game.buttonIdx = 0;
+                    socket.leave(roomId); socket.emit('left_room');
+                    if (game.players.length === 0) {
+                        clearTimeout(game.dissolveTimer); clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer);
+                        clearTimeout(game.runoutTimer); clearActionTimer(game); delete roomGames[roomId]; broadcastRoomList();
                     } else broadcastState(roomId);
                 } else {
                     // SNG 开赛后退出：保留座位（离桌挂机），本局自动弃牌推进

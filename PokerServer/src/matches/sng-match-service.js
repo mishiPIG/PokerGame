@@ -1,7 +1,26 @@
 'use strict';
 
-function createSngMatchService({ io, db, roomGames, sngPrize, PHASES, hooks }) {
-    const { broadcastState, broadcastRoomList, buildRanking, sendMatchResult } = hooks;
+const SNG_DISSOLVE_GRACE_MS = 25000;   // SNG 分出胜负后，留 25s 看结算排名，再自动解散房间
+
+function createSngMatchService({ io, db, roomGames, lobbySockets, sngPrize, PHASES, hooks }) {
+    const { broadcastState, broadcastRoomList, buildRanking, sendMatchResult, listRooms, clearActionTimer } = hooks;
+
+// SNG 结束后清房：清所有定时器、通知客户端回大厅、把玩家踢回大厅、删房。奖金已在 maybeEndSNG 结算，此处不再发奖。
+function finalizeSngRoom(roomId) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer);
+    clearTimeout(game.runItTimer); clearTimeout(game.dissolveTimer); game.runItPending = false;
+    clearActionTimer(game);
+    for (const p of game.players) if (p.reserveTimer) clearTimeout(p.reserveTimer);
+    io.in(roomId).emit('room_dissolved');
+    for (const p of game.players) {
+        const s = io.sockets.sockets.get(p.socketId);
+        if (s) { s.leave(roomId); s.currentRoom = null; lobbySockets.add(s.id); s.emit('room_list', listRooms(p.userId)); }
+    }
+    delete roomGames[roomId];
+    broadcastRoomList();
+}
 // SNG 升盲计时器
 function startLevelTimer(roomId) {
     const game = roomGames[roomId];
@@ -67,12 +86,15 @@ function maybeEndSNG(roomId) {
         }
         // 公布按名次排名（冠军→淘汰倒序）+ 给每位玩家（含已淘汰离开者）发消息
         sendMatchResult(roomId, `【${game.config.name}】比赛结束`, buildRanking(game, winner && winner.userId, sngPrize(game.prizePool)));
+        // 分出胜负 → 自动结算(上面已发奖) + 宽限后自动解散房间(玩家看完排名回大厅，无需手动解散)
+        clearTimeout(game.dissolveTimer);
+        game.dissolveTimer = setTimeout(() => finalizeSngRoom(roomId), SNG_DISSOLVE_GRACE_MS);
         broadcastRoomList();
     }
 }
 
 
-    return { startLevelTimer, onLevelUp, doLevelUp, applyPendingLevelUp, maybeEndSNG };
+    return { startLevelTimer, onLevelUp, doLevelUp, applyPendingLevelUp, maybeEndSNG, finalizeSngRoom };
 }
 
 module.exports = { createSngMatchService };
