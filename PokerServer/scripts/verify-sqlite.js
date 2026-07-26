@@ -9,7 +9,11 @@ if (!databasePath) {
     console.error('用法: node scripts/verify-sqlite.js /path/to/pokerdojo.sqlite');
     process.exitCode = 1;
 } else {
-    const service = createDatabaseService({ databasePath, baseDir: path.resolve(__dirname, '..') });
+    const service = createDatabaseService({
+        databasePath,
+        baseDir: path.resolve(__dirname, '..'),
+        allowCreate: false
+    });
     try {
         const integrity = service.integrityCheck();
         const foreignKeys = service.foreignKeyCheck();

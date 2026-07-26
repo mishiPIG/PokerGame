@@ -34,6 +34,12 @@ const { LOCAL_DEV, PHASES, DEFAULT_SMALL_BLIND, DEFAULT_BIG_BLIND,
 const JWT_SECRET = config.loadJwtSecret(__dirname);
 const runtime = createRuntime();
 const { roomGames, lobbySockets, inviteCodeFailuresByUser, inviteCodeFailuresByIp } = runtime;
+app.use((req, res, next) => {
+    if (runtime.shuttingDown && req.method !== 'GET') {
+        return res.status(503).json({ error: '服务正在安全重启，请稍后重试' });
+    }
+    return next();
+});
 const auth = createAuth({ db, jwt, jwtSecret: JWT_SECRET });
 const { signToken, userPayload, requireAdmin, requireAuth } = auth;
 app.use(express.json());
@@ -71,6 +77,7 @@ if (require.main === module) {
     const shutdown = (signal, error = null) => {
         if (shuttingDown) return;
         shuttingDown = true;
+        runtime.shuttingDown = true;
         console.error(`[shutdown] signal=${signal}`, error?.stack || error || '');
         for (const roomId of Object.keys(roomGames)) {
             try {

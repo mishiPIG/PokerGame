@@ -23,7 +23,7 @@ if (!databasePath) {
     console.error('缺少 --database 或 POKER_DB_PATH');
     process.exitCode = 1;
 } else {
-    const service = createDatabaseService({ databasePath, baseDir });
+    const service = createDatabaseService({ databasePath, baseDir, allowCreate: true });
     try {
         const report = importLegacy(service, {
             data: args.data || path.join(baseDir, 'data.json'),

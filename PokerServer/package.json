@@ -8,9 +8,11 @@
     "test": "node --test",
     "check": "eslint . && node tools/check-destructures.js",
     "preflight": "npm run check",
-    "db:migrate": "node scripts/verify-sqlite.js",
+    "db:migrate": "node scripts/migrate-sqlite.js",
     "db:import-legacy": "node scripts/migrate-json-to-sqlite.js",
-    "db:verify": "node scripts/verify-sqlite.js"
+    "db:verify": "node scripts/verify-sqlite.js",
+    "db:backup": "node scripts/backup-sqlite.js",
+    "db:export": "node scripts/export-sqlite-to-legacy.js"
   },
   "keywords": [],
   "author": "",

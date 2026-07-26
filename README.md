@@ -50,7 +50,7 @@ Browser / Android (thin client)  ──socket.io──►  Node server (authorit
 
 - **Server authority:** all rules on the server; clients never receive opponents' hole cards.
 - **Hand evaluation:** Cactus Kev + Paul Senzee perfect-hash. Each card is a 32-bit int; 7-card hands enumerate C(7,5); score 1 (best) … 7462 (worst). JS port uses `>>> 0` for unsigned 32-bit math.
-- **Storage:** in-memory game state + JSON files (`data.json` users, `hands.jsonl` hand history). The `database.js` interface is stable so it can move to SQLite/Postgres later without touching callers.
+- **Storage:** SQLite is the durable source of truth for users, wallet transactions, hand histories, and active-match snapshots. Memory remains the real-time working state; unfinished matches are restored after restart.
 
 ### Project structure
 

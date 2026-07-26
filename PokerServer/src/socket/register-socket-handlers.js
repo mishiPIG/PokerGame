@@ -14,6 +14,10 @@ function registerSocketHandlers(deps) {
         const user = socket.user;
         const rawOn = socket.on.bind(socket);
         socket.on = (event, handler) => rawOn(event, (...args) => {
+            if (runtime.shuttingDown && event !== 'disconnect') {
+                socket.emit('server_msg', '⚠️ 服务正在安全重启，请稍后重新连接');
+                return undefined;
+            }
             const handleError = error => {
                 console.error(`[socket-error] event=${event} userId=${user.id}`, error?.stack || error);
                 const roomId = socket.currentRoom;
