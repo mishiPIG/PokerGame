@@ -59,7 +59,7 @@ test('seat service receives its buy-in clamp dependency explicitly', () => {
     const { createSeatService } = require('./src/rooms/seat-service');
     const roomGames = {
         room1: {
-            roomType: 'cash', phase: 'waiting', players: [], buttonIdx: 0,
+            matchId: 'match1', roomType: 'cash', phase: 'waiting', players: [], buttonIdx: 0,
             config: { maxPlayers: 2, minBuyIn: 100, maxBuyIn: 500 }
         }
     };
@@ -72,6 +72,10 @@ test('seat service receives its buy-in clamp dependency explicitly', () => {
     const seatService = createSeatService({
         io: { in() { return { emit() {} }; }, to() { return { emit() {} }; }, sockets: { sockets: new Map() } },
         db, roomGames, lobbySockets: new Set(),
+        persistence: {
+            commitWithWallet() { return { wallets: [{ balance: 990 }], match: { stateVersion: 2 } }; },
+            commit() { return { stateVersion: 2 }; }
+        },
         config: { PHASES: { WAITING: 'waiting', SHOWDOWN: 'showdown' }, BUYIN_RATE: 0.1, CASHOUT_RATE: 0.1, gameBB() { return 20; }, timeCardsFor() { return 1; } },
         hooks: { clampInt(value, min, max, fallback) { const number = Number(value); return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback; }, broadcastState() {}, broadcastRoomList() {}, clearActionTimer() {}, afterAction() {}, isBettingRoundComplete() { return false; }, advanceStage() {}, scheduleNextHand() {}, liveCount() { return 0; }, cashOut() { return 0; }, recordLeft() {} }
     });

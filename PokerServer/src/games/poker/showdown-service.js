@@ -1,7 +1,7 @@
 'use strict';
 
 function createShowdownService({ io, roomGames, HandEvaluator, activePlayers, buildSidePots, returnUncalledBets, hooks }) {
-    const { saveHandHistory, applyPendingLevelUp, broadcastState, maybeEndSNG, scheduleNextHand } = hooks;
+    const { saveHandHistory, commitHandHistory, applyPendingLevelUp, broadcastState, maybeEndSNG, scheduleNextHand } = hooks;
 function doShowdown(roomId) {
     const game = roomGames[roomId];
     returnUncalledBets(roomId);   // 摊牌前退还未被跟到的多余下注（幂等；已在 all-in 亮牌时退过则不动）
@@ -67,11 +67,12 @@ function doShowdown(roomId) {
     }).join('，');
     io.in(roomId).emit('server_msg', `🏆 ${label}（边池数 ${pots.length}）`);
 
-    saveHandHistory(game, winShare);   // 牌谱落库
+    const completedHand = saveHandHistory(game, winShare);
     game.pot = 0;
     game.players.forEach(p => p.committed = 0);
     game.actionOnIdx = -1;
     applyPendingLevelUp(roomId);
+    commitHandHistory(roomId, completedHand);
     broadcastState(roomId);
     io.in(roomId).emit('sfx', 'win');
     maybeEndSNG(roomId);

@@ -8,7 +8,7 @@ function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config,
     const { cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, prepareNextStraddleDecision, clearStraddleDecision } = straddle;
     const { offerRunIt } = runIt;
     const { doShowdown } = showdown;
-    const { recordAction, saveHandHistory } = history;
+    const { recordAction, saveHandHistory, commitHandHistory } = history;
     const { applyPendingLevelUp, maybeEndSNG, scheduleNextHand, startLevelTimer, startTableTimer, broadcastRoomList } = hooks;
 // ===== 行动计时器（服务器权威）=====
 
@@ -36,6 +36,26 @@ function startActionTimer(roomId) {
     game.actionDeadline = Date.now() + ms;
     game.actionTotalMs = ms;
     game.actionTimer = setTimeout(() => onActionTimeout(roomId), ms);
+}
+
+function restoreActionTimer(roomId) {
+    const game = roomGames[roomId];
+    if (!game || game.actionOnIdx < 0 || !game.actionDeadline) return;
+    clearActionTimer(game);
+    game.actionTimer = setTimeout(
+        () => onActionTimeout(roomId),
+        Math.max(0, game.actionDeadline - Date.now())
+    );
+}
+
+function restoreRunoutTimer(roomId) {
+    const game = roomGames[roomId];
+    if (!game?.runoutDeadline || game.runoutState || game.runItPending) return;
+    clearTimeout(game.runoutTimer);
+    game.runoutTimer = setTimeout(
+        () => advanceStage(roomId),
+        Math.max(0, game.runoutDeadline - Date.now())
+    );
 }
 
 function onActionTimeout(roomId) {
@@ -116,6 +136,7 @@ function advanceStage(roomId) {
         // 恰两人 all-in 且还有公共牌未发 → 进入「发几次」协商（落后方选、领先方同意）；否则照常单次跑马
         if (offerRunIt(roomId, act)) return;
         clearTimeout(game.runoutTimer);
+        game.runoutDeadline = Date.now() + RUNOUT_DELAY;
         game.runoutTimer = setTimeout(() => advanceStage(roomId), RUNOUT_DELAY);
         return;                                 // 下一次 advanceStage 才开始发公共牌
     }
@@ -124,20 +145,22 @@ function advanceStage(roomId) {
         const active = activePlayers(game);
         if (active.length <= 1) {
             collectBetsToPot(game);
+            let completedHand;
             if (active.length === 1) {
                 const winner = active[0];
                 winner.chips += game.pot;   // 其余全弃，独得全部投入
                 io.in(roomId).emit('server_msg', `🏆 ${winner.username} 赢得底池 ${game.pot}（其余弃牌）`);
                 io.in(roomId).emit('sfx', 'win');
-                saveHandHistory(game, { [winner.userId]: game.pot });
+                completedHand = saveHandHistory(game, { [winner.userId]: game.pot });
             } else {
-                saveHandHistory(game, {});
+                completedHand = saveHandHistory(game, {});
             }
             game.pot = 0;
             game.players.forEach(p => p.committed = 0);
             game.phase = PHASES.SHOWDOWN;
             game.actionOnIdx = -1;
             applyPendingLevelUp(roomId);
+            commitHandHistory(roomId, completedHand);
             broadcastState(roomId);
             maybeEndSNG(roomId);
             if (!game.tournamentOver) scheduleNextHand(roomId);
@@ -173,6 +196,7 @@ function advanceStage(roomId) {
             broadcastState(roomId);
             emitEquity(roomId);                 // 每发一条街重算胜率（跳动）
             clearTimeout(game.runoutTimer);
+            game.runoutDeadline = Date.now() + RUNOUT_DELAY;
             game.runoutTimer = setTimeout(() => advanceStage(roomId), RUNOUT_DELAY);
             return;
         }
@@ -230,6 +254,7 @@ function drawForButton(roomId) {
     });
     io.in(roomId).emit('server_msg', `🎴 高牌定庄：${win.username} 拿到最大牌，本场首庄`);
     clearTimeout(game.nextHandTimer);
+    game.nextHandAt = Date.now() + BUTTON_DRAW_MS;
     game.nextHandTimer = setTimeout(() => startHand(roomId), BUTTON_DRAW_MS);
 }
 // 开赛入口：首手走高牌定庄动画，之后正常发牌
@@ -371,7 +396,7 @@ function startHand(roomId) {
 
     // 牌谱记录初始化（数据资产：玩家×模式×时序）——仅记录参与本手的玩家
     game.hand = {
-        ts: Date.now(), roomId, mode: game.roomType, handSeq: game.handSeq,
+        ts: Date.now(), matchId: game.matchId, roomId, mode: game.roomType, handSeq: game.handSeq,
         sb: SB, bb: BB, ante,
         straddle: game.straddle ? { ...game.straddle } : null,
         buttonUserId: game.players[game.buttonIdx]?.userId || null,
@@ -406,7 +431,7 @@ function startHand(roomId) {
 
 // 记录一次行动到牌谱
 
-    return { clearActionTimer, startActionTimer, onActionTimeout, afterAction, dealCommunity, emitEquity, advanceStage, tryStartHand, canPlay, liveCount, nextLiveIdx, drawForButton, beginPlay, startHand };
+    return { clearActionTimer, startActionTimer, restoreActionTimer, restoreRunoutTimer, onActionTimeout, afterAction, dealCommunity, emitEquity, advanceStage, tryStartHand, canPlay, liveCount, nextLiveIdx, drawForButton, beginPlay, startHand };
 }
 
 module.exports = { createHandService };

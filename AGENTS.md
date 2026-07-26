@@ -41,21 +41,22 @@
 
 数据是项目最重要且必须可迁移的资产：
 
-- 用户与经济数据：`PokerServer/data.json`
-- 牌谱训练数据：`PokerServer/hands.jsonl`
-- 用户反馈：`PokerServer/feedback.jsonl`
+- 用户、经济流水、牌谱和活跃比赛快照：SQLite，由 `POKER_DB_PATH` 指向代码目录外的数据文件。
+- `PokerServer/data.json`、`hands.jsonl`、`feedback.jsonl`：仅用于首次迁移和稳定观察期回滚。
 - JWT 私章：`PokerServer/secret.key`
 - SMTP 凭据：`PokerServer/mail.json`
 
-这些运行时文件不得提交、覆盖、清空或打进部署包。不要在代码、日志、文档、提交或
-测试输出中暴露账号、邮箱、令牌、服务器密钥或 SMTP 授权码。
+SQLite 数据库、WAL/SHM、旧数据文件和密钥不得提交、覆盖、清空或打进部署包。
+SQLite 备份必须使用 `scripts/backup-sqlite.js` 生成一致性快照，不能只复制 WAL 模式下
+的主文件。不要在代码、日志、文档、提交或测试输出中暴露账号、邮箱、底牌、令牌、
+服务器密钥或 SMTP 授权码。
 
 - 牌谱必须保持结构化、追加式和有时间顺序，并记录玩家、模式、动作、思考时间、
   底牌、公共牌、下注、底池和结果。
 - 影响金币、买入、兑出、奖励、边池或比赛结算的改动属于高风险改动；必须检查重复
   结算、掉线、离场、重连、全押和多边池路径。
 - 修改广播数据结构时，必须检查是否可能泄露底牌或其他私有状态。
-- `database.js` 是持久化接口边界；将来迁移 SQLite/PostgreSQL 时优先保持调用接口稳定。
+- `database.js` 是持久化接口边界；迁移 PostgreSQL 时优先保持调用接口稳定。
 
 ## 本地开发与验证
 
@@ -81,8 +82,8 @@ npm run check
 - `deploy-test.sh` 面向测试服务器；`deploy.sh` 面向生产服务器并可能提交、推送和重启。
 - 只有用户明确要求部署时才运行部署脚本；不得把“完成代码修改”理解为获准上线。
 - 生产部署前必须通过 `npm run check` 和与改动风险相称的测试。
-- 部署包必须包含 `avatars`、`src`、`public`，并继续排除上述运行时数据和密钥。
-- 重启服务会清空内存中的活跃牌局。部署前应确认活跃玩家和结算风险。
+- 部署包必须包含 `avatars`、`scripts`、`src`、`public`，并继续排除上述运行时数据和密钥。
+- SQLite 首次切换前必须确认旧版本没有活跃牌局；后续重启应从持久化快照恢复。
 - 私有主机、SSH、备份和生产操作细节属于本地 `OPS.local.md`，不得复制进仓库文档。
 
 ## 文档维护

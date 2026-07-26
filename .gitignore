@@ -28,6 +28,9 @@ Thumbs.db
 # Database files (production data, not for version control)
 *.db
 *.db-journal
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 data.json
 
 # 牌谱数据（运行时生成，勿入库/勿覆盖）
@@ -41,6 +44,7 @@ PokerServer/secret.key
 
 # 发信 SMTP 凭据（授权码，绝不入库/勿覆盖）
 PokerServer/mail.json
+PokerServer/.local/
 backups_offsite/
 
 # 私有运维手册 + 本地备份脚本（含生产 IP/SSH 别名/服务器路径，会下载密钥；不入库，仅本地）

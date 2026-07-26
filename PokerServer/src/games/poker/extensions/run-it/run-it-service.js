@@ -1,8 +1,8 @@
 'use strict';
 
-function createRunItService({ io, roomGames, HandEvaluator, equity, config, activePlayers, hooks }) {
+function createRunItService({ io, roomGames, HandEvaluator, equity, config, persistence, activePlayers, hooks }) {
     const { RUNIT_MAX, RUNIT_DECIDE_MS, RUNOUT_DELAY, PHASES } = config;
-    const { broadcastState, saveHandHistory, applyPendingLevelUp, maybeEndSNG, scheduleNextHand, advanceStage } = hooks;
+    const { broadcastState, saveHandHistory, commitHandHistory, applyPendingLevelUp, maybeEndSNG, scheduleNextHand, advanceStage } = hooks;
 function offerRunIt(roomId, act) {
     const game = roomGames[roomId];
     if (!game) return false;
@@ -21,13 +21,17 @@ function offerRunIt(roomId, act) {
     const leaderId  = deciderId === a.userId ? b.userId : a.userId;
     const maxRuns = Math.min(RUNIT_MAX, maxRunsByDeck(game));  // 牌堆不足则少给几次，防崩/卡
     if (maxRuns < 2) return false;                             // 只够发 1 次 → 无需协商，照常单次跑马
-    game.runIt = { activeIds: act.map(p => p.userId), deciderId, leaderId, n: 1, equities: eq, maxRuns };
+    game.runIt = {
+        activeIds: act.map(p => p.userId), deciderId, leaderId,
+        n: 1, equities: eq, maxRuns, deadlineAt: Date.now() + RUNIT_DECIDE_MS
+    };
     game.runItPending = true;
     clearTimeout(game.runItTimer);
     io.in(roomId).emit('runit_offer', { deciderId, leaderId, max: maxRuns, equities: eq });
     io.in(roomId).emit('server_msg', `🎲 可协商「发几次牌」：由落后方选择次数，领先方同意`);
     // 协商超时兜底：默认发 1 次，绝不卡住牌局
     game.runItTimer = setTimeout(() => resolveRunIt(roomId, 1, 'timeout'), RUNIT_DECIDE_MS);
+    persistence.commit(roomId, 'runit_offered', null, { maxRuns, deciderId, leaderId });
     return true;
 }
 
@@ -42,7 +46,9 @@ function resolveRunIt(roomId, n, reason) {
     if (n <= 1) {
         io.in(roomId).emit('server_msg', `🎲 本手发 1 次`);
         clearTimeout(game.runoutTimer);
+        game.runoutDeadline = Date.now() + RUNOUT_DELAY;
         game.runoutTimer = setTimeout(() => advanceStage(roomId), RUNOUT_DELAY);
+        persistence.commit(roomId, 'runit_decided', null, { n: 1, reason });
         return;
     }
     io.in(roomId).emit('server_msg', `🎲 双方同意发 ${n} 次！底池均分为 ${n} 份`);
@@ -124,27 +130,76 @@ function executeRunouts(roomId, n) {
         steps.push({ type: 'award', run: i, delay: RUNIT_AWARD_MS });
     });
     steps.push({ type: 'done' });
+    game.runoutState = { n, runs, base, winByUser, steps, stepIndex: 0 };
 
-    let si = 0;
     const runStep = () => {
         const g = roomGames[roomId]; if (!g) return;
-        if (si >= steps.length) return;
-        const step = steps[si++];
+        const state = g.runoutState;
+        if (!state || state.stepIndex >= state.steps.length) return;
+        const step = state.steps[state.stepIndex++];
         if (step.type === 'street') {
             io.in(roomId).emit('runit_street', { run: step.run, n, street: step.street, cards: step.cards });
+            g.runoutDeadline = Date.now() + step.delay;
             g.runoutTimer = setTimeout(runStep, step.delay);
         } else if (step.type === 'award') {
-            const run = runs[step.run];
+            const run = state.runs[step.run];
             run.winners.forEach(id => { const p = g.players.find(x => x.userId === id); if (p) p.chips += run.awards[id]; });
             g.pot = Math.max(0, g.pot - run.thisPot);
             io.in(roomId).emit('runit_award', { run: step.run, n, winners: run.winners.map(id => ({ userId: id, amount: run.awards[id] })), categories: run.categories });
             broadcastState(roomId);
+            g.runoutDeadline = Date.now() + step.delay;
             g.runoutTimer = setTimeout(runStep, step.delay);
         } else {
-            finishRunouts(roomId, runs, base, winByUser);
+            finishRunouts(roomId, state.runs, state.base, state.winByUser);
         }
     };
+    game.runoutDeadline = Date.now() + 600;
     game.runoutTimer = setTimeout(runStep, 600);   // 先让 begin 渲染出 N 行，再开始逐街发
+    persistence.commit(roomId, 'runit_started', null, { n });
+}
+
+function restoreRunItTimer(roomId) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    if (game.runItPending && game.runIt?.deadlineAt) {
+        clearTimeout(game.runItTimer);
+        game.runItTimer = setTimeout(
+            () => resolveRunIt(roomId, 1, 'timeout'),
+            Math.max(0, game.runIt.deadlineAt - Date.now())
+        );
+    }
+    if (!game.runoutState || !game.runoutDeadline) return;
+    clearTimeout(game.runoutTimer);
+    const runStep = () => {
+        const g = roomGames[roomId];
+        const state = g && g.runoutState;
+        if (!state || state.stepIndex >= state.steps.length) return;
+        const step = state.steps[state.stepIndex++];
+        if (step.type === 'street') {
+            io.in(roomId).emit('runit_street', { run: step.run, n: state.n, street: step.street, cards: step.cards });
+            g.runoutDeadline = Date.now() + step.delay;
+            g.runoutTimer = setTimeout(runStep, step.delay);
+        } else if (step.type === 'award') {
+            const run = state.runs[step.run];
+            run.winners.forEach(id => {
+                const p = g.players.find(x => x.userId === id);
+                if (p) p.chips += run.awards[id];
+            });
+            g.pot = Math.max(0, g.pot - run.thisPot);
+            io.in(roomId).emit('runit_award', {
+                run: step.run,
+                n: state.n,
+                winners: run.winners.map(id => ({ userId: id, amount: run.awards[id] })),
+                categories: run.categories
+            });
+            broadcastState(roomId);
+            g.runoutDeadline = Date.now() + step.delay;
+            g.runoutTimer = setTimeout(runStep, step.delay);
+        } else {
+            finishRunouts(roomId, state.runs, state.base, state.winByUser);
+        }
+    };
+    game.runoutTimer = setTimeout(runStep, Math.max(0, game.runoutDeadline - Date.now()));
 }
 
 // 全部发完：落库牌谱（完整记录多次发牌）、收尾进摊牌、续局
@@ -165,20 +220,22 @@ function finishRunouts(roomId, runs, base, winByUser) {
             amounts: runs.map(r => r.thisPot)
         };
     }
-    saveHandHistory(game, winByUser);   // community 落为第 1 次 board（向后兼容）
+    const completedHand = saveHandHistory(game, winByUser);   // community 落为第 1 次 board（向后兼容）
     game.pot = 0;
     game.players.forEach(p => p.committed = 0);
     game.phase = PHASES.SHOWDOWN;
     game.actionOnIdx = -1;
     game.runIt = null;
+    game.runoutState = null;
     applyPendingLevelUp(roomId);
+    commitHandHistory(roomId, completedHand);
     broadcastState(roomId);
     maybeEndSNG(roomId);
     if (!game.tournamentOver) scheduleNextHand(roomId);
 }
 
 
-    return { offerRunIt, resolveRunIt, maxRunsByDeck, dealRunStreets, chunkRun, executeRunouts, finishRunouts };
+    return { offerRunIt, resolveRunIt, restoreRunItTimer, maxRunsByDeck, dealRunStreets, chunkRun, executeRunouts, finishRunouts };
 }
 
 module.exports = { createRunItService };

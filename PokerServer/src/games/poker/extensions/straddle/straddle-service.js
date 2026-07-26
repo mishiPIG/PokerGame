@@ -1,6 +1,6 @@
 'use strict';
 
-function createStraddleService({ io, roomGames, PHASES, gameBB, gameAnte, STRADDLE_DECISION_MS }) {
+function createStraddleService({ io, roomGames, PHASES, gameBB, gameAnte, STRADDLE_DECISION_MS, persistence }) {
 function clearStraddleDecision(game, status = 'invalidated') {
     if (!game || !game.straddleDecision) return;
     clearTimeout(game.straddleDecision.timer);
@@ -58,11 +58,29 @@ function showStraddleDecision(roomId, durationMs = STRADDLE_DECISION_MS) {
         const p = g.players.find(x => x.userId === d.candidateUserId);
         const s = p && io.sockets.sockets.get(p.socketId);
         if (s) s.emit('straddle_decision_result', { targetHandSeq: d.targetHandSeq, status: 'expired' });
+        persistence.commit(roomId, 'straddle_expired', d.candidateUserId);
     }, durationMs);
     emitStraddleOffer(game, io.sockets.sockets.get(
         game.players.find(x => x.userId === d.candidateUserId)?.socketId
     ));
+    persistence.commit(roomId, 'straddle_offered', d.candidateUserId, { targetHandSeq: d.targetHandSeq });
     return true;
+}
+
+function restoreStraddleTimer(roomId) {
+    const game = roomGames[roomId];
+    const d = game && game.straddleDecision;
+    if (!d || d.status !== 'pending' || !d.deadlineAt) return;
+    clearTimeout(d.timer);
+    d.timer = setTimeout(() => {
+        const g = roomGames[roomId];
+        if (!g || g.straddleDecision !== d || d.status !== 'pending') return;
+        d.status = 'expired'; d.timer = null;
+        const p = g.players.find(x => x.userId === d.candidateUserId);
+        const s = p && io.sockets.sockets.get(p.socketId);
+        if (s) s.emit('straddle_decision_result', { targetHandSeq: d.targetHandSeq, status: 'expired' });
+        persistence.commit(roomId, 'straddle_expired', d.candidateUserId);
+    }, Math.max(0, d.deadlineAt - Date.now()));
 }
 
 function prepareNextStraddleDecision(roomId) {
@@ -110,7 +128,7 @@ function maybeShowStraddleAfterAction(roomId, actedUserId) {
 }
 
 
-    return { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction };
+    return { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, restoreStraddleTimer, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction };
 }
 
 module.exports = { createStraddleService };

@@ -1,5 +1,5 @@
-// 生涯数据统计：从 hands.jsonl 聚合某玩家的扑克指标（VPIP/PFR/3bet/AF/WTSD…）
-// 数据来源是已落库的牌谱，无需额外存储；量大后可换 SQLite，接口不变。
+// 生涯数据统计：从 SQLite 牌谱聚合某玩家的扑克指标（VPIP/PFR/3bet/AF/WTSD…）。
+// 查询由数据库按玩家/模式/房间筛选，不再扫描完整 JSONL 文件。
 const db = require('./database');
 
 // 曲线降采样到最多 maxPts 个点

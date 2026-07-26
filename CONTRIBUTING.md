@@ -6,8 +6,8 @@ Thanks for helping improve Poker Dojo! 感谢参与改进德扑道场!
 
 - **The JS server is the source of truth.** All game logic lives in `PokerServer/` (Node + Socket.IO). The C# code in `PokerLogic/` is a reference prototype of the hand evaluator only — you do **not** need to keep it in sync.
   **JS 服务端是权威实现**,游戏逻辑都在 `PokerServer/`;`PokerLogic/` 的 C# 仅作牌力评估算法参考,无需同步。
-- **Never commit secrets or data.** `data.json` (users), `hands.jsonl` (hand histories), `secret.key`, `mail.json`, and `*.env` are gitignored and must stay out of the repo. Don't paste server IPs, keys, or credentials into code or PRs.
-  **不要提交任何密钥或数据**:`data.json`、`hands.jsonl`、`secret.key`、`mail.json`、`*.env` 均已 gitignore,务必不要入库;也不要把服务器 IP、密钥、凭据写进代码或 PR。
+- **Never commit secrets or data.** SQLite database/WAL/SHM files, legacy `data.json`/`hands.jsonl`, `secret.key`, `mail.json`, and `*.env` are gitignored and must stay out of the repo. Don't paste server IPs, keys, or credentials into code or PRs.
+  **不要提交任何密钥或数据**：SQLite 数据库/WAL/SHM、旧版 `data.json`/`hands.jsonl`、`secret.key`、`mail.json`、`*.env` 均不得入库，也不要把服务器 IP、密钥、凭据写进代码或 PR。
 - **Socket events use `snake_case`** (e.g. `join_room`, `player_action`). Game state lives in the in-memory `roomGames` object keyed by room id.
 - **Match the surrounding code.** Follow the existing style, naming, and comment density of the file you're editing.
 

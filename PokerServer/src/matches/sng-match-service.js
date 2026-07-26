@@ -2,7 +2,7 @@
 
 const SNG_DISSOLVE_GRACE_MS = 25000;   // SNG 分出胜负后，留 25s 看结算排名，再自动解散房间
 
-function createSngMatchService({ io, db, roomGames, lobbySockets, sngPrize, PHASES, hooks }) {
+function createSngMatchService({ io, db, roomGames, lobbySockets, sngPrize, persistence, PHASES, hooks }) {
     const { broadcastState, broadcastRoomList, buildRanking, sendMatchResult, listRooms, clearActionTimer } = hooks;
 
 // SNG 结束后清房：清所有定时器、通知客户端回大厅、把玩家踢回大厅、删房。奖金已在 maybeEndSNG 结算，此处不再发奖。
@@ -18,6 +18,7 @@ function finalizeSngRoom(roomId) {
         const s = io.sockets.sockets.get(p.socketId);
         if (s) { s.leave(roomId); s.currentRoom = null; lobbySockets.add(s.id); s.emit('room_list', listRooms(p.userId)); }
     }
+    persistence.finish(roomId, 'finished');
     delete roomGames[roomId];
     broadcastRoomList();
 }
@@ -26,7 +27,18 @@ function startLevelTimer(roomId) {
     const game = roomGames[roomId];
     if (!game || game.roomType !== 'sng') return;
     clearTimeout(game.levelTimer);
-    game.levelTimer = setTimeout(() => onLevelUp(roomId), game.config.levelMinutes * 60000);
+    const ms = game.config.levelMinutes * 60000;
+    game.nextLevelAt = Date.now() + ms;
+    game.levelTimer = setTimeout(() => onLevelUp(roomId), ms);
+}
+
+function restoreLevelTimer(roomId) {
+    const game = roomGames[roomId];
+    if (!game || game.roomType !== 'sng' || game.status !== 'running') return;
+    const deadline = game.nextLevelAt || (game.levelStartTime + game.config.levelMinutes * 60000);
+    game.nextLevelAt = deadline;
+    clearTimeout(game.levelTimer);
+    game.levelTimer = setTimeout(() => onLevelUp(roomId), Math.max(0, deadline - Date.now()));
 }
 
 function onLevelUp(roomId) {
@@ -77,9 +89,26 @@ function maybeEndSNG(roomId) {
         if (winner) {
             const prize = sngPrize(game.prizePool);
             if (prize > 0) {
-                const fresh = db.getUserById(winner.userId).gold;
-                db.setGold(winner.userId, fresh + prize);
-                if (winner.socketId) io.to(winner.socketId).emit('gold_update', { gold: fresh + prize });
+                const oldSettlement = { settlementGold: winner.settlementGold, settledAt: winner.settledAt };
+                winner.settlementGold = prize;
+                winner.settledAt = Date.now();
+                try {
+                    const committed = persistence.commitWithWallet(roomId, [{
+                        userId: winner.userId,
+                        delta: prize,
+                        type: 'sng_prize',
+                        matchId: game.matchId,
+                        operationKey: `sng-prize:${game.matchId}:${winner.userId}`,
+                        metadata: { prizePool: game.prizePool }
+                    }], 'sng_prize', winner.userId, { prize });
+                    if (winner.socketId) io.to(winner.socketId).emit('gold_update', { gold: committed.wallets[0].balance });
+                } catch (error) {
+                    winner.settlementGold = oldSettlement.settlementGold;
+                    winner.settledAt = oldSettlement.settledAt;
+                    game.tournamentOver = false;
+                    game.status = 'running';
+                    throw error;
+                }
             }
             io.in(roomId).emit('server_msg', `🏆🏆 ${winner.username} 夺冠！奖池 ${prize} 金币`);
             io.in(roomId).emit('tournament_over', { winner: winner.username, prize });
@@ -88,13 +117,25 @@ function maybeEndSNG(roomId) {
         sendMatchResult(roomId, `【${game.config.name}】比赛结束`, buildRanking(game, winner && winner.userId, sngPrize(game.prizePool)));
         // 分出胜负 → 自动结算(上面已发奖) + 宽限后自动解散房间(玩家看完排名回大厅，无需手动解散)
         clearTimeout(game.dissolveTimer);
+        game.dissolveAt = Date.now() + SNG_DISSOLVE_GRACE_MS;
         game.dissolveTimer = setTimeout(() => finalizeSngRoom(roomId), SNG_DISSOLVE_GRACE_MS);
+        persistence.commit(roomId, 'sng_dissolve_scheduled', null, { dissolveAt: game.dissolveAt });
         broadcastRoomList();
     }
 }
 
 
-    return { startLevelTimer, onLevelUp, doLevelUp, applyPendingLevelUp, maybeEndSNG, finalizeSngRoom };
+    function restoreDissolveTimer(roomId) {
+        const game = roomGames[roomId];
+        if (!game) return;
+        // 奖金和结束状态可能已经原子提交，而进程恰好在写入 dissolveAt 前退出。
+        // 此时不能留下一个永久无法解散的已结束房间。
+        if (!game.dissolveAt) game.dissolveAt = Date.now() + SNG_DISSOLVE_GRACE_MS;
+        clearTimeout(game.dissolveTimer);
+        game.dissolveTimer = setTimeout(() => finalizeSngRoom(roomId), Math.max(0, game.dissolveAt - Date.now()));
+    }
+
+    return { startLevelTimer, restoreLevelTimer, restoreDissolveTimer, onLevelUp, doLevelUp, applyPendingLevelUp, maybeEndSNG, finalizeSngRoom };
 }
 
 module.exports = { createSngMatchService };

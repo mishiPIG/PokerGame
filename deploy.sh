@@ -10,6 +10,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_HOST="Hongkong"                       # 生产服务器（阿里云香港，替代卡顿的深圳）
 SERVER_PATH="/root/PokerGame/PokerServer"
+DB_PATH="/root/PokerGame/data/pokerdojo.sqlite"
+BACKUP_PATH="/root/PokerGame/backups"
 PM2_APP="poker"
 PUBLIC_URL="http://47.76.61.168:3000"
 
@@ -36,20 +38,40 @@ echo ""
 echo "🚀 同步代码到服务器..."
 DEPLOY_TMP="/tmp/poker_deploy_$$.tar.gz"
 cd "$SCRIPT_DIR/PokerServer"
-tar czf "$DEPLOY_TMP" $(find . -maxdepth 1 -type f ! -name "data.json*" ! -name "hands.jsonl" ! -name "secret.key" ! -name "mail.json" ! -name "feedback.jsonl") avatars src public
+tar czf "$DEPLOY_TMP" $(find . -maxdepth 1 -type f ! -name "data.json*" ! -name "hands.jsonl" ! -name "secret.key" ! -name "mail.json" ! -name "feedback.jsonl") avatars scripts src public
 scp "$DEPLOY_TMP" "$SERVER_HOST:/tmp/poker_deploy.tar.gz"
 ssh "$SERVER_HOST" "cd $SERVER_PATH && tar xzf /tmp/poker_deploy.tar.gz && rm /tmp/poker_deploy.tar.gz"
 rm -f "$DEPLOY_TMP"
 cd "$SCRIPT_DIR"
 
-# Step 3: 安装依赖（服务器端编译 native 模块）并重启
+# Step 3: 安装依赖（服务器端编译 native 模块）
 echo ""
 echo "📦 服务器安装依赖..."
 ssh "$SERVER_HOST" "cd $SERVER_PATH && npm install --omit=dev"
 
 echo ""
-echo "🔄 重启 pm2 进程..."
-ssh "$SERVER_HOST" "cd $SERVER_PATH && pm2 restart $PM2_APP --update-env || pm2 start server.js --name $PM2_APP"
+echo "🗄️ 停写、备份并校验数据库..."
+ssh "$SERVER_HOST" "DB_PATH='$DB_PATH' BACKUP_PATH='$BACKUP_PATH' SERVER_PATH='$SERVER_PATH' PM2_APP='$PM2_APP' bash -s" <<'REMOTE_DB'
+set -e
+mkdir -p "$(dirname "$DB_PATH")" "$BACKUP_PATH"
+pm2 stop "$PM2_APP" >/dev/null 2>&1 || true
+cd "$SERVER_PATH"
+if [ -f "$DB_PATH" ]; then
+  SNAPSHOT="$BACKUP_PATH/pokerdojo-predeploy-$(date +%Y%m%d-%H%M%S).sqlite"
+  node scripts/backup-sqlite.js "$DB_PATH" "$SNAPSHOT"
+  POKER_DB_PATH="$DB_PATH" node scripts/migrate-sqlite.js
+else
+  test -f data.json || { echo '❌ 首次切换缺少 data.json，拒绝创建空数据库'; exit 1; }
+  IMPORT_DB="$DB_PATH.importing-$(date +%Y%m%d-%H%M%S)-$$"
+  node scripts/migrate-json-to-sqlite.js --database "$IMPORT_DB" --data data.json --hands hands.jsonl --feedback feedback.jsonl
+  node scripts/verify-sqlite.js "$IMPORT_DB"
+  mv "$IMPORT_DB" "$DB_PATH"
+fi
+node scripts/verify-sqlite.js "$DB_PATH"
+POKER_DB_PATH="$DB_PATH" NODE_ENV=production pm2 restart "$PM2_APP" --update-env ||
+  POKER_DB_PATH="$DB_PATH" NODE_ENV=production pm2 start server.js --name "$PM2_APP"
+pm2 save
+REMOTE_DB
 
 echo ""
 echo "✅ 部署完成 → $PUBLIC_URL"

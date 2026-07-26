@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { Deck, HandEvaluator } = require('./PokerLogic');
+const { Card, Deck, HandEvaluator } = require('./PokerLogic');
 const db = require('./database');
 const stats = require('./stats');
 const equity = require('./equity');
@@ -34,6 +34,12 @@ const { LOCAL_DEV, PHASES, DEFAULT_SMALL_BLIND, DEFAULT_BIG_BLIND,
 const JWT_SECRET = config.loadJwtSecret(__dirname);
 const runtime = createRuntime();
 const { roomGames, lobbySockets, inviteCodeFailuresByUser, inviteCodeFailuresByIp } = runtime;
+app.use((req, res, next) => {
+    if (runtime.shuttingDown && req.method !== 'GET') {
+        return res.status(503).json({ error: '服务正在安全重启，请稍后重试' });
+    }
+    return next();
+});
 const auth = createAuth({ db, jwt, jwtSecret: JWT_SECRET });
 const { signToken, userPayload, requireAdmin, requireAuth } = auth;
 app.use(express.json());
@@ -48,7 +54,7 @@ seedLocalDevUsers({ enabled: LOCAL_DEV, db, bcrypt });
 
 
 
-const tableService = createTableService({ io, db, stats, equity, Deck, HandEvaluator, crypto, config, runtime });
+const tableService = createTableService({ io, db, stats, equity, Card, Deck, HandEvaluator, crypto, config, runtime });
 const { projectedPositions } = tableService;
 
 registerAdminRoutes({ app, db, requireAdmin });
@@ -59,22 +65,42 @@ registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAut
 auth.registerSocketAuth(io);
 registerSocketHandlers({ io, db, stats, Deck, config, runtime, tableService, syncRecentVoices: voiceModule.syncRecentVoices });
 
-// 防崩溃兜底：某个 socket 事件处理器/异步里抛出未捕获异常时，只记录日志、绝不让整个进程崩溃。
-// （进程崩溃 = pm2 重启 = 内存里所有正在进行的牌局清空 + 玩家在局筹码丢失，代价极大——
-//  宁可让"出错的那一次操作"静默失败，也不能连累全服所有人。）
-process.on('uncaughtException', (err) => {
-    console.error('[uncaughtException] 已捕获，进程继续运行：', (err && err.stack) || err);
-});
-process.on('unhandledRejection', (reason) => {
-    console.error('[unhandledRejection] 已捕获，进程继续运行：', (reason && reason.stack) || reason);
-});
-
 const PORT = process.env.PORT || 3000;
 const onListening = () => {
     const host = LOCAL_DEV ? '127.0.0.1' : '0.0.0.0';
     console.log(`🚀 扑克服务器已启动！${host}:${PORT}${LOCAL_DEV ? ' (本地开发模式)' : ''}`);
 };
 if (require.main === module) {
+    // 只有真正启动服务时才恢复牌局和计时器。测试或工具仅 require 本模块时不得产生后台定时器。
+    const recoveredMatches = tableService.persistence.recoverAll();
+    tableService.restoreRecoveredTimers(recoveredMatches);
+    let shuttingDown = false;
+    const shutdown = (signal, error = null) => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        runtime.shuttingDown = true;
+        console.error(`[shutdown] signal=${signal}`, error?.stack || error || '');
+        for (const roomId of Object.keys(roomGames)) {
+            try {
+                tableService.persistence.commit(roomId, 'process_shutdown', null, { signal });
+            } catch (persistError) {
+                console.error(`[shutdown] room=${roomId} snapshot failed`, persistError?.stack || persistError);
+            }
+        }
+        const exitCode = error ? 1 : 0;
+        const finish = () => {
+            try { db.close(); } catch (closeError) { console.error('[shutdown] db close failed', closeError.message); }
+            process.exit(exitCode);
+        };
+        if (server.listening) {
+            server.close(finish);
+            setTimeout(finish, 5000).unref();
+        } else finish();
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('uncaughtException', error => shutdown('uncaughtException', error));
+    process.on('unhandledRejection', reason => shutdown('unhandledRejection', reason instanceof Error ? reason : new Error(String(reason))));
     if (LOCAL_DEV) server.listen(PORT, '127.0.0.1', onListening);
     else server.listen(PORT, onListening);
 }

@@ -59,7 +59,13 @@ app.post('/api/checkin', requireAuth, (req, res) => {
     if (u.lastCheckin === today) return res.status(400).json({ error: '今日已签到' });
     const streak = (u.lastCheckin === dayStr(1) ? (u.checkinStreak || 0) : 0) + 1;
     const reward = rewardForStreak(streak);
-    const gold = db.applyCheckin(u.id, today, streak, reward);
+    let gold;
+    try {
+        gold = db.applyCheckin(u.id, today, streak, reward);
+    } catch (error) {
+        if (error.message === 'ALREADY_CHECKED_IN') return res.status(400).json({ error: '今日已签到' });
+        throw error;
+    }
     console.log(`[checkin] ${u.username} 连续${streak}天 +${reward} → ${gold}`);
     res.json({ ok: true, reward, streak, gold });
 });

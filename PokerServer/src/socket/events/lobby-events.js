@@ -1,7 +1,7 @@
 'use strict';
 const { bind } = require('./room-context');
 function registerLobbyEvents(context) {
-    const { socket, user, roomGames, lobbySockets, listRooms, genRoomId, Deck, PHASES, createRoomInvite, clampInt, SNG_BUYIN_TIERS, STANDARD_BLIND_LEVELS, authorize, seatPlayer, emitRoomInviteInfo, joinAsSpectator } = bind(context);
+    const { socket, user, roomGames, lobbySockets, listRooms, genRoomId, Deck, PHASES, createRoomInvite, clampInt, SNG_BUYIN_TIERS, STANDARD_BLIND_LEVELS, authorize, seatPlayer, emitRoomInviteInfo, joinAsSpectator, persistence } = bind(context);
     // 进入大厅：订阅房间列表
     socket.on('enter_lobby', () => {
         lobbySockets.add(socket.id);
@@ -32,8 +32,12 @@ function registerLobbyEvents(context) {
             currentLevel: 0, levelStartTime: null, prizePool: 0, tournamentOver: false,
             statsHistory: []
         };
+        persistence.createMatch(roomId, roomGames[roomId]);
         socket.playRoom = roomId; authorize(roomId, user.id);   // 房主有下场资格
-        if (!seatPlayer(roomId, socket, user)) { delete roomGames[roomId]; }
+        if (!seatPlayer(roomId, socket, user)) {
+            persistence.finish(roomId, 'cancelled');
+            delete roomGames[roomId];
+        }
         else emitRoomInviteInfo(socket, roomGames[roomId], true);
     });
 
@@ -63,6 +67,7 @@ function registerLobbyEvents(context) {
             prizePool: 0, tournamentOver: false,
             statsHistory: [], tableEndAt: null, extraMs: 0
         };
+        persistence.createMatch(roomId, roomGames[roomId]);
         // 现金桌：房主先以观众身份进桌，点空座位「坐下」再带入（坐下式入座）
         socket.playRoom = roomId; authorize(roomId, user.id);   // 房主有下场资格（无需再输房号）
         joinAsSpectator(roomId, socket);

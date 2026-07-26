@@ -3,7 +3,7 @@ const { bind } = require('./room-context');
 function registerInviteEvents(context, handleJoinRoom) {
     const { socket, user, io, roomGames, canAuthorizeNewUser, findRoomByJoinCode,
         findRoomByInviteToken, codeAttemptLimited, recordCodeFailure, clearUserCodeFailures,
-        authorize, emitRoomInviteInfo, createRoomInvite } = bind(context);
+        authorize, emitRoomInviteInfo, createRoomInvite, persistence } = bind(context);
     // byCode 保留在形参外：旧页面即使发送 byCode:true，也只能按未授权用户观战。
     socket.on('join_room', (payload = {}) => handleJoinRoom(payload?.roomId));
 
@@ -51,6 +51,7 @@ function registerInviteEvents(context, handleJoinRoom) {
         const game = roomId && roomGames[roomId];
         if (!game || game.ownerUserId !== user.id || typeof locked !== 'boolean') return;
         game.invite.entryLocked = locked;
+        persistence.commit(roomId, 'entry_lock_changed', user.id, { locked });
         emitRoomInviteInfo(socket, game);
         io.in(roomId).emit('server_msg', locked ? '🔒 房主已锁定新玩家入场' : '🔓 房主已开放新玩家入场');
     });
@@ -65,6 +66,7 @@ function registerInviteEvents(context, handleJoinRoom) {
         game.invite = createRoomInvite(roomId, oldCode);
         game.invite.entryLocked = locked;
         game.invite.version = version;
+        persistence.commit(roomId, 'invite_reset', user.id, { version });
         emitRoomInviteInfo(socket, game);
         socket.emit('server_msg', '🔄 邀请链接和房间码已重置');
     });
