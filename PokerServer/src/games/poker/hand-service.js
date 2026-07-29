@@ -401,7 +401,7 @@ function startHand(roomId) {
         straddle: game.straddle ? { ...game.straddle } : null,
         buttonUserId: game.players[game.buttonIdx]?.userId || null,
         seats: game.players.filter(p => !p.folded).map(p => ({
-            userId: p.userId, username: p.username,
+            userId: p.userId, username: p.displayName || p.username,
             seat: p.seat ?? 0, avatar: p.avatar || null,          // 座位号/头像（回放布局用）
             startChips: p.chips + p.currentBet + (p.committed || 0),   // 还原下盲前筹码
             hole: game.holeCards[p.userId].map(c => `${c.rank}${c.suit[0]}`)

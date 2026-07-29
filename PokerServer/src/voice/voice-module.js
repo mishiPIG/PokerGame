@@ -61,7 +61,7 @@ function userIsConnectedToRoom(userId, roomId) {
 
 function voicePublicMessage(entry) {
     return {
-        id: entry.id, userId: entry.userId, username: entry.username,
+        id: entry.id, userId: entry.userId, displayName: entry.displayName || entry.username,
         durationMs: entry.durationMs, expiresAt: entry.expiresAt,
         bubbleUntil: entry.bubbleUntil
     };
@@ -167,7 +167,7 @@ app.post('/api/voice', requireAuth, voiceUploadGate,
             return res.status(500).json({ error: '语音保存失败' });
         }
         const entry = {
-            id, roomId, userId: req.authUser.id, username: req.authUser.username,
+            id, roomId, userId: req.authUser.id, username: req.authUser.username, displayName: req.authUser.displayName || req.authUser.username,
             file, mime, size: req.body.length, durationMs,
             createdAt: now, expiresAt: now + VOICE_TTL_MS,
             bubbleUntil: now + VOICE_BUBBLE_MS

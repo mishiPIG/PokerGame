@@ -59,7 +59,7 @@ function registerSocketHandlers(deps) {
         }
         console.log(`[+] ${user.username} 上线`);
         socket.emit('gold_update', { gold: user.gold });
-        socket.emit('profile', { avatar: db.getUserById(user.id)?.avatar || null });
+        socket.emit('profile', { avatar: user.avatar || null, displayName: user.displayName, displayNameChangedAtMs: user.displayNameChangedAtMs });
 
         const context = { ...deps, socket, user };
         registerConnectionEvents(context);

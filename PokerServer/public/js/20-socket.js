@@ -91,22 +91,22 @@ function connectSocket(token) {
         setTimeout(() => { alert('你已离开牌桌'); showLobby(); }, 300);
     });
 
-    socket.on('tournament_over', ({ winner }) => {
-        if (winner === myUsername) setTimeout(() => sndWin(), 1500);   // 夺冠音；排名由 match_result 弹窗展示
+    socket.on('tournament_over', ({ winnerId }) => {
+        if (winnerId === myUserId) setTimeout(() => sndWin(), 1500);   // 夺冠音；排名由 match_result 弹窗展示
     });
 
     // 比赛结束排名（现金桌训练结束/房主结束/SNG 结束）：弹结算面板
     socket.on('match_result', ({ title, ranking }) => {
         setTimeout(() => {
-            const me = (ranking || []).find(r => r.username === myUsername);
+            const me = (ranking || []).find(r => r.userId === myUserId);
             document.getElementById('result-title').textContent = title || '比赛结束';
             document.getElementById('result-sub').innerHTML = me
                 ? `你排名 <b>第 ${me.rank}</b> / ${ranking.length}，盈亏 <b>${me.net >= 0 ? '+' : ''}${me.net}</b> ${me.unit}`
                 : '';
             document.getElementById('result-ranking').innerHTML = (ranking || []).map(r =>
-                `<div class="rk-row${r.username === myUsername ? ' me' : ''}">
+                `<div class="rk-row${r.userId === myUserId ? ' me' : ''}">
                     <span class="rk-no">${r.rank}</span>
-                    <span class="rk-name">${escapeHtml(r.username)}</span>
+                    <span class="rk-name">${escapeHtml(r.displayName || r.username)}</span>
                     <span class="rk-net" style="color:${r.net >= 0 ? '#4ade80' : '#f87171'}">${r.net >= 0 ? '+' : ''}${r.net} ${r.unit}</span>
                 </div>`).join('');
             document.getElementById('result-overlay').style.display = 'flex';
@@ -134,9 +134,10 @@ function connectSocket(token) {
     socket.on('sfx', (type) => playSfx(type));
 
     // 收到聊天：进聊天列表 + 弹幕滚过屏幕（带 id）
-    socket.on('chat_broadcast', ({ userId, username, text }) => {
-        appendChat(username, text, userId === myUserId);
-        spawnDanmaku(username, text);
+    socket.on('chat_broadcast', ({ userId, displayName, username, text }) => {
+        const name = displayName || username || '玩家';
+        appendChat(name, text, userId === myUserId);
+        spawnDanmaku(name, text);
     });
     // 收到表情：座位上方大表情飘出
     socket.on('emote_broadcast', ({ userId, emote, targetUserId }) => {
@@ -156,8 +157,8 @@ function connectSocket(token) {
         }
     });
     // 临时语音不进聊天历史：只在当前房间飘出 10 秒可点击气泡
-    socket.on('voice_broadcast', ({ id, userId, username, durationMs, expiresAt, bubbleUntil }) => {
-        showVoiceBubble({ id, userId, username, durationMs, expiresAt, bubbleUntil });
+    socket.on('voice_broadcast', ({ id, userId, displayName, username, durationMs, expiresAt, bubbleUntil }) => {
+        showVoiceBubble({ id, userId, username: displayName || username, durationMs, expiresAt, bubbleUntil });
     });
 
     socket.on('allin_reveal', ({ reveals }) => {
@@ -217,8 +218,10 @@ function connectSocket(token) {
         updateUserBar();
     });
 
-    socket.on('profile', ({ avatar }) => {
+    socket.on('profile', ({ avatar, displayName, displayNameChangedAtMs }) => {
         myAvatar = avatar || null;
+        if (displayName) { myDisplayName = displayName; updateUserBar(); }
+        if (displayNameChangedAtMs != null) myDisplayNameChangedAtMs = displayNameChangedAtMs;
         const o = document.getElementById('settings-overlay');
         if (o && o.style.display !== 'none') buildSettingsPanel();
     });
@@ -299,4 +302,3 @@ function connectSocket(token) {
         }
     });
 }
-

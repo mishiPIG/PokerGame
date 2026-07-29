@@ -29,8 +29,9 @@ if (savedToken) {
         if (payload.exp * 1000 > Date.now()) {
             myUserId   = payload.id;
             myUsername = payload.username;
+            myDisplayName = payload.displayName || payload.username;
             isAdmin    = !!payload.isAdmin;
-            document.getElementById('display-username').textContent = myUsername;
+            document.getElementById('display-username').textContent = myDisplayName;
             document.getElementById('admin-toggle').style.display = isAdmin ? '' : 'none';
             document.getElementById('auth-overlay').style.display = 'none';
             document.getElementById('game-section').style.display = '';

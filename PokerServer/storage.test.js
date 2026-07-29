@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const { createDatabaseService } = require('./src/storage/database-service');
 const { importLegacy } = require('./src/storage/legacy-import');
+const { displayNameChangeAllowed, normalizeDisplayName } = require('./src/account/display-name');
 
 function withDatabase(fn) {
     const service = createDatabaseService({ databasePath: ':memory:' });
@@ -24,11 +25,25 @@ test('users preserve the compatibility shape and enforce case-insensitive unique
         assert.equal(user.email, 'alice@example.com');
         assert.equal(user.gold, 10000);
         assert.equal(user.isAdmin, true);
+        assert.equal(user.displayName, 'Alice');
+        const renamed = db.setDisplayName(user.id, 'Alice P', 123);
+        assert.equal(renamed.displayName, 'Alice P');
+        assert.equal(renamed.displayNameChangedAtMs, 123);
         assert.equal(db.getUserByUsername('ALICE').id, user.id);
         assert.equal(db.getUserByEmail('ALICE@EXAMPLE.COM').id, user.id);
         assert.throws(() => db.createUser('alice', 'hash2'), /UNIQUE/);
         assert.throws(() => db.createUser('Bob', 'hash2', false, 'ALICE@example.com'), /EMAIL/);
     });
+});
+
+test('display names are normalized, constrained, and use a 24-hour cooldown', () => {
+    assert.equal(normalizeDisplayName('  小 明  '), '小 明');
+    assert.equal(normalizeDisplayName('Player-01'), 'Player-01');
+    assert.equal(normalizeDisplayName('A'), null);
+    assert.equal(normalizeDisplayName('系统'), null);
+    assert.equal(normalizeDisplayName('名字😀'), null);
+    assert.equal(displayNameChangeAllowed({ displayNameChangedAtMs: 1_000 }, 1_000 + 86_400_000), true);
+    assert.equal(displayNameChangeAllowed({ displayNameChangedAtMs: 1_000 }, 1_000 + 86_399_999), false);
 });
 
 test('wallet changes are atomic, auditable and idempotent', () => {

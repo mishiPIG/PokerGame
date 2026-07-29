@@ -11,7 +11,7 @@ function vacateSeat(game, idx) {
     if (!game.vacatedPlayers) game.vacatedPlayers = [];
     if (p.reserveTimer) { clearTimeout(p.reserveTimer); p.reserveTimer = null; }
     game.vacatedPlayers.push({
-        userId: p.userId, username: p.username, avatar: p.avatar || null,
+        userId: p.userId, username: p.username, displayName: p.displayName || p.username, avatar: p.avatar || null,
         chips: p.chips, buyIn: p.buyIn || 0, handsPlayed: p.handsPlayed || 0, socketId: p.socketId,
         timeCards: p.timeCards || 0
     });
@@ -69,7 +69,7 @@ function restoreVacatedPlayer(roomId, socket, user, preferSeat) {
     lobbySockets.delete(socket.id);
     socket.join(roomId); socket.currentRoom = roomId;
     game.players.push({
-        userId: user.id, socketId: socket.id, username: user.username, seat,
+        userId: user.id, socketId: socket.id, username: user.username, displayName: user.displayName, seat,
         avatar: db.getUserById(user.id)?.avatar || null,
         chips: vp.chips, currentBet: 0, buyIn: vp.buyIn, handsPlayed: vp.handsPlayed || 0,
         timeCards: vp.timeCards || 0,
@@ -235,7 +235,7 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
     socket.currentRoom = roomId;
     const inHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
     const newP = {
-        userId: user.id, socketId: socket.id, username: user.username, seat,
+        userId: user.id, socketId: socket.id, username: user.username, displayName: user.displayName, seat,
         avatar: db.getUserById(user.id)?.avatar || null,
         chips, currentBet: 0, buyIn: chips, buyInGold: cost || 0,
         joinedAt: Date.now(),

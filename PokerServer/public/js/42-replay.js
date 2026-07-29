@@ -128,7 +128,7 @@ function openHandDetail(h) {
         const netCls = net > 0 ? 'win' : (net < 0 ? 'lose' : '');
         const av = s.avatar ? `<img src="${s.avatar}" onerror="this.style.display='none'">` : escapeHtml((s.username || '?')[0].toUpperCase());
         return `<div class="hd-row${folded ? ' folded' : ''}">
-            <div class="hd-who"><div class="hd-av" style="background:hsl(${hashHue(s.username)},45%,42%)">${av}</div>
+            <div class="hd-who"><div class="hd-av" style="background:hsl(${hashHue(s.userId)},45%,42%)">${av}</div>
               <div class="hd-nm">${escapeHtml(s.username)}${isMe ? '<span class="hd-me">你</span>' : ''}${pos[s.userId] ? `<span class="hd-pos">${pos[s.userId]}</span>` : ''}${folded ? '<span class="hd-fold">弃牌</span>' : ''}</div></div>
             <div class="hd-hole">${holeHtml}</div>
             <div class="hd-acts">${actHtml}</div>
@@ -173,7 +173,7 @@ function renderReplayFrame() {
         const av = p.avatar ? `<img src="${p.avatar}" onerror="this.style.display='none'">` : escapeHtml(initial);
         return `<div class="${cls}" style="left:${pos.x}%;top:${pos.y}%">
             <div class="rp-cards">${cards}</div>
-            <div class="rp-avatar" style="background:hsl(${hashHue(p.name)},45%,42%)">${av}</div>
+            <div class="rp-avatar" style="background:hsl(${hashHue(p.userId)},45%,42%)">${av}</div>
             <div class="rp-name">${escapeHtml(p.name)}${p.pos ? `<span class="pos">${p.pos}</span>` : ''}</div>
             <div class="rp-stack">${fmtChips(p.stack)}</div>
             ${p.bet > 0 ? `<div class="rp-bet">${fmtChips(p.bet)}</div>` : ''}
@@ -214,4 +214,3 @@ function renderHistActions(h) {
         `<span class="ha">${streetName[a.street] || a.street}·${escapeHtml(nameOf[a.userId] || '?')} ${A[a.action] || a.action}${a.amount ? ' ' + a.amount : ''}</span>`
     ).join('') || '<span style="opacity:.5">无动作</span>';
 }
-

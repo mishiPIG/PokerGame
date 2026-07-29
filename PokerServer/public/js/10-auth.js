@@ -95,6 +95,8 @@ function onAuthSuccess({ token, user }) {
     localStorage.setItem('token', token);
     myUserId   = user.id;
     myUsername = user.username;
+    myDisplayName = user.displayName || user.username;
+    myDisplayNameChangedAtMs = user.displayNameChangedAtMs || null;
     myGold     = user.gold;
     isAdmin    = !!user.isAdmin;
     document.getElementById('auth-overlay').style.display = 'none';
@@ -118,4 +120,3 @@ function doLogout() {
     document.getElementById('lobby-view').style.display = '';
     document.getElementById('table-view').style.display = 'none';
 }
-

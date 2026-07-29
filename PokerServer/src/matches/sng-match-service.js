@@ -110,8 +110,8 @@ function maybeEndSNG(roomId) {
                     throw error;
                 }
             }
-            io.in(roomId).emit('server_msg', `🏆🏆 ${winner.username} 夺冠！奖池 ${prize} 金币`);
-            io.in(roomId).emit('tournament_over', { winner: winner.username, prize });
+            io.in(roomId).emit('server_msg', `🏆🏆 ${winner.displayName || winner.username} 夺冠！奖池 ${prize} 金币`);
+            io.in(roomId).emit('tournament_over', { winnerId: winner.userId, prize });
         }
         // 公布按名次排名（冠军→淘汰倒序）+ 给每位玩家（含已淘汰离开者）发消息
         sendMatchResult(roomId, `【${game.config.name}】比赛结束`, buildRanking(game, winner && winner.userId, sngPrize(game.prizePool)));

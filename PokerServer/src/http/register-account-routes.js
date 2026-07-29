@@ -12,7 +12,7 @@ app.get('/api/my-hands', requireAuth, (req, res) => {
 // 当前账号信息（含邮箱，供个人主页显示/更换邮箱）
 app.get('/api/me', requireAuth, (req, res) => {
     const u = req.authUser;
-    res.json({ id: u.id, username: u.username, gold: u.gold, email: u.email || null, isAdmin: !!u.isAdmin });
+    res.json({ id: u.id, username: u.username, displayName: u.displayName, displayNameChangedAtMs: u.displayNameChangedAtMs, gold: u.gold, email: u.email || null, isAdmin: !!u.isAdmin });
 });
 
 // 我的生涯统计（从牌谱聚合 VPIP/PFR/3bet/AF/WTSD…，可按 mode 筛选）

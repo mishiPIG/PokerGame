@@ -82,7 +82,7 @@ function showTableNotice(text) {
 function nameOf(userId) {
     const st = lastState || {};
     const p = (st.players || []).find(x => x.userId === userId) || (st.spectators || []).find(x => x.userId === userId);
-    return p ? p.username : '玩家';
+    return p ? (p.displayName || p.username) : '玩家';
 }
 function runitPanel() {
     let el = document.getElementById('runit-panel');
@@ -415,7 +415,7 @@ function forceStand(targetUserId) {
     if (!socket) return;
     const st = lastState; if (!st) return;
     const tp = (st.players || []).find(p => p.userId === targetUserId);
-    const nm = tp ? tp.username : '该玩家';
+    const nm = tp ? (tp.displayName || tp.username) : '该玩家';
     if (confirm(`把「${nm}」移到观战席？其座位将空出（筹码保留至结束结算，TA 可自行「回到座位」）。`)) {
         socket.emit('force_stand', { targetUserId });
         closeAvatarPopup();
@@ -522,21 +522,21 @@ function renderStats(st) {
     const rows = (st.players || []).map(p => {
         const inactive = p.standing || p.reserved || p.away || p.sittingOut;
         const tag = (p.userId === myUserId ? ' (你)' : '') + (p.standing ? ' 🧍' : p.reserved ? ' 💺' : p.away ? ' 📴' : p.sittingOut ? ' 💤' : '');
-        return { name: p.username, buyIn: p.buyIn, hands: p.handsPlayed, net: (p.chips || 0) - (p.buyIn || 0), dim: inactive, tag };
+        return { name: p.displayName || p.username, buyIn: p.buyIn, hands: p.handsPlayed, net: (p.chips || 0) - (p.buyIn || 0), dim: inactive, tag };
     });
     // 站起围观者（已离座但带入过）：灰显保留战绩，不清空
     (st.vacated || []).filter(v => !curIds.has(v.userId)).forEach(v =>
-        rows.push({ name: v.username, buyIn: v.buyIn, hands: v.handsPlayed, net: v.net || 0, dim: true, tag: ' 🧍围观' }));
+        rows.push({ name: v.displayName || v.username, buyIn: v.buyIn, hands: v.handsPlayed, net: v.net || 0, dim: true, tag: ' 🧍围观' }));
     const shownIds = new Set([...curIds, ...(st.vacated || []).map(v => v.userId)]);
     (st.statsHistory || []).filter(h => !shownIds.has(h.userId)).forEach(h =>
-        rows.push({ name: h.username, buyIn: h.buyIn, hands: h.handsPlayed, net: h.net || 0, dim: true, tag: ' 🚪已离开' }));
+        rows.push({ name: h.displayName || h.username, buyIn: h.buyIn, hands: h.handsPlayed, net: h.net || 0, dim: true, tag: ' 🚪已离开' }));
     rows.sort((a, b) => b.net - a.net);
     body.innerHTML = rows.map(r => row(r.name, r.buyIn, r.hands, r.net, r.dim, r.tag)).join('')
         || '<tr><td colspan="4" style="text-align:center;opacity:.6">暂无在座玩家</td></tr>';
     const specs = st.spectators || [];
     document.getElementById('spec-count').textContent = `观众 (${specs.length})`;
     document.getElementById('spec-list').innerHTML = specs.map(s =>
-        `<span class="spec-chip">${escapeHtml(s.username)}</span>`).join('') || '<span style="opacity:.5">无</span>';
+        `<span class="spec-chip">${escapeHtml(s.displayName || s.username)}</span>`).join('') || '<span style="opacity:.5">无</span>';
 }
 
 // ===== 大厅房间列表 =====

@@ -28,7 +28,7 @@ function broadcastState(roomId) {
         spectators: listSpectators(roomId),
         vacatedUserIds: (game.vacatedPlayers || []).map(v => v.userId),   // 站起围观者（可带原筹码回座）
         // 站起围观者的战绩（战绩面板灰显保留，别让带入过又离座的人从战绩里消失）
-        vacated: (game.vacatedPlayers || []).map(v => ({ userId: v.userId, username: v.username, buyIn: v.buyIn || 0, handsPlayed: v.handsPlayed || 0, net: (v.chips || 0) - (v.buyIn || 0) })),
+        vacated: (game.vacatedPlayers || []).map(v => ({ userId: v.userId, username: v.username, displayName: v.displayName || v.username, buyIn: v.buyIn || 0, handsPlayed: v.handsPlayed || 0, net: (v.chips || 0) - (v.buyIn || 0) })),
         statsHistory: game.statsHistory || [],       // 已离开/淘汰玩家（战绩面板灰显）
         tableEndAt: game.tableEndAt || null,         // 现金桌训练结束时间戳
         pendingEnd: !!game.pendingEnd,               // 训练时长已到、本手结束后结算（房主可加时）
@@ -53,6 +53,7 @@ function broadcastState(roomId) {
         players: game.players.map(p => ({
             userId:     p.userId,
             username:   p.username,
+            displayName: p.displayName || p.username,
             seat:       p.seat ?? 0,
             avatar:     p.avatar || null,
             chips:      p.chips,
@@ -87,7 +88,7 @@ function listSpectators(roomId) {
     for (const sid of room) {
         if (seated.has(sid)) continue;
         const s = io.sockets.sockets.get(sid);
-        if (s && s.user) specs.push({ userId: s.user.id, username: s.user.username, avatar: db.getUserById(s.user.id)?.avatar || null });
+        if (s && s.user) specs.push({ userId: s.user.id, username: s.user.username, displayName: s.user.displayName || s.user.username, avatar: s.user.avatar || null });
     }
     return specs;
 }

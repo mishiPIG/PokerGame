@@ -14,7 +14,7 @@ function registerSocialEvents(context) {
         const now = Date.now();
         if (now - (socket._lastChat || 0) < 600) return;   // 限频 0.6s
         socket._lastChat = now;
-        io.in(roomId).emit('chat_broadcast', { userId: user.id, username: user.username, text, ts: now });
+        io.in(roomId).emit('chat_broadcast', { userId: user.id, displayName: user.displayName || user.username, text, ts: now });
     });
 
     // 表情/互动：在发送者座位上方冒一个大表情（可带目标=扔给某人）。限频

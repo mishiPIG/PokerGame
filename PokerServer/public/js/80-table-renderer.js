@@ -1,6 +1,6 @@
 // ===== UI helpers =====
 function updateUserBar() {
-    document.getElementById('display-username').textContent = myUsername || '';
+    document.getElementById('display-username').textContent = myDisplayName || myUsername || '';
     document.getElementById('display-gold').textContent = myGold?.toLocaleString() || '0';
 }
 
@@ -201,8 +201,9 @@ function buildSeat(p, state) {
         ? `<div class="equity-badge">${eqPct}%</div>` : '';
 
     // 头像（小方块）+ 行动倒计时数字
-    const initial = (p.username || '?').charAt(0).toUpperCase();
-    const hue = hashHue(p.username);
+    const displayName = p.displayName || p.username || '玩家';
+    const initial = displayName.charAt(0).toUpperCase();
+    const hue = hashHue(p.userId);
     const showRing = isActing && state.actionDeadline;
     const secs0 = showRing ? Math.max(0, Math.ceil((state.actionDeadline - Date.now()) / 1000)) : 0;
     const avatarImg = p.avatar ? `<img class="avatar-img" src="${p.avatar}" onerror="this.style.display='none'">` : '';
@@ -235,7 +236,7 @@ function buildSeat(p, state) {
         ${oppCardsOverlay}
     </div>`;
 
-    const nameHtml  = `<div class="name">${escapeHtml(p.username)}</div>`;
+    const nameHtml  = `<div class="name">${escapeHtml(displayName)}</div>`;
     const chipsHtml = `<div class="chips${isMe ? ' clickable' : ''}"${isMe ? ' onclick="toggleDisplayBB()" title="点击切换 筹码/BB 显示"' : ''}>${fmtChips(p.chips)}</div>`;
 
     if (isMe) {
@@ -490,4 +491,3 @@ function setupSizing(state, me, myTurn) {
     document.getElementById('raiseAmount').disabled = false;
     if (row.style.display === 'none') updateConfirmLabel(minTo);
 }
-

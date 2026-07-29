@@ -18,11 +18,11 @@ function registerLobbyEvents(context) {
             holeCards: {}, communityCards: [], pot: 0, currentBet: 0,
             buttonIdx: 0, buttonSeat: -1, actionOnIdx: -1,
             roomType: 'sng', status: 'waiting',
-            ownerUserId: user.id, ownerName: user.username,
+            ownerUserId: user.id, ownerName: user.displayName || user.username,
             authorized: new Set([user.id]),
             invite: createRoomInvite(roomId),
             config: {
-                name:        (cfg.name || '').toString().trim().slice(0, 20) || `${user.username}的比赛`,
+                name:        (cfg.name || '').toString().trim().slice(0, 20) || `${user.displayName || user.username}的比赛`,
                 maxPlayers:  clampInt(cfg.maxPlayers, 2, 9, 2),              // 2–9 人（引擎已支持多人）
                 startingStack: clampInt(cfg.startingStack, 5000, 30000, 10000),
                 levelMinutes:  clampInt(cfg.levelMinutes, 3, 10, 3),
@@ -54,11 +54,11 @@ function registerLobbyEvents(context) {
             holeCards: {}, communityCards: [], pot: 0, currentBet: 0,
             buttonIdx: 0, buttonSeat: -1, actionOnIdx: -1,
             roomType: 'cash', status: 'waiting',
-            ownerUserId: user.id, ownerName: user.username,
+            ownerUserId: user.id, ownerName: user.displayName || user.username,
             authorized: new Set([user.id]),
             invite: createRoomInvite(roomId),
             config: {
-                name:      (cfg.name || '').toString().trim().slice(0, 20) || `${user.username}的现金桌`,
+                name:      (cfg.name || '').toString().trim().slice(0, 20) || `${user.displayName || user.username}的现金桌`,
                 maxPlayers: clampInt(cfg.maxPlayers, 2, 9, 6),
                 sb, bb, ante: clampInt(cfg.ante, 0, 80, 0), minBuyIn, maxBuyIn,
                 allowUtgStraddle: cfg.allowUtgStraddle === true,

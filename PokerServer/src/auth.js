@@ -5,7 +5,7 @@ function createAuth({ db, jwt, jwtSecret }) {
         { expiresIn: '30d' }
     );
     const userPayload = user => ({
-        id: user.id, username: user.username, gold: user.gold,
+        id: user.id, username: user.username, displayName: user.displayName, displayNameChangedAtMs: user.displayNameChangedAtMs, gold: user.gold,
         isAdmin: !!user.isAdmin, email: user.email || null
     });
 

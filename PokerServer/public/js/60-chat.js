@@ -57,11 +57,11 @@ function openAvatarPopup(userId) {
     avatarPopupUserId = userId;
     const p = (lastState.players || []).find(x => x.userId === userId)
         || (lastState.spectators || []).find(x => x.userId === userId) || { username: '玩家', avatar: null };
-    const name = p.username || '玩家';
+    const name = p.displayName || p.username || '玩家';
     const isMe = userId === myUserId;
     const av = p.avatar ? `<img src="${p.avatar}" onerror="this.style.display='none'">` : escapeHtml((name || '?')[0].toUpperCase());
     const avEl = document.getElementById('ap-av');
-    avEl.style.background = `hsl(${hashHue(name)},45%,42%)`; avEl.innerHTML = av;
+    avEl.style.background = `hsl(${hashHue(p.userId || name)},45%,42%)`; avEl.innerHTML = av;
     document.getElementById('ap-name').textContent = name + (isMe ? '（你）' : '');
     document.getElementById('ap-emo-title').textContent = isMe ? '发表情（所有人可见）' : `给「${name}」扔表情`;
     document.getElementById('ap-stats').innerHTML = '<div class="ap-loading">加载中…</div>';
@@ -137,4 +137,3 @@ function seatBubble(userId, html, big) {
     seat.appendChild(b);
     setTimeout(() => b.remove(), big ? 2200 : 3500);
 }
-

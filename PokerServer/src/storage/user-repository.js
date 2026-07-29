@@ -13,6 +13,8 @@ function mapUser(row) {
     return {
         id: row.id,
         username: row.username,
+        displayName: row.display_name || row.username,
+        displayNameChangedAtMs: row.display_name_changed_at_ms || null,
         email: row.email,
         password_hash: row.password_hash,
         gold: row.gold,
@@ -30,10 +32,10 @@ function createUserRepository(db) {
     const byEmail = db.prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE AND deleted_at_ms IS NULL');
     const insertUser = db.prepare(`
         INSERT INTO users (
-            id, username, email, password_hash, gold, is_admin, avatar,
+            id, username, display_name, email, password_hash, gold, is_admin, avatar,
             last_checkin, checkin_streak, created_at_ms, updated_at_ms
         ) VALUES (
-            @id, @username, @email, @password_hash, @gold, @is_admin, @avatar,
+            @id, @username, @display_name, @email, @password_hash, @gold, @is_admin, @avatar,
             @last_checkin, @checkin_streak, @created_at_ms, @updated_at_ms
         )
     `);
@@ -52,6 +54,7 @@ function createUserRepository(db) {
         insertUser.run({
             id,
             username,
+            display_name: options.displayName || username,
             email: normalizedEmail,
             password_hash: passwordHash,
             gold,
@@ -114,6 +117,11 @@ function createUserRepository(db) {
             db.prepare('UPDATE users SET avatar = ?, updated_at_ms = ? WHERE id = ?')
                 .run(avatar || null, Date.now(), id);
         },
+        setDisplayName(id, displayName, changedAtMs = Date.now()) {
+            db.prepare('UPDATE users SET display_name = ?, display_name_changed_at_ms = ?, updated_at_ms = ? WHERE id = ?')
+                .run(displayName, changedAtMs, changedAtMs, id);
+            return this.getUserById(id);
+        },
         setAdmin(id, isAdmin) {
             db.prepare('UPDATE users SET is_admin = ?, updated_at_ms = ? WHERE id = ?')
                 .run(isAdmin ? 1 : 0, Date.now(), id);
@@ -135,6 +143,7 @@ function createUserRepository(db) {
             return this.createUser(user.username, user.password_hash, !!user.isAdmin, user.email || null, {
                 id: user.id,
                 gold: Number.isInteger(user.gold) ? user.gold : 0,
+                displayName: user.displayName || user.username,
                 avatar: user.avatar || null,
                 lastCheckin: user.lastCheckin || null,
                 checkinStreak: user.checkinStreak || 0,

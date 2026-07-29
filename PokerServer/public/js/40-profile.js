@@ -130,10 +130,38 @@ function profileTab(t) {
 }
 function renderProfileInfo() {
     document.getElementById('pi-head').innerHTML =
-        `<div class="pi-name">${escapeHtml(myUsername || '')}</div>`
+        `<div class="pi-name">${escapeHtml(myDisplayName || myUsername || '')}</div>`
+        + `<div class="pi-handle">账号：${escapeHtml(myUsername || '')}</div>`
         + `<div class="pi-gold">🪙 ${(myGold || 0).toLocaleString()}</div>`;
+    renderDisplayNameSection();
     renderProfileAvatars();
     renderEmailSection();
+}
+function renderDisplayNameSection() {
+    const box = document.getElementById('pi-display-name'); if (!box) return;
+    const left = Math.max(0, (myDisplayNameChangedAtMs || 0) + 86400000 - Date.now());
+    const hint = left ? `下次可修改：${new Date(Date.now() + left).toLocaleString()}` : '可每 24 小时修改一次';
+    box.innerHTML = `<div class="pi-section-title">显示名称</div>
+        <div class="pi-name-form"><input id="display-name-input" class="be-input" maxlength="16" value="${escapeHtml(myDisplayName || myUsername || '')}" aria-label="显示名称">
+        <button class="mini-btn" onclick="saveDisplayName()"${left ? ' disabled' : ''}>保存</button></div>
+        <div class="be-msg" id="display-name-msg">${hint}</div>`;
+}
+function saveDisplayName() {
+    const input = document.getElementById('display-name-input');
+    const msg = document.getElementById('display-name-msg');
+    if (!input || !socket) return;
+    msg.textContent = '保存中…';
+    socket.emit('set_display_name', { displayName: input.value }, result => {
+        if (!result?.ok) {
+            msg.textContent = result?.error || '保存失败，请重试';
+            return;
+        }
+        myDisplayName = result.displayName;
+        myDisplayNameChangedAtMs = result.displayNameChangedAtMs || myDisplayNameChangedAtMs;
+        updateUserBar();
+        if (lastState) render(lastState);
+        renderProfileInfo();
+    });
 }
 // ── 邮箱：显示 + 绑定/更换 ──
 async function authPostToken(url, body) {
