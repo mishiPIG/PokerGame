@@ -2,7 +2,7 @@
 
 function registerPokerActionEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
-    const { PHASES, STANDARD_BLIND_LEVELS, SNG_BUYIN_TIERS, BUYIN_RATE, CASHOUT_RATE, RUNIT_MAX, EXTRA_MAX, EXTRA_STEP, ACTION_TIME, gameBB, sngPrize } = config;
+    const { PHASES, STANDARD_BLIND_LEVELS, SNG_BUYIN_TIERS, BUYIN_RATE, CASHOUT_RATE, RUNIT_MAX, RUNIT_DECIDE_MS, EXTRA_MAX, EXTRA_STEP, ACTION_TIME, gameBB, sngPrize } = config;
     const { roomGames, lobbySockets } = runtime;
     const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, onActionTimeout, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction } = tableService;
     socket.on('player_action', ({ roomId, action, amount }) => {
@@ -112,7 +112,12 @@ function registerPokerActionEvents(context) {
         n = Math.max(1, Math.min(RUNIT_MAX, parseInt(n) || 1));
         if (n <= 1) { resolveRunIt(roomId, 1, 'single'); return; }
         game.runIt.n = n;
-        io.in(roomId).emit('runit_proposal', { n, byUserId: user.id, leaderId: game.runIt.leaderId });
+        // 为领先方重置一个完整的决策窗口（落后方选号已耗掉部分时间，否则领先方时间被压缩、容易错过导致误退化成发1次）
+        const deadlineAt = Date.now() + RUNIT_DECIDE_MS;
+        game.runIt.deadlineAt = deadlineAt;
+        clearTimeout(game.runItTimer);
+        game.runItTimer = setTimeout(() => resolveRunIt(roomId, 1, 'timeout'), RUNIT_DECIDE_MS);
+        io.in(roomId).emit('runit_proposal', { n, byUserId: user.id, leaderId: game.runIt.leaderId, deadlineAt });
         io.in(roomId).emit('server_msg', `🎲 落后方提议发 ${n} 次，等待领先方同意…`);
     });
     // 领先方回应：同意→发 n 次；拒绝→发 1 次

@@ -93,7 +93,24 @@ function runitPanel() {
     }
     return el;
 }
-function hideRunitPanel() { const el = document.getElementById('runit-panel'); if (el) el.style.display = 'none'; }
+let runitCountdownTimer = null;
+function hideRunitPanel() { const el = document.getElementById('runit-panel'); if (el) el.style.display = 'none'; clearInterval(runitCountdownTimer); runitCountdownTimer = null; }
+// 决策倒计时：把剩余秒数刷进面板 #runit-countdown，到点自动停（服务端到点默认发1次）
+function startRunitCountdown(deadlineAt) {
+    clearInterval(runitCountdownTimer); runitCountdownTimer = null;
+    if (!deadlineAt) return;
+    const tick = () => {
+        const c = document.getElementById('runit-countdown');
+        if (!c) { clearInterval(runitCountdownTimer); runitCountdownTimer = null; return; }
+        const remain = Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1000));
+        c.textContent = remain + 's';
+        if (remain <= 0) { clearInterval(runitCountdownTimer); runitCountdownTimer = null; }
+    };
+    tick();
+    runitCountdownTimer = setInterval(tick, 500);
+}
+// 轮到我做多次发牌决策时，振动 + 提示音提醒（否则容易错过窗口，被误退化成发1次）
+function runitAlert() { try { vibrate([80, 60, 80]); } catch {} try { if (typeof sndWarn === 'function') sndWarn(); } catch {} }
 function showRunitOffer(o) {
     const el = runitPanel();
     const eqTxt = (id) => (o.equities && o.equities[id] != null) ? ` <span class="ri-eq">${o.equities[id]}%</span>` : '';
@@ -101,7 +118,10 @@ function showRunitOffer(o) {
         const maxN = Math.max(2, Math.min(5, o.max || 5));   // 牌堆不足时服务端会给更小的 max
         const btns = Array.from({ length: maxN }, (_, i) => i + 1);
         el.innerHTML = `<div class="ri-title">🎲 发几次牌？<span class="ri-hint">（你落后，可要求多发几次分摊运气）</span></div>`
-            + `<div class="ri-btns">` + btns.map(n => `<button onclick="proposeRuns(${n})">${n}</button>`).join('') + `</div>`;
+            + `<div class="ri-btns">` + btns.map(n => `<button onclick="proposeRuns(${n})">${n}</button>`).join('') + `</div>`
+            + `<div class="ri-count">⏳ <span id="runit-countdown">--</span> 后自动只发 1 次</div>`;
+        startRunitCountdown(o.deadlineAt);
+        runitAlert();
     } else if (o.leaderId === myUserId) {
         el.innerHTML = `<div class="ri-title">🎲 等待对方选择发牌次数…</div>`
             + `<div class="ri-sub">你领先${eqTxt(myUserId)}，对方可提议发多次</div>`;
@@ -116,7 +136,10 @@ function showRunitProposal(pr) {
         el.innerHTML = `<div class="ri-title">🎲 对方想发 <b>${pr.n}</b> 次</div>`
             + `<div class="ri-sub">同意则底池均分 ${pr.n} 份、各发一次不同公共牌</div>`
             + `<div class="ri-btns"><button class="ri-yes" onclick="respondRuns(true)">同意发 ${pr.n} 次</button>`
-            + `<button class="ri-no" onclick="respondRuns(false)">只发 1 次</button></div>`;
+            + `<button class="ri-no" onclick="respondRuns(false)">只发 1 次</button></div>`
+            + `<div class="ri-count">⏳ <span id="runit-countdown">--</span> 未回应则默认只发 1 次</div>`;
+        startRunitCountdown(pr.deadlineAt);
+        runitAlert();
     } else {
         el.innerHTML = `<div class="ri-title">🎲 已提议发 <b>${pr.n}</b> 次，等待领先方同意…</div>`;
     }
