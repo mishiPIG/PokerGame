@@ -108,11 +108,16 @@
             </button>
             <div class="lobby-entry join">
                 <div class="le-title">🎟️ 加入比赛</div>
-                <div class="le-sub">输入房主分享的四位房间码；列表里的房间只能观战</div>
-                <div class="le-join-row">
-                    <input type="text" id="joinRoomInput" placeholder="四位房间码" maxlength="4" inputmode="numeric"
-                        autocomplete="one-time-code" oninput="sanitizeJoinCode()" onkeydown="if(event.key==='Enter')joinByCode()">
-                    <button id="joinCodeBtn" onclick="joinByCode()">加入</button>
+                <div class="le-sub">输入房主分享的四位房间码，输满自动加入；列表里的房间只能观战</div>
+                <div class="le-join-row code-boxes" id="joinCodeBoxes">
+                    <input type="text" class="code-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+                        oninput="onCodeInput(this,0)" onkeydown="onCodeKey(event,this,0)" onpaste="onCodePaste(event)">
+                    <input type="text" class="code-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+                        oninput="onCodeInput(this,1)" onkeydown="onCodeKey(event,this,1)" onpaste="onCodePaste(event)">
+                    <input type="text" class="code-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+                        oninput="onCodeInput(this,2)" onkeydown="onCodeKey(event,this,2)" onpaste="onCodePaste(event)">
+                    <input type="text" class="code-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+                        oninput="onCodeInput(this,3)" onkeydown="onCodeKey(event,this,3)" onpaste="onCodePaste(event)">
                 </div>
             </div>
         </div>

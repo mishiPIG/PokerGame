@@ -179,6 +179,12 @@ Android / iOS / PC
 - **另修 run-it 引入的崩溃**：`maxRunsByDeck` 按剩余牌堆限制可发次数（`offerRunIt` 的 max + `resolveRunIt` 夹取），防 9-max 多人弃牌后牌堆不足发 N 次导致 `drawCard()` 返回 null 崩/卡；客户端次数按钮随 `max`。
 - **验证**：jsdom 加载**真实 index.html** 直接跑 `buildRunitBoards`/`runitDealStreet`/`clearRunit`——preflop 2 组各 5 张、翻后全押共享 flop+每组并列 2 张、clearRunit 复原 全对 ✅；socket 回归 runit/sidepot/sidepot2/standflow/hostfeat 全通 ✅。（确认渲染函数本身没问题，就是跨手残留 class。）
 
+## 🃏 无效加注规则 + 四格房间码自动加入（2026-08-01，测试服已上，香港待验收）
+- **无效加注（incomplete raise / 短码全押不重开下注）**：正常德扑规则——当前有人下注后，后方玩家全押的**总量不足「一个完整加注」**（增量 < `lastRaiseSize`）时，属**无效加注**，**不重开行动**：前方**已经行动过**的玩家只能**跟注补齐或弃牌，不能再加注**。修 `poker-action-events.js` raise 分支：①开头拒绝——`if (player.hasActed && (currentBet - player.currentBet) < lastRaiseSize)` → 只能跟/弃；②只有**完整加注**（`increment >= lastRaiseSize`）才 `hasActed=false` 重开他人行动，短码全押**不重开**（旧代码无条件重开=bug，导致短码全押后还能再加）。未行动过的人仍可正常加注。
+  - 验证：3 人现金桌，A 开池加注 1200、短码方(2000)全押到 2000（增量 800 < 完整加注 1160）→ 已跟注的 B 尝试再加注被服务端拒绝（server_msg「无效加注」）、非法额未生效 ✅；sidepot/sidepot2/standflow/hostfeat/runit/repromw/sngnorunit 回归全通（正常加注/全押/边池未被破坏）。
+- **四格房间码自动加入**：加入页原来是「1 个输入框 + 加入按钮」→ 改为**4 个独立数字格**（`#joinCodeBoxes .code-box`，OTP 风格）：只收数字、逐格自动跳、**输满 4 位自动 `join_by_code`**（无需点按钮，按钮已删）；退格回跳、支持粘贴分配、`invite_error`（房间不存在）时 `resetJoinCode(true)` 清空四格聚焦首格重输 + toast「房间不存在」。`window._joinSubmitting` 防抖（一次输满只发一次）。
+  - 涉及：`index.html`（4 格）、`public/js/30-room.js`（`onCodeInput/onCodeKey/onCodePaste/getJoinCode/joinByCode/resetJoinCode`，删 `sanitizeJoinCode`）、`public/js/20-socket.js`（room_joined/invite_error 改调 `resetJoinCode`）、`public/css/30-lobby.css`（`.code-box` 样式）。验证：jsdom 加载真实 index.html+内联真实 public/js → 输满自动发一次(code=1234)/过滤非数字/输错清空/不足不发 全对 ✅。
+
 ## 🩹 多次发牌超时坑 + 全押胜率太小（2026-07-31，测试服已上，香港待用户验收）
 - **线上真实事故(香港 seq297, room150331, 05:19)**：dek[T♣7♣] vs lhy[89o] 翻牌全押、协商发 2 次,但**结算成"单板赢家通吃"**——lhy 独吞 10040、dek 得 0、`runIt` 空、只落库一块板。**dek 被少算 5020,lhy 被多算 5020**(待用户用管理员手动补 dek +5020)。
 - **根因(两个对照复现钉死)**：run-it 决策**没在 25s 窗口内完成同意**→触发 `resolveRunIt(1,'timeout')` 兜底→**退化成发 1 次、赢家通吃**,说好的两次和该分的钱都丢了。①快速同意→正确均分 ✅;②不同意(超时)→单板通吃(与 seq297 记录签名完全一致)。**代码算法没错,是超时窗口太紧 + 领先方那一下"同意"容易错过。**

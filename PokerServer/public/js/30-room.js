@@ -303,20 +303,47 @@ function submitCreate() {
     }
     hideCreateForm();
 }
-function sanitizeJoinCode() {
-    const input = document.getElementById('joinRoomInput');
-    input.value = input.value.replace(/\D/g, '').slice(0, 4);
+// —— 四格房间码：只收数字、逐格自动跳、输满 4 位自动加入（无需按钮）——
+function codeBoxes() { return Array.from(document.querySelectorAll('#joinCodeBoxes .code-box')); }
+function getJoinCode() { return codeBoxes().map(b => b.value).join(''); }
+function onCodeInput(el, idx) {
+    el.value = el.value.replace(/\D/g, '').slice(0, 1);   // 只留一位数字
+    const boxes = codeBoxes();
+    if (el.value && idx < boxes.length - 1) boxes[idx + 1].focus();
+    if (getJoinCode().length === boxes.length) joinByCode();   // 输满自动加入
 }
-// 输入四位房间码：服务端校验成功后才授予下场资格。
+function onCodeKey(e, el, idx) {
+    const boxes = codeBoxes();
+    if (e.key === 'Backspace' && !el.value && idx > 0) { boxes[idx - 1].focus(); boxes[idx - 1].value = ''; e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' && idx > 0) boxes[idx - 1].focus();
+    else if (e.key === 'ArrowRight' && idx < boxes.length - 1) boxes[idx + 1].focus();
+    else if (e.key === 'Enter') joinByCode();
+}
+function onCodePaste(e) {
+    const t = ((e.clipboardData || window.clipboardData).getData('text') || '').replace(/\D/g, '').slice(0, 4);
+    if (!t) return;
+    e.preventDefault();
+    const boxes = codeBoxes();
+    boxes.forEach((b, i) => { b.value = t[i] || ''; });
+    boxes[Math.min(t.length, boxes.length - 1)].focus();
+    if (t.length === boxes.length) joinByCode();
+}
+// 房间码校验：服务端成功→授予下场资格；房间不存在→invite_error 里 toast 提示并清空重输。
 function joinByCode() {
-    const code = document.getElementById('joinRoomInput').value.trim();
+    const code = getJoinCode();
     if (!/^\d{4}$/.test(code)) { toast('请输入四位数字房间码'); return; }
     if (!socket || !socket.connected) { toast('正在连接服务器，请稍后'); return; }
-    const btn = document.getElementById('joinCodeBtn');
-    btn.disabled = true;
+    if (window._joinSubmitting) return;   // 防抖：一次输满只发一次
+    window._joinSubmitting = true;
     socket.emit('join_by_code', { code });
     clearTimeout(window._joinCodeUnlock);
-    window._joinCodeUnlock = setTimeout(() => { btn.disabled = false; }, 4000);
+    window._joinCodeUnlock = setTimeout(() => { window._joinSubmitting = false; }, 4000);
+}
+// 加入成功/失败后复位（失败时清空四格并聚焦第一格，方便重输）
+function resetJoinCode(clearBoxes) {
+    window._joinSubmitting = false;
+    clearTimeout(window._joinCodeUnlock);
+    if (clearBoxes) { const b = codeBoxes(); b.forEach(x => { x.value = ''; }); if (b[0]) b[0].focus(); }
 }
 // 从大厅列表点进 = 只观战；服务端已授权成员则重新加入。
 function joinRoomId(roomId) {

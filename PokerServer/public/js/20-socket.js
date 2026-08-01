@@ -54,8 +54,7 @@ function connectSocket(token) {
         currentRoom = roomId;
         iCanPlay = !!canPlay;   // 观战者=false → 禁止入座
         localStorage.setItem('currentRoom', roomId);
-        const joinBtn = document.getElementById('joinCodeBtn');
-        if (joinBtn) joinBtn.disabled = false;
+        resetJoinCode(true);   // 复位四格房间码
         hideReconnecting();
         document.getElementById('btnReady').disabled = false;
         showTable();
@@ -67,10 +66,9 @@ function connectSocket(token) {
             pendingInviteToken = '';
             try { sessionStorage.removeItem('pendingInviteToken'); } catch {}
         }
-        const joinBtn = document.getElementById('joinCodeBtn');
-        if (joinBtn) joinBtn.disabled = false;
+        resetJoinCode(source !== 'link');   // 输错房间码→清空四格重输（链接失败不清）
         showLobby();
-        toast(message || '邀请无效或当前不可加入', 3500);
+        toast(message || '房间不存在或当前不可加入', 3500);
     });
 
     socket.on('room_invite_info', (info) => {
