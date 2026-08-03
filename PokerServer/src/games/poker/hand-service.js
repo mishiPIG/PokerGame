@@ -236,6 +236,10 @@ function drawForButton(roomId) {
 function beginPlay(roomId) {
     const game = roomGames[roomId];
     if (!game) return;
+    // 防重复开赛：定庄动画期间 status 仍是 waiting（要等 startHand 才置 running），
+    // 房主连点会反复 drawForButton 反复定庄 → 用 beginning 标记挡住（startHand 里清）。
+    if (game.beginning) return;
+    game.beginning = true;
     if (game.status !== 'running' && (game.buttonSeat == null || game.buttonSeat < 0) && liveCount(game) >= 2) {
         drawForButton(roomId);
     } else startHand(roomId);
@@ -244,6 +248,7 @@ function beginPlay(roomId) {
 function startHand(roomId) {
     const game = roomGames[roomId];
     if (!game) return;
+    game.beginning = false;   // 开赛流程结束（含下面各 early return：否则房主再也点不动「开始」）
     if (game.paused) { broadcastState(roomId); return; }   // 房主已暂停发牌：不开新局，等「继续」
 
     const BB = gameBB(game), SB = gameSB(game);

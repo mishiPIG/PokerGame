@@ -179,6 +179,16 @@ Android / iOS / PC
 - **另修 run-it 引入的崩溃**：`maxRunsByDeck` 按剩余牌堆限制可发次数（`offerRunIt` 的 max + `resolveRunIt` 夹取），防 9-max 多人弃牌后牌堆不足发 N 次导致 `drawCard()` 返回 null 崩/卡；客户端次数按钮随 `max`。
 - **验证**：jsdom 加载**真实 index.html** 直接跑 `buildRunitBoards`/`runitDealStreet`/`clearRunit`——preflop 2 组各 5 张、翻后全押共享 flop+每组并列 2 张、clearRunit 复原 全对 ✅；socket 回归 runit/sidepot/sidepot2/standflow/hostfeat 全通 ✅。（确认渲染函数本身没问题，就是跨手残留 class。）
 
+## 🩹 实战验收三修：胜率被牌挡 + 无效加注无提示 + 房主连点开始（2026-08-02，测试服已上）
+- 背景：用户在测试服验收上一批时发现的三个问题（四格房间码验收通过 ✅）。
+- **①全押胜率徽章被牌挡住**：`.equity-badge` 原 `top:-14px; z-index:8`，而 `.opp-cards`（对手牌覆盖层）**居中于 46px 头像、向上探出约 7px+**，且**同为 z-index:8 但 DOM 靠后 → 牌盖住徽章**。修：`top:-34px`（抬到牌上沿之上）+ `z-index:12`（压过牌）。
+- **②无效加注没有任何提示**（玩家以为按钮坏了）：根因是 **`server_msg` 客户端只 `console.log`、不显示在桌面**（早期"移除可视日志"留下的坑），所以服务端的「⚠️ 无效加注」拒绝玩家根本看不到。三层修：
+  - 服务端 `state-presenter.js` 新增 **`raiseClosed`** 字段（当前行动者 `hasActed` 且 `currentBet-p.currentBet < lastRaiseSize` → 面对短码全押、行动未重开）。
+  - 客户端 `80-table-renderer.js`：`raiseClosed` 时给加注按钮加 `.locked`（置灰但**仍可点**，`disabled` 会吞掉点击事件就弹不出提示了）；`70-actions.js` `openSizing()` 开头拦截 → `toast('⚠️ 前方是无效加注…只能跟注或弃牌')`。
+  - `20-socket.js`：**所有 `⚠️` 开头的 server_msg 一律 toast**（已核实全部 `⚠️` 都是 `socket.emit` 私发拒绝、无一走 `io.in` 广播，不会误弹给别人）——以后任何服务端拒绝都不再"点了没反应"。
+- **③房主连点「开始」反复高牌定庄**：`start_game` 只挡 `status==='running'`，但 **`status` 要到 `startHand` 才置 running**，而 `drawForButton` 的定庄动画有 **2.8s** 窗口，期间 status 仍是 waiting → 连点就反复定庄。修：`beginPlay` 加 **`game.beginning` 守卫**（`startHand` **开头**清除——含各 early return，否则开赛失败会把房间永久卡成点不动）；客户端 `startGame()` 加 3s 防抖 + 立即置灰按钮。
+- **验证**（本机新环境重建测试脚本）：连发 6 次 `start_game` → `button_draw` 恰 1 次且牌局正常开出 ✅；`raiseClosed` 正确下发 true、正常局面无误报、服务端仍拒绝非法加注 ✅；jsdom 加载真实前端 → 无效加注弹提示且不展开面板/正常仍可加注/连点只发一次/徽章 top≤-30 且 z>8 ✅；回归：现金桌续局到第 2 手 + 摊牌、SNG 准备系统开赛（`tryStartHand→beginPlay`）均正常，守卫未挡住正常流程 ✅。
+
 ## 🃏 无效加注规则 + 四格房间码自动加入（2026-08-01，测试服已上，香港待验收）
 - **无效加注（incomplete raise / 短码全押不重开下注）**：正常德扑规则——当前有人下注后，后方玩家全押的**总量不足「一个完整加注」**（增量 < `lastRaiseSize`）时，属**无效加注**，**不重开行动**：前方**已经行动过**的玩家只能**跟注补齐或弃牌，不能再加注**。修 `poker-action-events.js` raise 分支：①开头拒绝——`if (player.hasActed && (currentBet - player.currentBet) < lastRaiseSize)` → 只能跟/弃；②只有**完整加注**（`increment >= lastRaiseSize`）才 `hasActed=false` 重开他人行动，短码全押**不重开**（旧代码无条件重开=bug，导致短码全押后还能再加）。未行动过的人仍可正常加注。
   - 验证：3 人现金桌，A 开池加注 1200、短码方(2000)全押到 2000（增量 800 < 完整加注 1160）→ 已跟注的 B 尝试再加注被服务端拒绝（server_msg「无效加注」）、非法额未生效 ✅；sidepot/sidepot2/standflow/hostfeat/runit/repromw/sngnorunit 回归全通（正常加注/全押/边池未被破坏）。

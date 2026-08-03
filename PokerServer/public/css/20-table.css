@@ -45,7 +45,9 @@
         .bet-badge .chip-dot { width: 8px; height: 8px; border-radius: 50%;
             background: radial-gradient(circle at 35% 30%, #fff, #06d6a0 60%); border: 1px solid #0a8; }
         /* 全押胜率徽章（跑马时头像左上跳动）*/
-        .equity-badge { position: absolute; top: -14px; left: -10px; z-index: 8;
+        /* 位置：上移到「对手牌覆盖层」上方（.opp-cards 居中于头像、会向上探出约 7px+），
+           并把 z-index 提到 12（原 8 与 .opp-cards 同层、DOM 靠后被牌盖住）*/
+        .equity-badge { position: absolute; top: -34px; left: -10px; z-index: 12;
             background: linear-gradient(135deg,#12b886,#0ca678); color: #fff; font-size: 16px; font-weight: 800;
             padding: 2px 9px; border-radius: 11px; box-shadow: 0 3px 8px rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.75);
             letter-spacing: -0.3px; text-shadow: 0 1px 2px rgba(0,0,0,0.45); white-space: nowrap; animation: eqPulse 1.6s ease-in-out infinite; }
@@ -264,6 +266,9 @@
         }
         .action-btn:hover:not(:disabled) { filter: brightness(1.18); transform: translateY(-1px); }
         .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        /* 无效加注：看起来不可用，但仍可点——点了弹提示说明「为什么不能加注」 */
+        .action-btn.locked { opacity: 0.4; filter: grayscale(0.7); cursor: not-allowed; }
+        .action-btn.locked:hover { filter: grayscale(0.7); transform: none; }
         .action-btn.fold  { background: #d62828; }
         .action-btn.check { background: #5a7fa3; }
         .action-btn.call  { background: #3a86ff; }
