@@ -315,8 +315,7 @@ function renderInviteInfo() {
     if (!roomInviteInfo) return;
     document.getElementById('invite-loading').style.display = 'none';
     document.getElementById('invite-content').style.display = '';
-    document.getElementById('invite-code').textContent = roomInviteInfo.joinCode;
-    document.getElementById('invite-url').textContent = roomInviteInfo.inviteUrl;
+    document.getElementById('invite-message').textContent = formatRoomInvite(roomInviteInfo);
     const lock = document.getElementById('invite-lock-btn');
     lock.textContent = roomInviteInfo.entryLocked ? '🔒 已锁定入场' : '🔓 开放入场';
     lock.classList.toggle('locked', !!roomInviteInfo.entryLocked);
@@ -341,11 +340,13 @@ async function copyText(text, successMessage) {
         toast('复制失败，请长按内容手动复制');
     }
 }
-function copyRoomCode() {
-    copyText(roomInviteInfo?.joinCode, `房间码 ${roomInviteInfo?.joinCode || ''} 已复制`);
+function formatRoomInvite(invite) {
+    if (!invite?.inviteUrl || !invite?.joinCode) return '';
+    const roomName = invite.roomName ? `房间名：${invite.roomName}\n` : '';
+    return `${roomName}邀请链接：${invite.inviteUrl}\n房间码：${invite.joinCode}`;
 }
-function copyInviteUrl() {
-    copyText(roomInviteInfo?.inviteUrl, '邀请链接已复制');
+function copyRoomInvite() {
+    copyText(formatRoomInvite(roomInviteInfo), '邀请信息已复制');
 }
 function toggleEntryLock() {
     if (!socket || !roomInviteInfo) return;

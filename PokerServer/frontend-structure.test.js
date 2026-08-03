@@ -92,3 +92,12 @@ test('shared utilities and reassigned controls have one owner', () => {
     assert.match(source('50-audio-settings.js'), /function toggleFullscreen\b/);
     assert.match(source('70-actions.js'), /function toggleReady\b/);
 });
+
+test('room owner invitation presents one combined, copyable message', () => {
+    assert.match(INDEX, /id="invite-message"/);
+    assert.match(INDEX, /onclick="copyRoomInvite\(\)"/);
+    assert.doesNotMatch(INDEX, /id="invite-code"|id="invite-url"/);
+    assert.match(source('30-room.js'), /function formatRoomInvite\b/);
+    assert.match(source('30-room.js'), /房间名：\$\{invite\.roomName\}/);
+    assert.match(source('30-room.js'), /邀请链接：\$\{invite\.inviteUrl\}[\s\S]*房间码：\$\{invite\.joinCode\}/);
+});

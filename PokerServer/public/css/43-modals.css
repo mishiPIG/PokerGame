@@ -16,7 +16,7 @@
         .invite-value { flex: 1; min-width: 0; border: 1px solid #cdd6e3; border-radius: 10px;
             background: #fff; color: #24344e; padding: 10px 11px; font-size: 13px; overflow: hidden;
             text-overflow: ellipsis; white-space: nowrap; }
-        .invite-value.code { text-align: center; letter-spacing: 7px; font-size: 25px; font-weight: 800; color: #245ec7; }
+        .invite-value.message { white-space: pre-line; line-height: 1.45; }
         .invite-copy-row button { flex: 0 0 auto; border: none; border-radius: 10px; padding: 0 13px;
             background: #3a86ff; color: #fff; font-weight: bold; cursor: pointer; }
         .invite-manage { display: flex; gap: 8px; margin-top: 14px; }
@@ -38,4 +38,3 @@
         .bm-info b { color: #ef6c2d; }
         .bm-auto { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: #44546e; }
         .bm-auto input { width: 16px; height: 16px; }
-

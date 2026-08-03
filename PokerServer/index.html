@@ -321,21 +321,14 @@
     <div id="invite-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)closeInvite()">
         <div class="modal-box">
             <h3>🔗 邀请朋友加入</h3>
-            <div class="invite-note">手机收到消息可直接点击链接；跨设备时输入四位房间码。</div>
+            <div class="invite-note">复制后直接发送给朋友；可点链接加入，跨设备时也可输入房间码。</div>
             <div id="invite-loading" class="hist-empty">正在获取邀请信息…</div>
             <div id="invite-content" style="display:none">
                 <div class="invite-field">
-                    <span class="invite-label">四位房间码</span>
+                    <span class="invite-label">邀请信息</span>
                     <div class="invite-copy-row">
-                        <div id="invite-code" class="invite-value code">----</div>
-                        <button onclick="copyRoomCode()">复制</button>
-                    </div>
-                </div>
-                <div class="invite-field">
-                    <span class="invite-label">邀请链接</span>
-                    <div class="invite-copy-row">
-                        <div id="invite-url" class="invite-value"></div>
-                        <button onclick="copyInviteUrl()">复制</button>
+                        <div id="invite-message" class="invite-value message"></div>
+                        <button onclick="copyRoomInvite()">一键复制</button>
                     </div>
                 </div>
                 <div class="invite-manage">

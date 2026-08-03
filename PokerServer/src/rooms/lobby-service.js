@@ -55,6 +55,7 @@ function emitRoomInviteInfo(socket, game, autoOpen = false) {
     const publicOrigin = CONFIGURED_PUBLIC_ORIGIN
         || (/^https?:\/\/[^/]+$/i.test(requestOrigin) ? requestOrigin : 'https://pokerdojo.space');
     socket.emit('room_invite_info', {
+        roomName: game.config?.name || '',
         joinCode: game.invite.joinCode,
         inviteUrl: `${publicOrigin}/#/join/${game.invite.token}`,
         entryLocked: !!game.invite.entryLocked,
