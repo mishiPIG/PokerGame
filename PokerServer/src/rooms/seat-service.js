@@ -36,7 +36,10 @@ function standUpPlayer(roomId, idx, byOwner) {
     if (handInProgress) {
         // 本手进行中：延后到本手结束再真正离座（removeBustedPlayers 处理），避免 splice 打乱 actionOnIdx
         p.vacateAfter = true;
-        if (!p.folded) {
+        // ⚠️ 已全押者绝不能改判弃牌：他的筹码已在池中、本就无需再行动，
+        // 强行 folded 会剥夺其池权，并让「未跟注退还」把对手已被跟的注错误退回 → 凭空造筹码
+        // （线上事故：room130674 h53，全押被跟后离座 → 对手多得 16508）。
+        if (!p.folded && !p.allIn) {
             p.folded = true; p.hasActed = true;
             if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
             else if (isBettingRoundComplete(game)) advanceStage(roomId);
