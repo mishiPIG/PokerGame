@@ -105,17 +105,19 @@ function connectSocket(token) {
     });
 
     // 比赛结束排名（现金桌训练结束/房主结束/SNG 结束）：弹结算面板
-    socket.on('match_result', ({ title, ranking }) => {
+    socket.on('match_result', ({ title, ranking, awards }) => {
         setTimeout(() => {
             const me = (ranking || []).find(r => r.userId === myUserId);
             document.getElementById('result-title').textContent = title || '比赛结束';
             document.getElementById('result-sub').innerHTML = me
-                ? `你排名 <b>第 ${me.rank}</b> / ${ranking.length}，盈亏 <b>${me.net >= 0 ? '+' : ''}${me.net}</b> ${me.unit}`
+                ? `你排名 <b>第 ${me.rank}</b> / ${ranking.length}，盈亏 <b>${me.net >= 0 ? '+' : ''}${me.net}</b> ${me.unit}，共打 <b>${me.handsPlayed || 0}</b> 手`
                 : '';
+            renderPodium(awards);
             document.getElementById('result-ranking').innerHTML = (ranking || []).map(r =>
                 `<div class="rk-row${r.userId === myUserId ? ' me' : ''}">
                     <span class="rk-no">${r.rank}</span>
-                    <span class="rk-name">${escapeHtml(r.displayName || r.username)}</span>
+                    <span class="rk-name">${escapeHtml(r.displayName || r.username)}${awardTags(awards, r.userId)}</span>
+                    <span class="rk-hands">${r.handsPlayed || 0} 手</span>
                     <span class="rk-net" style="color:${r.net >= 0 ? '#4ade80' : '#f87171'}">${r.net >= 0 ? '+' : ''}${r.net} ${r.unit}</span>
                 </div>`).join('');
             document.getElementById('result-overlay').style.display = 'flex';

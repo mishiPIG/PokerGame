@@ -14,6 +14,7 @@
             font-size: 18px; cursor: pointer; color: #667; }
         .settings-sec { margin-bottom: 18px; }
         .sec-title { font-size: 14px; font-weight: bold; color: #2a3a52; margin-bottom: 10px; }
+        .sec-hint { font-size: 11.5px; color: #7a879b; margin-top: 8px; line-height: 1.5; }
         .avatar-grid { display: flex; flex-wrap: wrap; gap: 8px; }
         .avatar-opt {
             width: 48px; height: 48px; border-radius: 50%; overflow: hidden; cursor: pointer;

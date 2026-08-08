@@ -143,7 +143,38 @@
             display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
         .rk-row:nth-child(1) .rk-no { background: #f4d35e; color: #2a1c00; }
         .rk-name { flex: 1; text-align: left; color: #e7eefb; }
+        .rk-hands { font-size: 11px; color: #8fa2c4; flex-shrink: 0; }
         .rk-net { font-weight: bold; }
+        .rk-tag { font-size: 10px; padding: 1px 5px; border-radius: 6px; margin-left: 5px; white-space: nowrap;
+            background: rgba(244,211,94,0.18); color: #f4d35e; border: 1px solid rgba(244,211,94,0.35); }
+        /* 颁奖台：🥇老板(亏最多·请客) 🥈MVP(赢最多) 🥉力工(手数最多)——纯娱乐调侃 */
+        #result-podium { display: flex; justify-content: center; align-items: flex-end; gap: 10px;
+            margin: 4px auto 16px; max-width: 340px; }
+        #result-podium:empty { display: none; }
+        .pd-item { flex: 1; max-width: 104px; display: flex; flex-direction: column; align-items: center; gap: 5px;
+            animation: pdRise 0.5s cubic-bezier(0.22,1,0.36,1) backwards; }
+        .pd-item.gold   { animation-delay: 0.10s; }
+        .pd-item.silver { animation-delay: 0.25s; }
+        .pd-item.bronze { animation-delay: 0.40s; }
+        @keyframes pdRise { from { opacity: 0; transform: translateY(18px) scale(0.9); } to { opacity: 1; transform: none; } }
+        .pd-medal { font-size: 20px; line-height: 1; }
+        .pd-avatar { width: 44px; height: 44px; border-radius: 10px; object-fit: cover;
+            background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 18px; color: #e7eefb; border: 2px solid rgba(255,255,255,0.25); }
+        .pd-item.gold   .pd-avatar { border-color: #f4d35e; box-shadow: 0 0 12px rgba(244,211,94,0.5); }
+        .pd-item.silver .pd-avatar { border-color: #cfd8e3; }
+        .pd-item.bronze .pd-avatar { border-color: #d08b52; }
+        .pd-title { font-size: 12px; font-weight: bold; color: #f4d35e; }
+        .pd-item.silver .pd-title { color: #dbe4ef; }
+        .pd-item.bronze .pd-title { color: #e0a678; }
+        .pd-name { font-size: 12px; color: #e7eefb; max-width: 100%; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap; }
+        .pd-val { font-size: 11px; color: #9fb4d6; }
+        /* 台阶：金最高、银次之、铜最矮 */
+        .pd-step { width: 100%; border-radius: 6px 6px 0 0; background: linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.05)); }
+        .pd-item.gold   .pd-step { height: 26px; background: linear-gradient(180deg,rgba(244,211,94,0.5),rgba(244,211,94,0.12)); }
+        .pd-item.silver .pd-step { height: 18px; }
+        .pd-item.bronze .pd-step { height: 12px; background: linear-gradient(180deg,rgba(208,139,82,0.45),rgba(208,139,82,0.1)); }
         .result-btn { background: #f4d35e; color: #1a1a1a; border: none; border-radius: 8px;
             padding: 11px 28px; font-size: 15px; font-weight: bold; cursor: pointer; }
         .result-btn:hover { filter: brightness(1.1); }

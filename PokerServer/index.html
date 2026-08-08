@@ -472,6 +472,7 @@
         <div class="result-trophy">🏆</div>
         <div class="result-title" id="result-title">比赛结束</div>
         <div class="result-sub" id="result-sub"></div>
+        <div id="result-podium"></div>
         <div id="result-ranking"></div>
         <button class="result-btn" onclick="closeResult()">返回大厅</button>
     </div>
@@ -495,6 +496,15 @@
                 <button class="cs-opt" data-cs="four" onclick="setCardStyle('four')">四色扑克</button>
             </div>
             <div class="cs-preview" id="cs-preview"></div>
+        </div>
+        <div class="settings-sec">
+            <div class="sec-title">屏幕布局</div>
+            <div class="cardstyle-row">
+                <button class="cs-opt lay-opt" data-lay="auto" onclick="setLayout('auto')">自动</button>
+                <button class="cs-opt lay-opt" data-lay="portrait" onclick="setLayout('portrait')">竖屏</button>
+                <button class="cs-opt lay-opt" data-lay="landscape" onclick="setLayout('landscape')">横屏</button>
+            </div>
+            <div class="sec-hint">电脑浏览器/大屏建议「横屏」：牌桌收成合适比例居中，牌面更大、座位更聚拢。</div>
         </div>
         <div class="settings-sec">
             <div class="sec-title">翻前快捷加注（BB 倍数，最多 5 个；最小/All-in 固定）</div>

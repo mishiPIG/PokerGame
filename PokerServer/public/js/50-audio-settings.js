@@ -141,6 +141,8 @@ const MAX_QUICK = 5;   // 最多 5 个快捷尺度
 let settings = {
     theme:     localStorage.getItem('s_theme') || 'green',
     cardStyle: localStorage.getItem('s_cardStyle') || 'standard',
+    // 屏幕布局：auto=按屏幕比例自动（宽屏走横屏）/ portrait=强制竖屏 / landscape=强制横屏
+    layout:    localStorage.getItem('s_layout') || 'auto',
     quickBetsPost: JSON.parse(localStorage.getItem('s_quickBetsPost') || localStorage.getItem('s_quickBets') || '[0.5,0.75,1]'),
     quickBetsPre:  JSON.parse(localStorage.getItem('s_quickBetsPre')  || '[2,2.5,3]')
 };
@@ -149,6 +151,7 @@ settings.quickBetsPre  = settings.quickBetsPre.slice(0, MAX_QUICK);
 function saveSettings() {
     localStorage.setItem('s_theme', settings.theme);
     localStorage.setItem('s_cardStyle', settings.cardStyle);
+    localStorage.setItem('s_layout', settings.layout);
     localStorage.setItem('s_quickBetsPost', JSON.stringify(settings.quickBetsPost));
     localStorage.setItem('s_quickBetsPre', JSON.stringify(settings.quickBetsPre));
 }
@@ -156,8 +159,23 @@ function applySettings() {
     document.body.classList.remove('theme-blue', 'theme-green', 'theme-gray', 'theme-purple');
     document.body.classList.add('theme-' + settings.theme);
     document.body.classList.toggle('four-color', settings.cardStyle === 'four');
+    applyLayoutMode();
     renderQuickBets();
 }
+// 横竖屏：auto 时按视口宽高比判断（宽 ≥ 1.3 倍高就当横屏，覆盖电脑浏览器与手机横放）
+function applyLayoutMode() {
+    const auto = window.innerWidth / Math.max(1, window.innerHeight) >= 1.3;
+    const landscape = settings.layout === 'landscape' || (settings.layout === 'auto' && auto);
+    document.body.classList.toggle('layout-landscape', landscape);
+    if (typeof lastState !== 'undefined' && lastState && typeof render === 'function') render(lastState);   // 座位环要按新半径重排
+}
+function setLayout(mode) {
+    settings.layout = mode;
+    saveSettings(); applySettings();
+    document.querySelectorAll('.lay-opt').forEach(b => b.classList.toggle('sel', b.dataset.lay === mode));
+}
+// 窗口尺寸变化（电脑拖窗口 / 手机转屏）时，auto 模式要跟着切
+window.addEventListener('resize', () => { if (settings.layout === 'auto') applyLayoutMode(); });
 function openSettings()  { buildSettingsPanel(); document.getElementById('settings-overlay').style.display = 'flex'; }
 function closeSettings() { document.getElementById('settings-overlay').style.display = 'none'; }
 function setAvatar(url) {
@@ -170,6 +188,8 @@ function buildSettingsPanel() {
     document.getElementById('theme-row').innerHTML = THEMES.map(t =>
         `<div class="theme-swatch ${settings.theme === t.id ? 'sel' : ''}" style="background:${t.css}" onclick="setTheme('${t.id}')"><span>${t.name}</span></div>`).join('');
     document.querySelectorAll('.cs-opt').forEach(b => b.classList.toggle('sel', b.dataset.cs === settings.cardStyle));
+    // 布局按钮复用了 .cs-opt 样式，上一行会把它们的选中态一并清掉，这里按 data-lay 重新点亮
+    document.querySelectorAll('.lay-opt').forEach(b => b.classList.toggle('sel', b.dataset.lay === settings.layout));
     document.getElementById('cs-preview').innerHTML = ['Spades', 'Hearts', 'Diamonds', 'Clubs'].map(s => formatCard({ suit: s, rank: 'A' })).join('');
     // 翻前（BB 倍数）：预设 + 已添加的自定义值
     const preAll = [...new Set([...PRE_CHOICES, ...settings.quickBetsPre])].sort((a, b) => a - b);

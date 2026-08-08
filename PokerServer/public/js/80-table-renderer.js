@@ -58,7 +58,9 @@ function emptySlot() {
 // 屏幕 y 向下：底部(6点)→左下(7点)→…→右下(5点)，即行动顺序顺时针、下一位在我左手边
 function ringPos(ringIndex, M) {
     // 竖向半径收一点、整体下移，避免顶部座位贴边被裁；横向仍外扩留白
-    const cx = 50, cy = 47, rx = 42, ry = 36;
+    // 横屏模式下牌桌区域已被收成 16:10，座位可以更聚拢一点（竖向半径放大），更像真牌桌
+    const landscape = document.body.classList.contains('layout-landscape');
+    const cx = 50, cy = 47, rx = landscape ? 38 : 42, ry = landscape ? 40 : 36;
     const ang = Math.PI / 2 + (2 * Math.PI * ringIndex / M);   // 0→底部；+ 使递增为顺时针
     const c = Math.cos(ang), s = Math.sin(ang);
     let x = cx + rx * c, y = cy + ry * s;

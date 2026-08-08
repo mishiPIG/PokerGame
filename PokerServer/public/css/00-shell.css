@@ -13,6 +13,18 @@
         #table-area  { flex: 1; min-height: 0; overflow: hidden;
                        display: flex; flex-direction: column; justify-content: flex-start;
                        transition: padding-bottom 0.15s; }
+        /* ── 横屏模式（给电脑浏览器/大屏用）──
+           默认布局是按竖屏手机做的：牌桌宽度铺满视口，在 16:9 大屏上会被拉成又扁又宽的一条，
+           座位飞到两边、牌却因为受 dvh 限制还是很小。横屏模式把牌桌收成接近 16:10 的居中区域，
+           并让牌面改用「高度」为主来缩放，于是大屏上牌更大、座位更聚拢，像张真正的牌桌。*/
+        body.layout-landscape #table-view { align-items: center; }
+        body.layout-landscape #table-area {
+            width: min(100%, calc(100dvh * 1.6));   /* 按可用高度反推一个 16:10 的宽度上限 */
+            margin: 0 auto; position: relative;
+        }
+        /* --card-h 在 :root 上是按 :root 的 --card-w 算出来的，只覆盖 --card-w 不会跟着变，必须一起覆盖 */
+        body.layout-landscape { --card-w: clamp(26px, min(5.2vw, 7.4dvh), 58px);
+                                --card-h: calc(clamp(26px, min(5.2vw, 7.4dvh), 58px) * 1.39); }
         /* 合规横幅 */
         #compliance-banner { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); z-index: 3;
             font-size: 10.5px; letter-spacing: 1px; color: rgba(255,255,255,0.32); white-space: nowrap;

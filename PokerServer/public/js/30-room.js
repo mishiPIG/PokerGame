@@ -194,6 +194,42 @@ function runitAward(m) {
 }
 // 轻量非阻塞提示（自动消失，不像 alert 会卡住交互）
 let _toastTimer = 0;
+// —— 结算颁奖台（纯娱乐调侃）：🥇老板=亏最多(该请客了) 🥈MVP=赢最多 🥉力工=手数最多 ——
+// 排名行里的小称号标签
+function awardTags(awards, userId) {
+    if (!awards) return '';
+    const t = [];
+    if (awards.boss && awards.boss.userId === userId) t.push('🥇老板');
+    if (awards.mvp && awards.mvp.userId === userId) t.push('🥈MVP');
+    if (awards.worker && awards.worker.userId === userId) t.push('🥉力工');
+    return t.map(x => `<span class="rk-tag">${x}</span>`).join('');
+}
+function renderPodium(awards) {
+    const box = document.getElementById('result-podium');
+    if (!box) return;
+    if (!awards || (!awards.boss && !awards.mvp && !awards.worker)) { box.innerHTML = ''; return; }
+    const cell = (a, cls, medal, title, valText) => {
+        if (!a) return '';
+        const name = escapeHtml(a.displayName || a.username || '');
+        const initial = (a.displayName || a.username || '?').charAt(0).toUpperCase();
+        const face = a.avatar
+            ? `<img class="pd-avatar" src="${escapeHtml(a.avatar)}" alt="" onerror="this.outerHTML='<div class=\\'pd-avatar\\'>${initial}</div>'">`
+            : `<div class="pd-avatar">${initial}</div>`;
+        return `<div class="pd-item ${cls}">
+            <div class="pd-medal">${medal}</div>${face}
+            <div class="pd-title">${title}</div>
+            <div class="pd-name">${name}</div>
+            <div class="pd-val">${valText}</div>
+            <div class="pd-step"></div>
+        </div>`;
+    };
+    // 视觉顺序：银(左) 金(中) 铜(右)，符合领奖台直觉
+    box.innerHTML =
+        cell(awards.mvp, 'silver', '🥈', 'MVP', `+${(awards.mvp?.net || 0).toLocaleString()} ${awards.mvp?.unit || ''}`)
+        + cell(awards.boss, 'gold', '🥇', '老板', `${(awards.boss?.net || 0).toLocaleString()} ${awards.boss?.unit || ''}`)
+        + cell(awards.worker, 'bronze', '🥉', '力工', `${awards.worker?.handsPlayed || 0} 手`);
+}
+
 function toast(msg, ms = 2600) {
     let el = document.getElementById('mini-toast');
     if (!el) {
