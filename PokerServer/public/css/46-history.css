@@ -103,3 +103,8 @@
         .ap-owner-btn { width: 100%; padding: 10px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold;
             background: rgba(255,159,28,0.16); border: 1px solid rgba(255,159,28,0.5); color: #ffcf8a; }
         .ap-owner-btn:active { background: rgba(255,159,28,0.28); }
+
+        /* 牌谱详情：每家的最终牌型名（仅在牌面可见时才渲染，见 42-replay.js 的隐私判断）*/
+        .hd-cat { display: block; margin-top: 3px; font-size: 10.5px; font-weight: bold; color: #f4d35e;
+            white-space: nowrap; letter-spacing: 0.3px; }
+        .hd-cat.dim { color: #9fb4d6; font-weight: normal; }

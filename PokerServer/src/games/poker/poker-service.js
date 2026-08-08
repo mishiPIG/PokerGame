@@ -15,7 +15,7 @@ function createPokerService({ io, db, equity, Deck, HandEvaluator, config, runti
     const { PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, STRADDLE_DECISION_MS } = config;
     const { roomGames } = runtime;
     const pokerRules = createPokerRules();
-    const handHistoryService = createHandHistoryService({ db, persistence, roomGames });
+    const handHistoryService = createHandHistoryService({ db, persistence, roomGames, HandEvaluator });
     const potService = createPotService({ io, roomGames, gameBB });
     const statePresenter = createStatePresenter({ io, db, roomGames, PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, livePots: potService.livePots, HandEvaluator, persistence });
     const straddleService = createStraddleService({ io, roomGames, PHASES, gameBB, gameAnte, STRADDLE_DECISION_MS, persistence });

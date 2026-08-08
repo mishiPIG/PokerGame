@@ -127,10 +127,15 @@ function openHandDetail(h) {
         const net = (res.endChips ?? s.startChips ?? 0) - (s.startChips || 0);
         const netCls = net > 0 ? 'win' : (net < 0 ? 'lose' : '');
         const av = s.avatar ? `<img src="${s.avatar}" onerror="this.style.display='none'">` : escapeHtml((s.username || '?')[0].toUpperCase());
+        // 牌型名（服务端已随牌谱存下）。⚠️ 只在牌面本来就可见时才显示：
+        // 否则会泄露「弃牌者从未亮过的底牌是什么牌型」——那是本手中谁都不该知道的信息。
+        // 自己弃牌的那手可以看（是自己的牌），标注「弃」表示只是假设。
+        const catHtml = (showFace && res.category)
+            ? `<span class="hd-cat${folded ? ' dim' : ''}">${folded ? '弃 · ' : ''}${escapeHtml(res.category)}</span>` : '';
         return `<div class="hd-row${folded ? ' folded' : ''}">
             <div class="hd-who"><div class="hd-av" style="background:hsl(${hashHue(s.userId)},45%,42%)">${av}</div>
               <div class="hd-nm">${escapeHtml(s.username)}${isMe ? '<span class="hd-me">你</span>' : ''}${pos[s.userId] ? `<span class="hd-pos">${pos[s.userId]}</span>` : ''}${folded ? '<span class="hd-fold">弃牌</span>' : ''}</div></div>
-            <div class="hd-hole">${holeHtml}</div>
+            <div class="hd-hole">${holeHtml}${catHtml}</div>
             <div class="hd-acts">${actHtml}</div>
             <div class="hd-net ${netCls}">${net > 0 ? '+' : ''}${fmtChips(net)}</div>
         </div>`;

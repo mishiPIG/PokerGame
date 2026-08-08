@@ -1,4 +1,29 @@
 // ===== 消息收件箱 =====
+// 结算类消息是我们自己按固定格式发的（标题 / 你第X名 / —— 分节 —— / 排名行），
+// 这里按那套格式做轻量结构化渲染，比整段纯文本好读得多；不认识的行原样显示，格式变了也不会崩。
+function formatInboxText(text) {
+    const lines = String(text).split('\n');
+    let html = '', first = true;
+    for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) { html += '<div class="ib-gap"></div>'; continue; }
+        const esc = escapeHtml(line);
+        if (first) { html += `<div class="ib-title">${esc}</div>`; first = false; continue; }
+        if (/^——.*——$/.test(line)) { html += `<div class="ib-sec">${escapeHtml(line.replace(/——/g, '').trim())}</div>`; continue; }
+        if (/^你第/.test(line)) {                       // 我自己的名次/盈亏：高亮成一条
+            const cls = /盈亏 -/.test(line) ? 'lose' : 'win';
+            html += `<div class="ib-mine ${cls}">${esc}</div>`; continue;
+        }
+        if (/^[🥇🥈🥉]/.test(line)) { html += `<div class="ib-award">${esc}</div>`; continue; }
+        const rank = line.match(/^(\d+)\.\s*(.*)$/);     // 排名行：序号单独成块
+        if (rank) {
+            html += `<div class="ib-rank"><span class="ib-no">${rank[1]}</span><span>${escapeHtml(rank[2])}</span></div>`;
+            continue;
+        }
+        html += `<div class="ib-line">${esc}</div>`;
+    }
+    return `<div class="ib-text">${html}</div>`;
+}
 async function fetchMessages() {
     try {
         const token = localStorage.getItem('token');
@@ -23,9 +48,10 @@ async function openInbox() {
     if (!msgs.length) { list.innerHTML = '<div class="hist-empty">暂无消息</div>'; return; }
     list.innerHTML = msgs.map(m => {
         const t = new Date(m.ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const icon = m.type === 'result' ? '🏆' : m.type === 'admin' ? '📢' : '✉️';
         return `<div class="inbox-item${m.read ? '' : ' unread'}">
-            <div class="ib-time">${t}</div>
-            <div class="ib-text">${escapeHtml(m.text || '').replace(/\n/g, '<br>')}</div></div>`;
+            <div class="ib-head"><span class="ib-icon">${icon}</span><span class="ib-time">${t}</span></div>
+            ${formatInboxText(m.text || '')}</div>`;
     }).join('');
     // 标记已读
     try {

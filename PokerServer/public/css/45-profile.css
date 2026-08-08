@@ -58,3 +58,20 @@
         .sc-val { font-size: 17px; font-weight: bold; color: #e7eefb; }
         .sc-key { font-size: 10.5px; color: #8fa2c4; margin-top: 3px; line-height: 1.2; }
         .curve-svg { width: 100%; height: 120px; background: rgba(0,0,0,0.25); border-radius: 10px; margin-top: 6px; }
+
+        /* 收件箱：结算类消息做结构化渲染（标题/我的名次/称号/排名），比纯文本好读 */
+        .ib-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+        .ib-icon { font-size: 14px; }
+        .ib-title { font-size: 14px; font-weight: bold; color: #e7eefb; margin-bottom: 6px; }
+        .ib-sec { font-size: 11px; color: #8fa2c4; margin: 8px 0 4px; letter-spacing: 1px;
+            border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px; }
+        .ib-mine { font-size: 13px; font-weight: bold; padding: 6px 9px; border-radius: 8px; margin-bottom: 4px; }
+        .ib-mine.win  { background: rgba(74,222,128,0.14); color: #86efac; border: 1px solid rgba(74,222,128,0.3); }
+        .ib-mine.lose { background: rgba(248,113,113,0.13); color: #fca5a5; border: 1px solid rgba(248,113,113,0.3); }
+        .ib-award { font-size: 12.5px; color: #f4d35e; padding: 3px 0; }
+        .ib-rank { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #cdd8ea; padding: 3px 0; }
+        .ib-no { flex-shrink: 0; width: 19px; height: 19px; border-radius: 50%; background: rgba(255,255,255,0.12);
+            display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
+        .ib-rank:nth-of-type(1) .ib-no { background: #f4d35e; color: #2a1c00; }
+        .ib-line { font-size: 12.5px; color: #cdd8ea; line-height: 1.6; }
+        .ib-gap { height: 4px; }
