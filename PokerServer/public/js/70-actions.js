@@ -160,6 +160,25 @@ function updateConfirmLabel(v) {
     const val = clampSize(v);
     const isBet = sizeCtx && sizeCtx.currentBet === 0;
     document.getElementById('btnConfirmBet').textContent = (isBet ? '确认下注 ' : '确认加注到 ') + fmtChips(val);
+    updateBetInfo(val);
+}
+// 下注辅助信息：这一手压下去之后我还剩多少、相当于多大底池、对手要跟多少。
+// 目的是把「代价」摆在眼前，不用自己心算（尤其手机上）。
+function updateBetInfo(val) {
+    const el = document.getElementById('bet-info');
+    if (!el) return;
+    if (!sizeCtx) { el.textContent = ''; return; }
+    const me = lastState && (lastState.players || []).find(p => p.userId === myUserId);
+    if (!me) { el.textContent = ''; return; }
+    const addNow = Math.max(0, val - (sizeCtx.myBet || 0));      // 本次还要再投入多少
+    const left = Math.max(0, me.chips - addNow);                  // 压完之后我还剩
+    const potAfter = (sizeCtx.totalPot || 0) + addNow;
+    const pct = potAfter > 0 ? Math.round(val / potAfter * 100) : 0;
+    const toCallOpp = Math.max(0, val - (sizeCtx.currentBet || 0));  // 对手需要跟的增量
+    const allIn = left === 0;
+    el.innerHTML = allIn
+        ? `<span class="bi-allin">全下</span> · 占底池 ${pct}% · 对手需跟 ${fmtChips(toCallOpp)}`
+        : `剩余 <b>${fmtChips(left)}</b> · 占底池 ${pct}% · 对手需跟 ${fmtChips(toCallOpp)}`;
 }
 
 // ===== 房间内游戏控制 =====

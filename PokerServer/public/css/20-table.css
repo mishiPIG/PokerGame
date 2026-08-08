@@ -310,3 +310,9 @@
         }
         #raiseAmount:disabled { opacity: 0.3; }
 
+
+        /* 下注辅助信息：压下去之后还剩多少 / 占底池多少 / 对手要跟多少（省得自己心算）*/
+        .bet-info { font-size: 11px; color: #cdd8ea; text-align: center; margin-top: 5px;
+            white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+        .bet-info b { color: #f4d35e; }
+        .bet-info .bi-allin { color: #ff8f5e; font-weight: bold; }

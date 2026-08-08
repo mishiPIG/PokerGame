@@ -299,10 +299,18 @@ function connectSocket(token) {
         // 面板打开时随状态实时刷新
         if (document.getElementById('stats-panel').style.display !== 'none') renderStats(state);
         if (document.getElementById('match-modal').style.display !== 'none') renderMatchInfo(state);
-        // 收注：本次下注归零（之前 >0）的玩家，金币飞向底池
+        // 下注/收注两段筹码动画：
+        // ① 下注瞬间：本次下注额【变大】→ 从头像抛一枚筹码到自己的下注徽章（"把筹码推出去"的手感）
+        // ② 收注：下注额归零（本街结束）→ 筹码飞向底池
         const pot = document.getElementById('pot');
         state.players.forEach(p => {
-            if ((prevBets[p.userId] || 0) > 0 && p.currentBet === 0) {
+            const prev = prevBets[p.userId] || 0;
+            if (p.currentBet > prev && prev >= 0 && state.phase !== 'waiting') {
+                const seat = document.querySelector(`.seat[data-uid="${p.userId}"] .avatar-block`);
+                const badge = document.querySelector(`.seat[data-uid="${p.userId}"] .bet-badge`);
+                if (seat && badge) flyCoins(seat, badge, 1);
+            }
+            if (prev > 0 && p.currentBet === 0) {
                 flyCoins(document.querySelector(`.seat[data-uid="${p.userId}"]`), pot, 2);
             }
         });
