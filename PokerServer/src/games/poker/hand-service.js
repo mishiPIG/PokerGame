@@ -122,6 +122,12 @@ function advanceStage(roomId) {
     const bettingClosed = act.length > 1 && act.filter(canAct).length <= 1;
     if (!game.allinRevealed && bettingClosed) {
         game.allinRevealed = true;
+        // ⚠️ 必须清掉行动位：此时下注已结束，谁都不该再行动。
+        // 否则 actionOnIdx 仍指着「最后行动的那个人」→ 他客户端上按钮还亮着，
+        // 服务端的回合校验也会放行 → 已全押的人能把牌弃掉，白白丢掉池权
+        // （run-it 协商期间尤其明显：协商面板开着，红叉却还能点）。
+        game.actionOnIdx = -1;
+        game.actionDeadline = null;
         collectBetsToPot(game);                 // 先把全押筹码收进底池
         returnUncalledBets(roomId);             // 退还未被跟到的多余下注（否则会错误并入 run-it 均分池/多显边池）
         const reveals = {};

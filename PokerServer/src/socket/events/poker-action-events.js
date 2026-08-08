@@ -13,6 +13,10 @@ function registerPokerActionEvents(context) {
         }
 
         const player = game.players[game.actionOnIdx];
+        // 兜底：已全押/已弃牌的人一律不能再行动——他的筹码已在池中、本就无需决策。
+        // 万一 actionOnIdx 因任何原因指错（曾出现：全押亮牌后没清行动位，导致他能把牌弃掉、白丢池权），
+        // 也不能让这类操作落地。这是服务端权威校验，不依赖客户端是否把按钮藏好。
+        if (!canAct(player)) { socket.emit('server_msg', '⚠️ 你已全押/已弃牌，无需再行动'); return; }
         const tag = player.username;
 
         switch (action) {
