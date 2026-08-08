@@ -26,6 +26,11 @@
         .adm-adjust { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
         .adm-adjust input { flex: 1; min-width: 90px; background: rgba(0,0,0,0.3);
             border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 5px 8px; font-size: 12px; }
+        .adm-bar select { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: #fff;
+            border-radius: 6px; padding: 5px 8px; font-size: 12px; }
+        .adm-mail-text { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
+            color: #fff; border-radius: 6px; padding: 7px 9px; font-size: 12px; resize: vertical;
+            font-family: inherit; margin-bottom: 8px; }
         .adm-tx { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; font-size: 12px;
             padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,0.06); align-items: center; }
         #admin-panel table { width: 100%; border-collapse: collapse; font-size: 13px; }

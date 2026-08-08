@@ -15,12 +15,75 @@ function admMsg(text, ok = true) {
     if (el) el.textContent = (ok ? '✅ ' : '❌ ') + text;
 }
 function adminTab(name) {
-    ['users', 'rooms', 'wallet'].forEach(t => {
+    ['users', 'rooms', 'wallet', 'hands', 'audit', 'mail'].forEach(t => {
         const pane = document.getElementById('adm-pane-' + t);
         if (pane) pane.style.display = t === name ? '' : 'none';
     });
     document.querySelectorAll('.adm-tab').forEach(b => b.classList.toggle('sel', b.dataset.at === name));
     if (name === 'rooms') loadAdminRooms();
+}
+
+// —— 玩家牌谱：查任意玩家最近的牌局 ——
+async function loadAdminHands(username) {
+    const name = username || document.getElementById('adm-hands-user').value.trim();
+    if (!name) return;
+    document.getElementById('adm-hands-user').value = name;
+    const mode = document.getElementById('adm-hands-mode').value;
+    const box = document.getElementById('adm-hands');
+    box.innerHTML = '<div class="adm-empty">加载中…</div>';
+    const res = await admGet(`/api/admin/hands/${encodeURIComponent(name)}?limit=30${mode ? '&mode=' + mode : ''}`);
+    if (!res.ok) { const e = await res.json().catch(() => ({})); box.innerHTML = `<div class="adm-empty">${escapeHtml(e.error || '加载失败')}</div>`; return; }
+    const d = await res.json();
+    if (!d.hands || !d.hands.length) { box.innerHTML = '<div class="adm-empty">没有牌谱</div>'; return; }
+    box.innerHTML = `<div class="adm-wallet-h">${escapeHtml(d.displayName)} · 最近 ${d.hands.length} 手</div>` + d.hands.map(h => {
+        const when = new Date(h.ts).toLocaleString('zh-CN', { hour12: false });
+        const net = h.net || 0;
+        const hole = (h.hole || []).join(' ');
+        const comm = (h.community || []).join(' ');
+        return `<div class="adm-tx" style="grid-template-columns:auto auto 1fr auto">
+            <span class="adm-dim">${when}</span>
+            <span class="adm-dim">#${escapeHtml(String(h.roomId || ''))}</span>
+            <span>${escapeHtml(hole)}${comm ? ` <span class="adm-dim">| ${escapeHtml(comm)}</span>` : ''}</span>
+            <span style="color:${net >= 0 ? '#4ade80' : '#f87171'};font-weight:bold">${net >= 0 ? '+' : ''}${net.toLocaleString()}</span>
+        </div>`;
+    }).join('');
+}
+
+// —— 筹码守恒审计：网页直接跑，不必 SSH ——
+async function runAdminAudit() {
+    const box = document.getElementById('adm-audit');
+    const room = document.getElementById('adm-audit-room').value.trim();
+    const days = document.getElementById('adm-audit-range').value;
+    box.innerHTML = '<div class="adm-empty">审计中…（牌谱多时需要几秒）</div>';
+    const res = await admGet('/api/admin/audit?' + (room ? `room=${encodeURIComponent(room)}` : `days=${days}`));
+    if (!res.ok) { const e = await res.json().catch(() => ({})); box.innerHTML = `<div class="adm-empty">${escapeHtml(e.error || '审计失败')}</div>`; return; }
+    const d = await res.json();
+    const head = `<div class="adm-wallet-h">扫描 ${d.scanned} 手 · 合法补码 ${d.rebuys || 0} 处 · 异常 <b style="color:${d.alarms.length ? '#f87171' : '#4ade80'}">${d.alarms.length}</b> 处</div>`;
+    if (!d.alarms.length) { box.innerHTML = head + '<div class="adm-empty" style="color:#4ade80">🟢 所有牌局筹码守恒，未发现异常</div>'; return; }
+    box.innerHTML = head + d.alarms.map(a => `<div class="adm-room">
+        <div class="adm-room-h"><b>房间 ${escapeHtml(String(a.roomId))}</b> <span class="adm-dim">seq ${a.handSeq ?? '-'} · ${new Date(a.ts).toLocaleString('zh-CN', { hour12: false })}</span></div>
+        <div style="color:#f87171">凭空 ${a.delta >= 0 ? '+' : ''}${a.delta.toLocaleString()} 筹码</div>
+        ${(a.suspects || []).map(s => `<div class="adm-dim">归因：${escapeHtml(s.username)} ${s.diff >= 0 ? '+' : ''}${s.diff.toLocaleString()}</div>`).join('')}
+        ${(a.illegal || []).map(x => `<div style="color:#f4d35e;font-size:11px">⚠️ ${escapeHtml(x)}</div>`).join('')}
+    </div>`).join('');
+}
+
+// —— 发站内信：指定玩家或全体 ——
+async function sendAdminMail() {
+    const username = document.getElementById('adm-mail-user').value.trim();
+    const title = document.getElementById('adm-mail-title').value.trim();
+    const text = document.getElementById('adm-mail-text').value.trim();
+    if (!text) { admMsg('内容不能为空', false); return; }
+    if (!confirm(`确认发送给 ${username || '【全体玩家】'}？`)) return;
+    const res = await fetch('/api/admin/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admToken()}` },
+        body: JSON.stringify({ username: username || undefined, title: title || undefined, text })
+    });
+    const d = await res.json();
+    if (!res.ok) { admMsg(d.error || '发送失败', false); return; }
+    admMsg(`已发送给 ${d.target}（${d.sent} 人）`);
+    document.getElementById('adm-mail-text').value = '';
 }
 
 // —— 房间总览：现在有哪些房在打、谁在里面（免得 SSH 上去翻日志）——
@@ -115,7 +178,8 @@ async function loadAdminUsers() {
             <td>${u.gold.toLocaleString()}</td>
             <td><input type="number" id="gold-${u.id}" value="${u.gold}" min="0"></td>
             <td><button onclick="adminSetGold('${u.username}','${u.id}')">确认</button></td>
-            <td><button onclick="adminTab('wallet');loadAdminWallet('${u.username}')">💰 流水</button></td>
+            <td><button onclick="adminTab('wallet');loadAdminWallet('${u.username}')">💰 流水</button>
+                <button onclick="adminTab('hands');loadAdminHands('${u.username}')">📜 牌谱</button></td>
         </tr>`).join('');
 }
 

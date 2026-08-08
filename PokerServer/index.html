@@ -96,6 +96,9 @@
             <button class="adm-tab sel" data-at="users" onclick="adminTab('users')">👥 玩家</button>
             <button class="adm-tab" data-at="rooms" onclick="adminTab('rooms')">🎲 房间总览</button>
             <button class="adm-tab" data-at="wallet" onclick="adminTab('wallet')">💰 钱包流水</button>
+            <button class="adm-tab" data-at="hands" onclick="adminTab('hands')">📜 牌谱</button>
+            <button class="adm-tab" data-at="audit" onclick="adminTab('audit')">🛡️ 审计</button>
+            <button class="adm-tab" data-at="mail" onclick="adminTab('mail')">✉️ 站内信</button>
         </div>
         <div id="adm-pane-users">
             <table id="admin-users-table">
@@ -113,6 +116,31 @@
                 <button onclick="loadAdminWallet()">查流水</button>
             </div>
             <div id="adm-wallet"></div>
+        </div>
+        <div id="adm-pane-hands" style="display:none">
+            <div class="adm-bar">
+                <input id="adm-hands-user" placeholder="用户名" onkeydown="if(event.key==='Enter')loadAdminHands()">
+                <select id="adm-hands-mode"><option value="">全部</option><option value="cash">现金桌</option><option value="sng">SNG</option></select>
+                <button onclick="loadAdminHands()">查牌谱</button>
+            </div>
+            <div id="adm-hands"></div>
+        </div>
+        <div id="adm-pane-audit" style="display:none">
+            <div class="adm-bar">
+                <select id="adm-audit-range"><option value="7">最近 7 天</option><option value="1">昨天起 1 天</option><option value="30">最近 30 天</option></select>
+                <input id="adm-audit-room" placeholder="房间号(可选)">
+                <button onclick="runAdminAudit()">运行审计</button>
+            </div>
+            <div class="sec-hint">扑克是零和的：单手内「所有人结束筹码之和」必须等于「开始之和」。不等 = 有钱凭空出现/消失。合法的手中补码会被单独识别，不算异常。</div>
+            <div id="adm-audit"></div>
+        </div>
+        <div id="adm-pane-mail" style="display:none">
+            <div class="adm-bar">
+                <input id="adm-mail-user" placeholder="用户名（留空 = 发给全体）">
+                <input id="adm-mail-title" placeholder="标题（默认「📢 系统公告」）">
+            </div>
+            <textarea id="adm-mail-text" class="adm-mail-text" rows="4" placeholder="内容（如：今晚 02:00 维护，请提前结束牌局）"></textarea>
+            <div class="adm-bar"><button onclick="sendAdminMail()">发送站内信</button><span class="adm-dim">会进入对方的 📬 收件箱</span></div>
         </div>
         <div id="admin-msg"></div>
     </div>

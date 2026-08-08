@@ -109,6 +109,76 @@ app.post('/api/admin/adjust-gold', requireAdmin, (req, res) => {
     }
 });
 
+// —— 玩家牌谱查询：查任意玩家最近的牌局（复用玩家自己的那套聚合逻辑）——
+app.get('/api/admin/hands/:username', requireAdmin, (req, res) => {
+    const target = db.getUserByUsername(req.params.username);
+    if (!target) return res.status(404).json({ error: `用户 "${req.params.username}" 不存在` });
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 30));
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+    const mode = (req.query.mode === 'sng' || req.query.mode === 'cash') ? req.query.mode : null;
+    const room = req.query.room ? String(req.query.room).slice(0, 12) : null;
+    // 牌谱是整手的完整记录（seats/results/actions…），这里顺便把「被查玩家自己的」底牌与净盈亏抽出来，
+    // 免得前端再去 seats/results 里翻找（翻错就会显示成空白/undefined）。
+    const hands = db.getHandsForUser(target.id, { limit, offset, mode, room }).map(h => {
+        const seat = (h.seats || []).find(s => s.userId === target.id);
+        const r = (h.results || []).find(x => x.userId === target.id);
+        const net = (seat && r) ? (r.endChips - seat.startChips) : null;
+        return {
+            ts: h.ts, roomId: h.roomId, mode: h.mode, handSeq: h.handSeq,
+            sb: h.sb, bb: h.bb,
+            hole: seat ? seat.hole : [],
+            community: h.community || [],
+            won: r ? r.won : 0,
+            net,
+            playerCount: (h.seats || []).length
+        };
+    });
+    res.json({ username: target.username, displayName: target.displayName || target.username, hands });
+});
+
+// —— 筹码守恒审计：网页上直接跑，不必 SSH（复用 tools/audit-chips.js 的判定逻辑）——
+// 说明：审计是「扑克零和」的结构性检查——单手内 Σ结束筹码 必须等于 Σ开始筹码，
+// 不等即有钱凭空出现/消失。合法的手中补码会被单独识别、不算异常。
+app.get('/api/admin/audit', requireAdmin, (req, res) => {
+    const { spawn } = require('child_process');
+    const path = require('path');
+    const args = [path.join(__dirname, '..', '..', 'tools', 'audit-chips.js'), '--json'];
+    if (req.query.room) args.push('--room', String(req.query.room).slice(0, 12));
+    else if (req.query.days) args.push('--days', String(Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 7))));
+    else args.push('--days', '7');
+    const child = spawn(process.execPath, args, { cwd: path.join(__dirname, '..', '..'), timeout: 60000 });
+    let out = '', err = '';
+    child.stdout.on('data', d => { out += d; });
+    child.stderr.on('data', d => { err += d; });
+    child.on('close', () => {
+        try { res.json(JSON.parse(out)); }
+        catch (e) { res.status(500).json({ error: '审计脚本输出无法解析', detail: (err || out).slice(0, 500) }); }
+    });
+    child.on('error', e => res.status(500).json({ error: '审计脚本启动失败: ' + e.message }));
+});
+
+// —— 发站内信：给指定玩家，或全体（公告/维护通知）——
+app.post('/api/admin/broadcast', requireAdmin, (req, res) => {
+    const { username, text, title } = req.body || {};
+    const body = String(text || '').trim();
+    if (!body) return res.status(400).json({ error: '内容不能为空' });
+    if (body.length > 2000) return res.status(400).json({ error: '内容过长（上限 2000 字）' });
+    const head = String(title || '📢 系统公告').trim().slice(0, 40);
+    const full = `${head}\n\n${body}\n\n—— 来自管理员 ${req.adminUser.username}`;
+    let targets;
+    if (username) {
+        const t = db.getUserByUsername(username);
+        if (!t) return res.status(404).json({ error: `用户 "${username}" 不存在` });
+        targets = [t];
+    } else {
+        targets = db.getAllUsers();
+    }
+    let sent = 0;
+    for (const t of targets) { try { db.addMessage(t.id, { type: 'admin', text: full }); sent++; } catch (e) { /* 单个失败不影响其余 */ } }
+    console.log(`[admin] ${req.adminUser.username} 发送站内信给 ${username || '全体'}（${sent} 人）`);
+    res.json({ ok: true, sent, target: username || '全体' });
+});
+
 }
 
 module.exports = { registerAdminRoutes };
