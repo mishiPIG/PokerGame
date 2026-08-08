@@ -92,6 +92,13 @@ function connectSocket(token) {
         setTimeout(() => { alert('你已离开牌桌'); showLobby(); }, 300);
     });
 
+    // SNG 被淘汰：不再踢回大厅，留在桌上继续观战（想走点「退出房间」即可）
+    socket.on('eliminated', ({ canSpectate } = {}) => {
+        if (!canSpectate) { setTimeout(() => { alert('你已出局'); showLobby(); }, 300); return; }
+        toast('💀 你已出局，可继续观战；想离开点「退出房间」', 4500);
+        showTableNotice('💀 你已出局，正在观战');
+    });
+
     socket.on('tournament_over', ({ winner }) => {
         if (winner === myUsername) setTimeout(() => sndWin(), 1500);   // 夺冠音；排名由 match_result 弹窗展示
     });

@@ -179,6 +179,14 @@ Android / iOS / PC
 - **另修 run-it 引入的崩溃**：`maxRunsByDeck` 按剩余牌堆限制可发次数（`offerRunIt` 的 max + `resolveRunIt` 夹取），防 9-max 多人弃牌后牌堆不足发 N 次导致 `drawCard()` 返回 null 崩/卡；客户端次数按钮随 `max`。
 - **验证**：jsdom 加载**真实 index.html** 直接跑 `buildRunitBoards`/`runitDealStreet`/`clearRunit`——preflop 2 组各 5 张、翻后全押共享 flop+每组并列 2 张、clearRunit 复原 全对 ✅；socket 回归 runit/sidepot/sidepot2/standflow/hostfeat 全通 ✅。（确认渲染函数本身没问题，就是跨手残留 class。）
 
+## 🪑 SNG 淘汰后可继续观战（2026-08-08）
+- **反馈**：多人 SNG（类似 FT）里一旦有人筹码归零就被**直接踢回大厅**，连观战都不行——朋友局里想看别人打完却看不了，体验很差。
+- **根因**：`seat-service.js` 的 `removeBustedPlayers` SNG 分支在淘汰时执行 `s.leave(roomId); s.currentRoom=null; lobbySockets.add(s.id); s.emit('busted_out')` —— 把 socket 直接踢出房间。
+- **修**：淘汰只把他从 `game.players` 移出座位，**不再踢出 socket 房间**；由于「观众 = 房间内未在座者」（`listSpectators`），splice 之后他**自动就是观众**。改发新事件 `eliminated{canSpectate:true}`；客户端 `20-socket.js` 收到后**留在牌桌**并提示「💀 你已出局，可继续观战；想离开点退出房间」，不再 `showLobby()`。`busted_out` 保留给现金桌真·离场路径。
+- 误点空座无害：`sit_down` 对非现金桌直接拒绝（"该房间无需坐下"）。
+- **验证**：3 人 SNG（一人梭/一人跟/一人弃，保证只淘汰 1 人、另 2 人继续打）——被淘汰者收到 `eliminated{canSpectate:true}` ✅、淘汰后仍持续收到 `game_state`（还在房间）✅、出现在观众列表 ✅、未收到 `busted_out` ✅、**解散时也能正常收到 `room_dissolved` 回大厅（不被晾在房里）** ✅。回归 全押离场/多人全押离场/连点开始/raiseClosed/现金桌续局+SNG 开赛 全通。
+  - ⚠️ 测试构造注意：三家同时全押会**两人一起出局、比赛立刻结束**，`removeBustedPlayers` 根本不执行，走不到该路径——必须让"只淘汰一人、其余继续"。
+
 ## 🛡️ 筹码守恒审计（经济安全网，2026-08-08，香港+测试服已上，已挂每日 cron）
 - **动机**：上面那个「凭空造筹码」是玩家发现后反馈的。需要一张**不依赖预知 bug 形态**的网，让系统先发现。
 - **原理**：扑克零和——**单手内 `Σ(结束筹码)` 必须 == `Σ(开始筹码)`**。不等即有钱凭空出现/消失，不管起因是边池、退还、多次发牌、离场处理还是将来的新功能。
