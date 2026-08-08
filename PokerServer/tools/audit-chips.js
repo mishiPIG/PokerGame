@@ -107,6 +107,27 @@ function loadFromJsonl(pathname, opt, range) {
     return out;
 }
 
+// 数据源里最新一手的时间（不受 --days/--room 过滤影响）——用于判断数据源是否已冻结。
+function newestHandTs(src) {
+    try {
+        if (src.kind === 'sqlite') {
+            const Database = require('better-sqlite3');
+            const db = new Database(src.pathname, { readonly: true, fileMustExist: true });
+            try { return db.prepare('SELECT MAX(started_at_ms) t FROM hands').get().t || 0; }
+            finally { db.close(); }
+        }
+        let max = 0;
+        for (const line of fs.readFileSync(src.pathname, 'utf8').split('\n')) {
+            if (!line.trim()) continue;
+            let h; try { h = JSON.parse(line); } catch (e) { continue; }
+            if (h.ts > max) max = h.ts;
+        }
+        return max;
+    } catch (e) { return 0; }
+}
+
+const STALE_MS = 3 * 86400000;   // 超过 3 天没有新牌谱 → 数据源可能已冻结
+
 function loadHands(opt) {
     const src = resolveSource(opt);
     if (src.kind === 'none') { console.error(`找不到牌谱数据源（SQLite 与 hands.jsonl 都不存在）：${src.pathname}`); process.exit(2); }
@@ -115,6 +136,11 @@ function loadHands(opt) {
     const out = src.kind === 'sqlite' ? loadFromSqlite(src.pathname, opt, range) : loadFromJsonl(src.pathname, opt, range);
     out.sort((x, y) => x.ts - y.ts);
     out.source = src;
+    // 新鲜度自检：SQLite 上线后 hands.jsonl 会冻结。若还在读它、且最新一手很旧，
+    // 审计会永远报「干净」——那是虚假的安心，必须显式报警而不是静默通过。
+    const newest = newestHandTs(src);
+    out.newestTs = newest;
+    out.stale = newest > 0 && (Date.now() - newest) > STALE_MS;
     return out;
 }
 
@@ -262,7 +288,17 @@ async function main() {
     const src = hands.source || {};
     console.log(`\n🔍 筹码守恒审计 · ${scope} · 共扫描 ${hands.length} 手`);
     console.log(`   数据源：${src.kind === 'sqlite' ? 'SQLite' : 'hands.jsonl'} ${src.pathname || ''}`);
-    if (!hands.length) { console.log('（无牌谱数据）\n'); process.exit(0); }
+    console.log(`   最新一手：${hands.newestTs ? when(hands.newestTs) : '（无）'}`);
+    if (hands.stale) {
+        console.log('');
+        console.log('🚨 数据源可能已冻结：最新一手距今超过 3 天。');
+        if (src.kind === 'jsonl') {
+            console.log('   SQLite 上线后牌谱写入数据库、hands.jsonl 不再更新——此时审计会永远报「干净」。');
+            console.log('   请用 --db <库路径> 或设置 POKER_DB_PATH 指向 SQLite 后重跑。');
+        }
+        console.log('');
+    }
+    if (!hands.length) { console.log('（无牌谱数据）\n'); process.exit(hands.stale ? 1 : 0); }
 
     if (rebuys.length) {
         console.log(`\n✅ 合法的手中补码 ${rebuys.length} 处（chips 与带入同步增加，账是平的）：`);
@@ -302,7 +338,7 @@ async function main() {
         console.log(tf === 0 ? '\n✅ 修正后合计为 0，账平了。\n' : `\n⚠️ 修正后合计 ${fmt(tf)}（非 0，可能还有未识别的异常）\n`);
     }
 
-    if (opt.mail && alarms.length) {
+    if (opt.mail && (alarms.length || hands.stale)) {
         const body = `筹码守恒审计发现 ${alarms.length} 处异常（扫描范围：${scope}，共 ${hands.length} 手）\n`
             + `凭空合计：${fmt(phantomTotal)} 筹码\n\n`
             + alarms.map(f => `房间 ${f.roomId} seq ${f.handSeq} ${when(f.ts)}\n`
