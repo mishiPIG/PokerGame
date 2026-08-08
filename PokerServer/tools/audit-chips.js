@@ -136,11 +136,15 @@ function loadHands(opt) {
     const out = src.kind === 'sqlite' ? loadFromSqlite(src.pathname, opt, range) : loadFromJsonl(src.pathname, opt, range);
     out.sort((x, y) => x.ts - y.ts);
     out.source = src;
-    // 新鲜度自检：SQLite 上线后 hands.jsonl 会冻结。若还在读它、且最新一手很旧，
-    // 审计会永远报「干净」——那是虚假的安心，必须显式报警而不是静默通过。
+    // 数据源自检（防「读到冻结数据却报干净」这种虚假安心）：
+    // ① misconfigured＝确定性错误：SQLite 库明明存在，却还在读 JSONL → 必定漏审，按告警处理。
+    // ② stale＝仅提示：最新一手超过 3 天。低活跃的测试服本来就可能好几天没人玩，
+    //    单凭这一条就告警会变成噪音（告警一旦变吵就会被忽略，那才是真正的危险）。
     const newest = newestHandTs(src);
     out.newestTs = newest;
     out.stale = newest > 0 && (Date.now() - newest) > STALE_MS;
+    const dbPath = defaultDbPath();
+    out.misconfigured = src.kind === 'jsonl' && !opt.file && fs.existsSync(dbPath);
     return out;
 }
 
@@ -289,16 +293,16 @@ async function main() {
     console.log(`\n🔍 筹码守恒审计 · ${scope} · 共扫描 ${hands.length} 手`);
     console.log(`   数据源：${src.kind === 'sqlite' ? 'SQLite' : 'hands.jsonl'} ${src.pathname || ''}`);
     console.log(`   最新一手：${hands.newestTs ? when(hands.newestTs) : '（无）'}`);
-    if (hands.stale) {
+    if (hands.misconfigured) {
         console.log('');
-        console.log('🚨 数据源可能已冻结：最新一手距今超过 3 天。');
-        if (src.kind === 'jsonl') {
-            console.log('   SQLite 上线后牌谱写入数据库、hands.jsonl 不再更新——此时审计会永远报「干净」。');
-            console.log('   请用 --db <库路径> 或设置 POKER_DB_PATH 指向 SQLite 后重跑。');
-        }
+        console.log('🚨 数据源配置错误：SQLite 数据库已存在，审计却在读旧的 hands.jsonl。');
+        console.log('   SQLite 上线后牌谱写入数据库、hands.jsonl 不再更新 → 这样审计会永远报「干净」。');
+        console.log(`   请设置 POKER_DB_PATH（或加 --db <库路径>）后重跑。`);
         console.log('');
+    } else if (hands.stale) {
+        console.log('   ⚠️ 提示：最新一手距今已超过 3 天（低活跃期属正常；若期间确有人在玩，请检查数据源）。');
     }
-    if (!hands.length) { console.log('（无牌谱数据）\n'); process.exit(hands.stale ? 1 : 0); }
+    if (!hands.length) { console.log('（无牌谱数据）\n'); process.exit(hands.misconfigured ? 1 : 0); }
 
     if (rebuys.length) {
         console.log(`\n✅ 合法的手中补码 ${rebuys.length} 处（chips 与带入同步增加，账是平的）：`);
@@ -338,7 +342,7 @@ async function main() {
         console.log(tf === 0 ? '\n✅ 修正后合计为 0，账平了。\n' : `\n⚠️ 修正后合计 ${fmt(tf)}（非 0，可能还有未识别的异常）\n`);
     }
 
-    if (opt.mail && (alarms.length || hands.stale)) {
+    if (opt.mail && (alarms.length || hands.misconfigured)) {
         const body = `筹码守恒审计发现 ${alarms.length} 处异常（扫描范围：${scope}，共 ${hands.length} 手）\n`
             + `凭空合计：${fmt(phantomTotal)} 筹码\n\n`
             + alarms.map(f => `房间 ${f.roomId} seq ${f.handSeq} ${when(f.ts)}\n`
