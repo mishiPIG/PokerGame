@@ -9,7 +9,7 @@ function createJoinRoomHandler(context) {
 function registerMembershipEvents(context) {
     const { socket, user, io, db, roomGames, lobbySockets, PHASES, broadcastState, broadcastRoomList, persistence,
         clearActionTimer, afterAction, isBettingRoundComplete, advanceStage, liveCount,
-        restoreVacatedPlayer, seatPlayer, occupiedSeats, standUpPlayer, clearStraddleDecision,
+        restoreVacatedPlayer, seatPlayer, occupiedSeats, standUpPlayer, clearStraddleDecision, advanceStraddleChain, resolveRunIt,
         prepareNextStraddleDecision, emitStraddleOffer, scheduleNextHand, listRooms,
         endCashTable, sngPrize, buildRanking, sendMatchResult, extendTable, chargeRebuy,
         gameBB, BUYIN_RATE, CASHOUT_RATE, clampInt, joinAsSpectator, startHand, listSpectators,
@@ -122,6 +122,8 @@ function registerMembershipEvents(context) {
             amount: d.amount
         });
         persistence.commit(roomId, 'straddle_decided', user.id, { status: d.status, targetHandSeq: d.targetHandSeq });
+        // 链式：接受后记入链，并立刻问下一位要不要再翻一倍（4BB → 8BB → …）
+        if (d.status === 'accepted') advanceStraddleChain(roomId, d);
     });
 
     socket.on('resume_dealing', () => {
@@ -208,6 +210,12 @@ function registerMembershipEvents(context) {
                     // 接上原座位、带入与盈亏（战绩不清零）。
                     if (p.reserveTimer) { clearTimeout(p.reserveTimer); p.reserveTimer = null; }
                     p.standing = true; p.away = true; p.reserved = false; p.sittingOut = true;
+                    // 多次发牌协商中、而离开的正是要做决定的人 → 别让全桌干等满 45s，
+                    // 立刻按「超时兜底」的同一结果回落成发 1 次（结论一致，只是不必再等）。
+                    if (game.runItPending && game.runIt
+                        && (game.runIt.deciderId === user.id || game.runIt.leaderId === user.id)) {
+                        resolveRunIt(roomId, 1, 'left');
+                    }
                     socket.leave(roomId);
                     socket.emit('left_room');
                     io.to(roomId).emit('server_msg', `🚪 ${user.username} 离开牌桌（座位与筹码保留，结束时结算）`);

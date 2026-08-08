@@ -365,34 +365,48 @@ function startHand(roomId) {
     if (bb.chips === 0) bb.allIn = true;
     game.currentBet = bbAmt;
 
-    // 开手时按最终阵容重新校验：必须仍是该 UTG、仍能完整支付 2BB。
-    const straddleAmt = BB * 2;
-    const straddleValid = game.roomType === 'cash'
-        && game.config.allowUtgStraddle
-        && acceptedStraddle
-        && acceptedStraddle.candidateUserId === utg?.userId
-        && acceptedStraddle.candidateSeat === utg?.seat
-        && acceptedStraddle.amount === straddleAmt
-        && utg.chips >= straddleAmt;
-    if (straddleValid) {
-        utg.chips -= straddleAmt;
-        utg.currentBet = straddleAmt;
-        if (utg.chips === 0) utg.allIn = true;
-        game.currentBet = straddleAmt;
-        game.lastRaiseSize = straddleAmt;
-        game.straddle = { type: 'utg', userId: utg.userId, amount: straddleAmt };
-    } else if (acceptedStraddle) {
-        const p = game.players.find(x => x.userId === acceptedStraddle.candidateUserId);
-        const s = p && io.sockets.sockets.get(p.socketId);
-        if (s) s.emit('straddle_decision_result', { targetHandSeq, status: 'invalidated' });
+    // 链式 straddle：按接受顺序（UTG → UTG+1 → …，每档翻倍）依次贴出。
+    // 开手时按最终阵容逐个重新校验：位置没变、筹码够、金额是这一档应有的值；
+    // 任何一档不满足就在那里截断（保留前面已成立的部分），并通知本人失效。
+    game.straddles = [];
+    let lastStraddlerIdx = -1;
+    const chain = (game.roomType === 'cash' && game.config.allowUtgStraddle
+        && Array.isArray(game.straddleChain)
+        && game.straddleChain.length
+        && game.straddleChain[0].targetHandSeq === targetHandSeq) ? game.straddleChain : [];
+    for (let ci = 0; ci < chain.length; ci++) {
+        const entry = chain[ci];
+        const expectAmt = BB * Math.pow(2, ci + 1);
+        const idx = game.players.findIndex(p => p.userId === entry.userId && !p.folded);
+        const pl = idx >= 0 ? game.players[idx] : null;
+        const ok = pl && pl.seat === entry.seat && entry.amount === expectAmt && pl.chips >= expectAmt;
+        if (!ok) {
+            const s = pl && io.sockets.sockets.get(pl.socketId);
+            if (s) s.emit('straddle_decision_result', { targetHandSeq, status: 'invalidated' });
+            break;                       // 断在这里：后面的更大额也一并作废
+        }
+        pl.chips -= expectAmt;
+        pl.currentBet = expectAmt;
+        if (pl.chips === 0) pl.allIn = true;
+        game.currentBet = expectAmt;
+        game.lastRaiseSize = expectAmt;
+        game.straddles.push({ userId: pl.userId, username: pl.username, amount: expectAmt, chainIndex: ci });
+        lastStraddlerIdx = idx;
     }
+    // game.straddle 保留为「最后一档」，兼容既有的 state/牌谱/客户端展示
+    game.straddle = game.straddles.length
+        ? { type: 'utg', userId: game.straddles[game.straddles.length - 1].userId,
+            amount: game.straddles[game.straddles.length - 1].amount, chain: game.straddles.length }
+        : null;
+    game.straddleChain = [];
 
     io.in(roomId).emit('server_msg', `\n--- 🎲 新一局开始 ---`);
     io.in(roomId).emit('server_msg', `💰 SB: ${sb.username} (${sbAmt}) | BB: ${bb.username} (${bbAmt})`);
-    if (game.straddle) {
-        io.in(roomId).emit('server_msg', `🔥 ${utg.username} UTG Straddle ${straddleAmt}`);
-        io.in(roomId).emit('straddle_posted', { userId: utg.userId, amount: straddleAmt });
-    }
+    (game.straddles || []).forEach((st, i) => {
+        const label = i === 0 ? 'UTG Straddle' : `Re-straddle ×${i + 1}`;
+        io.in(roomId).emit('server_msg', `🔥 ${st.username} ${label} ${st.amount}`);
+        io.in(roomId).emit('straddle_posted', { userId: st.userId, amount: st.amount, chainIndex: i });
+    });
 
     game.players.forEach(p => {
         if (p.folded) return;   // 坐出玩家不发牌
@@ -417,16 +431,17 @@ function startHand(roomId) {
             startChips: p.chips + p.currentBet + (p.committed || 0),   // 还原下盲前筹码
             hole: game.holeCards[p.userId].map(c => `${c.rank}${c.suit[0]}`)
         })),
-        actions: game.straddle ? [{
-            userId: game.straddle.userId, street: PHASES.PREFLOP,
-            action: 'straddle', amount: game.straddle.amount, thinkMs: 0
-        }] : []   // amount=该街行动后的 currentBet 总额
+        actions: (game.straddles || []).map(st => ({
+            userId: st.userId, street: PHASES.PREFLOP,
+            action: 'straddle', amount: st.amount, thinkMs: 0
+        }))   // amount=该街行动后的 currentBet 总额（链式则逐档记录）
     };
     game.players.forEach(p => { if (!p.folded) p.handsPlayed = (p.handsPlayed || 0) + 1; });
 
     // preflop 第一个行动：heads-up = SB（按钮）；N≥3 = BB 后第一位（UTG）
     // 注意：heads-up 时若 SB 已因下盲全押，则不能让 SB 行动（否则超时会误弃全押者）→ 顺延找下一个能行动的
-    let firstIdx = headsUp ? sbIdx : findNextActionIdx(game, game.straddle ? utgIdx : bbIdx);
+    // 链式 straddle 后，翻前第一个行动的是【最后一个 straddler 之后】那位（straddler 享有最后行动权）
+    let firstIdx = headsUp ? sbIdx : findNextActionIdx(game, lastStraddlerIdx >= 0 ? lastStraddlerIdx : bbIdx);
     if (headsUp && !needsToAct(game.players[sbIdx], game)) firstIdx = findNextActionIdx(game, sbIdx);
     game.actionOnIdx = firstIdx;
     // 无人可行动（所有参与者已因盲注/前注全押）→ 没有玩家能下注，直接进入全押跑马，否则本手会永久卡住

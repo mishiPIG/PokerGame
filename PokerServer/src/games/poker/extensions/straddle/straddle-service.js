@@ -24,10 +24,18 @@ function projectedPositions(game, players = game.players.filter(p =>
     const sbPos = ordered.length === 2 ? buttonPos : (buttonPos + 1) % ordered.length;
     const bbPos = (sbPos + 1) % ordered.length;
     const utgPos = ordered.length >= 3 ? (bbPos + 1) % ordered.length : -1;
+    // 链式 straddle 需要「BB 之后、按翻前行动顺序」的完整名单：UTG, UTG+1, …, CO, BTN。
+    // 注意按钮位也在其中——翻前顺序是 UTG→…→CO→BTN→SB→BB，BTN 在盲注之前行动，同样可以 straddle。
+    // 只排除 SB / BB 本身（他们已经贴了盲注），故长度 = 总人数 - 2。
+    const afterBB = [];
+    if (ordered.length >= 3) {
+        for (let i = 1; i <= ordered.length - 2; i++) afterBB.push(ordered[(bbPos + i) % ordered.length]);
+    }
     return {
         ordered, buttonSeat,
         sb: ordered[sbPos], bb: ordered[bbPos],
-        utg: utgPos >= 0 ? ordered[utgPos] : null
+        utg: utgPos >= 0 ? ordered[utgPos] : null,
+        afterBB
     };
 }
 
@@ -83,30 +91,67 @@ function restoreStraddleTimer(roomId) {
     }, Math.max(0, d.deadlineAt - Date.now()));
 }
 
-function prepareNextStraddleDecision(roomId) {
+// 链式 straddle（re-straddle）：UTG 接受 2BB 后，轮到 UTG+1 决定要不要 straddle 到 4BB，
+// 再往后 8BB、16BB…… 每接受一次翻一倍，一路可以加到翻前全押。
+// chainIndex = 0 表示 UTG，1 表示 UTG+1，以此类推；金额 = BB * 2^(chainIndex+1)。
+function straddleAmountFor(game, chainIndex) {
+    return gameBB(game) * Math.pow(2, chainIndex + 1);
+}
+
+// 给链上的第 chainIndex 位准备一个决策（不立即弹出，由 showStraddleDecision 决定时机）
+function prepareChainDecision(roomId, chainIndex) {
     const game = roomGames[roomId];
-    if (!game) return;
+    if (!game) return false;
     clearStraddleDecision(game);
     game.straddleDecision = null;
-    if (game.roomType !== 'cash' || !game.config.allowUtgStraddle) return;
-    if (game.status !== 'running'
-        || game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) return;
+    if (game.roomType !== 'cash' || !game.config.allowUtgStraddle) return false;
+    // ⚠️ 这里【不能】排除 SHOWDOWN：straddle 邀请本来就在局间(SHOWDOWN)弹出，
+    // 上一版沿用了「SHOWDOWN 不准备」的判断，导致玩家在局间接受后根本轮不到下一位 —— 链永远只有 1 档。
+    if (game.status !== 'running' || game.phase === PHASES.WAITING) return false;
     const pos = projectedPositions(game);
-    if (!pos || !pos.utg || pos.ordered.length < 3) return;
-    const amount = gameBB(game) * 2;
-    const projectedStack = pos.utg.chips + (pos.utg.currentBet || 0) + (pos.utg.committed || 0);
-    if (projectedStack < gameAnte(game) + amount) return;
-    const d = game.straddleDecision = {
+    if (!pos || pos.ordered.length < 3) return false;
+    const cand = pos.afterBB[chainIndex];
+    if (!cand) return false;                       // 链已经排到最后一位，没有下一个人了
+    const amount = straddleAmountFor(game, chainIndex);
+    const projectedStack = cand.chips + (cand.currentBet || 0) + (cand.committed || 0);
+    // 付不起这一档就不再往下问（他可以全押跟注，但 straddle 必须足额贴出）
+    if (projectedStack < gameAnte(game) + amount) return false;
+    game.straddleDecision = {
         sourceHandSeq: game.handSeq,
         targetHandSeq: game.handSeq + 1,
-        candidateUserId: pos.utg.userId,
-        candidateSeat: pos.utg.seat,
+        chainIndex,
+        candidateUserId: cand.userId,
+        candidateSeat: cand.seat,
         amount,
         status: 'pending',
         offeredAt: null,
         deadlineAt: null,
         timer: null
     };
+    return true;
+}
+
+function prepareNextStraddleDecision(roomId) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    game.straddleChain = [];        // 新一手的链从头开始累积
+    prepareChainDecision(roomId, 0);
+}
+
+// 有人接受后：把他记进链，并立刻问下一位要不要再翻一倍
+function advanceStraddleChain(roomId, decision) {
+    const game = roomGames[roomId];
+    if (!game || !decision) return;
+    if (!game.straddleChain) game.straddleChain = [];
+    game.straddleChain.push({
+        userId: decision.candidateUserId,
+        seat: decision.candidateSeat,
+        amount: decision.amount,
+        chainIndex: decision.chainIndex ?? 0,
+        targetHandSeq: decision.targetHandSeq
+    });
+    // 下一位立刻进入决策；若没有下一位/付不起，链到此为止
+    if (prepareChainDecision(roomId, (decision.chainIndex ?? 0) + 1)) showStraddleDecision(roomId);
 }
 
 function cancelVisibleStraddleForTurn(roomId) {
@@ -128,7 +173,7 @@ function maybeShowStraddleAfterAction(roomId, actedUserId) {
 }
 
 
-    return { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, restoreStraddleTimer, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction };
+    return { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, restoreStraddleTimer, prepareNextStraddleDecision, prepareChainDecision, advanceStraddleChain, straddleAmountFor, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction };
 }
 
 module.exports = { createStraddleService };

@@ -15,8 +15,11 @@ function broadcastState(roomId) {
         ante:       gameAnte(game),
         allowUtgStraddle: !!game.config?.allowUtgStraddle,
         straddle: game.straddle ? {
-            type: 'utg', userId: game.straddle.userId, amount: game.straddle.amount
+            type: 'utg', userId: game.straddle.userId, amount: game.straddle.amount,
+            chain: game.straddle.chain || 1
         } : null,
+        // 链式 straddle 的完整列表（UTG 2BB → UTG+1 4BB → …），供客户端逐个标记
+        straddles: (game.straddles || []).map(st => ({ userId: st.userId, amount: st.amount, chainIndex: st.chainIndex })),
         minBuyIn:   game.config?.minBuyIn || 0,
         maxBuyIn:   game.config?.maxBuyIn || 0,
         minBet:     gameBB(game),                                       // 本街首注最小额
