@@ -32,7 +32,9 @@
            名字、下注 chip 徽章、对手牌覆盖层、全押胜率徽章(top:-34px)，最多要探出约 70px。
            以前靠在 ringPos 里手调百分比来躲，一改布局就又把顶部玩家顶出屏幕。
            现在改成给整个环留出内边距 —— 座位在数学上就不可能触到边缘，与具体屏幕比例无关。*/
-        #ring-layer { position: absolute; top: 78px; right: 10px; bottom: 14px; left: 10px;
+           顶部 118px = 合规横幅(~20px) + 房间信息水印(#table-info, top:26px 两行 ~36px) + 座位向上探出的余量。
+           改这个值要同步 20-table.css 的 #table-info，并跑 seatfit 测试。*/
+        #ring-layer { position: absolute; top: 118px; right: 10px; bottom: 14px; left: 10px;
                       pointer-events: none; transform-origin: 50% 46%; }
         /* 坐下入座：整圈座位旋转入位动画 */
         #ring-layer.rotating { animation: ringRotateIn 0.6s cubic-bezier(0.22,1,0.36,1); }
