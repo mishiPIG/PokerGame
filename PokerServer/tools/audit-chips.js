@@ -27,11 +27,16 @@ const fs = require('fs');
 const path = require('path');
 
 const HANDS = path.join(__dirname, '..', 'hands.jsonl');
+// SQLite 上线后牌谱写入数据库、hands.jsonl 不再更新——审计必须跟着换数据源，
+// 否则会一直读那个冻结的旧文件、永远报「干净」（比没有告警更危险：给出虚假的安心）。
+function defaultDbPath() {
+    return process.env.POKER_DB_PATH || path.join(__dirname, '..', '.local', 'pokerdojo.sqlite');
+}
 // 补码识别容差：未被跟注的退还会让「按动作推算的应得」与实际差一点点（通常几十~几百）
 const REBUY_TOLERANCE = 1000;
 
 function parseArgs(argv) {
-    const a = { room: null, days: null, yesterday: false, settle: false, mail: false, json: false, file: HANDS };
+    const a = { room: null, days: null, yesterday: false, settle: false, mail: false, json: false, file: null, db: null };
     for (let i = 2; i < argv.length; i++) {
         const k = argv[i];
         if (k === '--room') a.room = String(argv[++i]);
@@ -40,33 +45,76 @@ function parseArgs(argv) {
         else if (k === '--settle') a.settle = true;
         else if (k === '--mail') a.mail = true;
         else if (k === '--json') a.json = true;
-        else if (k === '--file') a.file = argv[++i];
+        else if (k === '--file') a.file = argv[++i];     // 强制读旧 JSONL
+        else if (k === '--db') a.db = argv[++i];         // 强制读指定 SQLite
     }
     return a;
 }
 
-function loadHands(opt) {
-    if (!fs.existsSync(opt.file)) {
-        console.error(`找不到牌谱文件：${opt.file}`);
-        process.exit(2);
-    }
-    const out = [];
-    let lo = -Infinity, hi = Infinity;
+// 时间窗口（--yesterday / --days N）
+function timeRange(opt) {
     if (opt.yesterday) {
         const d = new Date(); d.setHours(0, 0, 0, 0);
-        hi = d.getTime(); lo = hi - 86400000;
-    } else if (opt.days > 0) {
-        lo = Date.now() - opt.days * 86400000;
+        return { lo: d.getTime() - 86400000, hi: d.getTime() };
     }
-    for (const line of fs.readFileSync(opt.file, 'utf8').split('\n')) {
+    if (opt.days > 0) return { lo: Date.now() - opt.days * 86400000, hi: Infinity };
+    return { lo: -Infinity, hi: Infinity };
+}
+
+// 数据源选择：显式 --file / --db 优先；否则 SQLite 存在就用 SQLite，退回 hands.jsonl。
+function resolveSource(opt) {
+    if (opt.file) return { kind: 'jsonl', pathname: opt.file };
+    if (opt.db) return { kind: 'sqlite', pathname: opt.db };
+    const dbPath = defaultDbPath();
+    if (fs.existsSync(dbPath)) return { kind: 'sqlite', pathname: dbPath };
+    if (fs.existsSync(HANDS)) return { kind: 'jsonl', pathname: HANDS };
+    return { kind: 'none', pathname: dbPath };
+}
+
+// SQLite 里 hands.payload_json 存的就是原始牌谱记录原文，
+// 取出来即可复用全部既有审计逻辑（无需改判定代码）。
+function loadFromSqlite(pathname, opt, range) {
+    let Database;
+    try { Database = require('better-sqlite3'); }
+    catch (e) { console.error('缺少 better-sqlite3，无法读取 SQLite 牌谱：', e.message); process.exit(2); }
+    const db = new Database(pathname, { readonly: true, fileMustExist: true });
+    try {
+        const where = [], params = [];
+        if (range.lo > -Infinity) { where.push('started_at_ms >= ?'); params.push(range.lo); }
+        if (range.hi < Infinity) { where.push('started_at_ms < ?'); params.push(range.hi); }
+        if (opt.room) { where.push('room_code = ?'); params.push(String(opt.room)); }
+        const sql = 'SELECT payload_json FROM hands'
+            + (where.length ? ' WHERE ' + where.join(' AND ') : '')
+            + ' ORDER BY started_at_ms ASC';
+        const out = [];
+        for (const row of db.prepare(sql).all(...params)) {
+            try { out.push(JSON.parse(row.payload_json)); } catch (e) { /* 跳过坏行 */ }
+        }
+        return out;
+    } finally { db.close(); }
+}
+
+function loadFromJsonl(pathname, opt, range) {
+    const out = [];
+    for (const line of fs.readFileSync(pathname, 'utf8').split('\n')) {
         if (!line.trim()) continue;
         let h; try { h = JSON.parse(line); } catch (e) { continue; }
         const room = String(h.roomId || h.room || '');
         if (opt.room && room !== opt.room) continue;
-        if (h.ts < lo || h.ts >= hi) continue;
+        if (h.ts < range.lo || h.ts >= range.hi) continue;
         out.push(h);
     }
+    return out;
+}
+
+function loadHands(opt) {
+    const src = resolveSource(opt);
+    if (src.kind === 'none') { console.error(`找不到牌谱数据源（SQLite 与 hands.jsonl 都不存在）：${src.pathname}`); process.exit(2); }
+    if (!fs.existsSync(src.pathname)) { console.error(`找不到牌谱数据源：${src.pathname}`); process.exit(2); }
+    const range = timeRange(opt);
+    const out = src.kind === 'sqlite' ? loadFromSqlite(src.pathname, opt, range) : loadFromJsonl(src.pathname, opt, range);
     out.sort((x, y) => x.ts - y.ts);
+    out.source = src;
     return out;
 }
 
@@ -206,12 +254,14 @@ async function main() {
     const phantomTotal = alarms.reduce((s, f) => s + f.phantom, 0);
 
     if (opt.json) {
-        console.log(JSON.stringify({ scanned: hands.length, alarms, rebuys: rebuys.length, phantomTotal }, null, 2));
+        console.log(JSON.stringify({ source: hands.source, scanned: hands.length, alarms, rebuys: rebuys.length, phantomTotal }, null, 2));
         process.exit(alarms.length ? 1 : 0);
     }
 
     const scope = opt.room ? `房间 ${opt.room}` : (opt.yesterday ? '昨天' : (opt.days ? `最近 ${opt.days} 天` : '全部'));
+    const src = hands.source || {};
     console.log(`\n🔍 筹码守恒审计 · ${scope} · 共扫描 ${hands.length} 手`);
+    console.log(`   数据源：${src.kind === 'sqlite' ? 'SQLite' : 'hands.jsonl'} ${src.pathname || ''}`);
     if (!hands.length) { console.log('（无牌谱数据）\n'); process.exit(0); }
 
     if (rebuys.length) {
