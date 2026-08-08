@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "LOCAL_DEV=1 node server.js",
     "test": "node --test",
-    "check": "eslint . && node tools/check-destructures.js",
+    "check": "eslint . && node tools/check-destructures.js && node tools/check-css.js",
     "preflight": "npm run check",
     "db:migrate": "node scripts/migrate-sqlite.js",
     "db:import-legacy": "node scripts/migrate-json-to-sqlite.js",
