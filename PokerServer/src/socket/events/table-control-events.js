@@ -4,7 +4,7 @@ function registerTableControlEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
     const { PHASES, STANDARD_BLIND_LEVELS, SNG_BUYIN_TIERS, BUYIN_RATE, CASHOUT_RATE, RUNIT_MAX, EXTRA_MAX, EXTRA_STEP, ACTION_TIME, gameBB, sngPrize } = config;
     const { roomGames, lobbySockets } = runtime;
-    const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction, buildRanking, sendMatchResult, persistence } = tableService;
+    const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction, buildRanking, sendMatchResult, dissolveSngRoom, persistence } = tableService;
     // 解散/提前结束：仅房主。现金桌=结算筹码+公布排名；SNG=奖池给筹码领先者+公布排名
     socket.on('dissolve_room', () => {
         const roomId = socket.currentRoom;
@@ -12,49 +12,22 @@ function registerTableControlEvents(context) {
         if (!game) return;
         if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可以解散房间'); return; }
 
+        // 牌局进行中 → 不打断这手牌，等它打完再解散（与「涨盲/训练时长到点」一致的做法）。
+        // 直接解散会让正在进行的这手牌凭空消失，玩家投入池里的筹码只能按当前状态草草结算。
+        const inHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
+        if (inHand) {
+            if (game.pendingDissolve) { socket.emit('server_msg', '⚠️ 已在等本手结束后解散'); return; }
+            game.pendingDissolve = true;
+            io.in(roomId).emit('server_msg', '🛑 房主已结束比赛，本手打完后解散');
+            broadcastState(roomId);
+            return;
+        }
         if (game.roomType === 'cash') {
             io.in(roomId).emit('server_msg', `🛑 房主提前结束了比赛`);
             endCashTable(roomId, '房主提前结束');   // 结算 + 排名 + 收件箱
             return;
         }
-        // SNG：奖池（抽水后）给当前筹码最多者，并公布排名
-        clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearTimeout(game.runItTimer); clearTimeout(game.dissolveTimer); game.runItPending = false; clearActionTimer(game);
-        for (const p of game.players) if (p.reserveTimer) clearTimeout(p.reserveTimer);
-        // ⚠️ 已自然结束(tournamentOver)的 SNG 奖金已在 maybeEndSNG 发过——此时解散只清房，绝不再发奖/再弹排名（防重复发奖）
-        if (!game.tournamentOver) {
-            const prize = sngPrize(game.prizePool);
-            const leader = [...game.players].sort((a, b) => b.chips - a.chips)[0];
-            if (leader && prize > 0) {
-                const oldSettlement = { settlementGold: leader.settlementGold, settledAt: leader.settledAt };
-                leader.settlementGold = prize;
-                leader.settledAt = Date.now();
-                try {
-                    const committed = persistence.commitWithWallet(roomId, [{
-                        userId: leader.userId,
-                        delta: prize,
-                        type: 'sng_prize',
-                        matchId: game.matchId,
-                        operationKey: `sng-prize:${game.matchId}:${leader.userId}`,
-                        metadata: { reason: 'owner_dissolve', prizePool: game.prizePool }
-                    }], 'sng_prize', leader.userId, { prize, reason: 'owner_dissolve' });
-                    if (leader.socketId) io.to(leader.socketId).emit('gold_update', { gold: committed.wallets[0].balance });
-                } catch (error) {
-                    leader.settlementGold = oldSettlement.settlementGold;
-                    leader.settledAt = oldSettlement.settledAt;
-                    throw error;
-                }
-            }
-            sendMatchResult(roomId, `【${game.config.name}】房主提前结束`, buildRanking(game, leader && leader.userId, prize));
-        }
-        io.in(roomId).emit('server_msg', `🛑 房主解散了房间`);
-        io.in(roomId).emit('room_dissolved');
-        for (const p of game.players) {
-            const s = io.sockets.sockets.get(p.socketId);
-            if (s) { s.leave(roomId); s.currentRoom = null; lobbySockets.add(s.id); s.emit('room_list', listRooms(p.userId)); }
-        }
-        persistence.finish(roomId, 'finished');
-        delete roomGames[roomId];
-        broadcastRoomList();
+        dissolveSngRoom(roomId);   // SNG：奖池给筹码领先者 + 公布排名 + 清房（见 sng-match-service）
     });
 
     // 比赛加时（现金桌房主）：延长训练时长

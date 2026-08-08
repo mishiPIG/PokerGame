@@ -14,14 +14,12 @@
                        display: flex; flex-direction: column; justify-content: flex-start;
                        transition: padding-bottom 0.15s; }
         /* ── 横屏模式（给电脑浏览器/大屏用）──
-           默认布局是按竖屏手机做的：牌桌宽度铺满视口，在 16:9 大屏上会被拉成又扁又宽的一条，
-           座位飞到两边、牌却因为受 dvh 限制还是很小。横屏模式把牌桌收成接近 16:10 的居中区域，
-           并让牌面改用「高度」为主来缩放，于是大屏上牌更大、座位更聚拢，像张真正的牌桌。*/
-        body.layout-landscape #table-view { align-items: center; }
-        body.layout-landscape #table-area {
-            width: min(100%, calc(100dvh * 1.6));   /* 按可用高度反推一个 16:10 的宽度上限 */
-            margin: 0 auto; position: relative;
-        }
+           默认 body 被限制在 max-width:720px（按竖屏手机做的），所以大屏上整个应用只占中间
+           窄窄一条、两侧全是空白 —— 这才是「横屏只有牌变大、牌桌没变大」的真正原因。
+           横屏模式解除该限制，让牌桌真正铺满整个页面；牌面改以高度为主缩放，于是牌更大。*/
+        body.layout-landscape { max-width: none; }
+        body.layout-landscape #table-area { width: 100%; position: relative; }
+        /* 铺满后横向变宽，座位环相应外扩（rx 在 ringPos 里按模式取值） */
         /* --card-h 在 :root 上是按 :root 的 --card-w 算出来的，只覆盖 --card-w 不会跟着变，必须一起覆盖 */
         body.layout-landscape { --card-w: clamp(26px, min(5.2vw, 7.4dvh), 58px);
                                 --card-h: calc(clamp(26px, min(5.2vw, 7.4dvh), 58px) * 1.39); }
@@ -29,8 +27,13 @@
         #compliance-banner { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); z-index: 3;
             font-size: 10.5px; letter-spacing: 1px; color: rgba(255,255,255,0.32); white-space: nowrap;
             pointer-events: none; }
-        /* 环形座位层 + 中央牌面：全绝对定位，行动浮层不再推动布局 */
-        #ring-layer { position: absolute; inset: 0; pointer-events: none; transform-origin: 50% 46%; }
+        /* 环形座位层 + 中央牌面：全绝对定位，行动浮层不再推动布局
+           ⚠️ 安全边距（别再删）：座位块以自身中心定位(translate -50%,-50%)，其【上方】还挂着
+           名字、下注 chip 徽章、对手牌覆盖层、全押胜率徽章(top:-34px)，最多要探出约 70px。
+           以前靠在 ringPos 里手调百分比来躲，一改布局就又把顶部玩家顶出屏幕。
+           现在改成给整个环留出内边距 —— 座位在数学上就不可能触到边缘，与具体屏幕比例无关。*/
+        #ring-layer { position: absolute; top: 78px; right: 10px; bottom: 14px; left: 10px;
+                      pointer-events: none; transform-origin: 50% 46%; }
         /* 坐下入座：整圈座位旋转入位动画 */
         #ring-layer.rotating { animation: ringRotateIn 0.6s cubic-bezier(0.22,1,0.36,1); }
         @keyframes ringRotateIn {

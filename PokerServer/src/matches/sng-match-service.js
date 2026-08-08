@@ -22,6 +22,37 @@ function finalizeSngRoom(roomId) {
     delete roomGames[roomId];
     broadcastRoomList();
 }
+// 房主解散 SNG：奖池（抽水后）给当前筹码领先者 + 公布排名 + 清房。
+// 抽出来是为了让「牌局进行中解散」能延后到本手结束再执行（见 cash-match-service 的 pendingDissolve）。
+function dissolveSngRoom(roomId) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    // ⚠️ 已自然结束(tournamentOver)的 SNG 奖金已在 maybeEndSNG 发过 —— 此时只清房，绝不再发奖/再弹排名
+    if (!game.tournamentOver) {
+        const prize = sngPrize(game.prizePool);
+        const leader = [...game.players].sort((a, b) => b.chips - a.chips)[0];
+        if (leader && prize > 0) {
+            const old = { settlementGold: leader.settlementGold, settledAt: leader.settledAt };
+            leader.settlementGold = prize;
+            leader.settledAt = Date.now();
+            try {
+                const committed = persistence.commitWithWallet(roomId, [{
+                    userId: leader.userId, delta: prize, type: 'sng_prize', matchId: game.matchId,
+                    operationKey: `sng-prize:${game.matchId}:${leader.userId}`,
+                    metadata: { reason: 'owner_dissolve', prizePool: game.prizePool }
+                }], 'sng_prize', leader.userId, { prize, reason: 'owner_dissolve' });
+                if (leader.socketId) io.to(leader.socketId).emit('gold_update', { gold: committed.wallets[0].balance });
+            } catch (error) {
+                leader.settlementGold = old.settlementGold; leader.settledAt = old.settledAt;
+                throw error;
+            }
+        }
+        sendMatchResult(roomId, `【${game.config.name}】房主提前结束`, buildRanking(game, leader && leader.userId, prize));
+    }
+    io.in(roomId).emit('server_msg', `🛑 房主解散了房间`);
+    finalizeSngRoom(roomId);
+}
+
 // SNG 升盲计时器
 function startLevelTimer(roomId) {
     const game = roomGames[roomId];
@@ -135,7 +166,7 @@ function maybeEndSNG(roomId) {
         game.dissolveTimer = setTimeout(() => finalizeSngRoom(roomId), Math.max(0, game.dissolveAt - Date.now()));
     }
 
-    return { startLevelTimer, restoreLevelTimer, restoreDissolveTimer, onLevelUp, doLevelUp, applyPendingLevelUp, maybeEndSNG, finalizeSngRoom };
+    return { startLevelTimer, restoreLevelTimer, restoreDissolveTimer, onLevelUp, doLevelUp, applyPendingLevelUp, maybeEndSNG, finalizeSngRoom, dissolveSngRoom };
 }
 
 module.exports = { createSngMatchService };

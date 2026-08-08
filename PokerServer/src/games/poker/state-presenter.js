@@ -39,6 +39,7 @@ function broadcastState(roomId) {
         statsHistory: game.statsHistory || [],       // 已离开/淘汰玩家（战绩面板灰显）
         tableEndAt: game.tableEndAt || null,         // 现金桌训练结束时间戳
         pendingEnd: !!game.pendingEnd,               // 训练时长已到、本手结束后结算（房主可加时）
+        pendingDissolve: !!game.pendingDissolve,     // 房主已点结束，本手打完后解散
         paused:      !!game.paused,                  // 房主暂停发牌（本手结束后不开新局，等继续）
         runIt:       game.runItPending && game.runIt   // 多次发牌协商中（落后方选/领先方同意）
                      ? { deciderId: game.runIt.deciderId, leaderId: game.runIt.leaderId, n: game.runIt.n, equities: game.runIt.equities }

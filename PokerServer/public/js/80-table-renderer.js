@@ -56,11 +56,31 @@ function emptySlot() {
 
 // 环形 M 个座位坐标：ringIndex 0 = 底部中央，ringIndex 递增 = 顺时针（与座位号递增=行动顺序一致）
 // 屏幕 y 向下：底部(6点)→左下(7点)→…→右下(5点)，即行动顺序顺时针、下一位在我左手边
+// 座位块的实际像素尺寸（与 20-table.css 对应）：名字+头像(46)+筹码 ≈ 81 高、名字 max-width 74 → 78 宽；
+// overhangTop = 头像上方额外探出的最高元素（全押胜率徽章 top:-34px）。
+// 半径夹取要用它，改 CSS 尺寸时这里要同步。
+const SEAT_BOX = { w: 78, h: 81, overhangTop: 34 };
+// 座位环可用尺寸：优先量真实 DOM；测试环境(jsdom 无布局)可用 __ringW/__ringH 注入
+function ringLayerSize() {
+    const el = document.getElementById('ring-layer');
+    const w = (el && el.clientWidth) || window.__ringW || 360;
+    const h = (el && el.clientHeight) || window.__ringH || 480;
+    return { w, h };
+}
 function ringPos(ringIndex, M) {
-    // 竖向半径收一点、整体下移，避免顶部座位贴边被裁；横向仍外扩留白
-    // 横屏模式下牌桌区域已被收成 16:10，座位可以更聚拢一点（竖向半径放大），更像真牌桌
+    // 半径是相对 #ring-layer 的百分比；#ring-layer 已留安全内边距（见 00-shell.css）。
+    // 横屏解除了 body 的 720px 限制、牌桌铺满页面，故横向再外扩一些（更接近真实牌桌 2:1）。
     const landscape = document.body.classList.contains('layout-landscape');
-    const cx = 50, cy = 47, rx = landscape ? 38 : 42, ry = landscape ? 40 : 36;
+    const cx = 50, cy = 47;
+    // ⚠️ 半径必须按【实际可用尺寸】夹取，不能写死百分比：
+    // 座位块有固定像素宽高(约 78×81)，屏幕越小它占的百分比越大，写死半径必然把边上的座位挤出去。
+    // 这里保证「圆心偏移 + 半个座位」永远落在层内 —— 与屏幕尺寸、人数、横竖屏都无关。
+    const sz = ringLayerSize();
+    const halfW = (SEAT_BOX.w / 2 / Math.max(1, sz.w)) * 100;
+    const halfTop = ((SEAT_BOX.h / 2 + SEAT_BOX.overhangTop) / Math.max(1, sz.h)) * 100;
+    const halfBottom = (SEAT_BOX.h / 2 / Math.max(1, sz.h)) * 100;
+    const rx = Math.max(12, Math.min(landscape ? 44 : 42, 50 - halfW));
+    const ry = Math.max(12, Math.min(landscape ? 38 : 36, Math.min(cy - halfTop, 100 - cy - halfBottom)));
     const ang = Math.PI / 2 + (2 * Math.PI * ringIndex / M);   // 0→底部；+ 使递增为顺时针
     const c = Math.cos(ang), s = Math.sin(ang);
     let x = cx + rx * c, y = cy + ry * s;

@@ -5,8 +5,8 @@
  * 设计约束：座位上只有 44px，所以一律「单一主体 + 大色块 + 高对比」，不放细节；
  * 深色牌桌背景下要立得住，故每个都有自带底色圆形。
  *
- * 用法：node tools/gen-avatars.js        → 写入 avatars/b1.svg … b16.svg
- * ⚠️ 不删除旧的 a1–a12：已有用户的 avatar 字段存的是 /avatars/aN.svg，删了他们头像会变裂图。
+ * 用法：node tools/gen-avatars.js        → 写入 avatars/b1.svg … b27.svg
+ * 旧的 a1–a12 已于 2026-08-08 移除（玩家反映太丑）；引用它们的用户 avatar 已清空 → 回退显示首字母色块。
  */
 const fs = require('fs');
 const path = require('path');
@@ -64,6 +64,25 @@ const cat = c => `<path fill="${c}" d="M32 44 38 22l16 12h12l16-12 6 22v22a28 28
     + `<circle cx="48" cy="62" r="5" fill="#1b1b1b"/><circle cx="72" cy="62" r="5" fill="#1b1b1b"/>`
     + `<path d="M56 76h8l-4 5z" fill="#1b1b1b"/>`;
 
+// —— 第二批（b17–b27）：继续「单一主体 + 大色块」——
+const moon = c => `<path fill="${c}" d="M74 26a34 34 0 1 0 0 68 40 40 0 0 1 0-68z"/>`;
+const fan = c => `<g fill="${c}"><path d="M60 92 24 52a48 48 0 0 1 72 0z"/></g>`
+    + `<path d="M60 92 46 60M60 92l14-32" stroke="#1b1b1b" stroke-width="3" opacity=".35" fill="none"/>`;
+const sake = c => `<path fill="${c}" d="M36 40h48l-6 30a18 18 0 0 1-36 0z"/><rect x="32" y="34" width="56" height="8" rx="4" fill="${c}"/>`
+    + `<rect x="52" y="88" width="16" height="6" rx="3" fill="${c}"/>`;
+const koi = c => `<path fill="${c}" d="M40 60c0-16 14-28 30-28 0 0-8 12-8 28s8 28 8 28c-16 0-30-12-30-28z"/>`
+    + `<path fill="${c}" d="M28 46l14 14-14 14z"/><circle cx="62" cy="52" r="4" fill="#1b1b1b"/>`;
+const mountain = c => `<path fill="${c}" d="M18 88 46 44l16 22 10-14 30 36z"/>`;
+const shuriken = c => `<path fill="${c}" d="M60 20 72 48 100 60 72 72 60 100 48 72 20 60 48 48z"/><circle cx="60" cy="60" r="7" fill="#1b1b1b" opacity=".5"/>`;
+const flame = c => `<path fill="${c}" d="M60 22c14 16 22 24 22 38a22 22 0 0 1-44 0c0-8 4-14 10-20 2 6 6 8 8 4 3-6 1-14 4-22z"/>`;
+const anchor = c => `<g fill="none" stroke="${c}" stroke-width="8" stroke-linecap="round">`
+    + `<path d="M60 40v50"/><path d="M34 68a26 26 0 0 0 52 0"/><path d="M44 44h32"/></g><circle cx="60" cy="30" r="9" fill="${c}"/>`;
+const eye = c => `<path fill="${c}" d="M20 60s16-22 40-22 40 22 40 22-16 22-40 22S20 60 20 60z"/><circle cx="60" cy="60" r="12" fill="#1b1b1b"/>`;
+const clover = c => `<g fill="${c}"><circle cx="60" cy="40" r="14"/><circle cx="44" cy="58" r="14"/><circle cx="76" cy="58" r="14"/>`
+    + `<path d="M57 66h6l4 28h-14z"/></g>`;
+const bamboo = c => `<g fill="${c}"><rect x="50" y="20" width="20" height="26" rx="6"/><rect x="50" y="50" width="20" height="26" rx="6"/>`
+    + `<rect x="50" y="80" width="20" height="20" rx="6"/><path d="M70 40c14-6 20-2 24 4-10 6-18 4-24-4z"/></g>`;
+
 const AVATARS = [
     { bg: ['#1f6f4a', '#0d3d28'], inner: SPADE('#f2f7f4') },        // b1 黑桃
     { bg: ['#c1352f', '#7a1712'], inner: HEART('#fff1ee') },        // b2 红心
@@ -80,7 +99,18 @@ const AVATARS = [
     { bg: ['#2b4a6b', '#122436'], inner: dice('#f7f9fc', '#1b2b3a') },  // b13 骰子
     { bg: ['#a5451f', '#5c2109'], inner: fox('#ffd9a8') },          // b14 狐面
     { bg: ['#20455c', '#0d2130'], inner: star('#ffd166') },         // b15 星
-    { bg: ['#4a4a4a', '#222'], inner: cat('#e8e3d8') }              // b16 猫
+    { bg: ['#4a4a4a', '#222'], inner: cat('#e8e3d8') },             // b16 猫
+    { bg: ['#1b2a4a', '#0a1428'], inner: moon('#f2e6c0') },         // b17 月
+    { bg: ['#7a2b3a', '#3d1119'], inner: fan('#ffe0d0') },          // b18 扇
+    { bg: ['#2d4a2b', '#152616'], inner: sake('#f4e6c8') },         // b19 酒器
+    { bg: ['#12556b', '#062b38'], inner: koi('#ff8f5e') },          // b20 锦鲤
+    { bg: ['#3a5a7a', '#16293b'], inner: mountain('#e6f0f7') },     // b21 山
+    { bg: ['#33384a', '#171a24'], inner: shuriken('#cfd8e3') },     // b22 手里剑
+    { bg: ['#7a3410', '#3a1705'], inner: flame('#ffce54') },        // b23 焰
+    { bg: ['#1d3b52', '#0a1c29'], inner: anchor('#dbe9f5') },       // b24 锚
+    { bg: ['#4a2350', '#200f26'], inner: eye('#f0d9ff') },          // b25 眼
+    { bg: ['#1e6b3a', '#0b3319'], inner: clover('#c9f2b0') },       // b26 四叶草
+    { bg: ['#26543f', '#0f2a1e'], inner: bamboo('#a8d98b') }        // b27 竹
 ];
 
 if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
@@ -89,4 +119,4 @@ AVATARS.forEach((a, i) => {
     fs.writeFileSync(path.join(OUT, name), wrap(a.bg, a.inner, i + 1));
 });
 console.log(`已生成 ${AVATARS.length} 个新头像 → ${OUT}/b1.svg … b${AVATARS.length}.svg`);
-console.log('（旧的 a1–a12 保留：已有用户的 avatar 字段指向它们，删掉会变裂图）');
+

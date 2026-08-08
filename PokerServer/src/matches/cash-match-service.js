@@ -97,6 +97,8 @@ function scheduleNextHand(roomId) {
         const g = roomGames[roomId];
         if (!g || g.tournamentOver || g.phase !== PHASES.SHOWDOWN) return;
         removeBustedPlayers(g);   // 结算后：SNG 淘汰 / 现金桌兑出离场者移除、坐出者保留、挂起补码生效
+        // 房主在牌局进行中点了解散 → 等到本手打完才真正解散（不打断正在进行的牌）
+        if (g.pendingDissolve) { hooks.dissolveNow(roomId); return; }
         if (g.pendingEnd) { endCashTable(roomId, '训练时长已到'); return; }   // 到点：本手已结束→结算收桌
         if (g.paused) { io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（本手结束）'); broadcastState(roomId); return; }
         if (liveCount(g) >= 2) startHand(roomId);
@@ -113,6 +115,7 @@ function restoreNextHandTimer(roomId) {
         const g = roomGames[roomId];
         if (!g || g.tournamentOver || g.phase !== PHASES.SHOWDOWN) return;
         removeBustedPlayers(g);
+        if (g.pendingDissolve) { hooks.dissolveNow(roomId); return; }
         if (g.pendingEnd) { endCashTable(roomId, '训练时长已到'); return; }
         if (g.paused) { broadcastState(roomId); return; }
         if (liveCount(g) >= 2) startHand(roomId);
