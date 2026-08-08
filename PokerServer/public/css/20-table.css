@@ -106,6 +106,9 @@
         .hand-type-badge { width: 100%; text-align: center; font-size: 10.5px; font-weight: bold; color: #e7eefb;
             background: rgba(0,0,0,0.62); padding: 1px 6px; border-radius: 7px; margin-top: 1px; }
         .hand-type-badge.win { color: #f4d35e; }
+        /* 弃牌后仍显示「我本来会是什么牌型」：灰调+虚线，明确是假设性的，不是还在局里 */
+        .hand-type-badge.folded-hint { background: rgba(20,26,34,0.72); color: #9fb4d6;
+            border: 1px dashed rgba(159,180,214,0.45); font-weight: normal; }
         /* 下注 chip 弹入 */
         .bet-badge { animation: betPop 0.22s cubic-bezier(0.34,1.56,0.64,1); }
         @keyframes betPop { from { transform: translateX(-50%) scale(0.4); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }

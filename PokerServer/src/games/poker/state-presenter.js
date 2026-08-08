@@ -108,13 +108,15 @@ function emitHandHints(roomId) {
     const comLen = game.communityCards.length;
     if (comLen < 3) return;
     game.players.forEach(p => {
-        if (p.folded || !p.socketId || !game.holeCards[p.userId]) return;
+        if (!p.socketId || !game.holeCards[p.userId]) return;
         const cards = game.communityCards.concat(game.holeCards[p.userId]);
         const bh = HandEvaluator.bestHandFrom(cards);
         if (!bh) return;
         const community = bh.indices.filter(i => i < comLen);
         const hole = bh.indices.filter(i => i >= comLen).map(i => i - comLen);
-        io.to(p.socketId).emit('my_hand', { community, hole, category: bh.category });
+        // 已弃牌的人也发（标记 folded=true）：玩家反馈「弃牌后就看不到自己最终会是什么牌型了」。
+        // 这只用到他【自己的底牌 + 公共牌】，不含任何对手信息，且是私发给本人，不影响公平性。
+        io.to(p.socketId).emit('my_hand', { community, hole, category: bh.category, folded: !!p.folded });
     });
 }
 

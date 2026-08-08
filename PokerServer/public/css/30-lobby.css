@@ -46,6 +46,34 @@
         }
         #admin-panel button:hover { filter: brightness(1.1); }
         #admin-msg { font-size: 12px; color: #06d6a0; margin-top: 6px; min-height: 16px; }
+        /* ── 管理面板·手机端 ──
+           窄屏上原来的多列表格/网格会挤成一团且横向溢出。这里改成：
+           表格横向可滚（不挤压内容）、流水与玩家行改为两行式布局、输入框占满一行。*/
+        @media (max-width: 560px) {
+            #admin-panel { padding: 10px; }
+            #admin-panel h3 { font-size: 13px; }
+            .adm-tabs { gap: 4px; }
+            .adm-tab { padding: 5px 8px; font-size: 11.5px; flex: 1 1 auto; }
+            /* 玩家表：整体横向滚动，避免列被压扁 */
+            #adm-pane-users { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            #admin-panel table { min-width: 460px; }
+            /* 搜索/操作栏：输入框各占一行，按钮不被挤没 */
+            .adm-bar { gap: 6px; }
+            .adm-bar input, .adm-bar select { flex: 1 1 100%; }
+            .adm-bar button { flex: 0 0 auto; }
+            .adm-adjust input { flex: 1 1 100%; }
+            /* 流水行：时间+金额一行，说明另起一行（原来四列在窄屏挤成一坨）*/
+            .adm-tx { grid-template-columns: 1fr auto; grid-auto-rows: min-content; gap: 2px 8px; padding: 7px 6px; }
+            .adm-tx > :nth-child(1) { grid-column: 1; }
+            .adm-tx > :nth-child(3) { grid-column: 2; grid-row: 1; text-align: right; }
+            .adm-tx > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+            .adm-tx > :nth-child(4) { grid-column: 1 / -1; grid-row: 3; }
+            /* 房间内玩家行同理 */
+            .adm-p { grid-template-columns: 1fr auto auto; gap: 4px 6px; font-size: 11.5px; }
+            .adm-p > :nth-child(4) { grid-column: 1 / -1; }
+            .adm-room-h { font-size: 12px; }
+            .adm-tags { margin-left: 0; flex-basis: 100%; }
+        }
 
         /* ===== 大厅 ===== */
         #lobby-view { max-width: 720px; margin: 0 auto; }

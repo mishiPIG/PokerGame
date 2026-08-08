@@ -50,7 +50,12 @@
         #spectator-banner { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%);
             background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.7); font-size: 13px;
             padding: 6px 16px; border-radius: 16px; white-space: nowrap; z-index: 5; }
-        #user-bar, #admin-panel { flex-shrink: 0; }
+        #user-bar { flex-shrink: 0; }
+        /* 管理员面板：它是 #game-section(100dvh 纵向 flex) 的直接子项。
+           原来写死 flex-shrink:0 → 内容一多就顶出视口、又没有自己的滚动条，手机端直接看不全。
+           改成可收缩 + 自带滚动，并限高，保证任何屏幕都能翻到底。*/
+        #admin-panel { flex-shrink: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+                       max-height: 78dvh; }
         /* 预操作：两个小按钮分列在「自己人物」左右两侧（贴近中部好点，不遮手牌）*/
         #preaction-bar { position: absolute; left: 0; right: 0; bottom: 120px; z-index: 18;
             display: flex; justify-content: center; align-items: center;

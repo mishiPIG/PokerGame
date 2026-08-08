@@ -252,8 +252,12 @@ function buildSeat(p, state) {
     let handTypeBadge = '';
     if (showdownInfo && showdownInfo.winners.includes(p.userId) && showdownInfo.category)
         handTypeBadge = `<div class="hand-type-badge win">🏆 ${showdownInfo.category}</div>`;
-    else if (isMe && myHand && !showdownInfo && !p.folded && state.phase !== 'waiting')
-        handTypeBadge = `<div class="hand-type-badge">${myHand.category}</div>`;
+    else if (isMe && myHand && state.phase !== 'waiting') {
+        // 已弃牌也显示（玩家反馈想知道「我弃掉的牌最后会是什么」）——加「弃」前缀+灰样式，
+        // 明确这是假设性的牌型，不会误以为自己还在牌局里。摊牌阶段同样保留（那时才最想看）。
+        if (p.folded) handTypeBadge = `<div class="hand-type-badge folded-hint">弃 · ${myHand.category}</div>`;
+        else if (!showdownInfo) handTypeBadge = `<div class="hand-type-badge">${myHand.category}</div>`;
+    }
 
     // 亮牌提示（摊牌局间，含弃牌者可亮牌）
     const showHint = (isMe && state.phase === 'showdown'
