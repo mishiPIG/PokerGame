@@ -21,6 +21,13 @@ function broadcastState(roomId) {
         maxBuyIn:   game.config?.maxBuyIn || 0,
         minBet:     gameBB(game),                                       // 本街首注最小额
         minRaiseTo: game.currentBet + (game.lastRaiseSize || gameBB(game)), // 最小加注目标额
+        // 无效加注：当前行动者本街已行动过、且面对的加注不足「一个完整加注」（前方是短码全押）
+        // → 行动未被重开，他只能跟/弃。下发给客户端用于置灰加注按钮 + 点击时给出可见提示。
+        raiseClosed: (() => {
+            const a = game.actionOnIdx >= 0 ? game.players[game.actionOnIdx] : null;
+            if (!a || !game.currentBet) return false;
+            return !!a.hasActed && (game.currentBet - a.currentBet) < (game.lastRaiseSize || gameBB(game));
+        })(),
         roomType:   game.roomType || 'cash',
         roomName:   game.config?.name || roomId,
         maxPlayers: game.config?.maxPlayers || 9,

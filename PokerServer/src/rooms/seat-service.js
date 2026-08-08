@@ -36,7 +36,10 @@ function standUpPlayer(roomId, idx, byOwner) {
     if (handInProgress) {
         // 本手进行中：延后到本手结束再真正离座（removeBustedPlayers 处理），避免 splice 打乱 actionOnIdx
         p.vacateAfter = true;
-        if (!p.folded) {
+        // ⚠️ 已全押者绝不能改判弃牌：他的筹码已在池中、本就无需再行动，
+        // 强行 folded 会剥夺其池权，并让「未跟注退还」把对手已被跟的注错误退回 → 凭空造筹码
+        // （线上事故：room130674 h53，全押被跟后离座 → 对手多得 16508）。
+        if (!p.folded && !p.allIn) {
             p.folded = true; p.hasActed = true;
             if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
             else if (isBettingRoundComplete(game)) advanceStage(roomId);
@@ -152,8 +155,11 @@ function removeBustedPlayers(game) {
             if (p.chips <= 0) {
                 recordLeft(game, p);   // SNG 淘汰顺序（用于结束排名：先淘汰=末名）
                 io.in(roomId).emit('server_msg', `💀 ${p.username} 出局`);
+                // 淘汰后【留在房间继续观战】：只把他移出座位，不再踢出 socket 房间。
+                // 观众 = 房间内未在座者（见 listSpectators），所以 splice 之后他自动就是观众。
+                // 多人 SNG（类似 FT）里被淘汰还想看朋友打完，硬踢回大厅体验很差。
                 const s = io.sockets.sockets.get(p.socketId);
-                if (s && s.currentRoom === roomId) { s.leave(roomId); s.currentRoom = null; lobbySockets.add(s.id); s.emit('busted_out'); }
+                if (s && s.currentRoom === roomId) s.emit('eliminated', { canSpectate: true });
                 game.players.splice(i, 1);
                 if (game.buttonIdx > i) game.buttonIdx--;
             }

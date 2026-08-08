@@ -122,6 +122,12 @@ function sendSize(amount) {
 }
 // 点「下注/加注」展开精调面板（滑条 + 输入框 + 确认）
 function openSizing() {
+    // 无效加注：前方短码全押不足一个完整加注 → 行动未重开，我只能跟/弃。
+    // 给出可见提示（server_msg 只进 console，玩家看不到，会以为按钮坏了）
+    if (lastState && lastState.raiseClosed) {
+        toast('⚠️ 前方是无效加注（全押不足一个完整加注），本轮不能再加注，只能跟注或弃牌', 3200);
+        return;
+    }
     if (!sizeCtx) return;
     const row = document.getElementById('sizing-row');
     const show = row.style.display === 'none';
@@ -160,8 +166,16 @@ function updateConfirmLabel(v) {
 function toggleReady() {
     if (currentRoom && socket) socket.emit('toggle_ready', currentRoom);
 }
+let _lastStart = 0;
 function startGame() {
-    if (socket) socket.emit('start_game');
+    if (!socket) return;
+    // 防连点：房主狂点「开始」会反复触发高牌定庄（定庄动画那 2.8s 内 status 仍是 waiting）。
+    // 服务端已有 game.beginning 守卫兜底，这里再挡一层并立即置灰按钮，给出即时反馈。
+    if (Date.now() - _lastStart < 3000) return;
+    _lastStart = Date.now();
+    const btn = document.getElementById('btnStart');
+    if (btn) { btn.disabled = true; setTimeout(() => { btn.disabled = false; }, 3000); }
+    socket.emit('start_game');
 }
 let _lastAddTime = 0;
 function addTime() {

@@ -93,7 +93,24 @@ function runitPanel() {
     }
     return el;
 }
-function hideRunitPanel() { const el = document.getElementById('runit-panel'); if (el) el.style.display = 'none'; }
+let runitCountdownTimer = null;
+function hideRunitPanel() { const el = document.getElementById('runit-panel'); if (el) el.style.display = 'none'; clearInterval(runitCountdownTimer); runitCountdownTimer = null; }
+// 决策倒计时：把剩余秒数刷进面板 #runit-countdown，到点自动停（服务端到点默认发1次）
+function startRunitCountdown(deadlineAt) {
+    clearInterval(runitCountdownTimer); runitCountdownTimer = null;
+    if (!deadlineAt) return;
+    const tick = () => {
+        const c = document.getElementById('runit-countdown');
+        if (!c) { clearInterval(runitCountdownTimer); runitCountdownTimer = null; return; }
+        const remain = Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1000));
+        c.textContent = remain + 's';
+        if (remain <= 0) { clearInterval(runitCountdownTimer); runitCountdownTimer = null; }
+    };
+    tick();
+    runitCountdownTimer = setInterval(tick, 500);
+}
+// 轮到我做多次发牌决策时，振动 + 提示音提醒（否则容易错过窗口，被误退化成发1次）
+function runitAlert() { try { vibrate([80, 60, 80]); } catch {} try { if (typeof sndWarn === 'function') sndWarn(); } catch {} }
 function showRunitOffer(o) {
     const el = runitPanel();
     const eqTxt = (id) => (o.equities && o.equities[id] != null) ? ` <span class="ri-eq">${o.equities[id]}%</span>` : '';
@@ -101,7 +118,10 @@ function showRunitOffer(o) {
         const maxN = Math.max(2, Math.min(5, o.max || 5));   // 牌堆不足时服务端会给更小的 max
         const btns = Array.from({ length: maxN }, (_, i) => i + 1);
         el.innerHTML = `<div class="ri-title">🎲 发几次牌？<span class="ri-hint">（你落后，可要求多发几次分摊运气）</span></div>`
-            + `<div class="ri-btns">` + btns.map(n => `<button onclick="proposeRuns(${n})">${n}</button>`).join('') + `</div>`;
+            + `<div class="ri-btns">` + btns.map(n => `<button onclick="proposeRuns(${n})">${n}</button>`).join('') + `</div>`
+            + `<div class="ri-count">⏳ <span id="runit-countdown">--</span> 后自动只发 1 次</div>`;
+        startRunitCountdown(o.deadlineAt);
+        runitAlert();
     } else if (o.leaderId === myUserId) {
         el.innerHTML = `<div class="ri-title">🎲 等待对方选择发牌次数…</div>`
             + `<div class="ri-sub">你领先${eqTxt(myUserId)}，对方可提议发多次</div>`;
@@ -116,7 +136,10 @@ function showRunitProposal(pr) {
         el.innerHTML = `<div class="ri-title">🎲 对方想发 <b>${pr.n}</b> 次</div>`
             + `<div class="ri-sub">同意则底池均分 ${pr.n} 份、各发一次不同公共牌</div>`
             + `<div class="ri-btns"><button class="ri-yes" onclick="respondRuns(true)">同意发 ${pr.n} 次</button>`
-            + `<button class="ri-no" onclick="respondRuns(false)">只发 1 次</button></div>`;
+            + `<button class="ri-no" onclick="respondRuns(false)">只发 1 次</button></div>`
+            + `<div class="ri-count">⏳ <span id="runit-countdown">--</span> 未回应则默认只发 1 次</div>`;
+        startRunitCountdown(pr.deadlineAt);
+        runitAlert();
     } else {
         el.innerHTML = `<div class="ri-title">🎲 已提议发 <b>${pr.n}</b> 次，等待领先方同意…</div>`;
     }
@@ -280,20 +303,47 @@ function submitCreate() {
     }
     hideCreateForm();
 }
-function sanitizeJoinCode() {
-    const input = document.getElementById('joinRoomInput');
-    input.value = input.value.replace(/\D/g, '').slice(0, 4);
+// —— 四格房间码：只收数字、逐格自动跳、输满 4 位自动加入（无需按钮）——
+function codeBoxes() { return Array.from(document.querySelectorAll('#joinCodeBoxes .code-box')); }
+function getJoinCode() { return codeBoxes().map(b => b.value).join(''); }
+function onCodeInput(el, idx) {
+    el.value = el.value.replace(/\D/g, '').slice(0, 1);   // 只留一位数字
+    const boxes = codeBoxes();
+    if (el.value && idx < boxes.length - 1) boxes[idx + 1].focus();
+    if (getJoinCode().length === boxes.length) joinByCode();   // 输满自动加入
 }
-// 输入四位房间码：服务端校验成功后才授予下场资格。
+function onCodeKey(e, el, idx) {
+    const boxes = codeBoxes();
+    if (e.key === 'Backspace' && !el.value && idx > 0) { boxes[idx - 1].focus(); boxes[idx - 1].value = ''; e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' && idx > 0) boxes[idx - 1].focus();
+    else if (e.key === 'ArrowRight' && idx < boxes.length - 1) boxes[idx + 1].focus();
+    else if (e.key === 'Enter') joinByCode();
+}
+function onCodePaste(e) {
+    const t = ((e.clipboardData || window.clipboardData).getData('text') || '').replace(/\D/g, '').slice(0, 4);
+    if (!t) return;
+    e.preventDefault();
+    const boxes = codeBoxes();
+    boxes.forEach((b, i) => { b.value = t[i] || ''; });
+    boxes[Math.min(t.length, boxes.length - 1)].focus();
+    if (t.length === boxes.length) joinByCode();
+}
+// 房间码校验：服务端成功→授予下场资格；房间不存在→invite_error 里 toast 提示并清空重输。
 function joinByCode() {
-    const code = document.getElementById('joinRoomInput').value.trim();
+    const code = getJoinCode();
     if (!/^\d{4}$/.test(code)) { toast('请输入四位数字房间码'); return; }
     if (!socket || !socket.connected) { toast('正在连接服务器，请稍后'); return; }
-    const btn = document.getElementById('joinCodeBtn');
-    btn.disabled = true;
+    if (window._joinSubmitting) return;   // 防抖：一次输满只发一次
+    window._joinSubmitting = true;
     socket.emit('join_by_code', { code });
     clearTimeout(window._joinCodeUnlock);
-    window._joinCodeUnlock = setTimeout(() => { btn.disabled = false; }, 4000);
+    window._joinCodeUnlock = setTimeout(() => { window._joinSubmitting = false; }, 4000);
+}
+// 加入成功/失败后复位（失败时清空四格并聚焦第一格，方便重输）
+function resetJoinCode(clearBoxes) {
+    window._joinSubmitting = false;
+    clearTimeout(window._joinCodeUnlock);
+    if (clearBoxes) { const b = codeBoxes(); b.forEach(x => { x.value = ''; }); if (b[0]) b[0].focus(); }
 }
 // 从大厅列表点进 = 只观战；服务端已授权成员则重新加入。
 function joinRoomId(roomId) {

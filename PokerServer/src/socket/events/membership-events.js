@@ -159,8 +159,9 @@ function registerMembershipEvents(context) {
         }, 120000);
         io.in(roomId).emit('server_msg', `💺 ${user.username} 留座离座（2 分钟内回来保留座位）`);
         // 若本手进行中：本手弃牌坐出并推进行动（尤其正轮到他时，别让全桌干等到超时）
+        // ⚠️ 已全押者除外——筹码已在池中、无需再行动，改判弃牌会剥夺池权并造成筹码凭空增加
         const idx = game.players.findIndex(pl => pl.userId === user.id);
-        const midHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN && !p.folded;
+        const midHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN && !p.folded && !p.allIn;
         if (midHand) {
             p.folded = true; p.hasActed = true;
             if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
@@ -197,7 +198,10 @@ function registerMembershipEvents(context) {
             const idx = game.players.findIndex(p => p.userId === user.id);
             if (idx >= 0) {
                 const p = game.players[idx];
-                const midHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN && !p.folded;
+                // ⚠️ 已全押者不算 midHand：筹码已在池中、本就无需再行动，退出时若把他改判弃牌，
+                // 既剥夺其池权，又会让「未跟注退还」把对手已被跟的注错误退回 → 凭空造筹码。
+                // 他应留在局里正常跑马/摊牌，离座延后到本手结束（vacateAfter/standing 已处理）。
+                const midHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN && !p.folded && !p.allIn;
                 if (game.roomType === 'cash') {
                     // 训练赛：退出房间 = 站起离桌，保留座位+筹码，【不立即兑出】；
                     // 只在本局结束/解散/全员离开时统一结算金币。回大厅可随时「重新进入」

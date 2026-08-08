@@ -21,13 +21,13 @@ function offerRunIt(roomId, act) {
     const leaderId  = deciderId === a.userId ? b.userId : a.userId;
     const maxRuns = Math.min(RUNIT_MAX, maxRunsByDeck(game));  // 牌堆不足则少给几次，防崩/卡
     if (maxRuns < 2) return false;                             // 只够发 1 次 → 无需协商，照常单次跑马
-    game.runIt = {
-        activeIds: act.map(p => p.userId), deciderId, leaderId,
-        n: 1, equities: eq, maxRuns, deadlineAt: Date.now() + RUNIT_DECIDE_MS
-    };
+    // deadlineAt 两个用途都要：①下发客户端显示倒计时（避免错过同意→误退化成发1次）
+    // ②重启恢复时按它重新武装协商计时器（持久化分支）。用变量声明，下面 emit 要引用。
+    const deadlineAt = Date.now() + RUNIT_DECIDE_MS;
+    game.runIt = { activeIds: act.map(p => p.userId), deciderId, leaderId, n: 1, equities: eq, maxRuns, deadlineAt };
     game.runItPending = true;
     clearTimeout(game.runItTimer);
-    io.in(roomId).emit('runit_offer', { deciderId, leaderId, max: maxRuns, equities: eq });
+    io.in(roomId).emit('runit_offer', { deciderId, leaderId, max: maxRuns, equities: eq, deadlineAt });
     io.in(roomId).emit('server_msg', `🎲 可协商「发几次牌」：由落后方选择次数，领先方同意`);
     // 协商超时兜底：默认发 1 次，绝不卡住牌局
     game.runItTimer = setTimeout(() => resolveRunIt(roomId, 1, 'timeout'), RUNIT_DECIDE_MS);

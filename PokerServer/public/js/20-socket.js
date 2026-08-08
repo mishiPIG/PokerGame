@@ -41,7 +41,10 @@ function connectSocket(token) {
     });
 
     socket.on('server_msg', (msg) => {
-        console.log('[server]', msg);   // 仅开发调试，不再显示在桌面
+        console.log('[server]', msg);   // 动作播报（下注/跟注/弃牌…）仅开发调试，不显示在桌面
+        // ⚠️ 开头的都是服务端对「我」的私发拒绝（非法操作/不是你的回合/筹码不足/无效加注…），
+        // 以前只进 console → 玩家点了没反应还以为按钮坏了。这类必须可见。
+        if (typeof msg === 'string' && msg.startsWith('⚠️')) toast(msg, 3000);
     });
 
     socket.on('room_list', (rooms) => {
@@ -54,8 +57,7 @@ function connectSocket(token) {
         currentRoom = roomId;
         iCanPlay = !!canPlay;   // 观战者=false → 禁止入座
         localStorage.setItem('currentRoom', roomId);
-        const joinBtn = document.getElementById('joinCodeBtn');
-        if (joinBtn) joinBtn.disabled = false;
+        resetJoinCode(true);   // 复位四格房间码
         hideReconnecting();
         document.getElementById('btnReady').disabled = false;
         showTable();
@@ -67,10 +69,9 @@ function connectSocket(token) {
             pendingInviteToken = '';
             try { sessionStorage.removeItem('pendingInviteToken'); } catch {}
         }
-        const joinBtn = document.getElementById('joinCodeBtn');
-        if (joinBtn) joinBtn.disabled = false;
+        resetJoinCode(source !== 'link');   // 输错房间码→清空四格重输（链接失败不清）
         showLobby();
-        toast(message || '邀请无效或当前不可加入', 3500);
+        toast(message || '房间不存在或当前不可加入', 3500);
     });
 
     socket.on('room_invite_info', (info) => {
@@ -91,6 +92,14 @@ function connectSocket(token) {
         setTimeout(() => { alert('你已离开牌桌'); showLobby(); }, 300);
     });
 
+    // SNG 被淘汰：不再踢回大厅，留在桌上继续观战（想走点「退出房间」即可）
+    socket.on('eliminated', ({ canSpectate } = {}) => {
+        if (!canSpectate) { setTimeout(() => { alert('你已出局'); showLobby(); }, 300); return; }
+        toast('💀 你已出局，可继续观战；想离开点「退出房间」', 4500);
+        showTableNotice('💀 你已出局，正在观战');
+    });
+
+    // 按 userId 判断夺冠（不用用户名——显示名可改，id 才稳定）
     socket.on('tournament_over', ({ winnerId }) => {
         if (winnerId === myUserId) setTimeout(() => sndWin(), 1500);   // 夺冠音；排名由 match_result 弹窗展示
     });

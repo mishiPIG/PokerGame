@@ -33,6 +33,12 @@
         .le-join-row input { flex: 1; min-width: 0; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
             color: #fff; border-radius: 6px; padding: 8px; font-size: 14px; }
         .le-join-row button { flex-shrink: 0; }
+        /* 四格房间码：只输数字、输满自动加入 */
+        .le-join-row.code-boxes { gap: 10px; justify-content: center; }
+        .code-boxes .code-box { flex: 1; min-width: 0; max-width: 62px; aspect-ratio: 3 / 4;
+            text-align: center; font-size: 26px; font-weight: 800; color: #fff; caret-color: #3a86ff;
+            background: rgba(0,0,0,0.32); border: 2px solid rgba(255,255,255,0.22); border-radius: 10px; padding: 0; }
+        .code-boxes .code-box:focus { outline: none; border-color: #3a86ff; box-shadow: 0 0 0 3px rgba(58,134,255,0.28); }
         .le-join-row button, .rc-join, #create-form button {
             background: #3a86ff; color: #fff; border: none; border-radius: 6px;
             padding: 8px 16px; font-weight: bold; font-size: 14px; cursor: pointer;

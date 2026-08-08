@@ -2,7 +2,7 @@
 
 function registerPokerActionEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
-    const { PHASES, STANDARD_BLIND_LEVELS, SNG_BUYIN_TIERS, BUYIN_RATE, CASHOUT_RATE, RUNIT_MAX, EXTRA_MAX, EXTRA_STEP, ACTION_TIME, gameBB, sngPrize } = config;
+    const { PHASES, STANDARD_BLIND_LEVELS, SNG_BUYIN_TIERS, BUYIN_RATE, CASHOUT_RATE, RUNIT_MAX, RUNIT_DECIDE_MS, EXTRA_MAX, EXTRA_STEP, ACTION_TIME, gameBB, sngPrize } = config;
     const { roomGames, lobbySockets } = runtime;
     const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, onActionTimeout, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction, persistence } = tableService;
     socket.on('player_action', ({ roomId, action, amount }) => {
@@ -63,6 +63,11 @@ function registerPokerActionEvents(context) {
 
             case 'raise': {
                 if (game.currentBet === 0) { socket.emit('server_msg', '⚠️ 无人下注，请用 Bet'); return; }
+                // 无效加注规则：若我本街已行动过，且现在面对的加注量不足「一个完整加注」（前方只是短码全押/无效加注），
+                // 则行动没有被重开——我只能跟注或弃牌，不能再加注。（正常德扑规则）
+                if (player.hasActed && (game.currentBet - player.currentBet) < game.lastRaiseSize) {
+                    socket.emit('server_msg', '⚠️ 前方是无效加注（全押不足一个完整加注），你只能跟注或弃牌'); return;
+                }
                 const raiseTo = parseInt(amount);
                 const maxRaise = player.currentBet + player.chips;          // 全下额
                 const allInRaise = raiseTo === maxRaise;
@@ -77,12 +82,16 @@ function registerPokerActionEvents(context) {
                 const needed = raiseTo - player.currentBet;
                 if (needed > player.chips) { socket.emit('server_msg', '⚠️ 筹码不足'); return; }
                 const increment = raiseTo - game.currentBet;
-                // 完整加注才刷新最小增量；all-in for less 不重开下注（保持原增量）
-                if (increment >= game.lastRaiseSize) game.lastRaiseSize = increment;
+                const fullRaise = increment >= game.lastRaiseSize;   // 达到完整加注增量才算「完整加注」
+                if (fullRaise) game.lastRaiseSize = increment;       // 完整加注才刷新最小增量
                 player.chips -= needed; player.currentBet = raiseTo;
                 if (player.chips === 0) player.allIn = true;
                 game.currentBet = raiseTo;
-                game.players.forEach(p => { if (p.userId !== user.id && canAct(p)) p.hasActed = false; });
+                // 只有「完整加注」才重开行动（前方已行动者可再加注）；短码全押=无效加注，不重开，
+                // 前方已行动者保持 hasActed=true → 只需补齐跟注、不能再加（配合上面的拒绝逻辑）。
+                if (fullRaise) {
+                    game.players.forEach(p => { if (p.userId !== user.id && canAct(p)) p.hasActed = false; });
+                }
                 player.hasActed = true;
                 io.in(roomId).emit('server_msg', `🔼 ${tag} 加注到 ${raiseTo}${player.allIn ? ' (All-in)' : ''}`);
                 break;
@@ -112,8 +121,14 @@ function registerPokerActionEvents(context) {
         n = Math.max(1, Math.min(RUNIT_MAX, parseInt(n) || 1));
         if (n <= 1) { resolveRunIt(roomId, 1, 'single'); return; }
         game.runIt.n = n;
-        persistence.commit(roomId, 'runit_proposed', user.id, { n });
-        io.in(roomId).emit('runit_proposal', { n, byUserId: user.id, leaderId: game.runIt.leaderId });
+        // 为领先方重置一个完整的决策窗口（落后方选号已耗掉部分时间，否则领先方时间被压缩、
+        // 容易错过同意 → 误退化成发 1 次。线上事故 room150331 就是这么丢的钱）
+        const deadlineAt = Date.now() + RUNIT_DECIDE_MS;
+        game.runIt.deadlineAt = deadlineAt;
+        clearTimeout(game.runItTimer);
+        game.runItTimer = setTimeout(() => resolveRunIt(roomId, 1, 'timeout'), RUNIT_DECIDE_MS);
+        persistence.commit(roomId, 'runit_proposed', user.id, { n });   // 持久化：重启可恢复协商状态
+        io.in(roomId).emit('runit_proposal', { n, byUserId: user.id, leaderId: game.runIt.leaderId, deadlineAt });
         io.in(roomId).emit('server_msg', `🎲 落后方提议发 ${n} 次，等待领先方同意…`);
     });
     // 领先方回应：同意→发 n 次；拒绝→发 1 次

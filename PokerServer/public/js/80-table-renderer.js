@@ -399,7 +399,10 @@ function render(state) {
     document.getElementById('btnRaise').style.display = showRaise ? '' : 'none';
     document.getElementById('btnBet').disabled   = !showBet || (me && me.chips <= 0);
     // 加注前提：我的筹码要多于待跟额（否则只能跟到全下，没法加注）
-    document.getElementById('btnRaise').disabled = !showRaise || (me && me.chips <= toCall);
+    // 无效加注(state.raiseClosed)时不用 disabled——保持可点，点了才能弹出「为什么不能加」的提示
+    const btnRaise = document.getElementById('btnRaise');
+    btnRaise.disabled = !showRaise || (!state.raiseClosed && me && me.chips <= toCall);
+    btnRaise.classList.toggle('locked', !!(showRaise && state.raiseClosed));
 
     // ── 加时按钮（底部控制栏）──
     document.getElementById('tcAddTime').disabled = !(myTurn && state.canAddTime);

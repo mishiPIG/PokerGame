@@ -57,4 +57,14 @@ async function sendFeedback(record) {
     return { sent: true };
 }
 
-module.exports = { sendCode, sendFeedback, isConfigured };
+// 系统告警 → 发到管理员邮箱（如筹码守恒审计发现异常）。未配置发信则打印到日志。
+async function sendAlert(subject, body) {
+    const t = getTransport();
+    if (!t) { console.log(`\n[mail:DEV] 系统告警（未配置发信）↓\n${subject}\n${body}\n`); return { dev: true }; }
+    const c = loadConfig();
+    const to = c.alertTo || c.feedbackTo || c.user;
+    await t.sendMail({ from: c.from || `德扑道场 <${c.user}>`, to, subject: `德扑道场 · ${subject}`, text: body });
+    return { sent: true };
+}
+
+module.exports = { sendCode, sendFeedback, sendAlert, isConfigured };

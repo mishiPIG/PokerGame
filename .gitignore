@@ -51,4 +51,4 @@ backups_offsite/
 OPS.local.md
 backup-hk.sh
 
-PokerServer/.local
+PokerServer/.localPokerServer/data.json.localbak
