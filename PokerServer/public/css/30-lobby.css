@@ -4,6 +4,30 @@
             border-radius: 10px; padding: 14px; margin-bottom: 12px;
         }
         #admin-panel h3 { color: #f4d35e; font-size: 14px; margin-bottom: 10px; }
+        /* 管理员：Tab + 房间总览 + 钱包流水 */
+        .adm-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+        .adm-tab { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #cdd8ea;
+            border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+        .adm-tab.sel { background: rgba(244,211,94,0.2); border-color: rgba(244,211,94,0.5); color: #f4d35e; font-weight: bold; }
+        .adm-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+        .adm-bar input { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: #fff;
+            border-radius: 6px; padding: 5px 8px; font-size: 12px; min-width: 0; }
+        .adm-bar button, .adm-adjust button { background: #3a86ff; color: #fff; border: none; border-radius: 6px;
+            padding: 5px 12px; font-size: 12px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
+        .adm-dim { color: #8fa2c4; font-size: 11px; }
+        .adm-empty { color: #8fa2c4; font-size: 12px; padding: 10px; text-align: center; }
+        .adm-room { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 8px 10px; margin-bottom: 7px; }
+        .adm-room-h { font-size: 13px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+        .adm-tags { font-size: 11px; color: #f4d35e; margin-left: auto; }
+        .adm-players { margin-top: 5px; display: flex; flex-direction: column; gap: 2px; }
+        .adm-p { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; font-size: 12px; align-items: center; }
+        .adm-wallet-h { font-size: 12px; color: #cdd8ea; margin-bottom: 8px; }
+        .adm-wallet-h b { color: #f4d35e; }
+        .adm-adjust { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+        .adm-adjust input { flex: 1; min-width: 90px; background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 5px 8px; font-size: 12px; }
+        .adm-tx { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; font-size: 12px;
+            padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,0.06); align-items: center; }
         #admin-panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
         #admin-panel th { color: #888; font-weight: normal; text-align: left; padding: 4px 6px; }
         #admin-panel td { padding: 4px 6px; border-top: 1px solid rgba(255,255,255,0.05); }

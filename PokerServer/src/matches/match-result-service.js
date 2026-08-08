@@ -68,9 +68,9 @@ function sendMatchResult(roomId, title, ranking) {
         `${x.rank}. ${x.displayName || x.username}${label(x.userId)}  ${x.net >= 0 ? '+' : ''}${x.net} ${x.unit}  ${x.handsPlayed || 0} 手`
     ).join('\n');
     const awardText = awards ? [
-        awards.boss ? `🥇 老板（亏最多，该请客了）：${awards.boss.displayName || awards.boss.username} ${awards.boss.net} ${awards.boss.unit}` : '',
-        awards.mvp ? `🥈 MVP（赢最多）：${awards.mvp.displayName || awards.mvp.username} +${awards.mvp.net} ${awards.mvp.unit}` : '',
-        awards.worker ? `🥉 力工（手数最多）：${awards.worker.displayName || awards.worker.username} ${awards.worker.handsPlayed} 手` : ''
+        awards.boss ? `🥇 老板：${awards.boss.displayName || awards.boss.username} ${awards.boss.net} ${awards.boss.unit}` : '',
+        awards.mvp ? `🥈 MVP：${awards.mvp.displayName || awards.mvp.username} +${awards.mvp.net} ${awards.mvp.unit}` : '',
+        awards.worker ? `🥉 力工：${awards.worker.displayName || awards.worker.username} ${awards.worker.handsPlayed} 手` : ''
     ].filter(Boolean).join('\n') : '';
     ranking.forEach(r => {
         const sign = r.net >= 0 ? '+' : '';

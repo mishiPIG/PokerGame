@@ -57,7 +57,7 @@ seedLocalDevUsers({ enabled: LOCAL_DEV, db, bcrypt });
 const tableService = createTableService({ io, db, stats, equity, Card, Deck, HandEvaluator, crypto, config, runtime });
 const { projectedPositions } = tableService;
 
-registerAdminRoutes({ app, db, requireAdmin });
+registerAdminRoutes({ app, db, requireAdmin, roomGames });
 const voiceModule = registerVoiceModule({ app, io, db, roomGames, requireAuth, express, crypto, fs, path, baseDir: __dirname });
 registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin });
 registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth });

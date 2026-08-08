@@ -1,6 +1,14 @@
 'use strict';
 
-function registerAdminRoutes({ app, db, requireAdmin }) {
+// 金币变动类型的中文名（钱包流水展示用）
+const TX_LABEL = {
+    cash_buyin: '现金桌买入', cash_rebuy: '现金桌补码', cash_cashout: '现金桌兑出',
+    sng_buyin: 'SNG 报名', sng_refund: 'SNG 退报名费', sng_prize: 'SNG 奖金',
+    checkin: '每日签到', admin_adjust: '管理员调整', admin_set_gold: '管理员设置',
+    legacy_import: '旧数据迁移', signup_bonus: '注册赠送'
+};
+
+function registerAdminRoutes({ app, db, requireAdmin, roomGames }) {
 // 获取所有用户列表
 app.get('/api/admin/users', requireAdmin, (req, res) => {
     res.json(db.getAllUsers());
@@ -22,6 +30,83 @@ app.post('/api/admin/set-gold', requireAdmin, (req, res) => {
     });
     console.log(`[admin] ${req.adminUser.username} 将 ${target.username} 金币设为 ${gold}`);
     res.json({ ok: true, username: target.username, gold });
+});
+
+// —— 钱包流水：查某个玩家的每笔金币变动（排查「他的钱怎么变成这样」用）——
+app.get('/api/admin/wallet/:username', requireAdmin, (req, res) => {
+    const target = db.getUserByUsername(req.params.username);
+    if (!target) return res.status(404).json({ error: `用户 "${req.params.username}" 不存在` });
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+    const rows = db.raw.prepare(`
+        SELECT id, delta, balance_before, balance_after, transaction_type,
+               match_id, operation_key, metadata_json, created_at_ms
+        FROM wallet_transactions WHERE user_id = ?
+        ORDER BY created_at_ms DESC LIMIT ?
+    `).all(target.id, limit);
+    res.json({
+        username: target.username,
+        displayName: target.displayName || target.username,
+        gold: target.gold,
+        transactions: rows.map(r => {
+            let meta = null;
+            try { meta = r.metadata_json ? JSON.parse(r.metadata_json) : null; } catch (e) { /* 坏数据不影响列表 */ }
+            return {
+                id: r.id, delta: r.delta, balanceBefore: r.balance_before, balanceAfter: r.balance_after,
+                type: r.transaction_type, typeLabel: TX_LABEL[r.transaction_type] || r.transaction_type,
+                matchId: r.match_id, at: r.created_at_ms, meta
+            };
+        })
+    });
+});
+
+// —— 房间总览：现在有哪些房在打、多少人、什么状态（免得 SSH 上去看日志）——
+app.get('/api/admin/rooms', requireAdmin, (req, res) => {
+    const rooms = Object.entries(roomGames || {}).map(([roomId, g]) => ({
+        roomId,
+        name: g.config?.name || roomId,
+        type: g.roomType || 'cash',
+        status: g.status || 'waiting',
+        phase: g.phase,
+        handSeq: g.handSeq || 0,
+        sb: g.blindLevels?.[g.currentLevel]?.sb ?? g.config?.sb ?? 0,
+        bb: g.blindLevels?.[g.currentLevel]?.bb ?? g.config?.bb ?? 0,
+        pot: g.pot || 0,
+        paused: !!g.paused,
+        pendingDissolve: !!g.pendingDissolve,
+        players: (g.players || []).map(p => ({
+            userId: p.userId, username: p.username, displayName: p.displayName || p.username,
+            seat: p.seat, chips: p.chips, buyIn: p.buyIn || 0, handsPlayed: p.handsPlayed || 0,
+            away: !!p.away, standing: !!p.standing, sittingOut: !!p.sittingOut
+        })),
+        vacatedCount: (g.vacatedPlayers || []).length
+    })).sort((a, b) => b.players.length - a.players.length);
+    res.json({ rooms, totalRooms: rooms.length, totalSeated: rooms.reduce((s, r) => s + r.players.length, 0) });
+});
+
+// —— 带备注的补偿/扣款：走钱包流水留痕，而不是直接把金币改成某个数字 ——
+// 相比 set-gold，这个记录的是「变动多少 + 为什么」，事后可追溯（如线上事故的补偿）。
+app.post('/api/admin/adjust-gold', requireAdmin, (req, res) => {
+    const { username, delta, reason, requestId } = req.body || {};
+    if (!username || delta === undefined) return res.status(400).json({ error: '缺少 username 或 delta' });
+    if (!Number.isInteger(delta) || delta === 0) return res.status(400).json({ error: 'delta 必须为非零整数' });
+    if (!reason || !String(reason).trim()) return res.status(400).json({ error: '必须填写备注（为什么调整）' });
+    const target = db.getUserByUsername(username);
+    if (!target) return res.status(404).json({ error: `用户 "${username}" 不存在` });
+    // operationKey 幂等：同一个 requestId 重复提交不会重复扣/发
+    const key = `admin-adjust:${req.adminUser.id}:${requestId || Date.now()}`;
+    try {
+        const r = db.wallet.adjust({
+            userId: target.id, delta, type: 'admin_adjust', operationKey: key,
+            metadata: { reason: String(reason).slice(0, 200), byAdmin: req.adminUser.username }
+        });
+        console.log(`[admin] ${req.adminUser.username} 调整 ${target.username} 金币 ${delta > 0 ? '+' : ''}${delta}：${reason}`);
+        res.json({ ok: true, username: target.username, delta, balance: r.balance, applied: r.applied });
+    } catch (e) {
+        if (e.message === 'INSUFFICIENT_GOLD') return res.status(400).json({ error: '扣款会导致金币为负' });
+        if (e.message === 'IDEMPOTENCY_CONFLICT') return res.status(409).json({ error: '该 requestId 已用于其他调整' });
+        console.error('[admin] adjust-gold 失败', e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 }

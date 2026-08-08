@@ -92,10 +92,28 @@
     <!-- 管理员面板（仅 isAdmin 可见） -->
     <div id="admin-panel" style="display:none">
         <h3>⚙️ 管理员面板</h3>
-        <table id="admin-users-table">
-            <thead><tr><th>用户名</th><th>金币</th><th>设置金币</th><th></th></tr></thead>
-            <tbody></tbody>
-        </table>
+        <div class="adm-tabs">
+            <button class="adm-tab sel" data-at="users" onclick="adminTab('users')">👥 玩家</button>
+            <button class="adm-tab" data-at="rooms" onclick="adminTab('rooms')">🎲 房间总览</button>
+            <button class="adm-tab" data-at="wallet" onclick="adminTab('wallet')">💰 钱包流水</button>
+        </div>
+        <div id="adm-pane-users">
+            <table id="admin-users-table">
+                <thead><tr><th>用户名</th><th>金币</th><th>设置金币</th><th></th><th>操作</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="adm-pane-rooms" style="display:none">
+            <div class="adm-bar"><button onclick="loadAdminRooms()">🔄 刷新</button><span id="adm-rooms-sum"></span></div>
+            <div id="adm-rooms"></div>
+        </div>
+        <div id="adm-pane-wallet" style="display:none">
+            <div class="adm-bar">
+                <input id="adm-wallet-user" placeholder="用户名" onkeydown="if(event.key==='Enter')loadAdminWallet()">
+                <button onclick="loadAdminWallet()">查流水</button>
+            </div>
+            <div id="adm-wallet"></div>
+        </div>
         <div id="admin-msg"></div>
     </div>
 

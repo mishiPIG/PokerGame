@@ -86,8 +86,10 @@ function ringPos(ringIndex, M) {
     const halfW = (SEAT_BOX.w / 2 / Math.max(1, sz.w)) * 100;
     const halfTop = ((SEAT_BOX.h / 2 + SEAT_BOX.overhangTop) / Math.max(1, sz.h)) * 100;
     const halfBottom = (SEAT_BOX.h / 2 / Math.max(1, sz.h)) * 100;
-    const rx = Math.max(12, Math.min(landscape ? 44 : 42, 50 - halfW));
-    const ry = Math.max(12, Math.min(landscape ? 38 : 36, Math.min(cy - halfTop, 100 - cy - halfBottom)));
+    // 下限不能太低：万一某一帧量到的尺寸不对，半径被夹到很小就会让所有座位挤成一条线（比溢出难看得多）。
+    // 正常屏幕尺寸下这个下限永远不会生效（seatfit 测试覆盖了 2~9 人 × 5 种屏幕）。
+    const rx = Math.max(26, Math.min(landscape ? 44 : 42, 50 - halfW));
+    const ry = Math.max(24, Math.min(landscape ? 38 : 36, Math.min(cy - halfTop, 100 - cy - halfBottom)));
     const ang = Math.PI / 2 + (2 * Math.PI * ringIndex / M);   // 0→底部；+ 使递增为顺时针
     const c = Math.cos(ang), s = Math.sin(ang);
     let x = cx + rx * c, y = cy + ry * s;
@@ -502,6 +504,28 @@ function positionPreBar() {
     bar.style.bottom = (vr.bottom - (hr.top + hr.height / 2) - 16) + 'px';   // 人物中线
 }
 window.addEventListener('resize', () => { if (lastState) { positionActionBar(); positionPreBar(); positionStraddleOffer(); } });
+
+// 牌桌区域尺寸一旦真正确定/变化，就整体重排一次。
+// 为什么需要：从大厅切进牌桌的那一帧，#table-area 还没拿到最终高度，
+// 此时算出的座位坐标是错的（座位挤成一条线），而「开始/行动」悬浮球又是贴着我的座位定位的，
+// 于是按钮也跟着飘到屏幕中间——之前只能靠手动切一下横竖屏（触发 resize）才恢复。
+// ResizeObserver 覆盖了所有触发时机：进桌、坐下、切横竖屏、窗口缩放、手机地址栏收起。
+(function observeTableResize() {
+    if (typeof ResizeObserver !== 'function') return;   // 老浏览器降级：仍有 resize 兜底
+    const start = () => {
+        const area = document.getElementById('table-area') || document.getElementById('table-view');
+        if (!area) { setTimeout(start, 200); return; }
+        let lastW = 0, lastH = 0;
+        new ResizeObserver(entries => {
+            const r = entries[0] && entries[0].contentRect;
+            if (!r || (Math.abs(r.width - lastW) < 2 && Math.abs(r.height - lastH) < 2)) return;
+            lastW = r.width; lastH = r.height;
+            if (typeof lastState !== 'undefined' && lastState) render(lastState);
+        }).observe(area);
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+    else start();
+})();
 
 // 配置下注：轮到我且能下注/加注时，显示快捷比例（含金额）；精调面板默认收起
 function setupSizing(state, me, myTurn) {
