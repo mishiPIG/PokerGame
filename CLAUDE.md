@@ -74,11 +74,11 @@ Android / iOS / PC
   - **「更换/绑定邮箱」（测试服）**：个人主页·资料 Tab 加 `#pi-email` 区，显示当前绑定邮箱+「绑定/更换」内联表单（新邮箱→发码→验码→确认）。服务端 `GET /api/me`(当前邮箱)、`POST /api/bind-email/send-code`+`/verify`（均 requireAuth，pendingBinds 按 userId 键）。E2E：注册→改邮箱→/api/me 反映→新邮箱登录 全通。**已上香港生产**（2026-07-10）。
 
 ## 🎉 正式上线 + 签到 + 反馈 + 数据备份（2026-07-10，香港生产已上线）
-- **香港正式上线**：`https://pokerdojo.space` 对外开放，用户 **CYB** 已升管理员。生产数据（邮箱/金币/牌谱）为**核心资产必须保全**。
+- **香港正式上线**：`https://pokerdojo.space` 对外开放，管理员账号已设置。生产数据（邮箱/金币/牌谱）为**核心资产必须保全**。
 - **数据自动备份（香港）**：每日 04:00 cron 快照 `data.json`/`hands.jsonl`/`feedback.jsonl`（各留最近 30 份，自动清旧）；**异地副本** `scp` 到本地 `backups_offsite/`（gitignore，防整机丢失）；deploy 脚本 tar 均排除这些数据文件（不覆盖）。换服务器须手动带走。（cron/路径细节见私有 `OPS.local.md`）
 - **每日签到（测试服，待验收）**：连续签到递增奖励表 `CHECKIN_REWARDS=[200,300,400,500,600,800,1000]`（第 1~7 天，7 天后封顶 1000，均值≈543/天），**断签重置**为第 1 天。日边界按香港时间 UTC+8。服务端 `GET /api/checkin/status`+`POST /api/checkin`（原子 `db.applyCheckin` 记 lastCheckin/checkinStreak+发金币）。客户端顶栏 🎁 按钮（未签到红点）+ 7 天进度网格弹窗。E2E：签到+200→重复签到 400→连签+300→断签重置+200 全通。
 - **Bug/建议反馈**：顶栏 🐞 按钮 → 文本+联系方式表单 → `POST /api/feedback`(requireAuth)。落库 `feedback.jsonl`（数据资产，纳入备份/deploy 不覆盖）**且同时发一封邮件到管理员邮箱**（`mailer.sendFeedback`，发给 mail.json 的 user，可 feedbackTo 覆盖；未配置则 DEV 打日志）。管理员 `GET /api/admin/feedback`。E2E：提交/空校验/管理员鉴权/UTF-8+emoji 往返/邮件回退 全通。
-- **✅ 已上香港生产**（2026-07-10 `deploy.sh`）：签到/反馈/更换邮箱三项已同步香港，端点 checkin/feedback/bind-email 齐全，data.json 未被覆盖（CYB 等用户数据完好），https://pokerdojo.space 验证 200/401 正常。
+- **✅ 已上香港生产**（2026-07-10 `deploy.sh`）：签到/反馈/更换邮箱三项已同步香港，端点 checkin/feedback/bind-email 齐全，data.json 未被覆盖（用户数据完好），https://pokerdojo.space 验证 200/401 正常。
 
 ## ⚠️ 访问排障备忘：沙特实验室过滤 poker 域名（勿再误判为服务器/大陆问题）
 - **现象**：开发者在**沙特实验室网络**打不开 `https://pokerdojo.space`（TLS 被重置 / http 带域名 Host 被注入 503），但**手机流量、国内玩家、超级 Ping 各地、境外全部正常**。
@@ -179,9 +179,27 @@ Android / iOS / PC
 - **另修 run-it 引入的崩溃**：`maxRunsByDeck` 按剩余牌堆限制可发次数（`offerRunIt` 的 max + `resolveRunIt` 夹取），防 9-max 多人弃牌后牌堆不足发 N 次导致 `drawCard()` 返回 null 崩/卡；客户端次数按钮随 `max`。
 - **验证**：jsdom 加载**真实 index.html** 直接跑 `buildRunitBoards`/`runitDealStreet`/`clearRunit`——preflop 2 组各 5 张、翻后全押共享 flop+每组并列 2 张、clearRunit 复原 全对 ✅；socket 回归 runit/sidepot/sidepot2/standflow/hostfeat 全通 ✅。（确认渲染函数本身没问题，就是跨手残留 class。）
 
+## 🎁 玩家反馈 P2 + 管理员功能 + 若干修复（2026-08-08 下半场，测试服已验收）
+- **结算颁奖台**：🥇老板(亏最多) 🥈MVP(赢最多) 🥉力工(手数最多)，纯娱乐调侃；少于 2 人不评、必须真亏/真赢才评老板/MVP。`buildRanking` 补 `handsPlayed`/`avatar`，新增 `buildAwards`。收件箱从「只有一行第几名/盈亏」补成 手数 + 本场称号 + 完整排名。（称号后来按用户要求去掉了括号说明。）
+- **横竖屏切换**（设置 → 屏幕布局：自动/竖屏/横屏）：⚠️ **真正的原因是 `body { max-width: 720px }` 把整个应用锁在中间一条**，所以最初只改牌面大小根本没用。横屏解除该限制让牌桌铺满页面；`auto` 按视口宽高比 ≥1.3 判定并监听 resize。
+- **头像库换新**：删旧 a1–a12（玩家嫌丑），新增 **b1–b27** 扑克+道场主题（`tools/gen-avatars.js` 生成）。`scripts/clear-legacy-avatars.js` 把指向旧头像的用户清成 null → 回退首字母色块。⚠️ **`tar` 解包不会删除服务器上已移除的文件**，部署后要手动 `rm avatars/a*.svg`。
+- **改名**：用朋友 PR 里的显示名方案（2–16 字符、保留字、24h 冷却），未改成金币计费。
+- **解散等本手打完**：房主点解散时若牌局进行中 → 挂 `pendingDissolve`、提示「本手打完后解散」，本手结束才真正结算/解散。SNG 解散逻辑抽成 `sng-match-service.dissolveSngRoom` 供两处共用。
+- **🔴 全押亮牌后仍能弃牌（经济漏洞）**：`advanceStage` 全押亮牌分支只设了 `allinRevealed`，**没清 `actionOnIdx`** → 仍指着最后行动者 → 他按钮亮着、服务端回合校验也放行、`fold` 分支又没全押判断 → **已全押的人能把牌弃掉、白丢池权**（run-it 协商时最明显）。修：①亮牌时 `actionOnIdx=-1`；②`player_action` 增加 `!canAct(player)` 兜底拒绝（不依赖客户端藏按钮）。与「全押者离场被误判弃牌」同属一类，两条路径现已都堵上。
+- **管理员功能**（⚙️ 面板 6 个 Tab）：玩家 / 房间总览 / 钱包流水 / 牌谱 / 审计 / 站内信。
+  - 房间总览 `GET /api/admin/rooms`、钱包流水 `GET /api/admin/wallet/:username`、牌谱 `GET /api/admin/hands/:username`（服务端顺带抽出被查者自己的底牌与净盈亏，前端别再去 seats/results 里翻）、网页审计 `GET /api/admin/audit`（**复用 `tools/audit-chips.js --json`，不另写判定逻辑**，保证网页/cron/手跑三处结论一致）、站内信 `POST /api/admin/broadcast`（单人或全体）。
+  - **带备注补偿 `POST /api/admin/adjust-gold`**：记「变动多少+为什么」而不是把金币设成某个数字；走钱包流水留痕、`requestId` 幂等、扣成负数拒绝、备注必填。
+  - 用户评价：目前只是大致框架，后续还要继续优化扩充。
+- ### 🧱 布局稳定性（反复踩了 3 次，值得记住）
+  - **座位被裁/遮挡**：不再手调百分比，改两层结构性保证——① `#ring-layer` 留安全内边距（顶部 118px，容纳名字/下注徽章/对手牌/胜率徽章的向上探出）；② 半径按**实际可用像素**动态夹取（座位块是固定像素尺寸，屏幕越小占比越大，写死百分比必然溢出）。新增 `seatfit` 测试：竖屏/横屏 × 2~9 人 × 5 种屏幕全枚举断言每个座位完整可见——**当场就抓出小屏 2~9px 溢出**。
+  - **房间信息水印与座位打架**：水印原来用 `top:20%` 百分比定位，窄屏时座位被夹取后向中间收就会压住它。改为固定在**顶部安全带**（合规横幅之下、座位环起点之上），几何上不可能重叠。
+  - **⚠️ 最坑的一次：CSS 注释写坏**。改说明时多打了一个注释结束符 → 注释提前闭合 → 后面两行中文变成游离文本 → **CSS 解析器把它连同下一条 `#ring-layer{...}` 整条当成非法选择器丢弃** → 座位乱飞、贴着座位定位的「开始」悬浮球飘到屏幕中间；切一下横竖屏（触发 resize 重排）才恢复。**排查了两轮才找到**，因为 `seatfit` 等用例是用**正则**读 CSS 取数值的，正则照样匹配到 `top: 118px` → 全绿通过，**测试读到了内容却不知道文件本身是坏的**。
+    → 新增 `tools/check-css.js` 并接入 `npm run check`：注释配对 / 花括号配平 / **规则之外不得有裸文本**。反向对照验证：还原坏注释立刻报出 3 处（带行号）。
+  - **进桌瞬间座位挤成一条线**：牌桌尺寸未定那一帧量到残缺值。修：`ringLayerSize` 挡掉 <240px 的测量（沿用上次有效值）+ **`ResizeObserver` 盯住牌桌区域**，尺寸真正确定/变化就整体重排（覆盖进桌/坐下/切横竖屏/窗口缩放/地址栏收起）。半径下限提到 rx26/ry24 作最后保险。
+
 ## ✅ SQLite 切换已完成（2026-08-08，测试服 + 香港生产均已上线）
 - **四步走全部完成**：①审计脚本改读 SQLite → ②合 main + 测试服首次迁移与验收 → ③备份脚本改 SQLite 并做恢复演练 → ④生产切换。
-- **生产迁移结果（与切换前基线逐项一致）**：用户 30 / 金币总额 699,993 / 站内消息 226 / 牌谱 10,090 / 反馈 1 / 管理员 CYB；`integrity: ok`、外键错误 0。数据库在 `/root/PokerGame/data/pokerdojo.sqlite`（代码目录之外，部署不覆盖）。
+- **生产迁移结果（与切换前基线逐项一致）**：用户 30 / 金币总额 699,993 / 站内消息 226 / 牌谱 10,090 / 反馈 1 / 管理员账号；`integrity: ok`、外键错误 0。数据库在 `/root/PokerGame/data/pokerdojo.sqlite`（代码目录之外，部署不覆盖）。
 - **切换前快照 + 异地副本**：`/root/PokerGame/backups/legacy-pre-sqlite-20260808-152918`，已 `scp` 到本机 `backups_offsite/` 并核对（30 / 699,993 / 10,090）。旧 JSON/JSONL 保留但不再写入。
 - **⚠️ 测试服首次迁移直接段错误（幸亏先上测试服）**：`better-sqlite3@13` 要求 **Node >=22**，而**两台服务器都是 Node v20.20.2** → `Segmentation fault` 崩在迁移脚本。已把依赖降到 **`^12`**（支持 `20.x||22.x||23.x||24.x`，同时覆盖服务器与本机 v22）。**选降依赖而不是升级服务器 Node——在数据迁移的同时更换运行时＝同时冒两个险。**
   - 这次崩溃反而**验证了故障保护有效**：旧数据分毫未动、未生成正式库（不留半成品被误认为可用）、PM2 保持 `stopped` 拒绝带不确定数据启动。

@@ -30,7 +30,7 @@ _截图待补 —— 见 [`docs/screenshots/`](./docs/screenshots/)。_
   - **现金 / "训练赛"(2–9 人)**:固定盲注,金币↔筹码带入/兑出(含价差抽水),训练时长 + 加时。
 - **完整多人引擎** —— 正确的行动顺序(UTG 起手)、按钮轮转、**真边池**(相邻同资格档位合并 + 未跟注退还)。
 - **多次发牌(run it N times)** —— 两人 all-in 时,落后方选发几次(1–5)、领先方同意,底池均分 N 份,在桌面上逐街依次发出。
-- **牌谱 = 数据资产** —— 每手完整记录(各街动作、思考时间、底牌、公共牌、结果、时间戳),按玩家、按模式归档为追加式 JSONL,同时作为 **AI 训练数据**。
+- **牌谱 = 数据资产** —— 每手完整记录(各街动作、思考时间、底牌、公共牌、结果、时间戳),按玩家、按模式归档在 SQLite 中,同时作为 **AI 训练数据**。每手另存一份完整原始记录,不会因表结构调整而丢字段。
 - **生涯统计** —— VPIP / PFR / 3-bet / C-bet / AF / WTSD / 盈亏 + 盈亏曲线,从牌谱聚合。
 - **牌桌体验** —— 环形座位、头像、呼吸行动框 + 环形倒计时、四色扑克、下注滑条、预操作、全押实时胜率%、筹码/底池动画、手机振动。
 - **社交** —— 桌内聊天 + 快捷短语、点头像发表情、按住说话语音气泡。
@@ -45,7 +45,7 @@ _截图待补 —— 见 [`docs/screenshots/`](./docs/screenshots/)。_
 浏览器 / 安卓 (薄客户端)  ──socket.io──►  Node 服务器 (权威)
    只负责展示 + 输入                        洗牌 · 发牌 · 判牌
                                             下注 · 边池 · 结算
-                                            牌谱落库 (JSONL)
+                                            牌谱落库 (SQLite)
 ```
 
 - **服务端权威**:规则全在服务器;客户端拿不到对手底牌。
@@ -61,7 +61,7 @@ _截图待补 —— 见 [`docs/screenshots/`](./docs/screenshots/)。_
 | `mobile/`      | Capacitor 安卓薄壳(`capacitor.config.json` 指向线上地址) |
 | `docs/`        | 设计文档 |
 
-**技术栈:** Node.js · Express · Socket.IO · 原生 HTML/CSS/JS 客户端 · JWT · bcrypt · nodemailer · JSON 文件存储。
+**技术栈:** Node.js · Express · Socket.IO · 原生 HTML/CSS/JS 客户端 · JWT · bcrypt · nodemailer · SQLite(better-sqlite3, WAL)。
 
 ---
 
@@ -84,7 +84,7 @@ LOCAL_DEV=1 PORT=3000 node server.js
 
 已完成:多人引擎 + 真边池 · SNG 与现金桌 · 多次发牌 · 牌谱 + 回放 · 生涯统计 · 头像/聊天/表情/语音 · CSPRNG 洗牌 · 邮箱账号 + TLS · 安卓打包。
 
-规划中:AI 对战(用每位玩家的牌谱训练) · 更多管理员功能 · 头像上传/改名 · 破产救济 · SQLite/Postgres 迁移。
+规划中:AI 对战(用每位玩家的牌谱训练) · 更多管理员功能 · 头像上传 · 破产救济 · 牌面样式。
 
 版本记录见 [`CHANGELOG.md`](./CHANGELOG.md)，旧版详细开发笔记见
 [`docs/archive/`](./docs/archive/)。
