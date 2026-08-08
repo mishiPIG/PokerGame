@@ -179,7 +179,19 @@ Android / iOS / PC
 - **另修 run-it 引入的崩溃**：`maxRunsByDeck` 按剩余牌堆限制可发次数（`offerRunIt` 的 max + `resolveRunIt` 夹取），防 9-max 多人弃牌后牌堆不足发 N 次导致 `drawCard()` 返回 null 崩/卡；客户端次数按钮随 `max`。
 - **验证**：jsdom 加载**真实 index.html** 直接跑 `buildRunitBoards`/`runitDealStreet`/`clearRunit`——preflop 2 组各 5 张、翻后全押共享 flop+每组并列 2 张、clearRunit 复原 全对 ✅；socket 回归 runit/sidepot/sidepot2/standflow/hostfeat 全通 ✅。（确认渲染函数本身没问题，就是跨手残留 class。）
 
-## 🗄️ SQLite 持久化 + 重启恢复（朋友 PR #7，2026-08-08 合并中，⚠️ 上线前须完成灰度验证）
+## ✅ SQLite 切换已完成（2026-08-08，测试服 + 香港生产均已上线）
+- **四步走全部完成**：①审计脚本改读 SQLite → ②合 main + 测试服首次迁移与验收 → ③备份脚本改 SQLite 并做恢复演练 → ④生产切换。
+- **生产迁移结果（与切换前基线逐项一致）**：用户 30 / 金币总额 699,993 / 站内消息 226 / 牌谱 10,090 / 反馈 1 / 管理员 CYB；`integrity: ok`、外键错误 0。数据库在 `/root/PokerGame/data/pokerdojo.sqlite`（代码目录之外，部署不覆盖）。
+- **切换前快照 + 异地副本**：`/root/PokerGame/backups/legacy-pre-sqlite-20260808-152918`，已 `scp` 到本机 `backups_offsite/` 并核对（30 / 699,993 / 10,090）。旧 JSON/JSONL 保留但不再写入。
+- **⚠️ 测试服首次迁移直接段错误（幸亏先上测试服）**：`better-sqlite3@13` 要求 **Node >=22**，而**两台服务器都是 Node v20.20.2** → `Segmentation fault` 崩在迁移脚本。已把依赖降到 **`^12`**（支持 `20.x||22.x||23.x||24.x`，同时覆盖服务器与本机 v22）。**选降依赖而不是升级服务器 Node——在数据迁移的同时更换运行时＝同时冒两个险。**
+  - 这次崩溃反而**验证了故障保护有效**：旧数据分毫未动、未生成正式库（不留半成品被误认为可用）、PM2 保持 `stopped` 拒绝带不确定数据启动。
+- **两个 cron 必须同步改（否则静默失效，最危险）**：切换后 `hands.jsonl`/`data.json` **冻结不再更新**。
+  - 备份：旧 `backup.sh`（cp data.json/hands.jsonl）→ **`scripts/backup-cron.sh`**，用 SQLite Online Backup 生成一致性快照（WAL 下 cp 主库文件会得到**损坏备份且平时看不出来**），并**备份完立刻校验备份文件本身**，不 ok 就失败退出保留现场。cron `0 4 * * *`，留 30 份（单份 71MB，磁盘 86G 富余）。
+  - 审计：`tools/audit-chips.js` 改为**优先读 SQLite**（`POKER_DB_PATH` / `--db`），并加**数据源自检**——「SQLite 已存在却还在读 JSONL」判为配置错误直接告警；「单纯数据旧」只提示不告警（低活跃期误报会把告警变吵，那才真危险）。cron `30 4 * * *` 已带 `POKER_DB_PATH`。**两个 cron 都已立刻实跑验证，没等到次日凌晨才发现坏。**
+- **验收**：测试服——我的 6 项回归 + 朋友 25 个测试 + 客户端 jsdom 全过；**pm2 restart 后牌局/座位/筹码完整恢复（7940→7940）**；备份→还原→完整性 ok→数据可读→**审计可直接对备份文件运行**（事后追查不必碰生产库）；测试服全部 1975 手筹码守恒。生产——数据基线全对、登录接口正常查库、日志无新错误。
+- 💡 **排障备忘**：生产 `poker-error.log` 里的 `db is not defined`(2026-07-26) 与测试服的 `EXTRA_MAX is not defined`(2026-07-17) 都是**历史日志**，早已修复，别再当成新问题。`https://pokerdojo.space` 在 KAUST 网络打不开是**域名被过滤**（见前文备忘），直连 IP 与服务器本地自测均 200。
+
+## 🗄️ SQLite 持久化 + 重启恢复（朋友 PR #7，2026-08-08 合并）
 - **来源**：dreamingwill 的 `merge/sqlite-database`（84 文件 / +6186 −1179）。正好实现待办里的**牌局状态持久化 + 重启恢复**（原 P0 第 2 条）。
 - **内容**：SQLite 存储（用户/经济流水/牌谱/**活跃比赛快照**）、旧 data.json→SQLite 迁移、活跃牌局重启恢复、备份工具 `scripts/backup-sqlite.js`、部署防护、测试与部署文档 `docs/refactor/database/DEPLOYMENT.md`。
 - **数据安全铁律（来自该 PR，必须遵守）**：
