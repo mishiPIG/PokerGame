@@ -274,6 +274,11 @@ function showTable() {
     document.getElementById('lobby-view').style.display = 'none';
     document.getElementById('table-view').style.display = '';
     document.body.classList.add('in-room');
+    // 刚从大厅切过来时牌桌尺寸还没定下来，此时算出的座位坐标不准（座位会挤在一起）。
+    // 等浏览器完成一次布局后再重排一遍，坐标才是按真实尺寸算的。
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (typeof lastState !== 'undefined' && lastState && typeof render === 'function') render(lastState);
+    }));
 }
 let createTab = 'sng';
 const CASH_BLINDS = [[10,20],[20,40],[30,60],[50,100],[100,200],[200,400],[300,600],[500,1000]];

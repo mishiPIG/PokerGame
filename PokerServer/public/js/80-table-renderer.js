@@ -60,12 +60,19 @@ function emptySlot() {
 // overhangTop = 头像上方额外探出的最高元素（全押胜率徽章 top:-34px）。
 // 半径夹取要用它，改 CSS 尺寸时这里要同步。
 const SEAT_BOX = { w: 78, h: 81, overhangTop: 34 };
-// 座位环可用尺寸：优先量真实 DOM；测试环境(jsdom 无布局)可用 __ringW/__ringH 注入
+// 座位环可用尺寸：优先量真实 DOM；测试环境(jsdom 无布局)可用 __ringW/__ringH 注入。
+// ⚠️ 必须挡掉「残缺尺寸」：牌桌刚显示、布局还没稳定的那一帧量到的可能是个很小的非零值，
+// 半径夹取会因此退化成最小值 → 所有座位挤成一条线（点「坐下」瞬间出现过）。
+// 小于 MIN_SANE 的测量一律当作不可信，改用上一次的有效值 / 兜底值。
+const MIN_SANE = 240;
+let _lastRingSize = null;
 function ringLayerSize() {
     const el = document.getElementById('ring-layer');
-    const w = (el && el.clientWidth) || window.__ringW || 360;
-    const h = (el && el.clientHeight) || window.__ringH || 480;
-    return { w, h };
+    let w = (el && el.clientWidth) || window.__ringW || 0;
+    let h = (el && el.clientHeight) || window.__ringH || 0;
+    if (w >= MIN_SANE && h >= MIN_SANE) { _lastRingSize = { w, h }; return _lastRingSize; }
+    if (_lastRingSize) return _lastRingSize;                  // 用上一次量到的有效尺寸
+    return { w: Math.max(w, 360), h: Math.max(h, 480) };      // 首次就量不到 → 保守兜底
 }
 function ringPos(ringIndex, M) {
     // 半径是相对 #ring-layer 的百分比；#ring-layer 已留安全内边距（见 00-shell.css）。
@@ -148,10 +155,14 @@ function animateChipCounts(state) {
 function triggerSeatRotate() {
     const r = document.getElementById('ring-layer');
     if (!r) return;
-    r.classList.remove('rotating');
-    void r.offsetWidth;
-    r.classList.add('rotating');
-    setTimeout(() => r.classList.remove('rotating'), 650);
+    // 先等布局稳定再起动画：否则动画会从一个「座位还没排好」的画面开始（曾出现座位挤成一条线）
+    requestAnimationFrame(() => {
+        if (typeof lastState !== 'undefined' && lastState) render(lastState);
+        r.classList.remove('rotating');
+        void r.offsetWidth;
+        r.classList.add('rotating');
+        setTimeout(() => r.classList.remove('rotating'), 650);
+    });
 }
 // 空座位：现金桌观众可点击「坐下」入座（携带座位号）；其余淡色占位
 function emptySeatHtml(canSit, seat) {
