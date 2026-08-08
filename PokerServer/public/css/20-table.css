@@ -129,13 +129,31 @@
             border: 1px solid #ddd; padding: calc(var(--card-w) * 0.09) calc(var(--card-w) * 0.11);
             box-shadow: 0 2px 5px rgba(0,0,0,0.35); font-weight: bold; user-select: none;
         }
+        /* ── 牌面样式（设置里可选 4 种，body.cs-* 切换）──
+           之前「标准/四色」两个选项其实没有区别：四色被写成无条件常开，开关是死的。
+           现在四种都做成真正看得出差别的，全部纯 CSS、零美术素材。*/
         .card.red { color: #e01e1e; }
         .card.black { color: #17181c; }
-        /* 四色默认常开（放在 red/black 之后以覆盖之）：黑桃黑·红心红·方块蓝·梅花绿，一眼分清花色 */
-        .card.suit-spades   { color: #17181c; }
-        .card.suit-hearts   { color: #e01e1e; }
-        .card.suit-diamonds { color: #1667e0; }
-        .card.suit-clubs    { color: #109b46; }
+        /* ① 四色（默认）：黑桃黑·红心红·方块蓝·梅花绿，一眼分清花色 */
+        body.cs-four .card.suit-spades   { color: #17181c; }
+        body.cs-four .card.suit-hearts   { color: #e01e1e; }
+        body.cs-four .card.suit-diamonds { color: #1667e0; }
+        body.cs-four .card.suit-clubs    { color: #109b46; }
+        /* ② 标准：传统两色（红桃/方块红，黑桃/梅花黑）——.red/.black 已经是这个，无需额外规则 */
+        /* ③ 黑面：深色卡面+浅色字，暗光环境不刺眼；红色系提亮以保证对比度 */
+        body.cs-dark .card { background: linear-gradient(160deg,#252a33,#161a21); border-color: #39404d;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.55); }
+        body.cs-dark .card.suit-spades   { color: #e8eef7; }
+        body.cs-dark .card.suit-hearts   { color: #ff6b6b; }
+        body.cs-dark .card.suit-diamonds { color: #5aa8ff; }
+        body.cs-dark .card.suit-clubs    { color: #4ade80; }
+        /* ④ 大字：点数占满、花色缩到角落——最远也能一眼读牌（弱视/小屏友好）*/
+        body.cs-big .card .rank { font-size: calc(var(--card-w) * 0.86); }
+        body.cs-big .card .suit { font-size: calc(var(--card-w) * 0.34); align-self: flex-end; margin-top: -8%; }
+        body.cs-big .card.suit-spades   { color: #17181c; }
+        body.cs-big .card.suit-hearts   { color: #e01e1e; }
+        body.cs-big .card.suit-diamonds { color: #1667e0; }
+        body.cs-big .card.suit-clubs    { color: #109b46; }
         .card.back {
             background: repeating-linear-gradient(45deg,#1e3a5f 0,#1e3a5f 5px,#2c5aa0 5px,#2c5aa0 10px);
             border-color: #1e3a5f;

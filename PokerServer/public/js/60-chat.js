@@ -84,10 +84,14 @@ function openAvatarPopup(userId) {
     if (socket) socket.emit('req_player_stats', { targetUserId: userId });
 }
 function closeAvatarPopup() { avatarPopupUserId = null; document.getElementById('avatar-popup').style.display = 'none'; }
+// 连发：点完不再自动关弹层，可以连点「啪啪啪」扔一串；1.5s 没再点才自动收起。
+let _emoteCloseTimer = null;
 function sendPopupEmote(e) {
     const target = (avatarPopupUserId && avatarPopupUserId !== myUserId) ? avatarPopupUserId : null;
     if (socket) socket.emit('emote', { emote: e, targetUserId: target });
-    closeAvatarPopup();
+    vibrate(20);
+    clearTimeout(_emoteCloseTimer);
+    _emoteCloseTimer = setTimeout(() => closeAvatarPopup(), 1500);
 }
 // 从当前牌桌状态取某人的「本房战绩」（与「当前战绩」面板同源：chips-buyIn），保证两处口径一致
 function roomStatFor(userId) {

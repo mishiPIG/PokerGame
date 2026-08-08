@@ -22,9 +22,15 @@ function registerSocialEvents(context) {
         const roomId = socket.currentRoom;
         if (!roomId || !roomGames[roomId]) return;
         if (typeof emote !== 'string' || emote.length > 8) return;
+        // 连发：原来固定 0.8s 一发，想「啪啪啪」连点根本发不出去。改成令牌桶——
+        // 允许短时间内连发一小串（更有互动感），长期速率仍受限，防刷屏。
         const now = Date.now();
-        if (now - (socket._lastEmote || 0) < 800) return;   // 限频 0.8s
-        socket._lastEmote = now;
+        const BURST = 6, REFILL_MS = 700;                    // 最多连发 6 个，之后每 0.7s 回一个
+        const last = socket._emoteAt || now;
+        socket._emoteTokens = Math.min(BURST, (socket._emoteTokens ?? BURST) + (now - last) / REFILL_MS);
+        socket._emoteAt = now;
+        if (socket._emoteTokens < 1) return;                 // 令牌用尽：静默丢弃（不打扰发送者）
+        socket._emoteTokens -= 1;
         io.in(roomId).emit('emote_broadcast', { userId: user.id, emote, targetUserId: targetUserId || null });
     });
 

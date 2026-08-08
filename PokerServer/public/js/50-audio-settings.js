@@ -76,6 +76,41 @@ function showButtonDraw(draws, winnerId) {
     setTimeout(() => document.querySelectorAll('.bd-card').forEach(e => e.remove()), 2700);
 }
 // 给别人发表情：表情从发送者头像「飞」到目标头像，落点冒泡，增强互动感
+// 动态表情：给常用表情各配一种「动感」（纯 CSS keyframe，零素材、手机上也稳）
+const EMOTE_MOTION = {
+    '🎣': 'cast',    // 叉鱼：甩杆式摆动
+    '🦈': 'chomp',   // 鲨鱼：一口一口逼近
+    '🍺': 'clink',   // 干杯：碰杯左右晃
+    '🌹': 'float',   // 送花：轻飘飘
+    '💩': 'tumble',  // 翻滚
+    '👍': 'pop',     // 弹一下
+    '💰': 'pop',
+    '🍀': 'float',
+    '🧊': 'float',
+    '👏': 'clink',
+    '💪': 'pop'
+};
+function emoteMotion(e) { return EMOTE_MOTION[e] || 'spin'; }
+
+// 连发计数：短时间内同一个人扔同一个表情 → 在目标头上累加 ×N，而不是刷出一堆重复气泡
+const _comboMap = new Map();   // key: from|to|emote → {n, timer, el}
+function bumpCombo(toUserId, emote, key) {
+    const seat = document.querySelector(`.seat[data-uid="${toUserId}"]`);
+    if (!seat) return;
+    let c = _comboMap.get(key);
+    if (!c) {
+        const el = document.createElement('div');
+        el.className = 'emote-combo';
+        seat.appendChild(el);
+        c = { n: 0, el, timer: null };
+        _comboMap.set(key, c);
+    }
+    c.n++;
+    if (c.n >= 2) { c.el.textContent = '×' + c.n; c.el.classList.add('show', 'bump'); setTimeout(() => c.el.classList.remove('bump'), 180); }
+    clearTimeout(c.timer);
+    c.timer = setTimeout(() => { c.el.remove(); _comboMap.delete(key); }, 1600);
+}
+
 function flyEmote(fromUserId, toUserId, emote) {
     const fromEl = document.querySelector(`.seat[data-uid="${fromUserId}"] .avatar-block`);
     const toEl = document.querySelector(`.seat[data-uid="${toUserId}"] .avatar-block`);
@@ -84,11 +119,15 @@ function flyEmote(fromUserId, toUserId, emote) {
     const ax = a.left + a.width / 2, ay = a.top + a.height / 2;
     const dx = (b.left + b.width / 2) - ax, dy = (b.top + b.height / 2) - ay;
     const el = document.createElement('div');
-    el.className = 'fly-emote'; el.textContent = emote;
+    el.className = 'fly-emote motion-' + emoteMotion(emote);
+    el.textContent = emote;
     el.style.left = ax + 'px'; el.style.top = ay + 'px';
-    el.style.setProperty('--dx', dx + 'px');
-    el.style.setProperty('--dy', dy + 'px');
+    // 连发时给每个飞行体一点随机偏移，看起来是「一串」而不是完全重叠的一个
+    const jitter = () => (Math.random() - 0.5) * 34;
+    el.style.setProperty('--dx', (dx + jitter()) + 'px');
+    el.style.setProperty('--dy', (dy + jitter()) + 'px');
     document.body.appendChild(el);   // 用 CSS keyframe（比 transition+rAF 在手机上更稳）
+    bumpCombo(toUserId, emote, `${fromUserId}|${toUserId}|${emote}`);
     setTimeout(() => { el.remove(); seatBubble(toUserId, emote, true); }, 640);
 }
 // 手机振动反馈（不支持则忽略）
@@ -140,7 +179,7 @@ const PRE_CHOICES  = [2, 2.2, 2.5, 3, 3.5, 4, 5];                              /
 const MAX_QUICK = 5;   // 最多 5 个快捷尺度
 let settings = {
     theme:     localStorage.getItem('s_theme') || 'green',
-    cardStyle: localStorage.getItem('s_cardStyle') || 'standard',
+    cardStyle: localStorage.getItem('s_cardStyle') || 'four',   // 四色为默认（最易辨认）
     // 屏幕布局：auto=按屏幕比例自动（宽屏走横屏）/ portrait=强制竖屏 / landscape=强制横屏
     layout:    localStorage.getItem('s_layout') || 'auto',
     quickBetsPost: JSON.parse(localStorage.getItem('s_quickBetsPost') || localStorage.getItem('s_quickBets') || '[0.5,0.75,1]'),
@@ -158,7 +197,10 @@ function saveSettings() {
 function applySettings() {
     document.body.classList.remove('theme-blue', 'theme-green', 'theme-gray', 'theme-purple');
     document.body.classList.add('theme-' + settings.theme);
-    document.body.classList.toggle('four-color', settings.cardStyle === 'four');
+    // 牌面样式：四选一（four 四色 / standard 传统两色 / dark 黑面 / big 大字）
+    document.body.classList.remove('cs-four', 'cs-standard', 'cs-dark', 'cs-big');
+    document.body.classList.add('cs-' + settings.cardStyle);
+    document.body.classList.toggle('four-color', settings.cardStyle === 'four');   // 兼容旧规则
     applyLayoutMode();
     renderQuickBets();
 }

@@ -67,10 +67,28 @@ function renderHistory(hands, listId) {
             <div class="hi-cards"><span class="hi-mine">${holeCards}</span><span class="hi-comm">${commCards}</span></div></div>`;
     }).join('');
     const st = histState[listId];
+    // 滚动到底自动加载：底部放一个哨兵，进入视口就拉下一页（不再需要点「加载更多」）。
+    // 仍保留一个可点的按钮作为降级——IntersectionObserver 不可用、或自动加载没触发时还能手动点。
     const footer = (st && !st.done)
         ? `<button class="hist-more" id="histmore-${listId}" onclick="fetchHistPage('${listId}')">加载更多（已 ${hands.length} 手）</button>`
         : `<div class="hist-empty" style="font-size:11px">— 已全部 ${hands.length} 手 —</div>`;
     list.innerHTML = items + footer;
+    if (st && !st.done) observeHistSentinel(listId);
+}
+
+// 让「加载更多」按钮本身充当哨兵：它一进入视口就自动拉下一页
+const _histObservers = {};
+function observeHistSentinel(listId) {
+    const btn = document.getElementById('histmore-' + listId);
+    if (!btn) return;
+    if (typeof IntersectionObserver !== 'function') return;   // 老浏览器：保持手动点击
+    if (_histObservers[listId]) _histObservers[listId].disconnect();
+    const list = document.getElementById(listId);
+    const io2 = new IntersectionObserver(entries => {
+        if (entries.some(e => e.isIntersecting)) fetchHistPage(listId);
+    }, { root: list && list.scrollHeight > list.clientHeight ? list : null, rootMargin: '120px' });
+    io2.observe(btn);
+    _histObservers[listId] = io2;
 }
 function openReplayFrom(listId, idx) {
     const h = (histHandsByList[listId] || [])[idx];
