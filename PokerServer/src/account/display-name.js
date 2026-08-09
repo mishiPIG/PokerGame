@@ -26,7 +26,14 @@ function displayNameChangeRemainingMs(user, now = Date.now()) {
     return Math.max(0, changedAt + DISPLAY_NAME_COOLDOWN_MS - now);
 }
 
+// 所有【给玩家看】的文字一律走这里：玩家改名后要显示新名字。
+// （username 是账号名、改名不会变，只适合服务器日志/审计这种要稳定身份的地方。）
+function nameOf(u) {
+    return (u && (u.displayName || u.username)) || '玩家';
+}
+
 module.exports = {
+    nameOf,
     DISPLAY_NAME_COOLDOWN_MS,
     displayNameChangeAllowed,
     displayNameChangeRemainingMs,

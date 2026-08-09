@@ -1,4 +1,5 @@
 'use strict';
+const { nameOf } = require('../../account/display-name');
 
 function registerPokerCardEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
@@ -19,7 +20,7 @@ function registerPokerCardEvents(context) {
         set.add(index);
         const shown = [...set].map(i => ({ index: i, suit: hole[i].suit, rank: hole[i].rank }));
         io.in(roomId).emit('show_cards', { userId: user.id, cards: shown });
-        io.in(roomId).emit('server_msg', `👁️ ${user.username} 亮出一张牌`);
+        io.in(roomId).emit('server_msg', `👁️ ${nameOf(user)} 亮出一张牌`);
         // 每亮一张牌就重置局间倒计时，给大家看牌的时间
         scheduleNextHand(roomId);
         persistence.commit(roomId, 'card_shown', user.id, { index });
@@ -34,7 +35,7 @@ function registerPokerCardEvents(context) {
         const count = n === 0 ? 3 : 1;            // 0→翻牌3张，3→转牌1张，4→河牌1张
         const streetName = n === 0 ? '翻牌' : (n === 3 ? '转牌' : '河牌');
         // 公共牌下方显示一行字：谁想看（不走弹幕、不加表情）
-        io.in(roomId).emit('table_notice', { text: `${user.username} 想看${streetName}` });
+        io.in(roomId).emit('table_notice', { text: `${nameOf(user)} 想看${streetName}` });
         const dealt = dealCommunity(game, count);
         io.in(roomId).emit('server_msg', `🐰 看后续牌：${dealt.map(c => c.toString()).join(' ')}`);
         scheduleNextHand(roomId);                 // 重置局间倒计时，给看牌时间

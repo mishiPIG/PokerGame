@@ -1,4 +1,5 @@
 'use strict';
+const { nameOf } = require('../account/display-name');
 
 function createSeatService({ io, db, roomGames, lobbySockets, config, persistence, hooks }) {
     const { PHASES, BUYIN_RATE, CASHOUT_RATE, gameBB, timeCardsFor } = config;
@@ -78,7 +79,7 @@ function restoreVacatedPlayer(roomId, socket, user, preferSeat) {
         timeCards: vp.timeCards || 0,
         folded: inHand, allIn: false, hasActed: false, ready: false, sittingOut: vp.chips <= 0
     });
-    io.in(roomId).emit('server_msg', `🪑 ${user.username} 回到座位（${seat + 1} 号位，带回原筹码）`);
+    io.in(roomId).emit('server_msg', `🪑 ${nameOf(user)} 回到座位（${seat + 1} 号位，带回原筹码）`);
     if (game.status === 'running' && !inHand && liveCount(game) >= 2) scheduleNextHand(roomId);
     broadcastState(roomId); broadcastRoomList();
     return true;
@@ -135,26 +136,26 @@ function removeBustedPlayers(game) {
             if (p.vacateAfter) { vacateSeat(game, i); continue; }
             // 自动补码：耗尽且开启 autoRebuy 且无挂起 → 自动按最小带入补一手
             if (p.chips <= 0 && p.autoRebuy && !(p.pendingRebuy > 0) && !p.leaving) {
-                if (chargeRebuy(game, p, game.config.minBuyIn)) io.in(roomId).emit('server_msg', `🔁 ${p.username} 自动补码 ${game.config.minBuyIn}`);
+                if (chargeRebuy(game, p, game.config.minBuyIn)) io.in(roomId).emit('server_msg', `🔁 ${nameOf(p)} 自动补码 ${game.config.minBuyIn}`);
             }
             // 有挂起补码：下一手生效（加筹码，取消坐出）
             if (p.pendingRebuy > 0) { p.chips += p.pendingRebuy; p.pendingRebuy = 0; p.sittingOut = false; }
             if (p.leaving) {
                 recordLeft(game, p);   // 战绩面板灰显 + 结束排名
                 const payout = cashOut(p);
-                io.in(roomId).emit('server_msg', `🚪 ${p.username} 离场，兑出 ${payout} 金币`);
+                io.in(roomId).emit('server_msg', `🚪 ${nameOf(p)} 离场，兑出 ${payout} 金币`);
                 const s = io.sockets.sockets.get(p.socketId);
                 if (s && s.currentRoom === roomId) { s.leave(roomId); s.currentRoom = null; lobbySockets.add(s.id); s.emit('busted_out'); }
                 game.players.splice(i, 1);
                 if (game.buttonIdx > i) game.buttonIdx--;
             } else if (p.chips <= 0 && !p.sittingOut) {
                 p.sittingOut = true;   // 坐出（保留座位），等补码
-                io.in(roomId).emit('server_msg', `💤 ${p.username} 记分牌耗尽，坐出（可补码回来）`);
+                io.in(roomId).emit('server_msg', `💤 ${nameOf(p)} 记分牌耗尽，坐出（可补码回来）`);
             }
         } else {
             if (p.chips <= 0) {
                 recordLeft(game, p);   // SNG 淘汰顺序（用于结束排名：先淘汰=末名）
-                io.in(roomId).emit('server_msg', `💀 ${p.username} 出局`);
+                io.in(roomId).emit('server_msg', `💀 ${nameOf(p)} 出局`);
                 // 淘汰后【留在房间继续观战】：只把他移出座位，不再踢出 socket 房间。
                 // 观众 = 房间内未在座者（见 listSpectators），所以 splice 之后他自动就是观众。
                 // 多人 SNG（类似 FT）里被淘汰还想看朋友打完，硬踢回大厅体验很差。
@@ -287,7 +288,7 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
         return false;
     }
     socket.emit('room_joined', { roomId, canPlay: socket.playRoom === roomId });
-    socket.to(roomId).emit('server_msg', `🪑 ${user.username} 入座 ${seat + 1} 号位`);
+    socket.to(roomId).emit('server_msg', `🪑 ${nameOf(user)} 入座 ${seat + 1} 号位`);
     broadcastState(roomId);
     broadcastRoomList();
     return true;

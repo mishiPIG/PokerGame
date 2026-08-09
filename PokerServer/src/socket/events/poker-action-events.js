@@ -1,4 +1,5 @@
 'use strict';
+const { nameOf } = require('../../account/display-name');
 
 function registerPokerActionEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
@@ -17,7 +18,7 @@ function registerPokerActionEvents(context) {
         // 万一 actionOnIdx 因任何原因指错（曾出现：全押亮牌后没清行动位，导致他能把牌弃掉、白丢池权），
         // 也不能让这类操作落地。这是服务端权威校验，不依赖客户端是否把按钮藏好。
         if (!canAct(player)) { socket.emit('server_msg', '⚠️ 你已全押/已弃牌，无需再行动'); return; }
-        const tag = player.username;
+        const tag = nameOf(player);   // 广播给全桌看的名字：改名后要显示新名字
 
         switch (action) {
             case 'fold':
@@ -161,7 +162,7 @@ function registerPokerActionEvents(context) {
         game.actionTotalMs = (game.actionTotalMs || ACTION_TIME) + add;
         clearActionTimer(game);
         game.actionTimer = setTimeout(() => onActionTimeout(roomId), Math.max(0, game.actionDeadline - Date.now()));
-        io.in(roomId).emit('server_msg', `⏱ ${user.username} 加时 +${add / 1000}s（剩 ${actor.timeCards} 张时间卡）`);
+        io.in(roomId).emit('server_msg', `⏱ ${nameOf(user)} 加时 +${add / 1000}s（剩 ${actor.timeCards} 张时间卡）`);
         broadcastState(roomId);
     });
 

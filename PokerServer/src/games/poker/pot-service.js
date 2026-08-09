@@ -1,4 +1,5 @@
 'use strict';
+const { nameOf } = require('../../account/display-name');
 
 function createPotService({ io, roomGames, gameBB }) {
 // 收注：把本街各家下注累加到本手累计投入 committed（真边池在摊牌时按 committed 计算）
@@ -70,7 +71,7 @@ function returnUncalledBets(roomId) {
     tp.committed -= refund;
     if (tp.allIn && tp.chips > 0) tp.allIn = false;  // 退回后不再是全押
     game.pot = game.players.reduce((s, p) => s + (p.committed || 0), 0);
-    io.in(roomId).emit('server_msg', `↩️ ${tp.username} 未被跟注，退还 ${refund}`);
+    io.in(roomId).emit('server_msg', `↩️ ${nameOf(tp)} 未被跟注，退还 ${refund}`);
 }
 
 // 实时分池：仅当「某未弃牌玩家 all-in 且投入 < 其他未弃牌玩家」才分主/边池；

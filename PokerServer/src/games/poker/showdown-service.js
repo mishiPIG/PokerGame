@@ -1,4 +1,5 @@
 'use strict';
+const { nameOf } = require('../../account/display-name');
 
 function createShowdownService({ io, roomGames, HandEvaluator, activePlayers, buildSidePots, returnUncalledBets, hooks }) {
     const { saveHandHistory, commitHandHistory, applyPendingLevelUp, broadcastState, maybeEndSNG, scheduleNextHand } = hooks;
@@ -63,7 +64,7 @@ function doShowdown(roomId) {
     });
     const label = winnerIds.map(id => {
         const p = game.players.find(x => x.userId === id);
-        return `${p ? p.username : id} +${winShare[id]}`;
+        return `${p ? nameOf(p) : id} +${winShare[id]}`;
     }).join('，');
     io.in(roomId).emit('server_msg', `🏆 ${label}（边池数 ${pots.length}）`);
 

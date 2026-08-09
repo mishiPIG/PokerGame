@@ -22,6 +22,7 @@ function createPokerService({ io, db, equity, Deck, HandEvaluator, config, runti
 
     const runItService = createRunItService({
         io, roomGames, HandEvaluator, equity, config, persistence, activePlayers: pokerRules.activePlayers,
+        buildSidePots: potService.buildSidePots,
         hooks: { broadcastState: statePresenter.broadcastState, saveHandHistory: handHistoryService.saveHandHistory, commitHandHistory: handHistoryService.commitHandHistory, applyPendingLevelUp: hooks.applyPendingLevelUp, maybeEndSNG: hooks.maybeEndSNG, scheduleNextHand: hooks.scheduleNextHand, advanceStage: (...args) => handService.advanceStage(...args) }
     });
     const showdownService = createShowdownService({

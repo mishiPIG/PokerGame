@@ -1,4 +1,5 @@
 'use strict';
+const { nameOf } = require('../../account/display-name');
 
 function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config, rules, pots, presenter, straddle, runIt, showdown, history, hooks }) {
     const { PHASES, ACTION_TIME, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, STANDARD_BLIND_LEVELS, gameSB, gameBB, gameAnte, timeCardsFor } = config;
@@ -69,11 +70,11 @@ function onActionTimeout(roomId) {
     if (toCall <= 0) {
         player.hasActed = true;
         recordAction(game, player, 'check', player.currentBet);
-        io.in(roomId).emit('server_msg', `⏱ ${player.username} 超时自动过牌`);
+        io.in(roomId).emit('server_msg', `⏱ ${nameOf(player)} 超时自动过牌`);
     } else {
         player.folded = true; player.hasActed = true;
         recordAction(game, player, 'fold', 0);
-        io.in(roomId).emit('server_msg', `⏱ ${player.username} 超时自动弃牌`);
+        io.in(roomId).emit('server_msg', `⏱ ${nameOf(player)} 超时自动弃牌`);
     }
     afterAction(roomId);
     maybeShowStraddleAfterAction(roomId, player.userId);
@@ -155,7 +156,7 @@ function advanceStage(roomId) {
             if (active.length === 1) {
                 const winner = active[0];
                 winner.chips += game.pot;   // 其余全弃，独得全部投入
-                io.in(roomId).emit('server_msg', `🏆 ${winner.username} 赢得底池 ${game.pot}（其余弃牌）`);
+                io.in(roomId).emit('server_msg', `🏆 ${nameOf(winner)} 赢得底池 ${game.pot}（其余弃牌）`);
                 io.in(roomId).emit('sfx', 'win');
                 completedHand = saveHandHistory(game, { [winner.userId]: game.pot });
             } else {
@@ -250,7 +251,7 @@ function drawForButton(roomId) {
     const live = game.players.filter(canPlay);
     if (live.length < 2) { startHand(roomId); return; }
     const d = new Deck(); d.reset(); d.shuffle();
-    const draws = live.map(p => ({ userId: p.userId, username: p.username, seat: p.seat, card: d.drawCard() }));
+    const draws = live.map(p => ({ userId: p.userId, username: p.username, displayName: p.displayName, seat: p.seat, card: d.drawCard() }));
     let win = draws[0];
     for (const x of draws) if (cardScore(x.card) > cardScore(win.card)) win = x;
     game.forceButtonSeat = win.seat;   // 首手强制此人为庄（startHand 不轮转）
@@ -258,7 +259,7 @@ function drawForButton(roomId) {
         draws: draws.map(x => ({ userId: x.userId, card: { suit: x.card.suit, rank: x.card.rank } })),
         winnerId: win.userId
     });
-    io.in(roomId).emit('server_msg', `🎴 高牌定庄：${win.username} 拿到最大牌，本场首庄`);
+    io.in(roomId).emit('server_msg', `🎴 高牌定庄：${nameOf(win)} 拿到最大牌，本场首庄`);
     clearTimeout(game.nextHandTimer);
     game.nextHandAt = Date.now() + BUTTON_DRAW_MS;
     game.nextHandTimer = setTimeout(() => startHand(roomId), BUTTON_DRAW_MS);
@@ -390,7 +391,7 @@ function startHand(roomId) {
         if (pl.chips === 0) pl.allIn = true;
         game.currentBet = expectAmt;
         game.lastRaiseSize = expectAmt;
-        game.straddles.push({ userId: pl.userId, username: pl.username, amount: expectAmt, chainIndex: ci });
+        game.straddles.push({ userId: pl.userId, username: pl.username, displayName: pl.displayName, amount: expectAmt, chainIndex: ci });
         lastStraddlerIdx = idx;
     }
     // game.straddle 保留为「最后一档」，兼容既有的 state/牌谱/客户端展示
@@ -401,10 +402,10 @@ function startHand(roomId) {
     game.straddleChain = [];
 
     io.in(roomId).emit('server_msg', `\n--- 🎲 新一局开始 ---`);
-    io.in(roomId).emit('server_msg', `💰 SB: ${sb.username} (${sbAmt}) | BB: ${bb.username} (${bbAmt})`);
+    io.in(roomId).emit('server_msg', `💰 SB: ${nameOf(sb)} (${sbAmt}) | BB: ${nameOf(bb)} (${bbAmt})`);
     (game.straddles || []).forEach((st, i) => {
         const label = i === 0 ? 'UTG Straddle' : `Re-straddle ×${i + 1}`;
-        io.in(roomId).emit('server_msg', `🔥 ${st.username} ${label} ${st.amount}`);
+        io.in(roomId).emit('server_msg', `🔥 ${nameOf(st)} ${label} ${st.amount}`);
         io.in(roomId).emit('straddle_posted', { userId: st.userId, amount: st.amount, chainIndex: i });
     });
 

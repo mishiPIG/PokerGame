@@ -1,6 +1,7 @@
 'use strict';
+const { nameOf } = require('../../../../account/display-name');
 
-function createRunItService({ io, roomGames, HandEvaluator, equity, config, persistence, activePlayers, hooks }) {
+function createRunItService({ io, roomGames, HandEvaluator, equity, config, persistence, activePlayers, buildSidePots, hooks }) {
     const { RUNIT_MAX, RUNIT_DECIDE_MS, RUNOUT_DELAY, PHASES } = config;
     const { broadcastState, saveHandHistory, commitHandHistory, applyPendingLevelUp, maybeEndSNG, scheduleNextHand, advanceStage } = hooks;
 function offerRunIt(roomId, act) {
@@ -94,28 +95,55 @@ function executeRunouts(roomId, n) {
     const contenders = ids.filter(id => game.holeCards[id]);
     const baseLen = game.communityCards.length;
     const base = game.communityCards.slice();          // Card 对象（共享底：已发的公共牌）
-    const pot = game.pot;
-    const share = Math.floor(pot / n);
-    const remainder = pot - share * n;
+
+    // 🔴 必须逐【池】分，不能拿总底池均分。
+    // 多人局里短码全押只对主池有资格，后面两家继续下注形成的边池跟他无关；
+    // 旧写法把 game.pot 整个均成 N 份、每份判给「全场最强手」，短码就能从边池里拿钱（凭空多赢）。
+    // 正确做法与单次摊牌一致：每个池各自均成 N 份，每份只在【该池有资格的人】里比大小。
+    const pots = buildSidePots(game).map((pot, idx) => {
+        const elig = pot.eligible.map(p => p.userId).filter(id => contenders.includes(id));
+        // 兜底：万一某池没有可比牌的有资格者（正常不会发生），让全体参与者去争，避免这份钱卡在池里蒸发
+        return { amount: pot.amount, idx, eligible: elig.length ? elig : contenders.slice() };
+    });
 
     // 预先从牌堆连续发好 N 组不同 runout，算好各自赢家/该份金额（发放推迟到动画到该组时）
     const winByUser = {};
     const runs = [];
+    const scoreCache = new Map();
+    const scoreOn = (board, id) => {
+        const k = board.length + ':' + id + ':' + board.map(c => c.rank + c.suit[0]).join('');
+        if (!scoreCache.has(k)) scoreCache.set(k, HandEvaluator.evaluate7Cards(board.concat(game.holeCards[id])));
+        return scoreCache.get(k);
+    };
     for (let i = 0; i < n; i++) {
         const newCards = dealRunStreets(game, baseLen);
         const board = base.concat(newCards);
-        let best = Infinity, winners = [];
-        for (const id of contenders) {
-            const sc = HandEvaluator.evaluate7Cards(board.concat(game.holeCards[id]));
-            if (sc < best) { best = sc; winners = [id]; }
-            else if (sc === best) winners.push(id);
-        }
-        const thisPot = share + (i === 0 ? remainder : 0);
-        const w = Math.floor(thisPot / winners.length), wr = thisPot - w * winners.length;
         const awards = {};
-        winners.forEach((id, k) => { const amt = w + (k === 0 ? wr : 0); awards[id] = amt; winByUser[id] = (winByUser[id] || 0) + amt; });
-        runs.push({ newCards, board, chunks: chunkRun(newCards, baseLen), winners, awards, thisPot,
-            categories: winners.reduce((m, id) => { m[id] = HandEvaluator.handCategory(HandEvaluator.evaluate7Cards(board.concat(game.holeCards[id]))); return m; }, {}) });
+        const potResults = [];
+        let thisPot = 0;
+        for (const pot of pots) {
+            // 该池这一份的金额（余数并进第 1 份，与单次摊牌的「余数给第一位」口径一致）
+            const share = Math.floor(pot.amount / n);
+            const amount = share + (i === 0 ? pot.amount - share * n : 0);
+            if (amount <= 0) continue;
+            let best = Infinity, winners = [];
+            for (const id of pot.eligible) {
+                const sc = scoreOn(board, id);
+                if (sc < best) { best = sc; winners = [id]; }
+                else if (sc === best) winners.push(id);
+            }
+            const w = Math.floor(amount / winners.length), wr = amount - w * winners.length;
+            winners.forEach((id, k) => {
+                const amt = w + (k === 0 ? wr : 0);
+                awards[id] = (awards[id] || 0) + amt;
+                winByUser[id] = (winByUser[id] || 0) + amt;
+            });
+            potResults.push({ pot: pot.idx, label: pot.idx === 0 ? '主池' : `边池${pot.idx}`, amount, winners: winners.slice() });
+            thisPot += amount;
+        }
+        const winners = Object.keys(awards);
+        runs.push({ newCards, board, chunks: chunkRun(newCards, baseLen), winners, awards, thisPot, potResults,
+            categories: winners.reduce((m, id) => { m[id] = HandEvaluator.handCategory(scoreOn(board, id)); return m; }, {}) });
     }
     const reveals = {};
     contenders.forEach(id => { reveals[id] = game.holeCards[id].map(c => ({ suit: c.suit, rank: c.rank })); });
@@ -145,7 +173,7 @@ function executeRunouts(roomId, n) {
             const run = state.runs[step.run];
             run.winners.forEach(id => { const p = g.players.find(x => x.userId === id); if (p) p.chips += run.awards[id]; });
             g.pot = Math.max(0, g.pot - run.thisPot);
-            io.in(roomId).emit('runit_award', { run: step.run, n, winners: run.winners.map(id => ({ userId: id, amount: run.awards[id] })), categories: run.categories });
+            io.in(roomId).emit('runit_award', { run: step.run, n, winners: run.winners.map(id => ({ userId: id, amount: run.awards[id] })), categories: run.categories, pots: run.potResults || [] });
             broadcastState(roomId);
             g.runoutDeadline = Date.now() + step.delay;
             g.runoutTimer = setTimeout(runStep, step.delay);
@@ -209,7 +237,7 @@ function finishRunouts(roomId, runs, base, winByUser) {
     io.in(roomId).emit('runit_done', { totalByUser: winByUser });
     io.in(roomId).emit('sfx', 'win');
     game.communityCards = base.concat(runs.length ? runs[0].newCards : []);   // 主 community = 第 1 次（stats/回放用）
-    const label = Object.keys(winByUser).map(id => { const p = game.players.find(x => x.userId === id); return `${p ? p.username : id} +${winByUser[id]}`; }).join('，');
+    const label = Object.keys(winByUser).map(id => { const p = game.players.find(x => x.userId === id); return `${p ? nameOf(p) : id} +${winByUser[id]}`; }).join('，');
     io.in(roomId).emit('server_msg', `🏆 发 ${runs.length} 次结果：${label}`);
     // 牌谱：完整记录 N 组公共牌 + 各组赢家 + 各份金额（数据资产：run-it 需保留每次 runout）
     if (game.hand) {
@@ -217,7 +245,9 @@ function finishRunouts(roomId, runs, base, winByUser) {
             n: runs.length,
             boards: runs.map(r => r.board.map(c => `${c.rank}${c.suit[0]}`)),
             winners: runs.map(r => r.winners),
-            amounts: runs.map(r => r.thisPot)
+            amounts: runs.map(r => r.thisPot),
+            // 逐池明细（主池/边池各自的份额与赢家）——多人边池局事后要能查清谁凭什么拿到哪份钱
+            pots: runs.map(r => r.potResults || [])
         };
     }
     const completedHand = saveHandHistory(game, winByUser);   // community 落为第 1 次 board（向后兼容）

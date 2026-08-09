@@ -1,4 +1,5 @@
 'use strict';
+const { nameOf } = require('../../account/display-name');
 const { bind } = require('./room-context');
 const { createMembershipService } = require('../../rooms/membership-service');
 function createJoinRoomHandler(context) {
@@ -156,10 +157,10 @@ function registerMembershipEvents(context) {
             if (!pp || !pp.reserved) return;
             // 留座超时：转为「站起围观」（坐出、筹码保留，不兑出），结束时再结算
             pp.reserved = false; pp.standing = true; pp.sittingOut = true; pp.reserveTimer = null;
-            io.in(roomId).emit('server_msg', `⌛ ${pp.username} 留座超时，自动站起围观（筹码保留）`);
+            io.in(roomId).emit('server_msg', `⌛ ${nameOf(pp)} 留座超时，自动站起围观（筹码保留）`);
             broadcastState(roomId); broadcastRoomList();
         }, 120000);
-        io.in(roomId).emit('server_msg', `💺 ${user.username} 留座离座（2 分钟内回来保留座位）`);
+        io.in(roomId).emit('server_msg', `💺 ${nameOf(user)} 留座离座（2 分钟内回来保留座位）`);
         // 若本手进行中：本手弃牌坐出并推进行动（尤其正轮到他时，别让全桌干等到超时）
         // ⚠️ 已全押者除外——筹码已在池中、无需再行动，改判弃牌会剥夺池权并造成筹码凭空增加
         const idx = game.players.findIndex(pl => pl.userId === user.id);
@@ -185,7 +186,7 @@ function registerMembershipEvents(context) {
         if (p.reserveTimer) { clearTimeout(p.reserveTimer); p.reserveTimer = null; }
         p.away = false; p.reserved = false; p.standing = false;
         if (p.chips > 0) p.sittingOut = false;   // 有筹码才能立即回桌
-        io.in(roomId).emit('server_msg', `🪑 ${user.username} 回到座位`);
+        io.in(roomId).emit('server_msg', `🪑 ${nameOf(user)} 回到座位`);
         if (game.roomType === 'cash' && game.status === 'running'
             && (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) && liveCount(game) >= 2)
             scheduleNextHand(roomId);
@@ -218,7 +219,7 @@ function registerMembershipEvents(context) {
                     }
                     socket.leave(roomId);
                     socket.emit('left_room');
-                    io.to(roomId).emit('server_msg', `🚪 ${user.username} 离开牌桌（座位与筹码保留，结束时结算）`);
+                    io.to(roomId).emit('server_msg', `🚪 ${nameOf(user)} 离开牌桌（座位与筹码保留，结束时结算）`);
                     if (midHand) { p.folded = true; p.hasActed = true; }
                     // 全员离桌(无人在座)且无观众 → 直接结算收尾，避免空房悬挂持有筹码
                     const anyActive = game.players.some(pl => !pl.standing && !pl.away);
@@ -278,7 +279,7 @@ function registerMembershipEvents(context) {
                         throw error;
                     }
                     socket.leave(roomId);
-                    io.to(roomId).emit('server_msg', `🚪 ${user.username} 离开房间`);
+                    io.to(roomId).emit('server_msg', `🚪 ${nameOf(user)} 离开房间`);
                     if (game.players.length === 0) {
                         clearTimeout(game.levelTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer);
                         clearActionTimer(game); persistence.finish(roomId, 'cancelled'); delete roomGames[roomId];
@@ -296,7 +297,7 @@ function registerMembershipEvents(context) {
                     // SNG 开赛后退出：保留座位（离桌挂机），本局自动弃牌推进
                     p.away = true;
                     socket.leave(roomId);
-                    io.to(roomId).emit('server_msg', `🚪 ${user.username} 离桌（座位保留，盲注照扣，可重连）`);
+                    io.to(roomId).emit('server_msg', `🚪 ${nameOf(user)} 离桌（座位保留，盲注照扣，可重连）`);
                     if (midHand) {
                         p.folded = true; p.hasActed = true;
                         if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }

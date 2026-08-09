@@ -1,4 +1,5 @@
 'use strict';
+const { nameOf } = require('../../account/display-name');
 
 function registerDisconnectEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
@@ -20,7 +21,7 @@ function registerDisconnectEvents(context) {
         if (player.socketId && player.socketId !== socket.id) return;
         player.away = true;   // 标记掉线（座位保留，可重连）
 
-        io.to(roomId).emit('server_msg', `🔌 ${user.username} 掉线（保留座位，可重连）`);
+        io.to(roomId).emit('server_msg', `🔌 ${nameOf(user)} 掉线（保留座位，可重连）`);
 
         // ⚠️ 不再「掉线即立即弃牌」！socket.io 网络抖动/传输切换会瞬断重连，
         // 立即弃牌会误杀正常玩家（表现为「闪回大厅再进来就成了弃牌」）。

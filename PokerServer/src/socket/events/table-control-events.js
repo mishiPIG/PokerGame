@@ -1,4 +1,5 @@
 'use strict';
+const { nameOf } = require('../../account/display-name');
 
 function registerTableControlEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
@@ -54,7 +55,7 @@ function registerTableControlEvents(context) {
         const maxB = game.config.maxBuyIn || 1e9;
         const cap = maxB - p.chips - (p.pendingRebuy || 0);
         if (amount === 0 || amount == null) {   // 仅切换自动补码、不补当前码
-            io.in(roomId).emit('server_msg', `🔁 ${user.username} ${p.autoRebuy ? '开启' : '关闭'}自动补码`);
+            io.in(roomId).emit('server_msg', `🔁 ${nameOf(user)} ${p.autoRebuy ? '开启' : '关闭'}自动补码`);
             broadcastState(roomId); return;
         }
         if (cap <= 0) { socket.emit('server_msg', '⚠️ 已达带入上限'); return; }
@@ -64,11 +65,11 @@ function registerTableControlEvents(context) {
         const between = game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN;
         const inActiveHand = !between && !p.folded;
         if (inActiveHand) {
-            io.in(roomId).emit('server_msg', `💵 ${user.username} 补码 ${chips}（下一手生效）`);
+            io.in(roomId).emit('server_msg', `💵 ${nameOf(user)} 补码 ${chips}（下一手生效）`);
         } else {
             // 不在牌局中：立即生效，回到座位
             p.chips += p.pendingRebuy; p.pendingRebuy = 0; p.sittingOut = false;
-            io.in(roomId).emit('server_msg', `💵 ${user.username} 补码 ${chips} 筹码`);
+            io.in(roomId).emit('server_msg', `💵 ${nameOf(user)} 补码 ${chips} 筹码`);
             // 若比赛进行中且当前停摆，重新排下一手
             if (game.status === 'running' && between && liveCount(game) >= 2) scheduleNextHand(roomId);
         }
@@ -98,7 +99,7 @@ function registerTableControlEvents(context) {
         const p = game.players.find(p => p.userId === user.id);
         if (!p) { socket.emit('server_msg', '⚠️ 你还未入座'); return; }
         p.ready = !p.ready;
-        io.in(roomId).emit('server_msg', `${p.ready ? '✅' : '⬜'} ${p.username} ${p.ready ? '已准备' : '取消准备'}`);
+        io.in(roomId).emit('server_msg', `${p.ready ? '✅' : '⬜'} ${nameOf(p)} ${p.ready ? '已准备' : '取消准备'}`);
         broadcastState(roomId);
         tryStartHand(roomId);
     });
