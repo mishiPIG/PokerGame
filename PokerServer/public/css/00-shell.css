@@ -30,9 +30,9 @@
         /* 环形座位层 + 中央牌面：全绝对定位，行动浮层不再推动布局
            ⚠️ 安全边距（别再删）：座位块以自身中心定位(translate -50%,-50%)，其【上方】还挂着
            名字、下注 chip 徽章、对手牌覆盖层、全押胜率徽章(top:-34px)，最多要探出约 70px。
-           顶部 52px = 合规横幅(约 20px) + 一点余量；座位向上探出的部分由 ringPos 的半径夹取兜底。
+           顶部 42px = 合规横幅(top:4px、约 14px 高) + 一点余量；座位向上探出的部分由 ringPos 的半径夹取兜底。
            （房间信息水印已移回牌桌内圈，不再需要为它在顶部留一大条——那会把座位全挤到中间。）*/
-        #ring-layer { position: absolute; top: 52px; right: 10px; bottom: 14px; left: 10px;
+        #ring-layer { position: absolute; top: 42px; right: 10px; bottom: 14px; left: 10px;
                       pointer-events: none; transform-origin: 50% 48%; }
         /* 坐下入座：整圈座位旋转入位动画 */
         #ring-layer.rotating { animation: ringRotateIn 0.6s cubic-bezier(0.22,1,0.36,1); }
@@ -43,7 +43,10 @@
         }
         #ring-layer .ring-seat, #ring-layer .empty-seat { pointer-events: auto; }
         .ring-seat { position: absolute; transform: translate(-50%, -50%); }
-        #board { position: absolute; left: 50%; top: 39%; transform: translate(-50%, -50%);
+        /* 底池+公共牌：落在「两侧座位之间的空档」上。
+           9-max 竖屏时左右座位正好在 39% 一带，公共牌那一排会压住他们的后手筹码数字，
+           所以整体下移到两排座位中间的空带（由 seatfit 的公共牌不压座位断言把关）。*/
+        #board { position: absolute; left: 50%; top: 43%; transform: translate(-50%, -50%);
             text-align: center; z-index: 2; pointer-events: none; }
         #spectator-banner { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%);
             background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.7); font-size: 13px;

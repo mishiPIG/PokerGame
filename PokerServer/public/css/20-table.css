@@ -162,7 +162,11 @@
         .card { align-items: center; }
         .card .rank { font-size: calc(var(--card-w) * 0.62); line-height: 1; font-weight: 800; letter-spacing: -0.5px; }
         .card .suit { font-size: calc(var(--card-w) * 0.6); align-self: center; line-height: 1; margin-top: calc(var(--card-w) * -0.02); }
-        .empty-slot { width: var(--card-w); height: var(--card-h); border: 2px dashed rgba(255,255,255,0.12); border-radius: 6px; }
+        /* 未发出的公共牌位：只占位、不画框。
+           虚线框是当初为「发牌时布局不跳动」加的，但玩家反馈那 5 个空框没必要显示（桌面更干净）。
+           这里保留占位（宽高照旧），所以发牌时公共牌位置依旧不跳动，只是看不见空框。*/
+        .empty-slot { width: var(--card-w); height: var(--card-h); border-radius: 6px;
+                      border: 2px dashed transparent; }
         /* 发牌入场动画：从上方翻入 */
         .card.deal-in { animation: dealIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
         @keyframes dealIn {
@@ -211,7 +215,7 @@
            参考德扑之星：这段文字就是躺在桌面上的水印，公共牌/底池压在它上面是正常的（z-index:0）。
            ⚠️ 别再把它挪到顶部：那样会白占一条，逼着座位环留出大内边距、全挤在中间。
            宽度收窄到内圈范围，避免横向蹭到两侧座位。*/
-        #table-info { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
+        #table-info { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%);
             text-align: center; color: rgba(255,255,255,0.22); font-size: 11.5px; line-height: 1.6;
             letter-spacing: 0.5px; pointer-events: none; z-index: 0;
             width: min(42%, 240px); }
@@ -234,7 +238,12 @@
         #table-notice { display: table; margin: 8px auto 0; text-align: center; font-size: 13px; font-weight: bold; color: #f4d35e;
             background: rgba(0,0,0,0.45); border-radius: 10px; padding: 4px 12px;
             text-shadow: 0 1px 3px rgba(0,0,0,0.7); animation: dealIn 0.3s ease-out; }
-        #community .card, #community .empty-slot { width: calc(var(--card-w) * 1.2); height: calc(var(--card-h) * 1.2); }
+        /* 公共牌整排必须能塞进【两侧座位之间】——否则会压住玩家的后手筹码数字（玩家实拍反馈）。
+           屏幕越窄，座位占的比例越大、中间越挤，所以这排牌的尺寸要跟着屏幕宽度封顶，
+           而不是一律放大 1.2 倍。210px ≈ 两侧座位各自占掉的宽度，5 是卡间距。
+           （seatfit 里有「公共牌不压座位」的断言，改这个公式要一起跑。）*/
+        #community { --comm-w: min(calc(var(--card-w) * 1.2), calc((100vw - 210px) / 5 - 5px)); }
+        #community .card, #community .empty-slot { width: var(--comm-w); height: calc(var(--comm-w) * 1.39); }
 
         /* ===== Action bar ===== */
         #action-bar {

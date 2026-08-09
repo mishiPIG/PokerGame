@@ -56,10 +56,15 @@ function emptySlot() {
 
 // 环形 M 个座位坐标：ringIndex 0 = 底部中央，ringIndex 递增 = 顺时针（与座位号递增=行动顺序一致）
 // 屏幕 y 向下：底部(6点)→左下(7点)→…→右下(5点)，即行动顺序顺时针、下一位在我左手边
-// 座位块的实际像素尺寸（与 20-table.css 对应）：名字+头像(46)+筹码 ≈ 81 高、名字 max-width 74 → 78 宽；
-// overhangTop = 头像上方额外探出的最高元素（全押胜率徽章 top:-34px）。
-// 半径夹取要用它，改 CSS 尺寸时这里要同步。
-const SEAT_BOX = { w: 78, h: 81, overhangTop: 34 };
+// 座位块的实际像素尺寸（必须与 20-table.css 对得上，半径夹取全靠它）：
+//   高 = padding2 + 名字(11×1.25) + 名字下边距7 + gap1 + 头像46 + gap1 + 筹码上边距9 + 筹码(12×1.2) + padding2 ≈ 96
+//   （名字下边距/筹码上边距是给「下注 chip 徽章」和「倒计时数字」留的位，本来就算在块内）
+//   宽 = 名字 max-width 74 + padding 2×2 = 78
+// overhangTop = 真正超出【座位块】顶端的部分：胜率徽章 top:-34px 是相对【头像块】的，
+//   而头像块本身已在座位块内 23.8px 处 → 实际只探出约 10px。
+// ⚠️ 之前这里写 h:81 / overhangTop:34 —— 高度少算了 15px，于是下面的筹码数字没被算进夹取范围，
+//    公共牌那一排就压到了两侧玩家的后手数字上（玩家实拍反馈）。改 CSS 尺寸务必回来同步。
+const SEAT_BOX = { w: 78, h: 96, overhangTop: 11 };
 // 座位环可用尺寸：优先量真实 DOM；测试环境(jsdom 无布局)可用 __ringW/__ringH 注入。
 // ⚠️ 必须挡掉「残缺尺寸」：牌桌刚显示、布局还没稳定的那一帧量到的可能是个很小的非零值，
 // 半径夹取会因此退化成最小值 → 所有座位挤成一条线（点「坐下」瞬间出现过）。
@@ -88,12 +93,25 @@ function ringPos(ringIndex, M) {
     const halfW = (SEAT_BOX.w / 2 / Math.max(1, sz.w)) * 100;
     const halfTop = ((SEAT_BOX.h / 2 + SEAT_BOX.overhangTop) / Math.max(1, sz.h)) * 100;
     const halfBottom = (SEAT_BOX.h / 2 / Math.max(1, sz.h)) * 100;
+    // 半径按【这一桌真正用到的方向】精确求解，而不是按「最坏情况」写死：
+    // 位置是 x = cx + rx*cos + dx、y = cy + ry*sin + dy，边界约束对 rx/ry 都是线性的，
+    // 所以逐座位反解出各自允许的最大半径、取最小即可 —— 结果是刚好贴边、一点空间都不浪费。
+    // 这对奇数人数收益很大：9 人时没有任何座位落在正上方(|sin| 最大只有 0.94)，
+    // 旧写法却按 sin=-1 留够余量 → 顶上白白空出一条（玩家反馈「最上面两个人还能再往上」）。
+    // dx/dy 是下面 M>=6 的微调量，必须一起算进来 —— 那是【夹取之后】的偏移，漏算就会顶破边界。
+    let rx = landscape ? 44 : 43, ry = landscape ? 40 : 44;
+    for (let i = 0; i < M; i++) {
+        const a = Math.PI / 2 + (2 * Math.PI * i / M), c0 = Math.cos(a), s0 = Math.sin(a);
+        const nudged = M >= 6 && (i === 1 || i === M - 1);
+        const dx = nudged ? (c0 < 0 ? -4 : 4) : 0, dy = nudged ? -6 : 0;
+        if (c0 < -1e-6) rx = Math.min(rx, (cx + dx - halfW) / -c0);
+        if (c0 > 1e-6) rx = Math.min(rx, (100 - cx - dx - halfW) / c0);
+        if (s0 < -1e-6) ry = Math.min(ry, (cy + dy - halfTop) / -s0);
+        if (s0 > 1e-6) ry = Math.min(ry, (100 - cy - dy - halfBottom) / s0);
+    }
     // 下限不能太低：万一某一帧量到的尺寸不对，半径被夹到很小就会让所有座位挤成一条线（比溢出难看得多）。
     // 正常屏幕尺寸下这个下限永远不会生效（seatfit 测试覆盖了 2~9 人 × 5 种屏幕）。
-    // 半径尽量取大：顶部不再为水印留大边距后，座位可以铺满整个牌桌高度，
-    // 不再像以前那样全挤在中间（玩家反馈「太紧凑、上方浪费一块」）。
-    const rx = Math.max(26, Math.min(landscape ? 44 : 43, 50 - halfW));
-    const ry = Math.max(24, Math.min(landscape ? 40 : 44, Math.min(cy - halfTop, 100 - cy - halfBottom)));
+    rx = Math.max(26, rx); ry = Math.max(24, ry);
     const ang = Math.PI / 2 + (2 * Math.PI * ringIndex / M);   // 0→底部；+ 使递增为顺时针
     const c = Math.cos(ang), s = Math.sin(ang);
     let x = cx + rx * c, y = cy + ry * s;
