@@ -112,6 +112,9 @@ function prepareChainDecision(roomId, chainIndex) {
     if (!pos || pos.ordered.length < 3) return false;
     const cand = pos.afterBB[chainIndex];
     if (!cand) return false;                       // 链已经排到最后一位，没有下一个人了
+    // 同一个人不能吃两档：中途有人入座/离座会让预测位置整体挪一位，
+    // 上一档刚接受的人可能又被算成下一档的候选人（线上真出现过，见 hand-service 的位置校验）。
+    if ((game.straddleChain || []).some(e => e.userId === cand.userId)) return false;
     const amount = straddleAmountFor(game, chainIndex);
     const projectedStack = cand.chips + (cand.currentBet || 0) + (cand.committed || 0);
     // 付不起这一档就不再往下问（他可以全押跟注，但 straddle 必须足额贴出）

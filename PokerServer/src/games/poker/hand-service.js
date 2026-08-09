@@ -375,18 +375,31 @@ function startHand(roomId) {
         && Array.isArray(game.straddleChain)
         && game.straddleChain.length
         && game.straddleChain[0].targetHandSeq === targetHandSeq) ? game.straddleChain : [];
+    // 链条第 ci 档，必须正好是【本手真实阵容里】BB 之后的第 ci 位（UTG=0, UTG+1=1, …）。
+    // ⚠️ 只查「座位没变」是不够的：邀请是在上一手局间按【当时的阵容】预测下一手位置发出的，
+    //    中途有人入座/离座会让位置整体挪一位 —— 线上就出现过同一个人被问了两档、
+    //    结果一个人独吞 2BB+4BB 两次扣款（currentBet 只记后一次，差额凭空消失）。
+    //    所以这里按真实阵容重算一遍 BB 之后的顺序，对不上就在那一档截断。
+    const realAfterBB = [];
+    for (let i = 1, cur = bbIdx; i < liveCount(game) - 1; i++) {
+        cur = nextLiveIdx(game, cur);
+        realAfterBB.push(cur);
+    }
     for (let ci = 0; ci < chain.length; ci++) {
         const entry = chain[ci];
         const expectAmt = BB * Math.pow(2, ci + 1);
-        const idx = game.players.findIndex(p => p.userId === entry.userId && !p.folded);
+        const idx = realAfterBB[ci] ?? -1;                       // 这一档【应该】是谁
         const pl = idx >= 0 ? game.players[idx] : null;
-        const ok = pl && pl.seat === entry.seat && entry.amount === expectAmt && pl.chips >= expectAmt;
+        const ok = pl && !pl.folded && pl.userId === entry.userId && pl.seat === entry.seat
+            && entry.amount === expectAmt && pl.chips >= expectAmt;
         if (!ok) {
-            const s = pl && io.sockets.sockets.get(pl.socketId);
+            const who = game.players.find(p => p.userId === entry.userId);
+            const s = who && io.sockets.sockets.get(who.socketId);
             if (s) s.emit('straddle_decision_result', { targetHandSeq, status: 'invalidated' });
             break;                       // 断在这里：后面的更大额也一并作废
         }
-        pl.chips -= expectAmt;
+        // 用差额扣款而不是直接减 expectAmt：万一同一人被重复贴（已被上面挡住），也不会重复扣钱
+        pl.chips -= (expectAmt - (pl.currentBet || 0));
         pl.currentBet = expectAmt;
         if (pl.chips === 0) pl.allIn = true;
         game.currentBet = expectAmt;

@@ -250,7 +250,11 @@ function buildSeat(p, state) {
     }
 
     // 本手下注：贴在头像顶部的小 chip 徽章
-    const isStraddler = state.straddle && state.straddle.userId === p.userId;
+    // STR 标记：链上每一档都标（不只是最后一位），但【只在他的下注还是那笔 straddle 时】显示。
+    // 他后面再下注/加注后就是普通下注了，一直挂着 STR 只会让人看不懂（玩家反馈）。
+    const myStraddle = (state.straddles || []).find(st => st.userId === p.userId)
+        || (state.straddle && state.straddle.userId === p.userId ? state.straddle : null);
+    const isStraddler = !!myStraddle && state.phase === 'preflop' && p.currentBet === myStraddle.amount;
     const betBadge = p.currentBet > 0
         ? `<div class="bet-badge"><span class="chip-dot"></span>${isStraddler ? 'STR ' : ''}${fmtChips(p.currentBet)}</div>` : '';
     // 全押跑马实时胜率徽章（仅跑马中，摊牌前）
