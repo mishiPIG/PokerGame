@@ -4,6 +4,9 @@ const crypto = require('crypto');
 
 function createWalletRepository(db) {
     const findOperation = db.prepare('SELECT * FROM wallet_transactions WHERE operation_key = ?');
+    // 按前缀数已有条数：用来生成【跨重启/跨重新落座都唯一】的幂等键。
+    // （内存里的自增序号在座位对象被重建时会归零，导致同一个键被复用 → IDEMPOTENCY_CONFLICT）
+    const countByPrefix = db.prepare("SELECT COUNT(*) AS c FROM wallet_transactions WHERE operation_key LIKE ? || '%'");
     const getBalance = db.prepare('SELECT gold FROM users WHERE id = ? AND deleted_at_ms IS NULL');
     const updateBalance = db.prepare('UPDATE users SET gold = ?, updated_at_ms = ? WHERE id = ?');
     const insertTransaction = db.prepare(`
@@ -70,6 +73,10 @@ function createWalletRepository(db) {
                 operationKey,
                 metadata: { ...metadata, requestedBalance: gold }
             });
+        },
+        // 该前缀下已有多少条 —— 用于生成跨重启/跨重新落座都唯一的幂等序号
+        countOperations(prefix) {
+            return countByPrefix.get(String(prefix)).c;
         },
         getTransactions(userId, limit = 100) {
             return db.prepare(`

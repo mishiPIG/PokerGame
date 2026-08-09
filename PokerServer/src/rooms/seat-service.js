@@ -104,16 +104,26 @@ function chargeRebuy(game, p, chips) {
     p.buyIn = (p.buyIn || 0) + chips;
     p.buyInGold = (p.buyInGold || 0) + cost;
     p.timeCards = (p.timeCards || 0) + timeCardsFor(game, chips);   // 补码同步补时间卡
-    p.rebuySeq = (p.rebuySeq || 0) + 1;
+    // ⚠️ 幂等序号不能用内存里的自增计数：玩家站起/回座、服务器重启都会重建座位对象让它归零，
+    //    于是同一个 (比赛,玩家,序号) 键被复用 —— 金额不同就抛 IDEMPOTENCY_CONFLICT（补码白点一次），
+    //    金额相同更糟：钱包直接返回「已处理过」不扣钱，而筹码照给 = 白拿。
+    //    改成按【钱包账本里已有的条数】推导，跨重启/跨重新落座都唯一。
+    const keyPrefix = `cash-rebuy:${game.matchId}:${p.userId}:`;
+    p.rebuySeq = db.wallet.countOperations(keyPrefix) + 1;
     try {
         const committed = persistence.commitWithWallet(roomId, [{
             userId: p.userId,
             delta: -cost,
             type: 'cash_rebuy',
             matchId: game.matchId,
-            operationKey: `cash-rebuy:${game.matchId}:${p.userId}:${p.rebuySeq}`,
+            operationKey: keyPrefix + p.rebuySeq,
             metadata: { chips }
         }], 'cash_rebuy', p.userId, { chips, cost });
+        // 每次补码都是一次全新的付款：若钱包说「这个键早处理过」(applied=false)，
+        // 说明这一次【并没有真的扣钱】——绝不能当成功给筹码，必须回滚。
+        if (committed.wallets[0] && committed.wallets[0].applied === false) {
+            throw new Error('REBUY_KEY_REUSED');
+        }
         const balance = committed.wallets[0].balance;
         if (p.socketId) io.to(p.socketId).emit('gold_update', { gold: balance });
     } catch (error) {

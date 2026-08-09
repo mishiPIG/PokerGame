@@ -1,6 +1,8 @@
 'use strict';
 
 function createStraddleService({ io, roomGames, PHASES, gameBB, gameAnte, STRADDLE_DECISION_MS, persistence }) {
+// 小标志的存活上限：正常情况下由「下一手开始」清掉，这个只是防止某条路径漏清而永久挂着。
+const STRADDLE_WINDOW_MS = 10 * 60 * 1000;
 function clearStraddleDecision(game, status = 'invalidated') {
     if (!game || !game.straddleDecision) return;
     clearTimeout(game.straddleDecision.timer);
@@ -50,12 +52,14 @@ function emitStraddleOffer(game, socket) {
     });
 }
 
-function showStraddleDecision(roomId, durationMs = STRADDLE_DECISION_MS) {
+// 邀请一准备好就亮出来，不再等他「这手打完/弃牌之后」——
+// 玩家反馈：只有弃牌出局的人才会被问下一手要不要 straddle，很不方便。
+// 现在客户端把它做成桌边一个小标志（STR ×N），不打断行动，所以轮到他行动时也可以一直挂着。
+// 有效期 = 到下一手开始为止（durationMs 只作为兜底上限，不再是 15 秒的紧窗口）。
+function showStraddleDecision(roomId, durationMs = STRADDLE_WINDOW_MS) {
     const game = roomGames[roomId];
     const d = game && game.straddleDecision;
     if (!d || d.status !== 'pending') return false;
-    const actorId = game.actionOnIdx >= 0 ? game.players[game.actionOnIdx]?.userId : null;
-    if (actorId === d.candidateUserId) return false;
     clearTimeout(d.timer);
     d.offeredAt = Date.now();
     d.deadlineAt = d.offeredAt + durationMs;
@@ -138,7 +142,7 @@ function prepareNextStraddleDecision(roomId) {
     const game = roomGames[roomId];
     if (!game) return;
     game.straddleChain = [];        // 新一手的链从头开始累积
-    prepareChainDecision(roomId, 0);
+    if (prepareChainDecision(roomId, 0)) showStraddleDecision(roomId);   // 立刻亮小标志
 }
 
 // 有人接受后：把他记进链，并立刻问下一位要不要再翻一倍
@@ -157,15 +161,9 @@ function advanceStraddleChain(roomId, decision) {
     if (prepareChainDecision(roomId, (decision.chainIndex ?? 0) + 1)) showStraddleDecision(roomId);
 }
 
-function cancelVisibleStraddleForTurn(roomId) {
-    const game = roomGames[roomId];
-    const d = game && game.straddleDecision;
-    if (!d || d.status !== 'pending' || !d.offeredAt) return;
-    clearStraddleDecision(game, 'expired');
-    const p = game.players.find(x => x.userId === d.candidateUserId);
-    const s = p && io.sockets.sockets.get(p.socketId);
-    if (s) s.emit('straddle_decision_result', { targetHandSeq: d.targetHandSeq, status: 'expired' });
-}
+// 旧行为：轮到他行动时把 straddle 邀请撤掉（那时它是个抢注意力的弹条）。
+// 现在是桌边小标志、不遮不挡，轮到他行动也可以继续挂着 → 不再撤销。
+function cancelVisibleStraddleForTurn() { /* 保留空实现：调用点仍在，语义上已不需要撤销 */ }
 
 function maybeShowStraddleAfterAction(roomId, actedUserId) {
     const game = roomGames[roomId];
