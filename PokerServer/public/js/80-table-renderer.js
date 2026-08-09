@@ -78,7 +78,9 @@ function ringPos(ringIndex, M) {
     // 半径是相对 #ring-layer 的百分比；#ring-layer 已留安全内边距（见 00-shell.css）。
     // 横屏解除了 body 的 720px 限制、牌桌铺满页面，故横向再外扩一些（更接近真实牌桌 2:1）。
     const landscape = document.body.classList.contains('layout-landscape');
-    const cx = 50, cy = 47;
+    // cy 取在「上下夹取值大致相等」的位置：上边界受名字/下注徽章/胜率徽章的探出(overhangTop)限制，
+    // 下边界只受半个座位限制，所以圆心要略低于几何中心，才能把 ry 顶到最大、座位铺满整个牌桌。
+    const cx = 50, cy = 48;
     // ⚠️ 半径必须按【实际可用尺寸】夹取，不能写死百分比：
     // 座位块有固定像素宽高(约 78×81)，屏幕越小它占的百分比越大，写死半径必然把边上的座位挤出去。
     // 这里保证「圆心偏移 + 半个座位」永远落在层内 —— 与屏幕尺寸、人数、横竖屏都无关。
@@ -88,14 +90,17 @@ function ringPos(ringIndex, M) {
     const halfBottom = (SEAT_BOX.h / 2 / Math.max(1, sz.h)) * 100;
     // 下限不能太低：万一某一帧量到的尺寸不对，半径被夹到很小就会让所有座位挤成一条线（比溢出难看得多）。
     // 正常屏幕尺寸下这个下限永远不会生效（seatfit 测试覆盖了 2~9 人 × 5 种屏幕）。
-    const rx = Math.max(26, Math.min(landscape ? 44 : 42, 50 - halfW));
-    const ry = Math.max(24, Math.min(landscape ? 38 : 36, Math.min(cy - halfTop, 100 - cy - halfBottom)));
+    // 半径尽量取大：顶部不再为水印留大边距后，座位可以铺满整个牌桌高度，
+    // 不再像以前那样全挤在中间（玩家反馈「太紧凑、上方浪费一块」）。
+    const rx = Math.max(26, Math.min(landscape ? 44 : 43, 50 - halfW));
+    const ry = Math.max(24, Math.min(landscape ? 40 : 44, Math.min(cy - halfTop, 100 - cy - halfBottom)));
     const ang = Math.PI / 2 + (2 * Math.PI * ringIndex / M);   // 0→底部；+ 使递增为顺时针
     const c = Math.cos(ang), s = Math.sin(ang);
     let x = cx + rx * c, y = cy + ry * s;
-    // 多人(6+)微调，避免相互/与中央水印遮挡：
+    // 多人(6+)微调：
+    // （顶部座位原来还要 y-=5 去躲「房间号/盲注」水印——水印已移回牌桌内圈，不再需要，
+    //   而且那是夹取之后的偏移，会顶破上边界。删掉。）
     if (M >= 6) {
-        if (s < -0.3) y -= 5;   // 上半部座位上提，顶部两个避开「房间号/盲注」中央水印
         if (ringIndex === 1 || ringIndex === M - 1) {   // 「我」的左右两个：上移+外扩，别和自己挤在一起
             y -= 6; x += (c < 0 ? -4 : 4);
         }

@@ -30,12 +30,10 @@
         /* 环形座位层 + 中央牌面：全绝对定位，行动浮层不再推动布局
            ⚠️ 安全边距（别再删）：座位块以自身中心定位(translate -50%,-50%)，其【上方】还挂着
            名字、下注 chip 徽章、对手牌覆盖层、全押胜率徽章(top:-34px)，最多要探出约 70px。
-           以前靠在 ringPos 里手调百分比来躲，一改布局就又把顶部玩家顶出屏幕。
-           现在改成给整个环留出内边距 —— 座位在数学上就不可能触到边缘，与具体屏幕比例无关。
-           顶部 118px = 合规横幅(约 20px) + 房间信息水印(见 20-table.css 的 #table-info，两行约 36px)
-           + 座位向上探出的余量。改这个值要同步 #table-info，并跑 seatfit 测试。*/
-        #ring-layer { position: absolute; top: 118px; right: 10px; bottom: 14px; left: 10px;
-                      pointer-events: none; transform-origin: 50% 46%; }
+           顶部 52px = 合规横幅(约 20px) + 一点余量；座位向上探出的部分由 ringPos 的半径夹取兜底。
+           （房间信息水印已移回牌桌内圈，不再需要为它在顶部留一大条——那会把座位全挤到中间。）*/
+        #ring-layer { position: absolute; top: 52px; right: 10px; bottom: 14px; left: 10px;
+                      pointer-events: none; transform-origin: 50% 48%; }
         /* 坐下入座：整圈座位旋转入位动画 */
         #ring-layer.rotating { animation: ringRotateIn 0.6s cubic-bezier(0.22,1,0.36,1); }
         @keyframes ringRotateIn {

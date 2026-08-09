@@ -207,16 +207,16 @@
 
         /* ===== Table center ===== */
         /* 房间信息水印
-           ⚠️ 不能再用百分比定位（原来 top:20%）：座位环也会经过那个高度，窄屏时座位半径被安全夹取、
-           座位向中间收，就会正好压住这段居中文字（玩家多次反馈「最上面的玩家和背景文字冲突」）。
-           改为固定在【顶部安全带】：合规横幅之下、#ring-layer 起点(top:118px)之上——
-           那条带子座位永远进不来，从几何上杜绝重叠。改动这里要同步 #ring-layer 的 top。*/
-        #table-info { position: absolute; left: 50%; top: 26px;
-            text-align: center; color: rgba(255,255,255,0.3); font-size: 11.5px; line-height: 1.55;
-            letter-spacing: 0.5px; pointer-events: none; z-index: 1; width: 90%;
-            transform: translateX(-50%); }
-        #table-info .room-no { color: rgba(244,211,94,0.55); font-weight: bold; letter-spacing: 1px; }
-        #table-info #next-level { color: rgba(244,211,94,0.55); }
+           放在牌桌【内圈下方】——座位都在椭圆周上，内圈本来就是空的，所以不会打架。
+           参考德扑之星：这段文字就是躺在桌面上的水印，公共牌/底池压在它上面是正常的（z-index:0）。
+           ⚠️ 别再把它挪到顶部：那样会白占一条，逼着座位环留出大内边距、全挤在中间。
+           宽度收窄到内圈范围，避免横向蹭到两侧座位。*/
+        #table-info { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
+            text-align: center; color: rgba(255,255,255,0.22); font-size: 11.5px; line-height: 1.6;
+            letter-spacing: 0.5px; pointer-events: none; z-index: 0;
+            width: min(42%, 240px); }
+        #table-info .room-no { color: rgba(244,211,94,0.42); font-weight: bold; letter-spacing: 1px; }
+        #table-info #next-level { color: rgba(244,211,94,0.42); }
         /* 底池竖排（商业级）：中间总底池、上主池/上一轮、下各边池 */
         #pot { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-bottom: 8px; }
         .pot-total { font-size: 19px; font-weight: bold; color: #f4d35e; text-shadow: 0 2px 6px rgba(0,0,0,0.7);
