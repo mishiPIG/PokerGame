@@ -3,12 +3,21 @@ let soundOn = localStorage.getItem('soundOff') !== '1';
 let audioCtx = null;
 function ac() {
     if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     return audioCtx;
 }
+// iOS Safari 只能在用户手势中可靠地恢复音频；回到前台时也尽力恢复已解锁的上下文。
+function resumeAudio(createIfNeeded = false) {
+    const ctx = audioCtx || (createIfNeeded ? ac() : null);
+    if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') {
+        const resumed = ctx.resume();
+        if (resumed?.catch) resumed.catch(() => {});
+    }
+    return ctx;
+}
+function unlockAudio() { return resumeAudio(true); }
 function beep(freq, durMs, type = 'sine', gain = 0.15, delay = 0) {
     if (!soundOn) return;
-    const ctx = ac(); if (!ctx) return;
+    const ctx = resumeAudio(); if (!ctx || ctx.state !== 'running') return;
     const t = ctx.currentTime + delay;
     const osc = ctx.createOscillator(), g = ctx.createGain();
     osc.type = type; osc.frequency.value = freq;
@@ -164,7 +173,7 @@ function toggleSound() {
     localStorage.setItem('soundOff', soundOn ? '0' : '1');
     document.getElementById('btnSound').textContent = soundOn ? '🔊' : '🔇';
     const s = document.getElementById('set-sound'); if (s) s.checked = soundOn;
-    if (soundOn) sndTurn();
+    if (soundOn) { unlockAudio(); sndTurn(); }
 }
 
 // ===== 设置面板 =====

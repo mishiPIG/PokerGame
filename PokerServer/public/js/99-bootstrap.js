@@ -6,8 +6,13 @@ document.getElementById('btnSound').textContent = soundOn ? '🔊' : '🔇';
 applySettings();   // 应用桌面风格 / 四色 / 自定义快捷下注
 setupVoiceRecording();
 window.addEventListener('pagehide', () => { cancelVoiceRecording(); stopVoicePlayback(); });
-// 首次交互解锁 Web Audio（浏览器自动播放策略）
-window.addEventListener('click', () => ac(), { once: true });
+// 首次手势解锁 Web Audio；iOS Safari 从后台返回后可能会挂起它。
+['pointerdown', 'touchend', 'keydown', 'click'].forEach(type => {
+    window.addEventListener(type, unlockAudio, { once: true, passive: true });
+});
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) resumeAudio();
+});
 // 所有按钮点击的反馈音（卡牌等非 button 元素有各自专属音）
 document.addEventListener('click', (e) => {
     if (e.target.closest('button')) sndClick();
