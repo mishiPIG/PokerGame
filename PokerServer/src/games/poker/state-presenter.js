@@ -69,6 +69,7 @@ function broadcastState(roomId) {
             avatar:     p.avatar || null,
             chips:      p.chips,
             currentBet: p.currentBet,
+            committed:  p.committed || 0,          // 本手已收注投入（战绩显示仍算玩家资产）
             folded:     p.folded,
             allIn:      p.allIn,
             ready:      p.ready,
