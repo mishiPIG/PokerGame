@@ -65,7 +65,7 @@ function registerLobbyEvents(context) {
                 durationH: [0.5, 1, 2, 3, 4, 5, 6].includes(+cfg.durationH) ? +cfg.durationH : 2
             },
             prizePool: 0, tournamentOver: false,
-            statsHistory: [], tableEndAt: null, extraMs: 0
+            statsHistory: [], tableEndAt: null, extraMs: 0, timeExpired: false
         };
         persistence.createMatch(roomId, roomGames[roomId]);
         // 现金桌：房主先以观众身份进桌，点空座位「坐下」再带入（坐下式入座）

@@ -281,7 +281,7 @@ function startHand(roomId) {
     const game = roomGames[roomId];
     if (!game) return;
     game.beginning = false;   // 开赛流程结束（含下面各 early return：否则房主再也点不动「开始」）
-    if (game.paused) { broadcastState(roomId); return; }   // 房主已暂停发牌：不开新局，等「继续」
+    if (game.paused || game.timeExpired) { broadcastState(roomId); return; } // 手动暂停或训练到时：不开新局
 
     const BB = gameBB(game), SB = gameSB(game);
     const targetHandSeq = (game.handSeq || 0) + 1;

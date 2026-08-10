@@ -132,6 +132,7 @@ function registerMembershipEvents(context) {
         const game = roomId && roomGames[roomId];
         if (!game) return;
         if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可继续发牌'); return; }
+        if (game.timeExpired) { socket.emit('server_msg', '⚠️ 训练时间已到，请先在比赛设置中调整结束时间'); return; }
         if (!game.paused) return;
         game.paused = false;
         io.in(roomId).emit('server_msg', '▶️ 房主已继续发牌');

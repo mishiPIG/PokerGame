@@ -4,21 +4,16 @@ const { createRoomLifecycle } = require('../rooms/room-lifecycle');
 function createCashMatchService({ io, db, roomGames, lobbySockets, config, persistence, hooks }) {
     const { CASHOUT_RATE, PHASES, gameBB, STRADDLE_INTERMISSION_MS } = config;
     const { buildRanking, sendMatchResult, clearActionTimer, clearStraddleDecision, showStraddleDecision, broadcastState, broadcastRoomList, listRooms, removeBustedPlayers, liveCount, startHand } = hooks;
-// 现金桌训练时长倒计时：到点自动结束并结算排名
-// 训练时长到点：若正有牌局进行，不打断——挂起 pendingEnd，本手结束后再结算，并提醒房主加时；
-// 若在局间（无牌局），直接结算。
+// 现金桌训练时长到点：不打断当前手，也不自动结算；本手结束后暂停发牌，等待房主决定。
 function onTableTimeUp(roomId) {
     const game = roomGames[roomId];
     if (!game || game.tournamentOver) return;
-    const inHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
-    if (inHand) {
-        game.pendingEnd = true;
-        io.in(roomId).emit('server_msg', '⏰ 训练时长已到——本手结束后结算；房主可加时继续');
-        io.in(roomId).emit('match_ending_soon', {});
-        broadcastState(roomId);
-    } else {
-        endCashTable(roomId, '训练时长已到');
-    }
+    clearTimeout(game.tableTimer); game.tableTimer = null;
+    game.timeExpired = true;
+    game.pendingEnd = false; // 兼容旧快照；到时不再代表自动收桌
+    io.in(roomId).emit('server_msg', '⏰ 训练时长已到——本手结束后暂停发牌，等待房主决定');
+    io.in(roomId).emit('match_time_expired', {});
+    broadcastState(roomId);
 }
 function startTableTimer(roomId) {
     const game = roomGames[roomId];
@@ -32,23 +27,35 @@ function restoreTableTimer(roomId) {
     const game = roomGames[roomId];
     if (!game || game.roomType !== 'cash' || !game.tableEndAt || game.tournamentOver) return;
     clearTimeout(game.tableTimer);
+    if (game.timeExpired || game.tableEndAt <= Date.now()) { onTableTimeUp(roomId); return; }
     game.tableTimer = setTimeout(() => onTableTimeUp(roomId), Math.max(0, game.tableEndAt - Date.now()));
+}
+function adjustTableEnd(roomId, endAt) {
+    const game = roomGames[roomId];
+    if (!game || game.roomType !== 'cash' || !Number.isFinite(endAt)) return null;
+    const now = Date.now();
+    const oldEndAt = game.tableEndAt || now;
+    const nextEndAt = Math.max(now, Math.round(endAt));
+    const grantedMs = Math.max(0, nextEndAt - Math.max(oldEndAt, now));
+    game.tableEndAt = nextEndAt;
+    game.extraMs = (game.extraMs || 0) + (nextEndAt - oldEndAt);
+    game.timeExpired = nextEndAt <= now;
+    game.pendingEnd = false;
+    clearTimeout(game.tableTimer); game.tableTimer = null;
+    if (!game.timeExpired) game.tableTimer = setTimeout(() => onTableTimeUp(roomId), nextEndAt - now);
+    if (grantedMs > 0) {
+        // 只为实际延长的未来时长补时间卡；缩短不回收已经发出的卡。
+        const addH = grantedMs / 3600000, bb = gameBB(game) || 1;
+        const grant = p => { p.timeCards = (p.timeCards || 0) + Math.round(addH * ((p.buyIn || 0) / bb) * 0.25); };
+        game.players.forEach(grant);
+        (game.vacatedPlayers || []).forEach(grant);
+    }
+    return { oldEndAt, endAt: nextEndAt, timeExpired: game.timeExpired };
 }
 function extendTable(roomId, addMs) {
     const game = roomGames[roomId];
-    if (!game || game.roomType !== 'cash') return;
-    game.extraMs = (game.extraMs || 0) + addMs;
-    game.pendingEnd = false;   // 加时了 → 取消「本手后结束」的挂起
-    if (game.tableEndAt) {
-        game.tableEndAt = Math.max(game.tableEndAt, Date.now()) + addMs;   // 若已过点，从现在起加
-        clearTimeout(game.tableTimer);
-        game.tableTimer = setTimeout(() => onTableTimeUp(roomId), Math.max(0, game.tableEndAt - Date.now()));
-    }
-    // 比赛加时 → 按增加的时长给各家补时间卡（时长 × 买入BB × 0.25）
-    const addH = addMs / 3600000, bb = gameBB(game) || 1;
-    const grant = p => { p.timeCards = (p.timeCards || 0) + Math.round(addH * ((p.buyIn || 0) / bb) * 0.25); };
-    game.players.forEach(grant);
-    (game.vacatedPlayers || []).forEach(grant);
+    if (!game || game.roomType !== 'cash') return null;
+    return adjustTableEnd(roomId, Math.max(game.tableEndAt || 0, Date.now()) + addMs);
 }
 
 // 结束现金桌：结算所有在座筹码→金币，公布排名+发消息，全员（含观众）回大厅
@@ -99,7 +106,7 @@ function scheduleNextHand(roomId) {
         removeBustedPlayers(g);   // 结算后：SNG 淘汰 / 现金桌兑出离场者移除、坐出者保留、挂起补码生效
         // 房主在牌局进行中点了解散 → 等到本手打完才真正解散（不打断正在进行的牌）
         if (g.pendingDissolve) { hooks.dissolveNow(roomId); return; }
-        if (g.pendingEnd) { endCashTable(roomId, '训练时长已到'); return; }   // 到点：本手已结束→结算收桌
+        if (g.timeExpired) { io.in(roomId).emit('server_msg', '⏸️ 训练时间已到，等待房主加时或结束比赛'); broadcastState(roomId); return; }
         if (g.paused) { io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（本手结束）'); broadcastState(roomId); return; }
         if (liveCount(g) >= 2) startHand(roomId);
         else broadcastState(roomId);   // 人不够：停摆，等补码/坐下（坐出状态已标记）
@@ -116,7 +123,7 @@ function restoreNextHandTimer(roomId) {
         if (!g || g.tournamentOver || g.phase !== PHASES.SHOWDOWN) return;
         removeBustedPlayers(g);
         if (g.pendingDissolve) { hooks.dissolveNow(roomId); return; }
-        if (g.pendingEnd) { endCashTable(roomId, '训练时长已到'); return; }
+        if (g.timeExpired) { broadcastState(roomId); return; }
         if (g.paused) { broadcastState(roomId); return; }
         if (liveCount(g) >= 2) startHand(roomId);
         else broadcastState(roomId);
@@ -160,7 +167,7 @@ function cashOut(p) {
 }
 
 
-    return { onTableTimeUp, startTableTimer, restoreTableTimer, extendTable, endCashTable, scheduleEmptyCleanup, scheduleNextHand, restoreNextHandTimer, cashOut };
+    return { onTableTimeUp, startTableTimer, restoreTableTimer, adjustTableEnd, extendTable, endCashTable, scheduleEmptyCleanup, scheduleNextHand, restoreNextHandTimer, cashOut };
 }
 
 module.exports = { createCashMatchService };
