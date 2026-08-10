@@ -134,9 +134,17 @@ function ringPos(ringIndex, M) {
 // 所以按几何算：能放大就放大，实在放不下才收。
 // 纯函数，便于 seatfit 直接验证（DOM 读取放在下面的包装里）。
 function communityCardW(M, ringW, ringH, padTop, areaH, boardTopPct, cardW) {
-    const maxW = cardW * 1.2;
+    // 横屏(电脑/大屏)牌桌铺满整页，中间空得多：公共牌按 1.2 倍就显得很小，
+    // 甚至比自己那两张(1.4 倍)还小 —— 公共牌本该是全桌的焦点。横屏放到 1.7 倍，
+    // 竖屏保持 1.2 倍（玩家说手机上这个大小正好）。放不下时下面的几何夹取照样会收。
+    const landscape = typeof document !== 'undefined' && document.body.classList.contains('layout-landscape');
+    const maxW = cardW * (landscape ? 1.7 : 1.2);
     const rowH = maxW * 1.39;
-    const mid = areaH * boardTopPct / 100;
+    // ⚠️ #board 是【底池行 + 公共牌行】整体垂直居中于 boardTopPct，
+    //    所以公共牌那一排的中心比 boardTopPct 低了「半个底池行」。
+    //    漏掉这个偏移，就会算不到刚好在牌下方的座位（seatfit 当场抓到过）。
+    const POT_ROW_H = 38;
+    const mid = areaH * boardTopPct / 100 + POT_ROW_H / 2;
     const rowTop = mid - rowH / 2, rowBottom = mid + rowH / 2;
     let halfLimit = Infinity;
     for (let i = 0; i < M; i++) {
