@@ -9,6 +9,11 @@ All notable changes to Poker Dojo. This project loosely follows
 - Bankruptcy relief; card-face themes (the current "deck style" toggle is a no-op — four-color is always on)
 - Graceful shutdown (broadcast, finish the current hand, settle, then exit)
 
+### Changed
+- Cash training tables no longer settle and dissolve automatically when their scheduled time expires.
+  They finish the current hand, pause dealing, and wait for the host to extend or shorten the schedule,
+  end the match, or leave it paused.
+
 ## 2026-08-08 — SQLite persistence + crash recovery
 ### Changed
 - **Storage moved from JSON files to SQLite** (`better-sqlite3`, WAL). Users, gold, wallet

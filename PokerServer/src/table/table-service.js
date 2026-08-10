@@ -29,6 +29,11 @@ function createTableService({ io, db, stats, equity, Card, Deck, HandEvaluator, 
 
     function restoreRecoveredTimers(recovered) {
         for (const { roomId, game } of recovered) {
+            // 兼容旧版“到时后自动结束”的快照，并在恢复任何发牌定时器前锁住过期牌桌。
+            if (game.roomType === 'cash' && (game.pendingEnd || (game.tableEndAt && game.tableEndAt <= Date.now()))) {
+                game.timeExpired = true;
+                game.pendingEnd = false;
+            }
             if (game.roomType === 'cash' && game.tournamentOver) {
                 cashMatchService.endCashTable(roomId, '恢复未完成结算');
                 continue;

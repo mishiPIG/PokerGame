@@ -158,13 +158,13 @@ function connectSocket(token) {
     socket.on('player_stats', ({ userId, stats }) => renderPlayerStats(userId, stats));
     socket.on('button_draw', ({ draws, winnerId }) => showButtonDraw(draws, winnerId));
     socket.on('table_notice', ({ text }) => showTableNotice(text));   // 公共牌下方一行提示（如"谁想看转牌"）
-    socket.on('match_ending_soon', () => {
+    socket.on('match_time_expired', () => {
         const isOwner = lastState && lastState.ownerUserId === myUserId;
         if (isOwner) {
-            toast('⏰ 训练时长到！本手结束后比赛结束——可在「比赛设置」加时继续', 5000);
-            openMatchSettings();   // 房主：打开比赛设置直接选加时
+            toast('⏰ 训练时间已到！本手结束后暂停发牌，请调整时间或结束比赛', 6000);
+            openMatchSettings();
         } else {
-            toast('⏰ 训练时长到，本手结束后比赛结束', 3500);
+            toast('⏰ 训练时间已到，本手结束后暂停，等待房主决定', 5000);
         }
     });
     // 临时语音不进聊天历史：只在当前房间飘出 10 秒可点击气泡

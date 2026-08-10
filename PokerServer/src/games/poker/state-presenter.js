@@ -41,7 +41,7 @@ function broadcastState(roomId) {
         vacated: (game.vacatedPlayers || []).map(v => ({ userId: v.userId, username: v.username, displayName: v.displayName || v.username, buyIn: v.buyIn || 0, handsPlayed: v.handsPlayed || 0, net: (v.chips || 0) - (v.buyIn || 0) })),
         statsHistory: game.statsHistory || [],       // 已离开/淘汰玩家（战绩面板灰显）
         tableEndAt: game.tableEndAt || null,         // 现金桌训练结束时间戳
-        pendingEnd: !!game.pendingEnd,               // 训练时长已到、本手结束后结算（房主可加时）
+        timeExpired: !!game.timeExpired,             // 训练时长已到，暂停新手牌并等待房主决定
         pendingDissolve: !!game.pendingDissolve,     // 房主已点结束，本手打完后解散
         paused:      !!game.paused,                  // 房主暂停发牌（本手结束后不开新局，等继续）
         runIt:       game.runItPending && game.runIt   // 多次发牌协商中（落后方选/领先方同意）

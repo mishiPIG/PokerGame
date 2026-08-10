@@ -4,7 +4,7 @@ function registerTableControlEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
     const { PHASES, STANDARD_BLIND_LEVELS, SNG_BUYIN_TIERS, BUYIN_RATE, CASHOUT_RATE, RUNIT_MAX, EXTRA_MAX, EXTRA_STEP, ACTION_TIME, gameBB, sngPrize } = config;
     const { roomGames, lobbySockets } = runtime;
-    const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction, buildRanking, sendMatchResult, dissolveSngRoom, persistence } = tableService;
+    const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, adjustTableEnd, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction, buildRanking, sendMatchResult, dissolveSngRoom, persistence } = tableService;
     // 解散/提前结束：仅房主。现金桌=结算筹码+公布排名；SNG=奖池给筹码领先者+公布排名
     socket.on('dissolve_room', () => {
         const roomId = socket.currentRoom;
@@ -41,6 +41,32 @@ function registerTableControlEvents(context) {
         extendTable(roomId, m * 60000);
         io.in(roomId).emit('server_msg', `⏱ 房主加时 ${m} 分钟`);
         broadcastState(roomId);
+        const betweenHands = game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN;
+        if (!game.paused && game.status === 'running' && betweenHands && liveCount(game) >= 2) startHand(roomId);
+    });
+
+    // 调整预计结束时间：可延长或缩短；到点只暂停发新牌，不自动结算。
+    socket.on('adjust_match_end', ({ endAt }) => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game || game.roomType !== 'cash') return;
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可以调整结束时间'); return; }
+        const requested = Number(endAt);
+        const now = Date.now();
+        if (!Number.isFinite(requested) || requested < now - 10000 || requested > now + 24 * 3600000) {
+            socket.emit('server_msg', '⚠️ 结束时间无效（最多可设置到 24 小时后）'); return;
+        }
+        const result = adjustTableEnd(roomId, requested);
+        if (!result) return;
+        const format = value => new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        if (result.timeExpired) {
+            io.in(roomId).emit('server_msg', '⏸️ 房主已将比赛调整为现在到时，暂停发新牌');
+        } else {
+            io.in(roomId).emit('server_msg', `⏱ 房主将预计结束时间调整为 ${format(result.endAt)}`);
+        }
+        broadcastState(roomId);
+        const betweenHands = game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN;
+        if (!game.timeExpired && !game.paused && game.status === 'running' && betweenHands && liveCount(game) >= 2) startHand(roomId);
     });
 
     // 现金桌补码：金币按汇率买入筹码，下一手生效（不能超过带入上限）；可设自动补码

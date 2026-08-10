@@ -679,7 +679,10 @@ function renderMatchInfo(st) {
         if (st.tableEndAt) {
             const rem = Math.max(0, Math.floor((st.tableEndAt - Date.now()) / 60000));
             rows.push(['剩余时长', `约 ${rem} 分钟`]);
+            rows.push(['预计结束', formatMatchEndTime(st.tableEndAt)]);
         }
+        if (st.timeExpired) rows.push(['当前状态', '⏸️ 已到时，等待房主决定']);
+        else if (st.paused) rows.push(['当前状态', '⏸️ 房主手动暂停']);
     } else rows.push(['当前级别', (st.currentLevel || 0) + 1]);
     const isOwner = st.ownerUserId === myUserId;
     let html = rows.map(([k, v]) => `<div class="mi-row"><span>${k}</span><b>${v}</b></div>`).join('');
@@ -688,12 +691,13 @@ function renderMatchInfo(st) {
         html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">UTG Straddle（下一手起生效）</span>
             <div class="tier-row"><button type="button" class="ext-btn" onclick="setUtgStraddle(${!st.allowUtgStraddle})">
             ${st.allowUtgStraddle ? '关闭 Straddle' : '开启 Straddle 2BB'}</button></div></div>`;
-        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">比赛加时（分钟）</span>
+        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">调整预计结束时间</span>
             <div class="tier-row">` +
-            [15, 30, 60, 90, 120].map(m => `<button type="button" class="ext-btn" onclick="extendMatch(${m})">+${m}</button>`).join('') +
+            [-30, -15, 15, 30, 60].map(m => `<button type="button" class="ext-btn" onclick="adjustMatchEnd(${m})">${m > 0 ? '+' : ''}${m}</button>`).join('') +
             `</div></div>`;
+        if (st.timeExpired) html += '<div class="mi-note">⏸️ 保持当前状态无需操作；房间、座位和筹码都会保留。</div>';
     }
-    if (!isOwner) html += '<div class="mi-note">仅房主可加时 / 结束比赛</div>';
+    if (!isOwner) html += '<div class="mi-note">仅房主可调整时间 / 结束比赛</div>';
     document.getElementById('match-info').innerHTML = html;
     document.querySelectorAll('#match-modal .owner-only').forEach(e => e.style.display = isOwner ? '' : 'none');
 }
@@ -706,4 +710,20 @@ function extendMatch(minutes) {
     if (!confirm(`确定为本场比赛加时 +${minutes} 分钟？`)) return;
     socket.emit('extend_match', { minutes });
     alert(`已加时 +${minutes} 分钟`);
+}
+function formatMatchEndTime(value) {
+    return new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+function adjustMatchEnd(minutes) {
+    if (!socket || !lastState) return;
+    const now = Date.now();
+    const oldEndAt = lastState.tableEndAt || now;
+    const base = minutes > 0 ? Math.max(now, oldEndAt) : oldEndAt;
+    const endAt = Math.max(now, base + minutes * 60000);
+    const immediate = endAt <= now;
+    const detail = immediate
+        ? '比赛将进入到时暂停；当前手会继续完成，不会自动结算或解散。'
+        : `预计结束时间将从 ${formatMatchEndTime(oldEndAt)} 调整为 ${formatMatchEndTime(endAt)}。`;
+    if (!confirm(`${detail}\n\n确定调整吗？`)) return;
+    socket.emit('adjust_match_end', { endAt });
 }

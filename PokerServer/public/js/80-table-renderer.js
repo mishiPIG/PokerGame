@@ -333,7 +333,8 @@ function render(state) {
             + (state.allowUtgStraddle ? ' · STR 2BB' : '')
             + (tableEndAt ? ` · <span id="table-remain"></span>` : '');
     }
-    if (state.paused) sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 房主已暂停发牌</span>`;
+    if (state.timeExpired) sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 训练时间已到，等待房主决定</span>`;
+    else if (state.paused) sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 房主已暂停发牌</span>`;
 
     // 公共牌：固定 5 个位置（已发的是牌，未发的占位空槽），避免发牌时布局跳动
     const comm = state.communityCards;
