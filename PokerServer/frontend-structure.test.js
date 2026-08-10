@@ -93,6 +93,16 @@ test('shared utilities and reassigned controls have one owner', () => {
     assert.match(source('70-actions.js'), /function toggleReady\b/);
 });
 
+test('audio unlock supports iOS gestures and foreground recovery', () => {
+    const audio = source('50-audio-settings.js');
+    const bootstrap = source('99-bootstrap.js');
+    assert.match(audio, /function resumeAudio\b/);
+    assert.match(audio, /function unlockAudio\b/);
+    assert.match(bootstrap, /'pointerdown', 'touchend', 'keydown', 'click'/);
+    assert.match(bootstrap, /visibilitychange/);
+    assert.match(bootstrap, /if \(!document\.hidden\) resumeAudio\(\)/);
+});
+
 test('room owner invitation presents one combined, copyable message', () => {
     assert.match(INDEX, /id="invite-message"/);
     assert.match(INDEX, /onclick="copyRoomInvite\(\)"/);
