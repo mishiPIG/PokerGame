@@ -48,6 +48,7 @@ function emitStraddleOffer(game, socket) {
     socket.emit('straddle_offer', {
         targetHandSeq: d.targetHandSeq,
         amount: d.amount,
+        chainIndex: d.chainIndex || 0,     // 第几档：客户端小标志显示 STR ×1 / ×2 …
         deadlineAt: d.deadlineAt
     });
 }

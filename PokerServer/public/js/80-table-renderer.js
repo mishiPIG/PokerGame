@@ -57,14 +57,16 @@ function emptySlot() {
 // 环形 M 个座位坐标：ringIndex 0 = 底部中央，ringIndex 递增 = 顺时针（与座位号递增=行动顺序一致）
 // 屏幕 y 向下：底部(6点)→左下(7点)→…→右下(5点)，即行动顺序顺时针、下一位在我左手边
 // 座位块的实际像素尺寸（必须与 20-table.css 对得上，半径夹取全靠它）：
-//   高 = padding2 + 名字(11×1.25) + 名字下边距7 + gap1 + 头像46 + gap1 + 筹码上边距9 + 筹码(12×1.2) + padding2 ≈ 96
+//   高 = padding2 + 名字(11×1.25) + 名字下边距7 + gap1 + 头像40 + gap1 + 筹码上边距9 + 筹码(12×1.2) + padding2 ≈ 90
 //   （名字下边距/筹码上边距是给「下注 chip 徽章」和「倒计时数字」留的位，本来就算在块内）
-//   宽 = 名字 max-width 74 + padding 2×2 = 78
+//   宽 = 名字 max-width 64 + padding 2×2 = 68
 // overhangTop = 真正超出【座位块】顶端的部分：胜率徽章 top:-34px 是相对【头像块】的，
 //   而头像块本身已在座位块内 23.8px 处 → 实际只探出约 10px。
 // ⚠️ 之前这里写 h:81 / overhangTop:34 —— 高度少算了 15px，于是下面的筹码数字没被算进夹取范围，
 //    公共牌那一排就压到了两侧玩家的后手数字上（玩家实拍反馈）。改 CSS 尺寸务必回来同步。
-const SEAT_BOX = { w: 78, h: 96, overhangTop: 11 };
+const SEAT_BOX = { w: 68, h: 90, overhangTop: 11 };
+// #board 的垂直位置（00-shell.css 里的 top%）。两边要一致——seatfit 会交叉核对。
+const BOARD_TOP_PCT = 43;
 // 座位环可用尺寸：优先量真实 DOM；测试环境(jsdom 无布局)可用 __ringW/__ringH 注入。
 // ⚠️ 必须挡掉「残缺尺寸」：牌桌刚显示、布局还没稳定的那一帧量到的可能是个很小的非零值，
 // 半径夹取会因此退化成最小值 → 所有座位挤成一条线（点「坐下」瞬间出现过）。
@@ -126,6 +128,44 @@ function ringPos(ringIndex, M) {
     return { x, y };
 }
 
+// 公共牌那一排能放多大：按【这一桌真实的座位几何】算，而不是拿屏幕宽度一刀切。
+// 只有【垂直方向真的和这一排重叠】的座位才会限制它；其余情况就放到最大(1.2 倍 = 原尺寸)。
+// 玩家先反馈「公共牌压住后手数字」，改成按屏幕宽度封顶后又反馈「牌怎么变这么小」——
+// 所以按几何算：能放大就放大，实在放不下才收。
+// 纯函数，便于 seatfit 直接验证（DOM 读取放在下面的包装里）。
+function communityCardW(M, ringW, ringH, padTop, areaH, boardTopPct, cardW) {
+    const maxW = cardW * 1.2;
+    const rowH = maxW * 1.39;
+    const mid = areaH * boardTopPct / 100;
+    const rowTop = mid - rowH / 2, rowBottom = mid + rowH / 2;
+    let halfLimit = Infinity;
+    for (let i = 0; i < M; i++) {
+        const pt = ringPos(i, M);
+        const cy = padTop + pt.y / 100 * ringH;
+        // 这个座位竖直方向压根不在这一排的高度范围内 → 不构成限制
+        if (cy + SEAT_BOX.h / 2 < rowTop || cy - SEAT_BOX.h / 2 - SEAT_BOX.overhangTop > rowBottom) continue;
+        const cx = pt.x / 100 * ringW;
+        const gap = Math.abs(cx - ringW / 2) - SEAT_BOX.w / 2 - 4;   // 留 4px 呼吸
+        if (gap < halfLimit) halfLimit = gap;
+    }
+    if (halfLimit === Infinity) return maxW;
+    return Math.min(maxW, Math.max(18, (halfLimit * 2 - 4 * 5) / 5));   // 5 张牌 + 4 个 5px 间距
+}
+function syncCommunityWidth(M) {
+    const comm = document.getElementById('community');
+    const ring = document.getElementById('ring-layer');
+    const area = document.getElementById('table-area');
+    if (!comm || !ring || !area) return;
+    const sz = ringLayerSize();
+    const areaH = area.clientHeight || sz.h;
+    const padTop = ring.offsetTop || 0;
+    const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 32;
+    const w = communityCardW(M, sz.w, sz.h, padTop, areaH, BOARD_TOP_PCT, cardW);
+    comm.style.setProperty('--comm-w', w.toFixed(1) + 'px');
+    const rib = document.getElementById('runit-boards');
+    if (rib) rib.style.setProperty('--comm-w', w.toFixed(1) + 'px');
+}
+
 function renderSeats(state) {
     if (!state) return;
     const M = Math.max(state.maxPlayers || 2, 2);
@@ -135,6 +175,7 @@ function renderSeats(state) {
     const isCash = state.roomType === 'cash';
     const bySeat = {}; state.players.forEach(p => bySeat[p.seat] = p);
 
+    syncCommunityWidth(M);   // 座位几何定了，公共牌那排随之取最大可放尺寸
     const ring = document.getElementById('ring-layer');
     let html = '';
     for (let s = 0; s < M; s++) {

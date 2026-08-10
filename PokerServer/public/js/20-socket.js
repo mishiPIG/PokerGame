@@ -130,6 +130,7 @@ function connectSocket(token) {
         myHoleCards = cards;
         revealedCards = {};  // 新一局清除 showdown 展示
         showdownInfo = null; myHand = null;
+        hideStraddleOffer();  // 没点的 straddle 小标志：新一手开始就收掉（本手的机会已经过了）
         shownCards = {}; myShown = new Set();  // 清除上一局主动亮牌
         hideRunitPanel(); clearRunit();        // 新一局：清多次发牌协商面板 + 桌面 N 板残留（防公共牌被 runit-on 一直藏着）
         holeJustDealt = true;  // 发牌动画在随后的 game_state(preflop) 渲染时统一播放（我的牌 + 对手牌背交替飞入）
@@ -243,11 +244,12 @@ function connectSocket(token) {
         straddleOffer = {
             targetHandSeq: offer.targetHandSeq,
             amount: offer.amount,
+            chainIndex: offer.chainIndex || 0,
             deadlineAt: offer.deadlineAt
         };
-        clearInterval(straddleOfferTimer);
+        // 小标志是静态的（不再有倒计时），画一次即可；下一手开始时由 hole_cards 收掉。
+        clearInterval(straddleOfferTimer); straddleOfferTimer = null;
         renderStraddleOffer();
-        straddleOfferTimer = setInterval(renderStraddleOffer, 250);
     });
     socket.on('straddle_decision_result', (result) => {
         if (straddleOffer && result.targetHandSeq !== straddleOffer.targetHandSeq) return;

@@ -86,11 +86,13 @@ function restoreVacatedPlayer(roomId, socket, user, preferSeat) {
 }
 
 // 为某座位扣金币、登记挂起补码（下一手生效）。成功返回 true
-function chargeRebuy(game, p, chips) {
+// outcome 出参：把失败原因带回去，别再一律报「金币不足」。
+// （线上就出现过：幂等键冲突导致补码失败，玩家明明有金币却被告知余额不够，白点半天。）
+function chargeRebuy(game, p, chips, outcome = {}) {
     const fresh = db.getUserById(p.userId);
     if (!fresh) return false;
     const cost = Math.ceil(chips * BUYIN_RATE);
-    if (fresh.gold < cost) return false;
+    if (fresh.gold < cost) { outcome.reason = 'INSUFFICIENT_GOLD'; return false; }
     const roomId = Object.keys(roomGames).find(id => roomGames[id] === game);
     if (!roomId || !game.matchId) return false;
     const before = {
@@ -128,6 +130,7 @@ function chargeRebuy(game, p, chips) {
         if (p.socketId) io.to(p.socketId).emit('gold_update', { gold: balance });
     } catch (error) {
         Object.assign(p, before);
+        outcome.reason = error.message || 'FAILED';
         if (error.message !== 'INSUFFICIENT_GOLD') console.error('[wallet] cash rebuy failed', error);
         return false;
     }

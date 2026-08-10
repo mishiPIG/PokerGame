@@ -2,31 +2,24 @@
 function hideStraddleOffer() {
     straddleOffer = null;
     clearInterval(straddleOfferTimer); straddleOfferTimer = null;
-    const el = document.getElementById('straddle-offer');
+    const el = document.getElementById('straddle-flag');
     if (el) el.style.display = 'none';
 }
+// 小标志：只显示「STR ×第几档」，不占地方、不打断行动，随时可点。
 function renderStraddleOffer() {
     if (!straddleOffer) return;
-    const remain = Math.max(0, Math.ceil((straddleOffer.deadlineAt - Date.now()) / 1000));
-    if (remain <= 0) { hideStraddleOffer(); return; }
-    document.getElementById('straddle-offer-amount').textContent = straddleOffer.amount;
-    document.getElementById('straddle-offer-time').textContent = `${remain}s`;
-    document.getElementById('straddle-offer').style.display = '';
-    requestAnimationFrame(positionStraddleOffer);
+    const el = document.getElementById('straddle-flag');
+    if (!el) return;
+    document.getElementById('straddle-flag-n').textContent = '×' + ((straddleOffer.chainIndex || 0) + 1);
+    el.style.display = '';
 }
-function positionStraddleOffer() {
-    const offer = document.getElementById('straddle-offer');
-    const hero = document.querySelector('#ring-layer .ring-seat.bottom');
-    const view = document.getElementById('table-view');
-    if (!offer || offer.style.display === 'none' || !hero || !view) return;
-    const hr = hero.getBoundingClientRect(), vr = view.getBoundingClientRect();
-    offer.style.bottom = Math.min(vr.height * 0.63, vr.bottom - hr.top + 18) + 'px';
-}
+function positionStraddleOffer() { /* 贴在牌桌右边缘，纯 CSS 定位，无需跟随座位 */ }
 function answerStraddle(accept) {
     if (!straddleOffer || !socket) return;
-    const targetHandSeq = straddleOffer.targetHandSeq;
-    hideStraddleOffer(); // 两个选择都立即隐藏，不作为常驻控件
+    const targetHandSeq = straddleOffer.targetHandSeq, amount = straddleOffer.amount;
+    hideStraddleOffer();                       // 点完立刻消失
     socket.emit('straddle_decision', { targetHandSeq, accept: accept === true });
+    if (accept === true) toast(`🔥 下一手 straddle ${fmtChips(amount)}`);
 }
 
 function showReconnecting() {

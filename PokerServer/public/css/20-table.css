@@ -19,7 +19,7 @@
 
         /* ===== Seat（德扑之星式：名上·头像·筹码下 三层；牌朝外；状态按需气泡）===== */
         .seat { display: flex; flex-direction: column; align-items: center; gap: 1px; position: relative; padding: 2px; }
-        .seat .name { font-weight: 600; font-size: 11px; color: #cfd8e6; max-width: 74px;
+        .seat .name { font-weight: 600; font-size: 11px; color: #cfd8e6; max-width: 64px;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; margin-bottom: 7px; }
         .seat .chips { font-size: 12px; color: #e8c14a; font-weight: bold; line-height: 1.2; margin-top: 9px; }
         .seat .chips.clickable { cursor: pointer; }
@@ -27,10 +27,11 @@
         .seat.away-seat .avatar { filter: grayscale(1) brightness(0.7); }
         .seat.away-seat .name { color: #8a93a3; }
         /* 头像块（小方块 + 顶部下注 chip + 庄家 D + 倒计时）*/
-        .avatar-block { position: relative; width: 46px; height: 46px; }
+        /* 头像方块：46→40（玩家反馈头像偏大压地方）。改这里必须同步 80-table-renderer.js 的 SEAT_BOX */
+        .avatar-block { position: relative; width: 40px; height: 40px; }
         .avatar { position: absolute; inset: 0; border-radius: 11px; overflow: hidden;
             display: flex; align-items: center; justify-content: center;
-            color: #fff; font-weight: bold; font-size: 17px; border: 2px solid rgba(255,255,255,0.22); }
+            color: #fff; font-weight: bold; font-size: 15px; border: 2px solid rgba(255,255,255,0.22); }
         .avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
         .dealer-btn { position: absolute; bottom: -3px; right: -6px; z-index: 4;
             width: 18px; height: 18px; border-radius: 50%; color: #1a1a1a; font-size: 11px; font-weight: bold;
@@ -238,11 +239,11 @@
         #table-notice { display: table; margin: 8px auto 0; text-align: center; font-size: 13px; font-weight: bold; color: #f4d35e;
             background: rgba(0,0,0,0.45); border-radius: 10px; padding: 4px 12px;
             text-shadow: 0 1px 3px rgba(0,0,0,0.7); animation: dealIn 0.3s ease-out; }
-        /* 公共牌整排必须能塞进【两侧座位之间】——否则会压住玩家的后手筹码数字（玩家实拍反馈）。
-           屏幕越窄，座位占的比例越大、中间越挤，所以这排牌的尺寸要跟着屏幕宽度封顶，
-           而不是一律放大 1.2 倍。210px ≈ 两侧座位各自占掉的宽度，5 是卡间距。
-           （seatfit 里有「公共牌不压座位」的断言，改这个公式要一起跑。）*/
-        #community { --comm-w: min(calc(var(--card-w) * 1.2), calc((100vw - 210px) / 5 - 5px)); }
+        /* 公共牌整排必须能塞进【两侧座位之间】，否则会压住玩家的后手筹码数字（玩家实拍反馈）。
+           但也不能一刀切地按屏幕宽度砍小——那样正常手机上牌会白白变小（玩家又反馈「怎么变这么小」）。
+           所以真实值由 JS 按【这一桌的实际座位几何】算出来写进 --comm-w（见 80-table-renderer.js
+           的 syncCommunityWidth），能放大就放大到 1.2 倍，放不下才收。这里只是 JS 没跑起来时的兜底。*/
+        #community { --comm-w: calc(var(--card-w) * 1.2); }
         #community .card, #community .empty-slot { width: var(--comm-w); height: calc(var(--comm-w) * 1.39); }
 
         /* ===== Action bar ===== */

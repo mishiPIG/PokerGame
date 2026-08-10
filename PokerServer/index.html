@@ -222,12 +222,12 @@
     <!-- ===== 牌桌 ===== -->
     <div id="table-view" style="display:none">
     <div id="table-area">
-        <div id="straddle-offer" style="display:none">
-            <span class="so-prompt">下一手 UTG · Straddle <b id="straddle-offer-amount"></b>？</span>
-            <button class="so-yes" onclick="answerStraddle(true)">是</button>
-            <button class="so-no" onclick="answerStraddle(false)">否</button>
-            <span class="so-time" id="straddle-offer-time"></span>
-        </div>
+        <!-- Straddle 小标志：桌子右边缘一个小牌子，点一下就是「下一手我 straddle」。
+             不再做成打断式弹条（原来只有弃牌出局的人才会被问，很不方便）。
+             点了就消失；没点的话下一手开始也会消失。-->
+        <button id="straddle-flag" style="display:none" onclick="answerStraddle(true)">
+            <span class="sf-tag">STR</span><span class="sf-n" id="straddle-flag-n">×1</span>
+        </button>
         <!-- 合规横幅（纯娱乐定位）-->
         <div id="compliance-banner">绿色竞技 · 远离赌博 · 谨防诈骗 · 健康生活</div>
         <!-- 中央水印（房名/级别/邀请码）-->

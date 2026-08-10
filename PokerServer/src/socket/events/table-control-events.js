@@ -60,7 +60,13 @@ function registerTableControlEvents(context) {
         }
         if (cap <= 0) { socket.emit('server_msg', '⚠️ 已达带入上限'); return; }
         const chips = clampInt(amount, gameBB(game), cap, Math.min(cap, game.config.minBuyIn));
-        if (!chargeRebuy(game, p, chips)) { socket.emit('server_msg', `⚠️ 金币不足，补 ${chips} 筹码需 ${Math.ceil(chips * BUYIN_RATE)} 金币`); return; }
+        const outcome = {};
+        if (!chargeRebuy(game, p, chips, outcome)) {
+            socket.emit('server_msg', outcome.reason === 'INSUFFICIENT_GOLD'
+                ? `⚠️ 金币不足，补 ${chips} 筹码需 ${Math.ceil(chips * BUYIN_RATE)} 金币`
+                : `⚠️ 补码失败（${outcome.reason || '未知原因'}），已回滚未扣款，请重试或联系管理员`);
+            return;
+        }
         user.gold = db.getUserById(user.id).gold;
         const between = game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN;
         const inActiveHand = !between && !p.folded;
