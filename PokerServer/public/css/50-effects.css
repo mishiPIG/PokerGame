@@ -28,7 +28,7 @@
         #runit-boards .rib-slots { display: flex; gap: 5px; }
         /* 与正式公共牌同尺寸（--card-w*1.2），不再偏小 */
         /* 与 #community 同尺寸（同一个跟屏幕宽度封顶的公式，别写死 1.2 倍，否则窄屏会压住座位）*/
-        #runit-boards { --comm-w: min(calc(var(--card-w) * 1.2), calc((100vw - 210px) / 5 - 5px)); }
+        #runit-boards { --comm-w: calc(var(--card-w) * 1.2); }   /* 兜底：真实值由 JS 的 syncCommunityWidth 写入 */
         #runit-boards .rib-slot { width: var(--comm-w); height: calc(var(--comm-w) * 1.39); border-radius: 6px; }
         #runit-boards .rib-slot.ghost { visibility: hidden; }   /* 占位对齐（共享底位置留空）*/
         #runit-boards .rib-slots .card { width: var(--comm-w); height: calc(var(--comm-w) * 1.39); min-width: var(--comm-w); }

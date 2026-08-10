@@ -93,11 +93,11 @@ function sendPopupEmote(e) {
     clearTimeout(_emoteCloseTimer);
     _emoteCloseTimer = setTimeout(() => closeAvatarPopup(), 1500);
 }
-// 从当前牌桌状态取某人的「本房战绩」（与「当前战绩」面板同源：chips-buyIn），保证两处口径一致
+// 从当前牌桌状态取某人的「本房战绩」（与「当前战绩」面板同源），保证两处口径一致
 function roomStatFor(userId) {
     if (!lastState) return null;
     const p = (lastState.players || []).find(x => x.userId === userId);
-    if (p) return { net: (p.chips || 0) - (p.buyIn || 0), hands: p.handsPlayed || 0 };
+    if (p) return { net: displayNet(p), hands: p.handsPlayed || 0 };
     const v = (lastState.vacated || []).find(x => x.userId === userId);
     if (v) return { net: v.net || 0, hands: v.handsPlayed || 0 };
     const h = (lastState.statsHistory || []).find(x => x.userId === userId);

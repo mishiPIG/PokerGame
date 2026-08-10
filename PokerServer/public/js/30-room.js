@@ -607,7 +607,7 @@ function renderStats(st) {
     const rows = (st.players || []).map(p => {
         const inactive = p.standing || p.reserved || p.away || p.sittingOut;
         const tag = (p.userId === myUserId ? ' (你)' : '') + (p.standing ? ' 🧍' : p.reserved ? ' 💺' : p.away ? ' 📴' : p.sittingOut ? ' 💤' : '');
-        return { name: p.displayName || p.username, buyIn: p.buyIn, hands: p.handsPlayed, net: (p.chips || 0) - (p.buyIn || 0), dim: inactive, tag };
+        return { name: p.displayName || p.username, buyIn: p.buyIn, hands: p.handsPlayed, net: displayNet(p), dim: inactive, tag };
     });
     // 站起围观者（已离座但带入过）：灰显保留战绩，不清空
     (st.vacated || []).filter(v => !curIds.has(v.userId)).forEach(v =>
