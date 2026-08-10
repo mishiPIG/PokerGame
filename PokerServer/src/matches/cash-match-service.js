@@ -4,15 +4,49 @@ const { createRoomLifecycle } = require('../rooms/room-lifecycle');
 function createCashMatchService({ io, db, roomGames, lobbySockets, config, persistence, hooks }) {
     const { CASHOUT_RATE, PHASES, gameBB, STRADDLE_INTERMISSION_MS } = config;
     const { buildRanking, sendMatchResult, clearActionTimer, clearStraddleDecision, showStraddleDecision, broadcastState, broadcastRoomList, listRooms, removeBustedPlayers, liveCount, startHand } = hooks;
-// 现金桌训练时长到点：不打断当前手，也不自动结算；本手结束后暂停发牌，等待房主决定。
-function onTableTimeUp(roomId) {
+// 到时暂停之后的兜底时长：超过它还没人处理就自动结算收桌。
+// ⚠️ 为什么必须有：「到时只暂停、等房主决定」本身是好设计，但房主一旦掉线/关掉 App，
+//    这桌就永远停在那里 —— 玩家的筹码被锁在房间里换不回金币，而空房清理只管【没人】的房间，
+//    有人坐着的暂停房不会被清。所以给一个明确的兜底：5 分钟无人处理就按正常流程结算。
+const TIME_UP_GRACE_MS = 5 * 60 * 1000;
+function clearTimeUpGrace(game) {
+    if (!game) return;
+    clearTimeout(game.timeUpGraceTimer);
+    game.timeUpGraceTimer = null;
+    game.timeUpGraceAt = null;
+}
+// untilMs 允许传入（重启恢复时接着原来的剩余时间走，而不是白送一个完整的 5 分钟）
+function armTimeUpGrace(roomId, untilMs) {
+    const game = roomGames[roomId];
+    if (!game) return;
+    clearTimeout(game.timeUpGraceTimer);
+    game.timeUpGraceAt = untilMs && untilMs > Date.now() ? untilMs : Date.now() + TIME_UP_GRACE_MS;
+    game.timeUpGraceTimer = setTimeout(() => {
+        const g = roomGames[roomId];
+        if (!g || g.tournamentOver || !g.timeExpired) return;   // 房主已经处理过了
+        const inHand = g.phase !== PHASES.WAITING && g.phase !== PHASES.SHOWDOWN;
+        if (inHand) {
+            // 极端情况下还在牌里（比如房主刚好又开了一手）：不打断，挂 pendingEnd 等本手打完
+            g.pendingEnd = true;
+            io.in(roomId).emit('server_msg', '⏰ 到时后 5 分钟无人处理：本手结束后自动结算');
+            broadcastState(roomId);
+            return;
+        }
+        endCashTable(roomId, '训练时长已到（5 分钟无人处理，自动结算）');
+    }, Math.max(0, game.timeUpGraceAt - Date.now()));
+}
+
+// 现金桌训练时长到点：不打断当前手，也不立刻结算；本手结束后暂停发牌，等待房主决定。
+// 但会同时启动 5 分钟兜底，避免房主不在时这桌（连同大家的筹码）被无限期挂住。
+function onTableTimeUp(roomId, graceUntil) {
     const game = roomGames[roomId];
     if (!game || game.tournamentOver) return;
     clearTimeout(game.tableTimer); game.tableTimer = null;
     game.timeExpired = true;
     game.pendingEnd = false; // 兼容旧快照；到时不再代表自动收桌
-    io.in(roomId).emit('server_msg', '⏰ 训练时长已到——本手结束后暂停发牌，等待房主决定');
-    io.in(roomId).emit('match_time_expired', {});
+    armTimeUpGrace(roomId, graceUntil);
+    io.in(roomId).emit('server_msg', '⏰ 训练时长已到——本手结束后暂停发牌；房主 5 分钟内可加时，否则自动结算');
+    io.in(roomId).emit('match_time_expired', { graceUntil: game.timeUpGraceAt });
     broadcastState(roomId);
 }
 function startTableTimer(roomId) {
@@ -27,7 +61,7 @@ function restoreTableTimer(roomId) {
     const game = roomGames[roomId];
     if (!game || game.roomType !== 'cash' || !game.tableEndAt || game.tournamentOver) return;
     clearTimeout(game.tableTimer);
-    if (game.timeExpired || game.tableEndAt <= Date.now()) { onTableTimeUp(roomId); return; }
+    if (game.timeExpired || game.tableEndAt <= Date.now()) { onTableTimeUp(roomId, game.timeUpGraceAt); return; }
     game.tableTimer = setTimeout(() => onTableTimeUp(roomId), Math.max(0, game.tableEndAt - Date.now()));
 }
 function adjustTableEnd(roomId, endAt) {
@@ -42,7 +76,10 @@ function adjustTableEnd(roomId, endAt) {
     game.timeExpired = nextEndAt <= now;
     game.pendingEnd = false;
     clearTimeout(game.tableTimer); game.tableTimer = null;
+    // 房主动过手 = 已处理：延后就撤销兜底重新排点；调成「立刻到时」则重新给 5 分钟
+    clearTimeUpGrace(game);
     if (!game.timeExpired) game.tableTimer = setTimeout(() => onTableTimeUp(roomId), nextEndAt - now);
+    else armTimeUpGrace(roomId);
     if (grantedMs > 0) {
         // 只为实际延长的未来时长补时间卡；缩短不回收已经发出的卡。
         const addH = grantedMs / 3600000, bb = gameBB(game) || 1;
@@ -63,7 +100,7 @@ function endCashTable(roomId, reason) {
     const game = roomGames[roomId];
     if (!game || game._persistenceFinished) return;
     game.tournamentOver = true; game.status = 'finished';
-    clearTimeout(game.tableTimer); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearTimeout(game.runItTimer); game.runItPending = false; clearActionTimer(game);
+    clearTimeout(game.tableTimer); clearTimeUpGrace(game); clearTimeout(game.nextHandTimer); clearTimeout(game.runoutTimer); clearTimeout(game.runItTimer); game.runItPending = false; clearActionTimer(game);
     clearStraddleDecision(game);
     for (const p of game.players) if (p.reserveTimer) clearTimeout(p.reserveTimer);
     const ranking = buildRanking(game);
@@ -106,6 +143,8 @@ function scheduleNextHand(roomId) {
         removeBustedPlayers(g);   // 结算后：SNG 淘汰 / 现金桌兑出离场者移除、坐出者保留、挂起补码生效
         // 房主在牌局进行中点了解散 → 等到本手打完才真正解散（不打断正在进行的牌）
         if (g.pendingDissolve) { hooks.dissolveNow(roomId); return; }
+        // 兜底已触发（到时后 5 分钟无人处理）：本手打完就结算，别再停在这儿
+        if (g.pendingEnd) { endCashTable(roomId, '训练时长已到（5 分钟无人处理，自动结算）'); return; }
         if (g.timeExpired) { io.in(roomId).emit('server_msg', '⏸️ 训练时间已到，等待房主加时或结束比赛'); broadcastState(roomId); return; }
         if (g.paused) { io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（本手结束）'); broadcastState(roomId); return; }
         if (liveCount(g) >= 2) startHand(roomId);

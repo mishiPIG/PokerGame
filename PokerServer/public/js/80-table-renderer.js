@@ -404,7 +404,12 @@ function render(state) {
             + (state.allowUtgStraddle ? ' · STR 2BB' : '')
             + (tableEndAt ? ` · <span id="table-remain"></span>` : '');
     }
-    if (state.timeExpired) sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 训练时间已到，等待房主决定</span>`;
+    if (state.timeExpired) {
+        // 带上兜底倒计时：让全桌都知道「不处理的话什么时候会自动结算」，而不是干等着
+        const left = state.timeUpGraceAt ? Math.max(0, Math.ceil((state.timeUpGraceAt - Date.now()) / 60000)) : null;
+        sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 训练时间已到，等待房主决定`
+            + (left != null ? `（约 ${left} 分钟后自动结算）` : '') + `</span>`;
+    }
     else if (state.paused) sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 房主已暂停发牌</span>`;
 
     // 公共牌：固定 5 个位置（已发的是牌，未发的占位空槽），避免发牌时布局跳动

@@ -674,7 +674,11 @@ function renderMatchInfo(st) {
             rows.push(['剩余时长', `约 ${rem} 分钟`]);
             rows.push(['预计结束', formatMatchEndTime(st.tableEndAt)]);
         }
-        if (st.timeExpired) rows.push(['当前状态', '⏸️ 已到时，等待房主决定']);
+        if (st.timeExpired) {
+            const left = st.timeUpGraceAt ? Math.max(0, Math.ceil((st.timeUpGraceAt - Date.now()) / 60000)) : null;
+            rows.push(['当前状态', '⏸️ 已到时，等待房主决定'
+                + (left != null ? `（约 ${left} 分钟后自动结算）` : '')]);
+        }
         else if (st.paused) rows.push(['当前状态', '⏸️ 房主手动暂停']);
     } else rows.push(['当前级别', (st.currentLevel || 0) + 1]);
     const isOwner = st.ownerUserId === myUserId;
@@ -688,7 +692,7 @@ function renderMatchInfo(st) {
             <div class="tier-row">` +
             [-30, -15, 15, 30, 60].map(m => `<button type="button" class="ext-btn" onclick="adjustMatchEnd(${m})">${m > 0 ? '+' : ''}${m}</button>`).join('') +
             `</div></div>`;
-        if (st.timeExpired) html += '<div class="mi-note">⏸️ 保持当前状态无需操作；房间、座位和筹码都会保留。</div>';
+        if (st.timeExpired) html += '<div class="mi-note">⏸️ 加时即可继续；若一直无人处理，5 分钟后会自动结算收桌（筹码照常兑回金币，不会被卡住）。</div>';
     }
     if (!isOwner) html += '<div class="mi-note">仅房主可调整时间 / 结束比赛</div>';
     document.getElementById('match-info').innerHTML = html;
