@@ -51,6 +51,12 @@ ssh "$SERVER_HOST" "cd $SERVER_PATH && npm install --omit=dev"
 
 echo ""
 echo "🗄️ 停写、备份并校验数据库..."
+# 记下错误日志当前大小：Step 4 只读【这之后】新增的部分（比事后猜时间/过滤关键字都准）
+ssh "$SERVER_HOST" "PM2_APP='$PM2_APP' bash -s" <<'REMOTE_ERRMARK'
+ERRLOG=$(pm2 jlist 2>/dev/null | python3 -c "import sys,json;d=json.load(sys.stdin);print([x['pm2_env']['pm_err_log_path'] for x in d if x['name']=='$PM2_APP'][0])" 2>/dev/null)
+if [ -n "$ERRLOG" ] && [ -f "$ERRLOG" ]; then wc -c < "$ERRLOG" > "/tmp/poker_errsize_$PM2_APP"; else echo 0 > "/tmp/poker_errsize_$PM2_APP"; fi
+REMOTE_ERRMARK
+
 ssh "$SERVER_HOST" "DB_PATH='$DB_PATH' BACKUP_PATH='$BACKUP_PATH' SERVER_PATH='$SERVER_PATH' PM2_APP='$PM2_APP' bash -s" <<'REMOTE_DB'
 set -e
 mkdir -p "$(dirname "$DB_PATH")" "$BACKUP_PATH"
@@ -72,6 +78,31 @@ POKER_DB_PATH="$DB_PATH" NODE_ENV=production pm2 restart "$PM2_APP" --update-env
   POKER_DB_PATH="$DB_PATH" NODE_ENV=production pm2 start server.js --name "$PM2_APP"
 pm2 save
 REMOTE_DB
+
+# Step 4: 发版后自查错误日志（2026-08-10 加）
+# 连着三个经济漏洞（边池分钱、straddle 少扣、补码白拿）里，有两个是【部署后翻 error.log】
+# 才发现的——玩家自己不会报，「点了没反应」「补不上码」他们只当是自己的问题。
+# 筹码守恒审计也抓不到这类：钱没凭空多，只是分错人；或者漏的是金币、根本不在牌谱里。
+echo ""
+echo "🩺 发版后错误日志自查（只看重启之后新增的部分）..."
+ssh "$SERVER_HOST" "PM2_APP='$PM2_APP' bash -s" <<'REMOTE_ERRCHK'
+sleep 12
+ERRLOG=$(pm2 jlist 2>/dev/null | python3 -c "import sys,json;d=json.load(sys.stdin);print([x['pm2_env']['pm_err_log_path'] for x in d if x['name']=='$PM2_APP'][0])" 2>/dev/null)
+if [ -z "$ERRLOG" ] || [ ! -f "$ERRLOG" ]; then
+  echo "   （找不到 $PM2_APP 的错误日志，跳过）"
+  exit 0
+fi
+BEFORE=$(cat "/tmp/poker_errsize_$PM2_APP" 2>/dev/null || echo 0)
+# 从重启前记下的字节位置往后读；再滤掉部署自己造成的 [shutdown] signal=（pm2 stop/restart 的正常输出）
+NEW=$(tail -c "+$((BEFORE + 1))" "$ERRLOG" 2>/dev/null | grep -v '^\[shutdown\] signal=' | grep -v '^[[:space:]]*$' | tail -30)
+if [ -z "$NEW" ]; then
+  echo "   ✅ 重启之后没有新的错误输出"
+else
+  echo "   ⚠️ 重启之后有错误输出 —— 先看明白再收工："
+  printf '%s
+' "$NEW" | sed 's/^/      /'
+fi
+REMOTE_ERRCHK
 
 echo ""
 echo "✅ 部署完成 → $PUBLIC_URL"
