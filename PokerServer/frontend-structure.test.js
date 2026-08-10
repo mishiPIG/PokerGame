@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const ROOT = __dirname;
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -49,6 +50,13 @@ function source(file) {
     return fs.readFileSync(path.join(JS_DIR, file), 'utf8');
 }
 
+function frontendContext() {
+    const context = { localStorage: { getItem() { return null; } } };
+    vm.createContext(context);
+    vm.runInContext(source('05-utils.js'), context);
+    return context;
+}
+
 function declarationCount(symbol) {
     const pattern = new RegExp(`(?:function|const|let|var)\\s+${symbol}\\b`, 'g');
     return EXPECTED_SCRIPTS.reduce((total, file) => total + (source(file).match(pattern) || []).length, 0);
@@ -70,6 +78,14 @@ test('state module owns data only and does not manipulate the DOM', () => {
     const state = source('00-state.js');
     assert.doesNotMatch(state, /\bdocument\b/);
     assert.doesNotMatch(state, /\bquerySelector\b|\bgetElementById\b|\bclassList\b/);
+});
+
+test('current table net keeps unsettled bets and pending rebuys in player assets', () => {
+    const { displayNet } = frontendContext();
+    assert.equal(displayNet({ chips: 980, currentBet: 20, committed: 0, buyIn: 1000 }), 0);
+    assert.equal(displayNet({ chips: 700, currentBet: 0, committed: 300, buyIn: 1000 }), 0);
+    assert.equal(displayNet({ chips: 500, pendingRebuy: 500, buyIn: 1000 }), 0);
+    assert.equal(displayNet({ chips: 650, currentBet: 10, committed: 40, buyIn: 1000 }), -300);
 });
 
 test('shared utilities and reassigned controls have one owner', () => {
