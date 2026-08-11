@@ -688,9 +688,11 @@ function renderMatchInfo(st) {
         html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">UTG Straddle（下一手起生效）</span>
             <div class="tier-row"><button type="button" class="ext-btn" onclick="setUtgStraddle(${!st.allowUtgStraddle})">
             ${st.allowUtgStraddle ? '关闭 Straddle' : '开启 Straddle 2BB'}</button></div></div>`;
-        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">调整预计结束时间</span>
+        // 只留加时：提前结束房主本来就有「⏸️ 暂停发牌」和「结束比赛」两个入口，
+        // 再放一排「−30/−15」是重复的路径，还容易误点把桌子提前判到时。
+        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">比赛加时（分钟）</span>
             <div class="tier-row">` +
-            [-30, -15, 15, 30, 60].map(m => `<button type="button" class="ext-btn" onclick="adjustMatchEnd(${m})">${m > 0 ? '+' : ''}${m}</button>`).join('') +
+            [15, 30, 60, 120].map(m => `<button type="button" class="ext-btn" onclick="adjustMatchEnd(${m})">+${m}</button>`).join('') +
             `</div></div>`;
         if (st.timeExpired) html += '<div class="mi-note">⏸️ 加时即可继续；若一直无人处理，5 分钟后会自动结算收桌（筹码照常兑回金币，不会被卡住）。</div>';
     }
@@ -717,10 +719,7 @@ function adjustMatchEnd(minutes) {
     const oldEndAt = lastState.tableEndAt || now;
     const base = minutes > 0 ? Math.max(now, oldEndAt) : oldEndAt;
     const endAt = Math.max(now, base + minutes * 60000);
-    const immediate = endAt <= now;
-    const detail = immediate
-        ? '比赛将进入到时暂停；当前手会继续完成，不会自动结算或解散。'
-        : `预计结束时间将从 ${formatMatchEndTime(oldEndAt)} 调整为 ${formatMatchEndTime(endAt)}。`;
+    const detail = `预计结束时间将从 ${formatMatchEndTime(oldEndAt)} 调整为 ${formatMatchEndTime(endAt)}。`;
     if (!confirm(`${detail}\n\n确定调整吗？`)) return;
     socket.emit('adjust_match_end', { endAt });
 }
