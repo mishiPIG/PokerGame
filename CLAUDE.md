@@ -300,6 +300,8 @@ Android / iOS / PC
   - 兜底（`TIME_UP_GRACE_MS = 5 分钟`）：到时暂停即启动，**房主一动手（调整结束时间）就撤销**；到点仍无人处理 → `endCashTable` 正常结算收桌。若兜底到点时**还在牌里**，不打断，挂 `pendingEnd` 等本手打完（`scheduleNextHand` 里 `pendingEnd` 优先于 `timeExpired`）。**重启恢复接着原来的剩余时间走**（`timeUpGraceAt` 进 state，不白送一个完整 5 分钟）。
   - 客户端：水印和比赛设置面板都显示「⏸️ 训练时间已到（约 N 分钟后自动结算）」，让全桌知道**不处理会发生什么**，而不是干等。
   - **加时档位保持原来的 +15/+30/+60/+120**：朋友那版还加了 −30/−15「提前结束」，但房主本来就有「⏸️ 暂停发牌」和「结束比赛」两个入口，多这一排是重复路径、还容易误点把桌子提前判到时（用户定）。
+  - 🔴 **上测试服时被「发版后错误日志自查」当场抓到一个我自己引入的 bug**：新加的 `game.timeUpGraceTimer` 是 Node 的 `Timeout` 对象，**内部循环引用**（`_idlePrev/_idleNext` 互指），而活跃牌局快照是 `JSON.stringify(game)` —— 直接抛 `Converting circular structure to JSON`，**整个快照写不进去**，启动恢复时刷一片报错。修：把它加进 `game-serializer` 的 `TRANSIENT_KEYS`。
+  - 顺手把这条变成关卡：`tools/check-timers.js` 交叉核对「所有存了 setTimeout/setInterval 的字段」是否都在 `TRANSIENT_KEYS` 里，已接入 `npm run check`。⚠️ 写检查器时踩了两次误报：只按名字匹配会把 `startTableTimer`/`restoreActionTimer` 这类**函数名**算进来；只取第一段属性会把 `clearTimeout(game.straddleDecision.timer)` 报成 `straddleDecision`（真正的字段是最后一段 `timer`）。反向对照（撤掉 `timeUpGraceTimer` 登记）确认能报出来。
   - 验证 `cash-timeup-grace.test.js`（假时钟快进）：5 分钟自动收桌 / 加时后撤销兜底 / 牌局中不打断只挂 pendingEnd / 重启接着原截止。**反向对照**（撤掉 `armTimeUpGrace`）4 个用例挂 3 个。
 - **横屏(电脑)公共牌太小**（玩家实拍）：横屏牌桌铺满整页、中间很空，公共牌按 1.2 倍显得很小，**甚至比自己那两张(1.4 倍)还小**——公共牌本该是全桌焦点。改为**横屏 1.7 倍 / 竖屏保持 1.2 倍**（手机上那个大小玩家说正好），实际值仍由几何夹取兜底。你那台电脑 58 → 公共牌 **69.6 → 98.6px**（自己的牌 81.2），手机端 42.8px 不变。
 - ⚠️ **顺带修了 `communityCardW` 的一个真错**：`#board` 是「底池行 + 公共牌行」**整体**垂直居中于 `boardTopPct`，所以公共牌那排的中心比 `boardTopPct` 低了半个底池行。原来漏了这个偏移 → 算不到刚好在牌下方的座位。放大到 1.7 倍时 **seatfit 当场抓出 4 处「被公共牌压住 31~38px」**，补上偏移后全绿。**放大一个元素同时验证它的碰撞模型，是这次没出事的原因。**

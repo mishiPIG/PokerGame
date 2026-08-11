@@ -10,8 +10,13 @@ const TRANSIENT_KEYS = new Set([
     'dissolveTimer',
     'emptyCleanupTimer',
     'reserveTimer',
+    'timeUpGraceTimer',
     'timer'
 ]);
+// ⚠️ 往 game 上挂新的定时器时，务必同时加进上面这张表。
+// Node 的 Timeout 对象内部是循环引用（_idlePrev/_idleNext 互指），
+// JSON.stringify 会直接抛 "Converting circular structure to JSON" —— 整个快照写不进去，
+// 表现是启动恢复时刷一片报错（timeUpGraceTimer 就这么中过一次，靠发版后错误日志自查抓到）。
 
 function serializeGame(game, stateVersion = game.stateVersion || 0) {
     const encoded = JSON.stringify(game, (key, value) => {
