@@ -47,8 +47,12 @@ PokerServer/mail.json
 PokerServer/.local/
 backups_offsite/
 
-# 私有运维手册 + 本地备份脚本（含生产 IP/SSH 别名/服务器路径，会下载密钥；不入库，仅本地）
-OPS.local.md
+# 本地私有文档与脚本（不入库，仅本地）
+# 仓库是 public：任何运维相关的内容一律用 *.local.md 命名，自动被忽略。
+*.local.md
 backup-hk.sh
+# 运维脚本目录（部署在服务器上，不随仓库分发）
+ops/
+PokerServer/ops/
 
 PokerServer/.localPokerServer/data.json.localbak
