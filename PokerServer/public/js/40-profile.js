@@ -134,7 +134,12 @@ async function submitFeedback() {
     const msg = document.getElementById('fb-msg');
     if (!text) { msg.style.color = '#f87171'; msg.textContent = '请先填写反馈内容'; return; }
     msg.style.color = '#8fa2c4'; msg.textContent = '提交中…';
-    const { ok, data } = await authPostToken('/api/feedback', { text, contact: document.getElementById('fb-contact').value.trim() });
+    // 自动带上前端构建号：指望玩家自己去设置面板翻版本号复制过来，基本不会发生
+    const { ok, data } = await authPostToken('/api/feedback', {
+        text,
+        contact: document.getElementById('fb-contact').value.trim(),
+        clientBuild: (typeof CLIENT_BUILD !== 'undefined' && CLIENT_BUILD !== '__' + 'BUILD__') ? CLIENT_BUILD : 'dev'
+    });
     if (ok) {
         msg.style.color = '#4ade80'; msg.textContent = '✅ 已收到，感谢反馈！';
         setTimeout(closeFeedback, 900);

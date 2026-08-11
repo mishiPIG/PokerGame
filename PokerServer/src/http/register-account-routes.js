@@ -97,7 +97,12 @@ app.post('/api/feedback', requireAuth, (req, res) => {
         username: req.authUser.username,
         text: text.slice(0, 2000),
         contact: (req.body?.contact || '').toString().slice(0, 120),
-        ua: (req.headers['user-agent'] || '').slice(0, 200)
+        ua: (req.headers['user-agent'] || '').slice(0, 200),
+        // 版本自动附带：指望玩家自己去设置面板翻出版本号复制过来，基本不会发生。
+        // serverVersion = 收到反馈时线上跑的版本；clientBuild = 他浏览器里那份前端的构建号。
+        // 两者不一致 = 他用的是缓存的旧前端，很多「复现不了」的反馈都是这个原因。
+        serverVersion: buildInfo.label,
+        clientBuild: (req.body?.clientBuild || '').toString().slice(0, 40) || 'unknown'
     };
     db.appendFeedback(rec);
     console.log(`[feedback] ${req.authUser.username}: ${text.slice(0, 80)}`);

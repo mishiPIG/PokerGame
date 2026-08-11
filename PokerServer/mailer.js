@@ -43,12 +43,24 @@ async function sendCode(to, code, purpose) {
     return { sent: true };
 }
 // 用户 Bug/建议反馈 → 发一封到管理员邮箱（默认发给发信账号本身，可用 mail.json.feedbackTo 覆盖）
+// 前端构建号不在服务端版本串里 = 玩家用的是缓存的旧前端。
+// 很多「我这边复现不了」的反馈都是这个原因，标出来能省一轮来回。
+function staleClient(r) {
+    const c = r.clientBuild, s = r.serverVersion;
+    if (!c || !s || c === 'unknown' || c === 'dev') return false;
+    return !s.includes(c);
+}
+
 async function sendFeedback(record) {
     const subject = `德扑道场 · 用户反馈 · ${record.username}`;
     const body = `用户：${record.username} (${record.userId})\n`
         + `时间：${new Date(record.ts).toLocaleString('zh-CN', { hour12: false })}\n`
         + `联系方式：${record.contact || '（未填）'}\n`
-        + `设备：${record.ua || ''}\n\n内容：\n${record.text}`;
+        + `设备：${record.ua || ''}\n`
+        // 版本自动带上：收到反馈就知道是哪一版，不用再回头问玩家「你是什么时候刷新的」
+        + `版本：服务端 ${record.serverVersion || '?'} ／ 前端 ${record.clientBuild || '?'}`
+        + (staleClient(record) ? '  ⚠️ 前端是缓存的旧版，先让他刷新再排查' : '')
+        + `\n\n内容：\n${record.text}`;
     const t = getTransport();
     if (!t) { console.log(`\n[mail:DEV] 用户反馈（未配置发信）↓\n${body}\n`); return { dev: true }; }
     const c = loadConfig();
