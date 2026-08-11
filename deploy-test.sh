@@ -30,14 +30,16 @@ BUILD_ENV="test"
 #      主=大改版 / 次=新功能 / 修订=修 bug。
 BUILD_SHA="$(git -C "$SCRIPT_DIR" rev-parse --short HEAD)"
 BUILD_AT="$(date '+%Y-%m-%d %H:%M:%S')"
-APP_VERSION="$(node -p "require('$SCRIPT_DIR/PokerServer/package.json').version")"
+# 先 cd 再用相对路径 require：Git Bash 下把 $SCRIPT_DIR 直接塞进 require() 会因 POSIX 路径解析失败
+APP_VERSION="$(cd "$SCRIPT_DIR/PokerServer" && node -p "require('./package.json').version")"
 echo "🏷️  版本 $APP_VERSION · $BUILD_SHA · $BUILD_AT"
 cat > "$SCRIPT_DIR/PokerServer/build-info.json" <<BUILDJSON
 { "commit": "$BUILD_SHA", "builtAt": "$BUILD_AT", "env": "$BUILD_ENV" }
 BUILDJSON
 # 前端构建号：把 00-state.js 里的占位替换成真实 SHA（打包用的临时副本，改完还原）
 cp "$SCRIPT_DIR/PokerServer/public/js/00-state.js" /tmp/00-state.orig.js
-sed -i "s/__BUILD__/$BUILD_SHA/" "$SCRIPT_DIR/PokerServer/public/js/00-state.js"
+# 只替换那个常量本身，别顺手把注释里提到的同名占位也改了
+sed -i "s/const CLIENT_BUILD = '__BUILD__'/const CLIENT_BUILD = '$BUILD_SHA'/" "$SCRIPT_DIR/PokerServer/public/js/00-state.js"
 restore_build_stamp() { cp /tmp/00-state.orig.js "$SCRIPT_DIR/PokerServer/public/js/00-state.js"; }
 trap restore_build_stamp EXIT
 
