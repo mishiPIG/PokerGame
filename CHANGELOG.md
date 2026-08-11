@@ -3,6 +3,12 @@
 All notable changes to Poker Dojo. This project loosely follows
 [Keep a Changelog](https://keepachangelog.com/). Dates are UTC+8.
 
+## [1.2.1] — 2026-08-11
+
+### 调整
+- 开场画面太快：入场动画约 1.0s 才结束，而 450ms 就开始淡出，动画没做完就走了。
+  最短展示 450→1150ms，入场动效整体放缓，淡出 .32→.42s。
+
 ## [1.2.0] — 2026-08-11
 
 ### 新增

@@ -84,7 +84,11 @@ loadVersion();
 //   ④【只在冷启动】：它写在 HTML 里，socket 重连 / 切后台回来都不会重新加载页面，天然不会重播。
 //   ⑤【已登录的人不多等】：登录态确认完（bootstrap 走完）就撤，只保底一个很短的最短展示时间，
 //      避免闪一下就没（那比不做还难看）。
-const BOOT_MIN_MS = 450, BOOT_MAX_MS = 800;
+// 时长怎么定：入场动画本身约 1.0s（logo .78s / 副标题 .44s 延迟 + .55s），
+// 要让它【走完再停一拍】才不显仓促 —— 原来 450ms 就开始淡出，动画还没做完就走了。
+// 但也别贪长：薄壳每次启动都会看到它，超过 ~1.5s 就从「有仪式感」变成「等它」。
+// 淡出 .42s 不计入最短展示，所以实际观感约 1.2s + 淡出。
+const BOOT_MIN_MS = 1150, BOOT_MAX_MS = 1600;
 const _bootAt = Date.now();
 let _bootTimer = null, _bootDone = false;
 function _bootFinish(el) {
