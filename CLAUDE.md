@@ -536,7 +536,11 @@ Android / iOS / PC
   - 不一致时设置面板那行标黄并提示「前端是旧的，请下拉刷新」。`dom-version.js` 覆盖三种情形（一致 / 前端旧 / 本地开发不误报）。
 - **🐞 反馈自动带版本**（版本号真正发挥作用的地方）：玩家点 🐞 提交反馈时，客户端自动附上前端构建号，服务端补上自己的版本，**一起写进 `feedback` 记录和那封提醒邮件**。前端构建号不在服务端版本串里 → 邮件里直接标「⚠️ 前端是缓存的旧版，先让他刷新再排查」。
   - 为什么必须自动带：**指望玩家自己去设置面板翻出版本号复制过来，基本不会发生**。只放在设置面板里等于「有但用不上」。
-- **Android 壳独立一套**：`versionCode` 必须单调递增整数（Play 硬性要求），`versionName` 给人看；壳很少发版，与游戏版本**解耦**，别绑一起。
+- **Android 壳独立一套**：`versionCode` 必须单调递增整数（Play 硬性要求），`versionName` 给人看；壳很少发版，与游戏版本**解耦**，别绑一起。CI 里 `versionName` 取 `mobile/package.json`、`versionCode` 用 `github.run_number`（天然递增）。
+- 🔴 **APK 必须固定签名**（2026-08-11 发现）：CI 用 `assembleDebug`，而 runner 上没有 `~/.android/debug.keystore` → Gradle **每次现生成一个** → **每次构建签名都不同** → 新版 APK 装不到旧版上面（Android 报「应用未安装」），朋友们每次更新都得先卸载重装。
+  - 修：固定密钥存 GitHub Secret `ANDROID_KEYSTORE_B64`，CI 还原到 `~/.android/debug.keystore` 再构建。**Secret 没配时只警告不失败**，别把出包流程卡死。
+  - 密钥本体在本机 `.secrets/`（gitignore），**属于必须备份的东西**——丢了等于换身份，所有人都得卸载重装。具体位置/指纹/配置步骤见私有 `ADMIN.local.md` 第八节。
+  - ⚠️ 现在出的仍是 **debug 版**（`debuggable=true`）；上 Google Play 需要改 `assembleRelease` + 独立 release 密钥 + 隐私政策（待办）。
 
 ## 部署（运维细节见私有文档）
 - **两套环境**：`deploy-test.sh`（测试服，pm2 `poker-test`）日常迭代；`deploy.sh "msg"`（生产=香港，pm2 `poker`）正式发布，无参则仅同步不走 git。两者均**从仓库根目录运行**，tar 排除 data.json/hands.jsonl/secret.key/mail.json（不覆盖生产数据）。

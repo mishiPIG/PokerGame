@@ -58,6 +58,33 @@ jobs:
       - name: Sync web assets
         run: npx cap sync android
 
+      # 固定签名密钥：APK 的签名必须【每次构建都一样】，否则新版装不到旧版上面
+      # （Android 会报「应用未安装」），朋友们每次更新都得先卸载。
+      # runner 上默认没有 ~/.android/debug.keystore，Gradle 会现生成一个 → 每次签名都不同。
+      # 这里把仓库 Secret 里那份固定的还原到默认位置，assembleDebug 就会用它。
+      # ⚠️ Secret 没配时不报错，只警告并沿用随机签名 —— 别让构建直接挂掉。
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            mkdir -p ~/.android
+            echo "$KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+            echo "✅ 已使用仓库固定签名密钥（新版可直接覆盖安装）"
+            keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>/dev/null               | grep -m1 "SHA256:" || true
+          else
+            echo "⚠️ 未配置 ANDROID_KEYSTORE_B64 —— 本次用随机签名，安装新版前需要先卸载旧版"
+          fi
+
+      # 版本号写进 APK：versionName 取 mobile/package.json，versionCode 用构建序号（必须单调递增）
+      - name: Stamp version into APK
+        run: |
+          VN=$(node -p "require('./package.json').version")
+          VC=${{ github.run_number }}
+          sed -i "s/versionCode .*/versionCode $VC/; s/versionName \".*\"/versionName \"$VN\"/" android/app/build.gradle
+          echo "versionName=$VN  versionCode=$VC"
+          grep -E "versionCode|versionName" android/app/build.gradle
+
       - name: Build debug APK
         run: |
           cd android

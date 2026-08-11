@@ -58,3 +58,6 @@ ops/
 PokerServer/ops/
 
 PokerServer/.localPokerServer/data.json.localbak
+
+# 签名密钥（APK 固定签名，绝不入库；base64 副本贴进 GitHub Secrets）
+.secrets/

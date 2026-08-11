@@ -1,6 +1,6 @@
 {
   "name": "pokerdojo-mobile",
-  "version": "1.0.0",
+  "version": "1.2.1",
   "private": true,
   "description": "德扑道场 Poker Dojo — Android 薄壳（Capacitor），加载 https://pokerdojo.space",
   "dependencies": {
