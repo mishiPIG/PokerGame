@@ -4,6 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>德扑道场 Poker Dojo</title>
+    <meta name="theme-color" content="#2f4a3e">
+    <!-- 开场画面的关键样式【内联】：外链样式表到达之前就要是深绿底，
+         否则会先闪一下白，反而比没有开场更难看。与原生 splash 同色 #2f4a3e。 -->
+    <style>
+        html, body { background: #2f4a3e; }
+        #boot-splash { position: fixed; inset: 0; z-index: 9999; background:
+            radial-gradient(ellipse at 50% 42%, #3a5c4b 0%, #2f4a3e 55%, #24382f 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 14px; transition: opacity .32s ease; }
+        #boot-splash.gone { opacity: 0; pointer-events: none; }
+        #boot-splash img { width: 96px; height: 96px; border-radius: 22px;
+            box-shadow: 0 10px 34px rgba(0,0,0,.5);
+            animation: bootLogo .62s cubic-bezier(.22,1,.36,1) both; }
+        #boot-splash .bs-name { color: #e8f0e9; font-size: 19px; font-weight: 700; letter-spacing: 3px;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+            animation: bootName .5s ease .18s both; }
+        #boot-splash .bs-sub { color: rgba(232,240,233,.5); font-size: 11.5px; letter-spacing: 2px;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+            animation: bootName .5s ease .3s both; }
+        @keyframes bootLogo { from { opacity: 0; transform: scale(.82) translateY(8px); }
+                              to   { opacity: 1; transform: none; } }
+        @keyframes bootName { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        @media (prefers-reduced-motion: reduce) {
+            #boot-splash img, #boot-splash .bs-name, #boot-splash .bs-sub { animation: none; }
+        }
+    </style>
     <script src="/socket.io/socket.io.js"></script>
     <link rel="stylesheet" href="/css/00-shell.css">
     <link rel="stylesheet" href="/css/10-auth-user.css">
@@ -19,6 +45,16 @@
     <link rel="stylesheet" href="/css/50-effects.css">
 </head>
 <body>
+
+<!-- ===== 开场画面 =====
+     薄壳 APK 每次启动都要去加载线上页面，这段等待原来是白屏。
+     ⚠️ 它【每次启动都会看到】，所以必须：短、点一下可跳过、与加载并行、
+        别让已登录的人为了看动画多等（见 99-bootstrap.js 的 dismissBootSplash）。 -->
+<div id="boot-splash" onclick="dismissBootSplash('tap')">
+    <img src="/avatars/logo.png" alt="">
+    <div class="bs-name">德扑道场</div>
+    <div class="bs-sub">POKER DOJO</div>
+</div>
 
 <!-- ===== Auth overlay ===== -->
 <div id="auth-overlay">

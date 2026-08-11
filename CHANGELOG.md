@@ -3,6 +3,17 @@
 All notable changes to Poker Dojo. This project loosely follows
 [Keep a Changelog](https://keepachangelog.com/). Dates are UTC+8.
 
+## [1.2.0] — 2026-08-11
+
+### 新增
+- **开场画面**：进入游戏不再是直接蹦出功能主界面。深绿底 + 鸟居扑克 logo
+  的入场动效，与原生启动图同色衔接。
+  - 关键样式内联在 `<head>`，外链 CSS 到达前就是深绿底（否则先闪一下白）。
+  - 约束（薄壳每次启动都会看到它）：最多 800ms、点一下可跳过、与加载并行、
+    网络卡住也一定会撤、撤场后不挡点击。
+- **原生启动图**（`@capacitor/splash-screen`）：APK 启动的白屏段补上同色启动图；
+  网页首屏画好后主动调 `SplashScreen.hide()` 交接，不用干等。**需重新出 APK 才生效。**
+
 ## [1.1.2] — 2026-08-11
 
 ### 修复
