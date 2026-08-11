@@ -3,6 +3,12 @@
 All notable changes to Poker Dojo. This project loosely follows
 [Keep a Changelog](https://keepachangelog.com/). Dates are UTC+8.
 
+## [1.1.1] — 2026-08-11
+
+### 修复
+- 版本信息从设置面板底部（`max-height:90dvh` + 滚动，手机上要滑到底才看得到）
+  移到**大厅底部**，落地即可见。
+
 ## [1.1.0] — 2026-08-11
 
 版本号规则：只在**上生产**时递增（测试服部署不涨号）。判定按**玩家视角**，

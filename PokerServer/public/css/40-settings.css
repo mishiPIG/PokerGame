@@ -50,10 +50,10 @@
         .set-toggle input { width: 18px; height: 18px; }
 
 
-        /* 版本信息（设置面板底部）：平时不抢眼，报 bug 时截图能带上 */
-        .version-box { display: flex; flex-direction: column; gap: 2px; cursor: pointer;
-            font-size: 11px; color: rgba(255,255,255,0.34); line-height: 1.5;
+        /* 版本信息（大厅底部）：一行灰色小字，平时不抢眼，报 bug 时点一下能复制 */
+        .lobby-version { text-align: center; padding: 14px 8px 20px; cursor: pointer;
+            font-size: 11px; color: rgba(255,255,255,0.3); line-height: 1.6;
             font-variant-numeric: tabular-nums; letter-spacing: 0.2px; }
-        .version-box:active { color: rgba(255,255,255,0.6); }
+        .lobby-version:active { color: rgba(255,255,255,0.55); }
         /* 前端与服务端版本对不上 = 本机缓存了旧前端，标黄提示 */
-        .version-box.stale { color: #e0a33e; }
+        .lobby-version.stale { color: #e0a33e; }
