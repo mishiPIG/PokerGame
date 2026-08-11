@@ -1,4 +1,8 @@
 // ===== State =====
+// 前端构建号：部署时由脚本把 __BUILD__ 替换成 git 短 SHA。
+// 它【打包在这份 JS 里】，所以玩家看到的值就是他浏览器/WebView 里那份前端的版本 ——
+// 和服务端 /api/version 一对比，就知道他是不是缓存了旧前端（薄壳 APK 下最常见的坑）。
+const CLIENT_BUILD = '__BUILD__';
 let socket       = null;
 let myUserId     = null;
 let myUsername   = null;

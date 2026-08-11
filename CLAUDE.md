@@ -519,6 +519,19 @@ Android / iOS / PC
 - 游戏状态存储在服务器内存的 `roomGames` 对象中，Key 为房间号。
 - Socket 事件命名使用 snake_case（如 `join_room`、`start_deal`）。
 
+## 🏷️ 版本号（2026-08-11 加）
+- **规则**：`主.次.修订`，形式像 semver 但**判定按玩家视角**，不是 API 兼容性（这是自用产品、没有下游依赖者，硬套 semver 只会每次纠结「算不算 breaking」）。
+  - **主** = 大改版 / 玩法结构变了（AI 对战、房型重做）
+  - **次** = 新功能（链式 straddle、多次发牌、到时暂停）
+  - **修订** = 修 bug / 小调整
+- **只在上生产时手动涨**（改 `PokerServer/package.json` 的 `version`），**测试服部署不涨号**——否则号涨得毫无意义。CHANGELOG 按版本号分节。
+- **构建信息自动生成**：deploy 脚本写 `PokerServer/build-info.json`（git 短 SHA + 构建时间 + env），不入库但**打进部署包**。`GET /api/version` 返回 `1.1.0 (2026-08-11 · 19c04f5)`。
+- **部署脚本最后自动核对线上版本** —— 取代过去「SSH 上去 grep 某个新增关键字」确认部署是否生效的土办法。
+- 🔴 **最有价值的一条：前端 / 服务端【两个】版本同时显示**。APK 是薄壳、每次加载线上页面，真正坑人的不是「服务端哪版」而是**玩家的 WebView 缓存了旧前端** —— 服务端已经新了，他手机上跑的还是几天前的 JS，然后报一个早就修过的 bug。
+  - 前端构建号 `CLIENT_BUILD` 是**打包进 00-state.js 的常量**（部署时 sed 替换 `__BUILD__`），所以它反映的是**玩家手里那份 JS**；和 `/api/version` 一比就知道是不是缓存。
+  - 不一致时设置面板那行标黄并提示「前端是旧的，请下拉刷新」。`dom-version.js` 覆盖三种情形（一致 / 前端旧 / 本地开发不误报）。
+- **Android 壳独立一套**：`versionCode` 必须单调递增整数（Play 硬性要求），`versionName` 给人看；壳很少发版，与游戏版本**解耦**，别绑一起。
+
 ## 部署（运维细节见私有文档）
 - **两套环境**：`deploy-test.sh`（测试服，pm2 `poker-test`）日常迭代；`deploy.sh "msg"`（生产=香港，pm2 `poker`）正式发布，无参则仅同步不走 git。两者均**从仓库根目录运行**，tar 排除 data.json/hands.jsonl/secret.key/mail.json（不覆盖生产数据）。
 - **🩺 发版后错误日志自查（2026-08-10 加，`deploy.sh`/`deploy-test.sh` 最后一步）**：重启**前**记下 pm2 错误日志的字节数（`/tmp/poker_errsize_<app>`），重启 12 秒后**只读这之后新增的部分**（并滤掉部署自身产生的 `[shutdown] signal=`），有内容就打出来。

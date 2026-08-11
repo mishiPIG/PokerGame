@@ -44,6 +44,8 @@ PokerServer/secret.key
 
 # 发信 SMTP 凭据（授权码，绝不入库/勿覆盖）
 PokerServer/mail.json
+# 部署时生成的版本戳（每次都不同，不入库；但会打进部署包）
+PokerServer/build-info.json
 PokerServer/.local/
 backups_offsite/
 

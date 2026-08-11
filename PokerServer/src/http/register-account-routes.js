@@ -1,6 +1,22 @@
 'use strict';
 
+const buildInfo = require('../build-info');
+
 function registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin }) {
+// 版本信息（公开，不需要登录）：部署脚本和玩家报 bug 都靠它对上是哪一版。
+// 客户端会把它和【打包进前端 JS 的构建号】一起显示 —— 两者不一致就说明玩家
+// 的浏览器/APK WebView 缓存了旧前端（薄壳架构下这是最常见的「我这边复现不了」）。
+app.get('/api/version', (req, res) => {
+    res.json({
+        version: buildInfo.version,
+        commit: buildInfo.commit,
+        builtAt: buildInfo.builtAt,
+        env: buildInfo.env,
+        label: buildInfo.label,
+        uptimeSec: Math.floor((Date.now() - buildInfo.startedAt) / 1000)
+    });
+});
+
 app.get('/api/my-hands', requireAuth, (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 30, 100);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);

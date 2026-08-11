@@ -50,3 +50,28 @@ if (savedToken) {
         localStorage.removeItem('token');
     }
 }
+
+// ===== 版本信息（设置面板底部）=====
+// 前端构建号来自打包进 JS 的常量；服务端版本实时拉。两者不一致 = 本机缓存了旧前端。
+let _verText = '';
+async function loadVersion() {
+    const cEl = document.getElementById('ver-client'), sEl = document.getElementById('ver-server');
+    if (!cEl || !sEl) return;
+    const client = CLIENT_BUILD === '__' + 'BUILD__' ? 'dev' : CLIENT_BUILD;
+    cEl.textContent = `前端 ${client}`;
+    try {
+        const r = await fetch('/api/version');
+        const v = await r.json();
+        sEl.textContent = `服务端 ${v.label}${v.env && v.env !== 'unknown' ? ' · ' + v.env : ''}`;
+        // 服务端知道自己是用哪个 commit 构建的；前端常量若对不上，说明这份 JS 是旧的
+        const stale = client !== 'dev' && v.commit !== 'dev' && client !== v.commit;
+        document.getElementById('version-box').classList.toggle('stale', stale);
+        if (stale) sEl.textContent += '  ⚠️ 前端是旧的，请下拉刷新';
+        _verText = `${cEl.textContent} / ${sEl.textContent}`;
+    } catch (e) { sEl.textContent = '服务端 ?'; }
+}
+function copyVersion() {
+    if (!_verText) return;
+    navigator.clipboard?.writeText(_verText).then(() => toast('已复制版本信息'), () => {});
+}
+loadVersion();

@@ -21,6 +21,28 @@ echo "🔎 部署前安全检查（防「用了没定义」导致上线后崩溃
 ( cd "$SCRIPT_DIR/PokerServer" && npm run check ) || { echo "❌ 安全检查未通过，已中止部署——请先修复上面报告的问题再部署。"; exit 1; }
 echo "✅ 安全检查通过"
 
+BUILD_ENV="production"
+# Step 1.5: 打版本戳（2026-08-11 加）
+# 以前确认「这次部署到底生效没有」只能 SSH 上去 grep 某个新增关键字，又土又容易看走眼。
+# 现在把 版本号 + git 短 SHA + 构建时间 打进包里，最后一步 curl /api/version 直接核对。
+# ⚠️ 版本号本身只在【上生产】时才手动涨（改 PokerServer/package.json 的 version），
+#    测试服部署不涨号 —— 否则号涨得毫无意义。判定按玩家视角：
+#      主=大改版 / 次=新功能 / 修订=修 bug。
+BUILD_SHA="$(git -C "$SCRIPT_DIR" rev-parse --short HEAD)"
+BUILD_AT="$(date '+%Y-%m-%d %H:%M:%S')"
+APP_VERSION="$(node -p "require('$SCRIPT_DIR/PokerServer/package.json').version")"
+echo "🏷️  版本 $APP_VERSION · $BUILD_SHA · $BUILD_AT"
+cat > "$SCRIPT_DIR/PokerServer/build-info.json" <<BUILDJSON
+{ "commit": "$BUILD_SHA", "builtAt": "$BUILD_AT", "env": "$BUILD_ENV" }
+BUILDJSON
+# 前端构建号：把 00-state.js 里的占位替换成真实 SHA（打包用的临时副本，改完还原）
+cp "$SCRIPT_DIR/PokerServer/public/js/00-state.js" /tmp/00-state.orig.js
+sed -i "s/__BUILD__/$BUILD_SHA/" "$SCRIPT_DIR/PokerServer/public/js/00-state.js"
+restore_build_stamp() { cp /tmp/00-state.orig.js "$SCRIPT_DIR/PokerServer/public/js/00-state.js"; }
+trap restore_build_stamp EXIT
+
+
+
 # Step 1: Git 提交（如果提供了 commit message）
 if [ -n "$1" ]; then
     echo "📝 提交并推送到 GitHub..."
@@ -83,6 +105,18 @@ REMOTE_DB
 # 连着三个经济漏洞（边池分钱、straddle 少扣、补码白拿）里，有两个是【部署后翻 error.log】
 # 才发现的——玩家自己不会报，「点了没反应」「补不上码」他们只当是自己的问题。
 # 筹码守恒审计也抓不到这类：钱没凭空多，只是分错人；或者漏的是金币、根本不在牌谱里。
+
+# 版本核对：不再靠 grep 关键字猜，直接问服务器它是哪一版
+echo ""
+echo "🏷️  线上版本核对..."
+LIVE=$(ssh "$SERVER_HOST" "curl -s http://127.0.0.1:3000/api/version")
+LIVE_SHA=$(node -p "try{JSON.parse(process.argv[1]).commit}catch(e){''}" "$LIVE" 2>/dev/null)
+if [ "$LIVE_SHA" = "$BUILD_SHA" ]; then
+  echo "   ✅ 线上已是本次构建：$(node -p "JSON.parse(process.argv[1]).label" "$LIVE" 2>/dev/null)"
+else
+  echo "   ⚠️ 线上版本对不上！期望 $BUILD_SHA，实际返回：$LIVE"
+fi
+
 echo ""
 echo "🩺 发版后错误日志自查（只看重启之后新增的部分）..."
 ssh "$SERVER_HOST" "PM2_APP='$PM2_APP' bash -s" <<'REMOTE_ERRCHK'

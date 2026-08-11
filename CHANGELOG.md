@@ -3,11 +3,49 @@
 All notable changes to Poker Dojo. This project loosely follows
 [Keep a Changelog](https://keepachangelog.com/). Dates are UTC+8.
 
+## [1.1.0] — 2026-08-11
+
+版本号规则：只在**上生产**时递增（测试服部署不涨号）。判定按**玩家视角**，
+不是 semver 的 API 兼容性 —— 主 = 大改版 / 次 = 新功能 / 修订 = 修 bug。
+线上实际跑的版本可用 `GET /api/version` 查，设置面板底部也会显示。
+
+### 修复（经济正确性，都是真实发生过的）
+- **多次发牌绕过边池**：短码全押者只对主池有资格，却能按总底池分到边池的钱。
+  改为逐池均分成 N 份，每份只在该池有资格者中比大小。
+- **链式 straddle 同一人被问两档**：中途有人入座会让预测位置整体挪一位，
+  上一档刚接受的人又被算成下一档候选 → 重复扣款且差额没进底池。
+  改为按本手真实阵容校验位置 + 同一人不重复问 + 差额扣款。
+- **补码幂等键复用**：序号存在内存座位对象上，站起/回座会归零 → 同键复用；
+  金额相同时钱包不扣金币却照给筹码。改为按钱包账本条数推导，并把
+  `applied:false` 当失败回滚。
+- **改名后旧名字残留**：全库 20+ 处面向玩家的文案用的是账号名而非显示名。
+- **牌局快照序列化失败**：新增的定时器字段未排除，Timeout 的循环引用让整个
+  活跃牌局快照写不进去（重启恢复会失效）。
+
+### 新增
+- 现金桌训练时长到点**不再自动结算**：本手打完暂停发牌、等房主加时；
+  **5 分钟无人处理则自动结算收桌**（房主掉线时筹码不会被永久锁住）。
+- Straddle 邀请改成牌桌边缘的小标志（随时可点、点完消失、新一手自动收）。
+- 版本信息：`GET /api/version` + 设置面板显示前端/服务端两个版本，
+  不一致会提示玩家前端是缓存的旧版。
+
+### 体验
+- 手机端布局铺开：房间信息水印移回桌心（可被公共牌覆盖）、座位半径按实际
+  角度精确反解、修正座位块高度少算的 15px。
+- 横屏公共牌放大到 1.7 倍（原来比自己的手牌还小）。
+- 手机端行动提示音（iOS Safari 回前台 AudioContext 被挂起）。
+- 进行中牌局的实时盈亏（已下注筹码被算成了亏损）。
+
+### 工程
+- 部署关卡新增 `check-timers`（定时器字段必须排除出快照）。
+- 发版后自动检查错误日志（只看重启之后新增的部分）。
+- 部署后自动核对线上版本，取代过去 grep 关键字的土办法。
+
 ## [Unreleased]
 - AI opponents (trained on per-player hand histories)
 - Avatar upload, richer admin tools
-- Bankruptcy relief; card-face themes (the current "deck style" toggle is a no-op — four-color is always on)
-- Graceful shutdown (broadcast, finish the current hand, settle, then exit)
+- Per-action sound effects; flop dealt one card at a time
+- Host-initiated blind change (requires all seated players to agree)
 
 ### Changed
 - Cash training tables no longer settle and dissolve automatically when their scheduled time expires.

@@ -583,6 +583,11 @@
             <button class="sa-btn room-only danger" id="setDissolve" onclick="dissolveRoom(); closeSettings()" style="display:none">🛑 解散房间</button>
             <button class="sa-btn lobby-only" onclick="doLogout()">⎋ 退出登录</button>
         </div>
+        <!-- 版本信息：玩家报 bug 时截这一行就能对上是哪一版。
+             同时显示【前端】和【服务端】两个版本 —— 不一致说明本机缓存了旧前端。 -->
+        <div class="settings-sec version-box" id="version-box" onclick="copyVersion()" title="点击复制">
+            <span id="ver-client">前端 …</span><span id="ver-server">服务端 …</span>
+        </div>
     </div>
 </div>
 
