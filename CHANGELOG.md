@@ -3,6 +3,12 @@
 All notable changes to Poker Dojo. This project loosely follows
 [Keep a Changelog](https://keepachangelog.com/). Dates are UTC+8.
 
+## [1.1.2] — 2026-08-11
+
+### 修复
+- 版本行没有真正贴在页面底部：房间列表为空时它跟在列表后面浮在半空中。
+  `#lobby-view` 改纵向 flex + `.lobby-version { margin-top: auto }` 顶到底部。
+
 ## [1.1.1] — 2026-08-11
 
 ### 修复

@@ -50,8 +50,10 @@
         .set-toggle input { width: 18px; height: 18px; }
 
 
-        /* 版本信息（大厅底部）：一行灰色小字，平时不抢眼，报 bug 时点一下能复制 */
-        .lobby-version { text-align: center; padding: 14px 8px 20px; cursor: pointer;
+        /* 版本信息（大厅底部）：一行灰色小字，平时不抢眼，报 bug 时点一下能复制。
+           margin-top:auto 把它顶到页面【最底部】—— 房间列表为空时页面很短，
+           不这样它会跟在列表后面浮在半空中（配合 #lobby-view 的纵向 flex 生效）。*/
+        .lobby-version { margin-top: auto; text-align: center; padding: 18px 8px 14px; cursor: pointer;
             font-size: 11px; color: rgba(255,255,255,0.3); line-height: 1.6;
             font-variant-numeric: tabular-nums; letter-spacing: 0.2px; }
         .lobby-version:active { color: rgba(255,255,255,0.55); }

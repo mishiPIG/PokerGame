@@ -76,7 +76,11 @@
         }
 
         /* ===== 大厅 ===== */
-        #lobby-view { max-width: 720px; margin: 0 auto; }
+        /* 纵向 flex：好让底部的版本行用 margin-top:auto 顶到【页面最底部】。
+           房间列表为空时页面很短，不这样它就会跟在列表后面浮在半空中。
+           子元素 flex-shrink:0 —— 否则房间一多会被压扁（滚动由外层 overflow-y:auto 负责）。*/
+        #lobby-view { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; }
+        #lobby-view > * { flex-shrink: 0; }
         .lobby-top { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         .lobby-entry {
             flex: 1; min-width: 200px; background: rgba(58,134,255,0.12);
