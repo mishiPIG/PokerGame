@@ -94,6 +94,28 @@ jobs:
       - name: Rename APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk pokerdojo.apk
 
+      # 自证：光看「构建成功」根本看不出签名有没有换成固定的那把（没配 Secret 时也一样成功）。
+      # 这里把 APK 的真实签名指纹打出来，并且——【配了 Secret 却没生效就直接失败】，
+      # 否则会出现「界面全绿、实际还是随机签名」的静默错误。
+      - name: Verify APK signature
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          OWNER=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "Owner:")
+          FP=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "SHA256:")
+          echo "$OWNER"
+          echo "$FP"
+          if [ -n "$KEYSTORE_B64" ]; then
+            if echo "$OWNER" | grep -q "CN=Android Debug"; then
+              echo "❌ 已配置 ANDROID_KEYSTORE_B64，但 APK 仍是 Gradle 自动生成的临时签名 —— Secret 没生效！"
+              echo "   常见原因：Secret 名字拼错 / 内容里混入了换行或空格 / 贴的不是 .b64 文件的完整内容"
+              exit 1
+            fi
+            echo "✅ 已使用固定签名密钥 —— 新版 APK 可以直接覆盖安装"
+          else
+            echo "⚠️ 未配置 ANDROID_KEYSTORE_B64 —— 本次是随机签名，安装新版前需要先卸载旧版"
+          fi
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
