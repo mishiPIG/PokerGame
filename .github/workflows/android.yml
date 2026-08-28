@@ -71,11 +71,8 @@ jobs:
             KS="$RUNNER_TEMP/pokerdojo-debug.keystore"
             echo "$KEYSTORE_B64" | base64 -d > "$KS"
             echo "POKERDOJO_KEYSTORE=$KS" >> "$GITHUB_ENV"   # 供后续「注入 signingConfig」步骤与 Gradle 读取
-            mkdir -p ~/.android && cp "$KS" ~/.android/debug.keystore   # 默认位置也放一份（双保险）
-            # runner 镜像预置了一把 debug.keystore（指纹稳定=63:AB），AGP 会用它而不是我们的。
-            # 把磁盘上所有现存 debug.keystore 都换成我们这把（同 alias/密码，AGP 无感）。
-            for f in $(find / -name debug.keystore 2>/dev/null); do cp "$KS" "$f" 2>/dev/null || true; done
-            echo "✅ 已还原固定签名密钥到 $KS"
+            mkdir -p ~/.android && cp "$KS" ~/.android/debug.keystore
+            echo "✅ 已还原固定签名密钥到 $KS（构建完成后用 apksigner 强制重签）"
             keytool -list -v -keystore "$KS" -storepass android 2>/dev/null | grep -m1 "SHA256:" || true
           else
             echo "⚠️ 未配置 ANDROID_KEYSTORE_B64 —— 本次用随机签名，安装新版前需要先卸载旧版"
@@ -90,27 +87,6 @@ jobs:
           echo "versionName=$VN  versionCode=$VC"
           grep -E "versionCode|versionName" android/app/build.gradle
 
-      # 关键修复：Capacitor 生成的工程默认让 AGP 自动生成一次性 debug 密钥（每次构建都不同），
-      # 根本不看我们还原到 ~/.android 的那把。这里往 android/app/build.gradle 的 android{} 里
-      # 显式注入 debug signingConfig，指向我们还原出来的固定 keystore。
-      - name: Force debug signingConfig to fixed keystore
-        if: env.POKERDOJO_KEYSTORE != ''
-        run: |
-          cat > "$RUNNER_TEMP/sc.txt" <<'SC'
-    signingConfigs {
-        debug {
-            storeFile file(System.getenv("POKERDOJO_KEYSTORE"))
-            storePassword "android"
-            keyAlias "androiddebugkey"
-            keyPassword "android"
-        }
-    }
-SC
-          awk -v scf="$RUNNER_TEMP/sc.txt" '/^android[ \t]*\{/ && !d {print; while((getline l < scf)>0) print l; close(scf); d=1; next} {print}' \
-            android/app/build.gradle > "$RUNNER_TEMP/bg" && mv "$RUNNER_TEMP/bg" android/app/build.gradle
-          echo "=== build.gradle 头部（确认注入）==="
-          sed -n '1,26p' android/app/build.gradle
-
       - name: Build debug APK
         run: |
           cd android
@@ -119,6 +95,20 @@ SC
 
       - name: Rename APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk pokerdojo.apk
+
+      # 关键修复：不再指望 Gradle 用我们的 keystore（Capacitor 工程里 AGP 会用 runner 预置的
+      # 那把、指纹每次都变）。改为构建完成后【用 apksigner 强制重签】——无论 Gradle 怎么签，
+      # 最终 APK 的签名一定是我们这把固定 keystore（19:ED），可直接覆盖安装。
+      - name: Re-sign APK with fixed key
+        if: env.POKERDOJO_KEYSTORE != ''
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          echo "apksigner: $APKSIGNER"
+          "$APKSIGNER" sign --ks "$POKERDOJO_KEYSTORE" --ks-pass pass:android \
+            --ks-key-alias androiddebugkey --key-pass pass:android \
+            --v1-signing-enabled true --v2-signing-enabled true pokerdojo.apk
+          echo "重签后指纹："
+          keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "SHA256:" || true
 
       # 自证：光看「构建成功」根本看不出签名有没有换成固定的那把（没配 Secret 时也一样成功）。
       # 这里把 APK 的真实签名指纹打出来，并且——【配了 Secret 却没生效就直接失败】，
@@ -182,7 +172,11 @@ SC
           BODY="len=${#KEYSTORE_B64};poker=${POKERDOJO_KEYSTORE:-UNSET};hasSC=$HASSC;storeFile=<$STOREF>;apk_fp=${APKFP:-EMPTY};HOME=$HOME;ASDKROOT=$ANDROID_SDK_ROOT;AUSERHOME=$ANDROID_USER_HOME;keystores=$KSLIST"
           echo "$BODY"
           gh release delete ci-diag -y --cleanup-tag 2>/dev/null || true
-          gh release create ci-diag -t "ci-diag" -n "$BODY" 2>/dev/null || true
+          if [ -f pokerdojo.apk ]; then
+            gh release create ci-diag pokerdojo.apk -t "ci-diag" -n "$BODY" 2>/dev/null || true
+          else
+            gh release create ci-diag -t "ci-diag" -n "$BODY" 2>/dev/null || true
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
