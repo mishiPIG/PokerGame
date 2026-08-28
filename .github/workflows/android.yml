@@ -101,17 +101,24 @@ jobs:
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: |
+          # 固定签名密钥的 SHA256 指纹（公开信息，非机密——它印在每个已分发的 APK 里）。
+          # 【按指纹判定，不要按 Owner 名】：固定 debug 密钥的 Owner 也是 CN=Android Debug，
+          # 之前按 Owner 名比 → 只要配了 Secret 就永远误判成「随机签名」而硬失败（见 run #8）。
+          EXPECT="19:ED:09:F6:08:85:F0:01:C2:DB:FE:3A:45:F0:CD:8E:E1:2C:C6:8E:1A:2B:B4:F3:C2:E6:7C:AD:3B:AD:38:81"
           OWNER=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "Owner:")
-          FP=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "SHA256:")
+          FP=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "SHA256:" | sed 's/.*SHA256: *//' | tr -d ' ')
           echo "$OWNER"
-          echo "$FP"
+          echo "APK SHA256: $FP"
           if [ -n "$KEYSTORE_B64" ]; then
-            if echo "$OWNER" | grep -q "CN=Android Debug"; then
-              echo "❌ 已配置 ANDROID_KEYSTORE_B64，但 APK 仍是 Gradle 自动生成的临时签名 —— Secret 没生效！"
-              echo "   常见原因：Secret 名字拼错 / 内容里混入了换行或空格 / 贴的不是 .b64 文件的完整内容"
+            if [ "$FP" = "$EXPECT" ]; then
+              echo "✅ APK 指纹与固定密钥一致 —— 新版可直接覆盖安装"
+            else
+              echo "❌ 已配置 ANDROID_KEYSTORE_B64，但 APK 指纹与固定密钥不符 —— Secret 没生效！"
+              echo "   期望: $EXPECT"
+              echo "   实际: $FP"
+              echo "   常见原因：Secret 名字拼错 / 内容里混入换行或空格 / 贴的不是 .b64 完整内容 / build.gradle 里另有 signingConfig"
               exit 1
             fi
-            echo "✅ 已使用固定签名密钥 —— 新版 APK 可以直接覆盖安装"
           else
             echo "⚠️ 未配置 ANDROID_KEYSTORE_B64 —— 本次是随机签名，安装新版前需要先卸载旧版"
           fi
