@@ -72,6 +72,9 @@ jobs:
             echo "$KEYSTORE_B64" | base64 -d > "$KS"
             echo "POKERDOJO_KEYSTORE=$KS" >> "$GITHUB_ENV"   # 供后续「注入 signingConfig」步骤与 Gradle 读取
             mkdir -p ~/.android && cp "$KS" ~/.android/debug.keystore   # 默认位置也放一份（双保险）
+            # runner 镜像预置了一把 debug.keystore（指纹稳定=63:AB），AGP 会用它而不是我们的。
+            # 把磁盘上所有现存 debug.keystore 都换成我们这把（同 alias/密码，AGP 无感）。
+            for f in $(find / -name debug.keystore 2>/dev/null); do cp "$KS" "$f" 2>/dev/null || true; done
             echo "✅ 已还原固定签名密钥到 $KS"
             keytool -list -v -keystore "$KS" -storepass android 2>/dev/null | grep -m1 "SHA256:" || true
           else
@@ -168,10 +171,15 @@ SC
           GH_TOKEN: ${{ github.token }}
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: |
-          KS=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>/dev/null | grep -m1 "SHA256:" | sed 's/.*SHA256: *//' | tr -d ' ')
           APKFP=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "SHA256:" | sed 's/.*SHA256: *//' | tr -d ' ')
-          OWN=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "Owner:" | sed 's/Owner: *//')
-          BODY="secret_len=${#KEYSTORE_B64} ; keystore_fp=${KS:-EMPTY} ; apk_fp=${APKFP:-EMPTY} ; owner=${OWN:-EMPTY}"
+          HASSC=$(grep -c "signingConfigs" android/app/build.gradle 2>/dev/null || echo 0)
+          STOREF=$(grep -m1 "storeFile" android/app/build.gradle 2>/dev/null | tr -s ' \t' ' ')
+          KSLIST=""
+          for f in $(find / -name debug.keystore 2>/dev/null); do
+            fp=$(keytool -list -v -keystore "$f" -storepass android 2>/dev/null | grep -m1 "SHA256:" | sed 's/.*SHA256: *//' | tr -d ' ' | cut -c1-8)
+            KSLIST="$KSLIST [$f=$fp]"
+          done
+          BODY="len=${#KEYSTORE_B64};poker=${POKERDOJO_KEYSTORE:-UNSET};hasSC=$HASSC;storeFile=<$STOREF>;apk_fp=${APKFP:-EMPTY};HOME=$HOME;ASDKROOT=$ANDROID_SDK_ROOT;AUSERHOME=$ANDROID_USER_HOME;keystores=$KSLIST"
           echo "$BODY"
           gh release delete ci-diag -y --cleanup-tag 2>/dev/null || true
           gh release create ci-diag -t "ci-diag" -n "$BODY" 2>/dev/null || true
