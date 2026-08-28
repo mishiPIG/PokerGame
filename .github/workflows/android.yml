@@ -137,6 +137,22 @@ jobs:
             echo "⚠️ 未配置 ANDROID_KEYSTORE_B64 —— 本次是随机签名，安装新版前需要先卸载旧版"
           fi
 
+      # 临时诊断：把「Secret 长度 / 还原出的 keystore 指纹 / APK 实际指纹」写进一个临时 release 的说明里，
+      # 这样不用鉴权也能从公开 API 读到，定位「Secret 不对」还是「构建没用这把 keystore」。用完即删。
+      - name: DIAG fingerprints to temp release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          KS=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>/dev/null | grep -m1 "SHA256:" | sed 's/.*SHA256: *//' | tr -d ' ')
+          APKFP=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "SHA256:" | sed 's/.*SHA256: *//' | tr -d ' ')
+          OWN=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "Owner:" | sed 's/Owner: *//')
+          BODY="secret_len=${#KEYSTORE_B64} ; keystore_fp=${KS:-EMPTY} ; apk_fp=${APKFP:-EMPTY} ; owner=${OWN:-EMPTY}"
+          echo "$BODY"
+          gh release delete ci-diag -y --cleanup-tag 2>/dev/null || true
+          gh release create ci-diag -t "ci-diag" -n "$BODY" 2>/dev/null || true
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
