@@ -20,6 +20,9 @@
         .adm-room-h { font-size: 13px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
         .adm-tags { font-size: 11px; color: #f4d35e; margin-left: auto; }
         .adm-players { margin-top: 5px; display: flex; flex-direction: column; gap: 2px; }
+        .adm-room-act { display: flex; gap: 6px; margin-top: 7px; }
+        .adm-room-act button { font-size: 12px; padding: 3px 10px; }
+        #admin-panel button.danger { background: #f87171; color: #1a1a1a; }
         .adm-p { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; font-size: 12px; align-items: center; }
         .adm-wallet-h { font-size: 12px; color: #cdd8ea; margin-bottom: 8px; }
         .adm-wallet-h b { color: #f4d35e; }

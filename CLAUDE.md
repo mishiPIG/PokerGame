@@ -232,6 +232,7 @@ Android / iOS / PC
 - **🔴 全押亮牌后仍能弃牌（经济漏洞）**：`advanceStage` 全押亮牌分支只设了 `allinRevealed`，**没清 `actionOnIdx`** → 仍指着最后行动者 → 他按钮亮着、服务端回合校验也放行、`fold` 分支又没全押判断 → **已全押的人能把牌弃掉、白丢池权**（run-it 协商时最明显）。修：①亮牌时 `actionOnIdx=-1`；②`player_action` 增加 `!canAct(player)` 兜底拒绝（不依赖客户端藏按钮）。与「全押者离场被误判弃牌」同属一类，两条路径现已都堵上。
 - **管理员功能**（⚙️ 面板 6 个 Tab）：玩家 / 房间总览 / 钱包流水 / 牌谱 / 审计 / 站内信。
   - 房间总览 `GET /api/admin/rooms`、钱包流水 `GET /api/admin/wallet/:username`、牌谱 `GET /api/admin/hands/:username`（服务端顺带抽出被查者自己的底牌与净盈亏，前端别再去 seats/results 里翻）、网页审计 `GET /api/admin/audit`（**复用 `tools/audit-chips.js --json`，不另写判定逻辑**，保证网页/cron/手跑三处结论一致）、站内信 `POST /api/admin/broadcast`（单人或全体）。
+  - **房间总览加了两个管理动作（2026-08-28，测试服）**：每个房间「▶️ 免密进入」+「🛑 解散」。socket 事件 `admin_join_room`/`admin_dissolve_room`（`src/socket/events/admin-room-events.js`，均校验 `socket.user.isAdmin`）。免密进入=绕过房间码/`entryLocked` 直接 `authorize`+`playRoom`+`handleJoinRoom`；解散=复用房主解散逻辑（进行中挂 `pendingDissolve` 等本手打完，现金桌 `endCashTable`、SNG `dissolveSngRoom`）。E2E：免密进入 canPlay=true / 非管理员被拒 / 解散后房间消失 全通。
   - **带备注补偿 `POST /api/admin/adjust-gold`**：记「变动多少+为什么」而不是把金币设成某个数字；走钱包流水留痕、`requestId` 幂等、扣成负数拒绝、备注必填。
   - 用户评价：目前只是大致框架，后续还要继续优化扩充。
 - ### 🧱 布局稳定性（反复踩了 3 次，值得记住）

@@ -113,8 +113,26 @@ async function loadAdminRooms() {
                 <span class="adm-tags">${tags.join(' · ')}</span></div>
             <div class="adm-dim">盲注 ${r.sb}/${r.bb} · 第 ${r.handSeq} 手 · 底池 ${(r.pot || 0).toLocaleString()}${r.vacatedCount ? ` · 站起 ${r.vacatedCount} 人` : ''}</div>
             <div class="adm-players">${ps}</div>
+            <div class="adm-room-act">
+                <button onclick="adminEnterRoom('${r.roomId}')">▶️ 免密进入</button>
+                <button class="danger" onclick="adminDissolveRoom('${r.roomId}','${encodeURIComponent(r.name)}')">🛑 解散</button>
+            </div>
         </div>`;
     }).join('');
+}
+// 管理员：不用房间码直接进入该房间（进入后关掉管理面板，room_joined 会切到牌桌）
+function adminEnterRoom(roomId) {
+    if (!socket) return;
+    const p = document.getElementById('admin-panel'); if (p) p.style.display = 'none';
+    socket.emit('admin_join_room', { roomId });
+}
+// 管理员：强制解散该房间（进行中等本手打完；现金桌结算筹码+排名）
+function adminDissolveRoom(roomId, name) {
+    if (!socket) return;
+    const nm = name ? decodeURIComponent(name) : roomId;
+    if (!confirm(`确定解散房间「${nm}」(#${roomId})？\n进行中会等本手打完；现金桌会结算筹码并公布排名。`)) return;
+    socket.emit('admin_dissolve_room', { roomId });
+    setTimeout(loadAdminRooms, 1500);   // 稍后刷新列表
 }
 
 // —— 钱包流水：某个玩家的每笔金币变动（排查「他的钱怎么变成这样」）——
