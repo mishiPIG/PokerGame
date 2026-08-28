@@ -107,8 +107,22 @@ jobs:
           EXPECT="19:ED:09:F6:08:85:F0:01:C2:DB:FE:3A:45:F0:CD:8E:E1:2C:C6:8E:1A:2B:B4:F3:C2:E6:7C:AD:3B:AD:38:81"
           OWNER=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "Owner:")
           FP=$(keytool -printcert -jarfile pokerdojo.apk 2>/dev/null | grep -m1 "SHA256:" | sed 's/.*SHA256: *//' | tr -d ' ')
+          # 兜底：若 APK 只有 v2/v3 签名、keytool -jarfile 读不到 v1 → 用 apksigner
+          if [ -z "$FP" ]; then
+            APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | tail -1)
+            [ -n "$APKSIGNER" ] && FP=$("$APKSIGNER" verify --print-certs pokerdojo.apk 2>/dev/null \
+              | grep -m1 -i "SHA-256 digest" | sed 's/.*: *//' | tr -d ' ' | tr 'a-f' 'A-F' | sed 's/../&:/g; s/:$//')
+          fi
           echo "$OWNER"
           echo "APK SHA256: $FP"
+          # 把指纹写进运行的 Summary 页（不用翻日志就能看到）
+          {
+            echo "### APK 签名验签"
+            echo ""
+            echo "- APK 实际指纹：\`${FP:-<空：没读到签名>}\`"
+            echo "- 期望（本地备份密钥）：\`$EXPECT\`"
+            if [ "$FP" = "$EXPECT" ]; then echo "- 结果：✅ 一致"; else echo "- 结果：❌ 不一致（Secret 里不是本地备份那把）"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ -n "$KEYSTORE_B64" ]; then
             if [ "$FP" = "$EXPECT" ]; then
               echo "✅ APK 指纹与固定密钥一致 —— 新版可直接覆盖安装"
