@@ -60,45 +60,45 @@
 <div id="auth-overlay">
     <div id="auth-box">
         <h1><img src="/avatars/logo.png" class="auth-logo" alt="">德扑道场</h1>
-        <div class="auth-sub">Poker Dojo · 好友开房 · 切磋成长</div>
+        <div class="auth-sub" data-i18n="brand.tagline">Poker Dojo · 好友开房 · 切磋成长</div>
         <div class="auth-tabs">
-            <button class="auth-tab active" onclick="showTab('login')">登录</button>
-            <button class="auth-tab"        onclick="showTab('register')">注册</button>
+            <button class="auth-tab active" onclick="showTab('login')" data-i18n="tab.login">登录</button>
+            <button class="auth-tab"        onclick="showTab('register')" data-i18n="tab.register">注册</button>
         </div>
         <div id="tab-login">
-            <input class="auth-field" type="text"     id="login-user" placeholder="用户名 / 邮箱">
-            <input class="auth-field" type="password" id="login-pass" placeholder="密码">
-            <button class="auth-submit" onclick="doLogin()">登录</button>
-            <p class="auth-hint"><a class="auth-link" onclick="showTab('forgot')">忘记密码？</a></p>
+            <input class="auth-field" type="text"     id="login-user" placeholder="用户名 / 邮箱" data-i18n-ph="ph.loginUser">
+            <input class="auth-field" type="password" id="login-pass" placeholder="密码" data-i18n-ph="ph.password">
+            <button class="auth-submit" onclick="doLogin()" data-i18n="btn.login">登录</button>
+            <p class="auth-hint"><a class="auth-link" onclick="showTab('forgot')" data-i18n="link.forgot">忘记密码？</a></p>
         </div>
         <div id="tab-register" style="display:none">
             <div id="reg-step1">
-                <input class="auth-field" type="text"  id="reg-user"  placeholder="用户名（2-20 字符）">
-                <input class="auth-field" type="email" id="reg-email" placeholder="邮箱">
-                <input class="auth-field" type="password" id="reg-pass" placeholder="密码（至少 6 位）">
-                <button class="auth-submit" onclick="regSendCode()">发送验证码</button>
+                <input class="auth-field" type="text"  id="reg-user"  placeholder="用户名（2-20 字符）" data-i18n-ph="ph.regUser">
+                <input class="auth-field" type="email" id="reg-email" placeholder="邮箱" data-i18n-ph="ph.email">
+                <input class="auth-field" type="password" id="reg-pass" placeholder="密码（至少 6 位）" data-i18n-ph="ph.regPass">
+                <button class="auth-submit" onclick="regSendCode()" data-i18n="btn.sendCode">发送验证码</button>
             </div>
             <div id="reg-step2" style="display:none">
                 <div class="auth-hint" id="reg-sent-hint"></div>
-                <input class="auth-field" type="text" id="reg-code" placeholder="6 位邮箱验证码" inputmode="numeric" maxlength="6">
-                <button class="auth-submit" onclick="regVerify()">完成注册</button>
-                <p class="auth-hint"><a class="auth-link" onclick="regBack()">返回修改</a> · <a class="auth-link" onclick="regSendCode()">重发验证码</a></p>
+                <input class="auth-field" type="text" id="reg-code" placeholder="6 位邮箱验证码" inputmode="numeric" maxlength="6" data-i18n-ph="ph.code6">
+                <button class="auth-submit" onclick="regVerify()" data-i18n="btn.finishReg">完成注册</button>
+                <p class="auth-hint"><a class="auth-link" onclick="regBack()" data-i18n="link.regBack">返回修改</a> · <a class="auth-link" onclick="regSendCode()" data-i18n="link.resend">重发验证码</a></p>
             </div>
-            <p class="auth-hint">注册即赠 10,000 金币 🪙</p>
+            <p class="auth-hint" data-i18n="hint.bonus">注册即赠 10,000 金币 🪙</p>
         </div>
         <div id="tab-forgot" style="display:none">
             <div id="fg-step1">
-                <input class="auth-field" type="email" id="fg-email" placeholder="注册邮箱">
-                <button class="auth-submit" onclick="fgSendCode()">发送验证码</button>
+                <input class="auth-field" type="email" id="fg-email" placeholder="注册邮箱" data-i18n-ph="ph.fgEmail">
+                <button class="auth-submit" onclick="fgSendCode()" data-i18n="btn.sendCode">发送验证码</button>
             </div>
             <div id="fg-step2" style="display:none">
                 <div class="auth-hint" id="fg-sent-hint"></div>
-                <input class="auth-field" type="text" id="fg-code" placeholder="6 位邮箱验证码" inputmode="numeric" maxlength="6">
-                <input class="auth-field" type="password" id="fg-pass" placeholder="新密码（至少 6 位）">
-                <button class="auth-submit" onclick="fgReset()">重置密码</button>
-                <p class="auth-hint"><a class="auth-link" onclick="fgSendCode()">重发验证码</a></p>
+                <input class="auth-field" type="text" id="fg-code" placeholder="6 位邮箱验证码" inputmode="numeric" maxlength="6" data-i18n-ph="ph.code6">
+                <input class="auth-field" type="password" id="fg-pass" placeholder="新密码（至少 6 位）" data-i18n-ph="ph.fgPass">
+                <button class="auth-submit" onclick="fgReset()" data-i18n="btn.reset">重置密码</button>
+                <p class="auth-hint"><a class="auth-link" onclick="fgSendCode()" data-i18n="link.resend">重发验证码</a></p>
             </div>
-            <p class="auth-hint"><a class="auth-link" onclick="showTab('login')">← 返回登录</a></p>
+            <p class="auth-hint"><a class="auth-link" onclick="showTab('login')" data-i18n="link.backLogin">← 返回登录</a></p>
         </div>
         <div id="auth-error"></div>
     </div>
@@ -110,18 +110,18 @@
     <div id="user-bar">
         <span class="uname lobby-only" id="display-username"></span>
         <span class="gold lobby-only">🪙 <span id="display-gold">0</span></span>
-        <button class="icon-btn room-only" onclick="leaveRoom()" title="退出房间">🚪</button>
-        <button class="icon-btn danger room-only" id="btnDissolve" onclick="dissolveRoom()" title="解散房间" style="display:none">🛑</button>
-        <button class="icon-btn" id="btnSound" onclick="toggleSound()" title="音效">🔊</button>
-        <button class="icon-btn" onclick="toggleFullscreen()" id="btnFullscreen" title="全屏">⛶</button>
-        <button class="icon-btn" onclick="openSettings()" title="设置">⚙️</button>
+        <button class="icon-btn room-only" onclick="leaveRoom()" title="退出房间" data-i18n-title="title.leave">🚪</button>
+        <button class="icon-btn danger room-only" id="btnDissolve" onclick="dissolveRoom()" title="解散房间" data-i18n-title="title.dissolve" style="display:none">🛑</button>
+        <button class="icon-btn" id="btnSound" onclick="toggleSound()" title="音效" data-i18n-title="title.sound">🔊</button>
+        <button class="icon-btn" onclick="toggleFullscreen()" id="btnFullscreen" title="全屏" data-i18n-title="title.fullscreen">⛶</button>
+        <button class="icon-btn" onclick="openSettings()" title="设置" data-i18n-title="title.settings">⚙️</button>
         <span class="bar-spacer"></span>
-        <button class="icon-btn lobby-only" id="checkin-btn" onclick="openCheckin()" title="每日签到" style="position:relative">🎁<span id="checkin-dot" class="inbox-badge" style="display:none">!</span></button>
-        <button class="icon-btn lobby-only" onclick="openProfile()" title="个人主页">👤</button>
-        <button class="icon-btn lobby-only" id="inbox-toggle" onclick="openInbox()" title="消息" style="position:relative">📬<span id="inbox-badge" class="inbox-badge" style="display:none"></span></button>
-        <button class="icon-btn" onclick="openFeedback()" title="反馈 Bug / 建议">🐞</button>
-        <button class="icon-btn lobby-only" id="admin-toggle" onclick="toggleAdminPanel()" title="管理面板" style="display:none">👑</button>
-        <button class="icon-btn lobby-only" onclick="doLogout()" title="退出登录">⎋</button>
+        <button class="icon-btn lobby-only" id="checkin-btn" onclick="openCheckin()" title="每日签到" data-i18n-title="title.checkin" style="position:relative">🎁<span id="checkin-dot" class="inbox-badge" style="display:none">!</span></button>
+        <button class="icon-btn lobby-only" onclick="openProfile()" title="个人主页" data-i18n-title="title.profile">👤</button>
+        <button class="icon-btn lobby-only" id="inbox-toggle" onclick="openInbox()" title="消息" data-i18n-title="title.inbox" style="position:relative">📬<span id="inbox-badge" class="inbox-badge" style="display:none"></span></button>
+        <button class="icon-btn" onclick="openFeedback()" title="反馈 Bug / 建议" data-i18n-title="title.feedback">🐞</button>
+        <button class="icon-btn lobby-only" id="admin-toggle" onclick="toggleAdminPanel()" title="管理面板" data-i18n-title="title.admin" style="display:none">👑</button>
+        <button class="icon-btn lobby-only" onclick="doLogout()" title="退出登录" data-i18n-title="title.logout">⎋</button>
     </div>
     <span id="latency" title="网络延迟">📶 --</span>
 
@@ -185,12 +185,12 @@
     <div id="lobby-view">
         <div class="lobby-top">
             <button class="lobby-entry create" onclick="showCreateForm()">
-                <div class="le-title">➕ 创建比赛</div>
-                <div class="le-sub">SNG 升盲 / 现金桌</div>
+                <div class="le-title" data-i18n="lobby.createTitle">➕ 创建比赛</div>
+                <div class="le-sub" data-i18n="lobby.createSub">SNG 升盲 / 现金桌</div>
             </button>
             <div class="lobby-entry join">
-                <div class="le-title">🎟️ 加入比赛</div>
-                <div class="le-sub">输入房主分享的四位房间码，输满自动加入；列表里的房间只能观战</div>
+                <div class="le-title" data-i18n="lobby.joinTitle">🎟️ 加入比赛</div>
+                <div class="le-sub" data-i18n="lobby.joinSub">输入房主分享的四位房间码，输满自动加入；列表里的房间只能观战</div>
                 <div class="le-join-row code-boxes" id="joinCodeBoxes">
                     <input type="text" class="code-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
                         oninput="onCodeInput(this,0)" onkeydown="onCodeKey(event,this,0)" onpaste="onCodePaste(event)">
@@ -570,64 +570,72 @@
 <div id="settings-overlay" style="display:none">
     <div class="settings-box">
         <div class="settings-head">
-            <h2>桌面设置</h2>
+            <h2 data-i18n="settings.title">桌面设置</h2>
             <button class="settings-close" onclick="closeSettings()">✕</button>
         </div>
         <div class="settings-sec">
-            <div class="sec-title">桌面风格</div>
+            <div class="sec-title" data-i18n="settings.language">语言 / Language</div>
+            <div class="cardstyle-row">
+                <button class="cs-opt" data-lang="zh" onclick="setLang('zh')" data-i18n="lang.zh">中文</button>
+                <button class="cs-opt" data-lang="en" onclick="setLang('en')" data-i18n="lang.en">English</button>
+            </div>
+        </div>
+        <div class="settings-sec">
+            <div class="sec-title" data-i18n="settings.theme">桌面风格</div>
             <div class="theme-row" id="theme-row"></div>
         </div>
         <div class="settings-sec">
-            <div class="sec-title">扑克风格</div>
+            <div class="sec-title" data-i18n="settings.cardstyle">扑克风格</div>
             <div class="cardstyle-row">
-                <button class="cs-opt" data-cs="four" onclick="setCardStyle('four')">四色</button>
-                <button class="cs-opt" data-cs="standard" onclick="setCardStyle('standard')">标准</button>
-                <button class="cs-opt" data-cs="dark" onclick="setCardStyle('dark')">黑面</button>
-                <button class="cs-opt" data-cs="big" onclick="setCardStyle('big')">大字</button>
+                <button class="cs-opt" data-cs="four" onclick="setCardStyle('four')" data-i18n="cs.four">四色</button>
+                <button class="cs-opt" data-cs="standard" onclick="setCardStyle('standard')" data-i18n="cs.standard">标准</button>
+                <button class="cs-opt" data-cs="dark" onclick="setCardStyle('dark')" data-i18n="cs.dark">黑面</button>
+                <button class="cs-opt" data-cs="big" onclick="setCardStyle('big')" data-i18n="cs.big">大字</button>
             </div>
             <div class="cs-preview" id="cs-preview"></div>
         </div>
         <div class="settings-sec">
-            <div class="sec-title">屏幕布局</div>
+            <div class="sec-title" data-i18n="settings.layout">屏幕布局</div>
             <div class="cardstyle-row">
-                <button class="cs-opt lay-opt" data-lay="auto" onclick="setLayout('auto')">自动</button>
-                <button class="cs-opt lay-opt" data-lay="portrait" onclick="setLayout('portrait')">竖屏</button>
-                <button class="cs-opt lay-opt" data-lay="landscape" onclick="setLayout('landscape')">横屏</button>
+                <button class="cs-opt lay-opt" data-lay="auto" onclick="setLayout('auto')" data-i18n="lay.auto">自动</button>
+                <button class="cs-opt lay-opt" data-lay="portrait" onclick="setLayout('portrait')" data-i18n="lay.portrait">竖屏</button>
+                <button class="cs-opt lay-opt" data-lay="landscape" onclick="setLayout('landscape')" data-i18n="lay.landscape">横屏</button>
             </div>
-            <div class="sec-hint">电脑浏览器/大屏建议「横屏」：牌桌收成合适比例居中，牌面更大、座位更聚拢。</div>
+            <div class="sec-hint" data-i18n="settings.layoutHint">电脑浏览器/大屏建议「横屏」：牌桌收成合适比例居中，牌面更大、座位更聚拢。</div>
         </div>
         <div class="settings-sec">
-            <div class="sec-title">翻前快捷加注（BB 倍数，最多 5 个；最小/All-in 固定）</div>
+            <div class="sec-title" data-i18n="settings.quickPre">翻前快捷加注（BB 倍数，最多 5 个；最小/All-in 固定）</div>
             <div class="quickbet-opts" id="quickbet-pre"></div>
             <div class="qb-custom">
-                <input type="number" id="customPre" placeholder="自定义 BB" step="0.5" min="1">
-                <button onclick="addCustomQuick('pre')">+ 添加</button>
+                <input type="number" id="customPre" placeholder="自定义 BB" step="0.5" min="1" data-i18n-ph="ph.customBB">
+                <button onclick="addCustomQuick('pre')" data-i18n="btn.add">+ 添加</button>
             </div>
         </div>
         <div class="settings-sec">
-            <div class="sec-title">翻后快捷加注（底池 %，最多 5 个；最小/All-in 固定）</div>
+            <div class="sec-title" data-i18n="settings.quickPost">翻后快捷加注（底池 %，最多 5 个；最小/All-in 固定）</div>
             <div class="quickbet-opts" id="quickbet-post"></div>
             <div class="qb-custom">
-                <input type="number" id="customPost" placeholder="自定义 %" step="5" min="1">
-                <button onclick="addCustomQuick('post')">+ 添加</button>
+                <input type="number" id="customPost" placeholder="自定义 %" step="5" min="1" data-i18n-ph="ph.customPct">
+                <button onclick="addCustomQuick('post')" data-i18n="btn.add">+ 添加</button>
             </div>
         </div>
         <div class="settings-sec toggles">
-            <label class="set-toggle"><span>显示 BB</span>
+            <label class="set-toggle"><span data-i18n="settings.showBB">显示 BB</span>
                 <input type="checkbox" id="set-bb" onchange="setDisplayBBChecked(this.checked)"></label>
-            <label class="set-toggle"><span>游戏音效</span>
+            <label class="set-toggle"><span data-i18n="settings.sound">游戏音效</span>
                 <input type="checkbox" id="set-sound" onchange="setSoundChecked(this.checked)"></label>
         </div>
         <div class="settings-sec set-actions">
-            <button class="sa-btn" onclick="toggleFullscreen(); closeSettings()" id="setFullscreen">⛶ 全屏</button>
-            <button class="sa-btn room-only" onclick="leaveRoom(); closeSettings()">🚪 退出房间</button>
-            <button class="sa-btn room-only danger" id="setDissolve" onclick="dissolveRoom(); closeSettings()" style="display:none">🛑 解散房间</button>
-            <button class="sa-btn lobby-only" onclick="doLogout()">⎋ 退出登录</button>
+            <button class="sa-btn" onclick="toggleFullscreen(); closeSettings()" id="setFullscreen" data-i18n="btn.fullscreen">⛶ 全屏</button>
+            <button class="sa-btn room-only" onclick="leaveRoom(); closeSettings()" data-i18n="btn.leaveRoom">🚪 退出房间</button>
+            <button class="sa-btn room-only danger" id="setDissolve" onclick="dissolveRoom(); closeSettings()" data-i18n="btn.dissolve" style="display:none">🛑 解散房间</button>
+            <button class="sa-btn lobby-only" onclick="doLogout()" data-i18n="btn.logout">⎋ 退出登录</button>
         </div>
     </div>
 </div>
 
 <script src="/js/00-state.js"></script>
+<script src="/js/03-i18n.js"></script>
 <script src="/js/05-utils.js"></script>
 <script src="/js/10-auth.js"></script>
 <script src="/js/20-socket.js"></script>

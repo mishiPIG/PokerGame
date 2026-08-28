@@ -305,6 +305,7 @@ function connectSocket(token) {
         // ① 下注瞬间：本次下注额【变大】→ 从头像抛一枚筹码到自己的下注徽章（"把筹码推出去"的手感）
         // ② 收注：下注额归零（本街结束）→ 筹码飞向底池
         const pot = document.getElementById('pot');
+        let potCollected = false;
         state.players.forEach(p => {
             const prev = prevBets[p.userId] || 0;
             if (p.currentBet > prev && prev >= 0 && state.phase !== 'waiting') {
@@ -314,8 +315,10 @@ function connectSocket(token) {
             }
             if (prev > 0 && p.currentBet === 0) {
                 flyCoins(document.querySelector(`.seat[data-uid="${p.userId}"]`), pot, 2);
+                potCollected = true;
             }
         });
+        if (potCollected) sndPot();   // 本街结束、筹码归拢入池（收池音，只响一次）
         // 弃牌获胜（非摊牌）：唯一未弃牌者获得底池，金币飞向他
         if (state.phase === 'showdown' && !wasShowdown) {
             const alive = state.players.filter(p => !p.folded);

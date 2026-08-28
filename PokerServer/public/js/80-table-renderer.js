@@ -420,14 +420,17 @@ function render(state) {
     for (let i = 0; i < 5; i++) {
         if (i >= comm.length) { commHtml += emptySlot(); continue; }
         let opts = {};
+        const isNew = i >= animateFrom;
         if (showdownInfo) {   // showdown：组成各赢家牌型的公共牌拉出高亮（分池取并集），其余变灰
             opts = winnerCommunitySet().has(i)
                 ? { hl: true, anim: revealJustHappened }
                 : { dim: true, anim: revealJustHappened };
-        } else if (myHand && myHand.community.includes(i)) {   // 行牌中：高亮我当前牌型用到的公共牌
-            opts = { mine: true };
+            commHtml += formatCard(comm[i], isNew, (i - animateFrom) * 140, opts);
+        } else {
+            if (myHand && myHand.community.includes(i)) opts.mine = true;   // 行牌中：高亮我当前牌型用到的公共牌
+            if (isNew) opts.flip = true;    // 新发的公共牌：逐张翻牌（flop 依次 1→2→3，转/河同理）
+            commHtml += formatCard(comm[i], false, isNew ? (i - animateFrom) * 190 : 0, opts);
         }
-        commHtml += formatCard(comm[i], i >= animateFrom, (i - animateFrom) * 140, opts);
     }
     document.getElementById('community').innerHTML = commHtml;
     if (comm.length > prevCommunityCount) {

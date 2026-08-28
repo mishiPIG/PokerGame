@@ -35,13 +35,15 @@ function sndFold()     { beep(300, 90, 'sawtooth', 0.12); beep(200, 130, 'sawtoo
 function sndShow()     { beep(700, 60, 'triangle', 0.12); beep(1050, 90, 'sine', 0.12, 0.05); }       // 亮牌叮
 function sndClick()    { beep(660, 30, 'sine', 0.05); }                                                // 按钮点击反馈
 function sndSit()      { beep(523, 90, 'sine', 0.16); beep(784, 130, 'sine', 0.16, 0.09); beep(1047, 160, 'sine', 0.13, 0.2); } // 坐下入座：上扬三音
-function sndBet()      { beep(420, 60, 'square', 0.1); beep(620, 70, 'square', 0.1, 0.06); }           // 下注/加注：筹码声
+function sndBet()      { beep(420, 60, 'square', 0.1); beep(620, 70, 'square', 0.1, 0.06); }           // 下注：推两枚筹码
+function sndRaise()    { beep(500, 55, 'square', 0.1); beep(720, 60, 'square', 0.1, 0.06); beep(960, 85, 'square', 0.11, 0.13); } // 加注：三连上扬（比下注更进一步）
 function sndCall()     { beep(520, 70, 'square', 0.1); }                                                // 跟注
 function sndCheck()    { beep(180, 70, 'sine', 0.14); beep(150, 90, 'sine', 0.12, 0.07); }             // 过牌：敲桌
 function sndAllin()    { beep(330, 120, 'sawtooth', 0.16); beep(495, 140, 'sawtooth', 0.16, 0.1); beep(660, 200, 'sawtooth', 0.16, 0.22); } // 全下：上扬
-function sndWin()      { [523, 659, 784, 1047].forEach((f, i) => beep(f, 180, 'triangle', 0.16, i * 0.1)); } // 获胜：琶音
+function sndWin()      { [523, 659, 784, 1047].forEach((f, i) => beep(f, 180, 'triangle', 0.16, i * 0.1)); } // 获胜：上行琶音
+function sndPot()      { beep(700, 45, 'triangle', 0.09); beep(520, 55, 'triangle', 0.1, 0.05); beep(380, 85, 'triangle', 0.1, 0.11); } // 收池：筹码归拢（下行三音）
 function playSfx(type) {
-    ({ bet: sndBet, raise: sndBet, call: sndCall, check: sndCheck, fold: sndFold, allin: sndAllin, win: sndWin }[type] || (() => {}))();
+    ({ bet: sndBet, raise: sndRaise, call: sndCall, check: sndCheck, fold: sndFold, allin: sndAllin, win: sndWin, pot: sndPot }[type] || (() => {}))();
 }
 // 金币从 fromEl 飞到 toEl（弧线缩小淡出）
 function flyCoins(fromEl, toEl, count) {
