@@ -537,10 +537,12 @@ Android / iOS / PC
 - **🐞 反馈自动带版本**（版本号真正发挥作用的地方）：玩家点 🐞 提交反馈时，客户端自动附上前端构建号，服务端补上自己的版本，**一起写进 `feedback` 记录和那封提醒邮件**。前端构建号不在服务端版本串里 → 邮件里直接标「⚠️ 前端是缓存的旧版，先让他刷新再排查」。
   - 为什么必须自动带：**指望玩家自己去设置面板翻出版本号复制过来，基本不会发生**。只放在设置面板里等于「有但用不上」。
 - **Android 壳独立一套**：`versionCode` 必须单调递增整数（Play 硬性要求），`versionName` 给人看；壳很少发版，与游戏版本**解耦**，别绑一起。CI 里 `versionName` 取 `mobile/package.json`、`versionCode` 用 `github.run_number`（天然递增）。
-- 🔴 **APK 必须固定签名**（2026-08-11 发现）：CI 用 `assembleDebug`，而 runner 上没有 `~/.android/debug.keystore` → Gradle **每次现生成一个** → **每次构建签名都不同** → 新版 APK 装不到旧版上面（Android 报「应用未安装」），朋友们每次更新都得先卸载重装。
-  - 修：固定密钥存 GitHub Secret `ANDROID_KEYSTORE_B64`，CI 还原到 `~/.android/debug.keystore` 再构建。**Secret 没配时只警告不失败**，别把出包流程卡死。
-  - 密钥本体在本机 `.secrets/`（gitignore），**属于必须备份的东西**——丢了等于换身份，所有人都得卸载重装。具体位置/指纹/配置步骤见私有 `ADMIN.local.md` 第八节。
-  - ⚠️ 现在出的仍是 **debug 版**（`debuggable=true`）；上 Google Play 需要改 `assembleRelease` + 独立 release 密钥 + 隐私政策（待办）。
+- 🔴 **APK 必须固定签名**（2026-08-11 发现，2026-08-28 才真正修好）：APK 的签名必须**每次构建都一样**，否则新版装不到旧版上（Android 报「应用未安装」），朋友每次更新都得先卸载。固定密钥 = 本机 `.secrets/pokerdojo.keystore`（gitignore，**必须备份**，丢了=换身份全员重装），**SHA256 指纹 `19:ED:…:38:81`**，alias `androiddebugkey`/storepass `android`。b64 存 GitHub Secret `ANDROID_KEYSTORE_B64`。
+  - **🩹 真正的坑（2026-08-28 排查大半天）**：光把密钥还原到 `~/.android/debug.keystore` **根本没用**——**Capacitor 工程里 AGP 会用 runner 镜像自带的那把 debug.keystore（指纹每次不同）**，改 Secret / 覆盖 `~/.android` / `find` 覆盖所有 debug.keystore / 往 build.gradle 注入 `signingConfig` **统统改不动它**。**最终解法：构建完 `assembleDebug` 后，用 `apksigner sign --ks <固定keystore> ... pokerdojo.apk` 强制重签**——无论 Gradle 怎么签，产物一定是 19:ED。
+  - **验签也曾自己写错**：一开始按证书 **Owner 名**判定（`CN=Android Debug`），可固定 debug 密钥的 Owner 本来就是 `CN=Android Debug` → 只要配了 Secret 就永远误判失败。改为**按 SHA256 指纹**比对（硬编码 `19:ED:…`，指纹是公开信息）。
+  - **排障技巧**：GitHub 未鉴权 REST API 限流 60/时、且**日志/artifact 下载要鉴权**读不到；用「让 workflow 把指纹/产物 APK 发到一个临时 release（`ci-diag`），再从 release 的**资源下载 URL**取回本地验签」绕开——**资源下载不算 API 配额**。本机没 JDK 时，JKS 指纹可用 Python 解析（openssl 读不了 JKS）、APK 指纹可 openssl 从 `META-INF/*.RSA` 算。
+  - ⚠️ **换钥匙的一次性代价**：修好前朋友装的是随机签名的旧包，切到 19:ED 后**要卸载重装一次**；之后所有更新都能直接覆盖。`android-latest` 直链已是 19:ED。
+  - ⚠️ 仍是 **debug 版**（`debuggable=true`）；上架 Google Play 需 `assembleRelease` + 独立 release 密钥 + 隐私政策（待办）。
 
 ## 部署（运维细节见私有文档）
 - **两套环境**：`deploy-test.sh`（测试服，pm2 `poker-test`）日常迭代；`deploy.sh "msg"`（生产=香港，pm2 `poker`）正式发布，无参则仅同步不走 git。两者均**从仓库根目录运行**，tar 排除 data.json/hands.jsonl/secret.key/mail.json（不覆盖生产数据）。
