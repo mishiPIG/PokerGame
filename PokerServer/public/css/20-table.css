@@ -234,7 +234,14 @@
             background: linear-gradient(#7fb4ff, #3a7bd5); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
         .pot-chip.gold  { background: linear-gradient(#ffe08a, #e0a200); box-shadow: inset 0 3px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.5); }
         .pot-chip.green { background: linear-gradient(#8fe6a8, #2fae5f); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
-        #community { display: flex; justify-content: center; gap: 5px; min-height: var(--card-h); }
+        #community { display: flex; justify-content: center; gap: 5px; min-height: var(--card-h); perspective: 900px; }
+        /* 公共牌逐张发出：从上方落下 + 翻牌（rotateY，需容器 perspective 才有立体翻转感），flop 逐张 1→2→3 */
+        .card.comm-deal { animation: commDeal 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards; transform-style: preserve-3d; }
+        @keyframes commDeal {
+            from { opacity: 0; transform: translateY(-34px) rotateY(88deg) scale(0.86); }
+            60%  { opacity: 1; }
+            to   { opacity: 1; transform: none; }
+        }
         /* 公共牌下方一行提示（如"谁想看转牌"）*/
         #table-notice { display: table; margin: 8px auto 0; text-align: center; font-size: 13px; font-weight: bold; color: #f4d35e;
             background: rgba(0,0,0,0.45); border-radius: 10px; padding: 4px 12px;

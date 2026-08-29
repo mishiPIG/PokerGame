@@ -11,6 +11,7 @@ function formatCard(c, animate = false, delayMs = 0, opts = {}) {
     const cls = ['card', red ? 'red' : 'black', 'suit-' + c.suit.toLowerCase()];
     if (animate)       cls.push('deal-in');
     if (opts.flip)     cls.push('flip-in');
+    if (opts.commDeal) cls.push('comm-deal');
     if (opts.fold)     cls.push('fold-out');
     if (opts.showable) cls.push('showable');
     if (opts.shown)    cls.push('shown');
@@ -18,7 +19,7 @@ function formatCard(c, animate = false, delayMs = 0, opts = {}) {
     if (opts.dim)      cls.push('dim');
     if (opts.mine)     cls.push('mine');
     if (opts.anim)     cls.push('reveal-anim');
-    const style = ((animate || opts.flip) && delayMs) ? ` style="animation-delay:${delayMs}ms"` : '';
+    const style = ((animate || opts.flip || opts.commDeal) && delayMs) ? ` style="animation-delay:${delayMs}ms"` : '';
     const click = opts.onclick ? ` onclick="${opts.onclick}"` : '';
     return `<span class="${cls.join(' ')}"${style}${click}>
                 <span class="rank">${rank}</span>
@@ -428,8 +429,8 @@ function render(state) {
             commHtml += formatCard(comm[i], isNew, (i - animateFrom) * 140, opts);
         } else {
             if (myHand && myHand.community.includes(i)) opts.mine = true;   // 行牌中：高亮我当前牌型用到的公共牌
-            if (isNew) opts.flip = true;    // 新发的公共牌：逐张翻牌（flop 依次 1→2→3，转/河同理）
-            commHtml += formatCard(comm[i], false, isNew ? (i - animateFrom) * 190 : 0, opts);
+            if (isNew) opts.commDeal = true;    // 新发的公共牌：落下+翻牌，逐张 stagger（flop 依次 1→2→3，转/河同理）
+            commHtml += formatCard(comm[i], false, isNew ? (i - animateFrom) * 200 : 0, opts);
         }
     }
     document.getElementById('community').innerHTML = commHtml;
