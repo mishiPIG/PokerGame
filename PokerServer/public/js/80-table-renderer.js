@@ -21,7 +21,7 @@ function formatCard(c, animate = false, delayMs = 0, opts = {}) {
     if (opts.anim)     cls.push('reveal-anim');
     const style = ((animate || opts.flip || opts.commDeal) && delayMs) ? ` style="animation-delay:${delayMs}ms"` : '';
     const click = opts.onclick ? ` onclick="${opts.onclick}"` : '';
-    return `<span class="${cls.join(' ')}"${style}${click}>
+    return `<span class="${cls.join(' ')}"${style}${click} data-cid="${c.suit}${c.rank}">
                 <span class="rank">${rank}</span>
                 <span class="suit">${sym}</span>
             </span>`;
@@ -417,26 +417,42 @@ function render(state) {
     const comm = state.communityCards;
     if (comm.length < prevCommunityCount) prevCommunityCount = 0;  // 新一局，公共牌清空
     const animateFrom = prevCommunityCount;
-    let commHtml = '';
-    for (let i = 0; i < 5; i++) {
-        if (i >= comm.length) { commHtml += emptySlot(); continue; }
-        let opts = {};
-        const isNew = i >= animateFrom;
-        if (showdownInfo) {   // showdown：组成各赢家牌型的公共牌拉出高亮（分池取并集），其余变灰
-            opts = winnerCommunitySet().has(i)
-                ? { hl: true, anim: revealJustHappened }
-                : { dim: true, anim: revealJustHappened };
-            commHtml += formatCard(comm[i], isNew, (i - animateFrom) * 140, opts);
-        } else {
-            if (myHand && myHand.community.includes(i)) opts.mine = true;   // 行牌中：高亮我当前牌型用到的公共牌
-            if (isNew) opts.commDeal = true;    // 新发的公共牌：落下+翻牌，逐张 stagger（flop 依次 1→2→3，转/河同理）
-            commHtml += formatCard(comm[i], false, isNew ? (i - animateFrom) * 200 : 0, opts);
+    const commEl = document.getElementById('community');
+    const commOpts = (i) => {
+        if (showdownInfo) return winnerCommunitySet().has(i) ? { hl: true } : { dim: true };
+        return (myHand && myHand.community.includes(i)) ? { mine: true } : {};
+    };
+    // ⚠️ 只有公共牌【真的变了】才重建 innerHTML。否则（翻牌后紧跟的 my_hand/高亮更新会再触发一次 render）
+    //    重建会把正在进行的发牌动画整排清掉 → 看起来"三张一起出现"。牌没变时只在原地切高亮 class。
+    const domCards = commEl.querySelectorAll('.card');
+    const sameCards = domCards.length === comm.length
+        && Array.from(domCards).every((el, i) => el.dataset.cid === (comm[i].suit + comm[i].rank));
+    if (sameCards && !revealJustHappened) {
+        domCards.forEach((el, i) => {
+            const o = commOpts(i);
+            el.classList.toggle('mine', !!o.mine);
+            el.classList.toggle('hl', !!o.hl);
+            el.classList.toggle('dim', !!o.dim);
+        });
+    } else {
+        let commHtml = '';
+        for (let i = 0; i < 5; i++) {
+            if (i >= comm.length) { commHtml += emptySlot(); continue; }
+            const isNew = i >= animateFrom;
+            const opts = commOpts(i);
+            if (showdownInfo) {   // showdown：组成各赢家牌型的公共牌拉出高亮（分池取并集），其余变灰
+                opts.anim = revealJustHappened;
+                commHtml += formatCard(comm[i], isNew, (i - animateFrom) * 140, opts);
+            } else {
+                if (isNew) opts.commDeal = true;    // 新发的公共牌：落下+翻牌，逐张 stagger（flop 依次 1→2→3，转/河同理）
+                commHtml += formatCard(comm[i], false, isNew ? (i - animateFrom) * 200 : 0, opts);
+            }
         }
-    }
-    document.getElementById('community').innerHTML = commHtml;
-    if (comm.length > prevCommunityCount) {
-        for (let i = 0; i < comm.length - animateFrom; i++) sndFlip(i);   // 翻几张响几声
-        lockInput(650);                                                   // 翻牌瞬间防误触
+        commEl.innerHTML = commHtml;
+        if (comm.length > prevCommunityCount) {
+            for (let i = 0; i < comm.length - animateFrom; i++) sndFlip(i);   // 翻几张响几声
+            lockInput(650);                                                   // 翻牌瞬间防误触
+        }
     }
     if (holeJustDealt) lockInput(750);                                    // 发牌瞬间防误触
     prevCommunityCount = comm.length;
