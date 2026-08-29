@@ -530,7 +530,7 @@ function render(state) {
     const cc = document.getElementById('btnCheckCall');
     cc.disabled = !myTurn;
     const isCall = myTurn && toCall > 0;
-    cc.textContent = isCall ? `跟注\n${fmtChips(callAmt)}${isCallAllin ? '(全下)' : ''}` : '过牌';
+    cc.textContent = isCall ? `${t('act.call')}\n${fmtChips(callAmt)}${isCallAllin ? t('act.allinParen') : ''}` : t('act.check');
     cc.classList.toggle('call', isCall);
     cc.classList.toggle('check', !isCall);
     // 下注 / 加注 互斥：本街无人下注显示「下注」，否则显示「加注」，只露一个减少冗余

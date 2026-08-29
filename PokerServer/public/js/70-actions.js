@@ -159,7 +159,7 @@ function onAmountInput() {
 function updateConfirmLabel(v) {
     const val = clampSize(v);
     const isBet = sizeCtx && sizeCtx.currentBet === 0;
-    document.getElementById('btnConfirmBet').textContent = (isBet ? '确认下注 ' : '确认加注到 ') + fmtChips(val);
+    document.getElementById('btnConfirmBet').textContent = (isBet ? t('act.confirmBet') : t('act.confirmRaise')) + fmtChips(val);
     updateBetInfo(val);
 }
 // 下注辅助信息：这一手压下去之后我还剩多少、相当于多大底池、对手要跟多少。

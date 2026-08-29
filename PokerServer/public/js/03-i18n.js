@@ -26,6 +26,25 @@ const I18N = {
         'ph.customBB': '自定义 BB', 'ph.customPct': '自定义 %', 'btn.add': '+ 添加',
         'settings.showBB': '显示 BB', 'settings.sound': '游戏音效',
         'btn.fullscreen': '⛶ 全屏', 'btn.leaveRoom': '🚪 退出房间', 'btn.dissolve': '🛑 解散房间', 'btn.logout': '⎋ 退出登录',
+        'cfg.sngNote': '初始盲注 25/50 每级递增、淘汰制；冠军赢得奖池', 'cfg.name': '比赛名字', 'cfg.namePh': '不服就推',
+        'cfg.buyin': '报名费（冠军奖励）', 'cfg.maxPlayers': '开赛人数：', 'cfg.unitPeople': '人', 'cfg.startStack': '初始记分牌：',
+        'cfg.levelTime': '级别时间（涨盲间隔）：', 'cfg.unitMin': '分钟',
+        'cfg.cashNote': '2–9 人，固定盲注。金币↔筹码买入：110 金币→1000 筹码，离场 1000 筹码→100 金币',
+        'cfg.tableName': '牌桌名字', 'cfg.tableNamePh': '欢乐场', 'cfg.blinds': '基础分（盲注）：', 'cfg.ante': 'Ante 前注：',
+        'cfg.straddle': '允许 UTG Straddle（固定 2BB）', 'cfg.maxSeats': '单桌最大人数：', 'cfg.minBuyin': '单次最小带入：',
+        'cfg.buyinCap': '带入上限：', 'cfg.duration': '训练时长（到点自动结束并结算排名）', 'cfg.confirm': '确定创建', 'cfg.cancel': '取消',
+        'lobby.roomList': '房间列表',
+        'voice.rec': '按住说话', 'voice.hold': '按住说话',
+        'tm.settings': '🎨 桌面设置', 'tm.invite': '🔗 邀请朋友', 'tm.rebuy': '💵 补充记分牌', 'tm.reserve': '💺 留座离桌',
+        'tm.standup': '🧍 站起围观', 'tm.pause': '⏸️ 暂停发牌', 'tm.matchSettings': '⚙️ 比赛设置', 'tm.leave': '🚪 退出比赛', 'tm.dissolve': '🛑 解散比赛',
+        'chat.title': '💬 聊天', 'chat.phrases': '常用语', 'chat.inputPh': '说点什么…', 'chat.send': '发送',
+        'inbox.title': '📬 消息', 'checkin.title': '🎁 每日签到', 'common.loading': '加载中…',
+        'feedback.title': '🐞 反馈 Bug / 建议', 'feedback.hint': '遇到问题或有建议？直接告诉我们，会尽快改进 🙏',
+        'feedback.textPh': '描述你遇到的 Bug 或想法…（越详细越好）', 'feedback.contactPh': '联系方式（选填：邮箱/微信，方便回复）', 'feedback.submit': '提交反馈',
+        'act.confirm': '确认', 'act.fold': '弃牌', 'act.bet': '下注…', 'act.raise': '加注…', 'act.check': '过牌', 'act.call': '跟注',
+        'act.allinParen': '(全下)', 'act.confirmBet': '确认下注 ', 'act.confirmRaise': '确认加注到 ', 'act.rabbit': '🐰 看后续牌',
+        'pa.checkfold': '过/弃', 'pa.call': '跟注', 'tc.menu': '菜单', 'tc.addtime': '加时',
+        'reserve.reserving': '💺 留座中', 'reserve.sitback': '🪑 回到座位',
     },
     en: {
         'brand.tagline': 'Poker Dojo · Play with friends · Grow together',
@@ -51,6 +70,25 @@ const I18N = {
         'ph.customBB': 'Custom ×BB', 'ph.customPct': 'Custom %', 'btn.add': '+ Add',
         'settings.showBB': 'Show BB', 'settings.sound': 'Sound effects',
         'btn.fullscreen': '⛶ Fullscreen', 'btn.leaveRoom': '🚪 Leave room', 'btn.dissolve': '🛑 Dissolve room', 'btn.logout': '⎋ Log out',
+        'cfg.sngNote': 'Blinds start 25/50 and rise each level; last player standing wins the pool', 'cfg.name': 'Game name', 'cfg.namePh': 'e.g. All-in Club',
+        'cfg.buyin': 'Buy-in (winner takes the pool)', 'cfg.maxPlayers': 'Players: ', 'cfg.unitPeople': '', 'cfg.startStack': 'Starting stack: ',
+        'cfg.levelTime': 'Level time (blind-up): ', 'cfg.unitMin': 'min',
+        'cfg.cashNote': '2–9 players, fixed blinds. Coins↔chips: 110 coins→1000 chips; cash out 1000 chips→100 coins',
+        'cfg.tableName': 'Table name', 'cfg.tableNamePh': 'e.g. Fun Room', 'cfg.blinds': 'Blinds: ', 'cfg.ante': 'Ante: ',
+        'cfg.straddle': 'Allow UTG straddle (2BB)', 'cfg.maxSeats': 'Max players: ', 'cfg.minBuyin': 'Min buy-in: ',
+        'cfg.buyinCap': 'Buy-in cap: ', 'cfg.duration': 'Session length (auto-ends & settles at time)', 'cfg.confirm': 'Create', 'cfg.cancel': 'Cancel',
+        'lobby.roomList': 'Rooms',
+        'voice.rec': 'Hold to talk', 'voice.hold': 'Hold to talk',
+        'tm.settings': '🎨 Settings', 'tm.invite': '🔗 Invite friends', 'tm.rebuy': '💵 Rebuy chips', 'tm.reserve': '💺 Reserve & leave',
+        'tm.standup': '🧍 Stand up (watch)', 'tm.pause': '⏸️ Pause dealing', 'tm.matchSettings': '⚙️ Game settings', 'tm.leave': '🚪 Leave game', 'tm.dissolve': '🛑 Dissolve game',
+        'chat.title': '💬 Chat', 'chat.phrases': 'Phrases', 'chat.inputPh': 'Say something…', 'chat.send': 'Send',
+        'inbox.title': '📬 Messages', 'checkin.title': '🎁 Daily check-in', 'common.loading': 'Loading…',
+        'feedback.title': '🐞 Report a bug / idea', 'feedback.hint': "Hit a bug or have an idea? Tell us and we'll improve it 🙏",
+        'feedback.textPh': 'Describe the bug or idea… (the more detail the better)', 'feedback.contactPh': 'Contact (optional: email/WeChat, for follow-up)', 'feedback.submit': 'Submit',
+        'act.confirm': 'Confirm', 'act.fold': 'Fold', 'act.bet': 'Bet…', 'act.raise': 'Raise…', 'act.check': 'Check', 'act.call': 'Call',
+        'act.allinParen': '(all-in)', 'act.confirmBet': 'Confirm bet ', 'act.confirmRaise': 'Confirm raise to ', 'act.rabbit': '🐰 Rabbit hunt',
+        'pa.checkfold': 'Check/Fold', 'pa.call': 'Call', 'tc.menu': 'Menu', 'tc.addtime': 'Add time',
+        'reserve.reserving': '💺 Seat held', 'reserve.sitback': '🪑 Sit back',
     },
 };
 let lang = (() => { try { return localStorage.getItem('lang') || (String(navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'zh'); } catch { return 'zh'; } })();
@@ -62,6 +100,12 @@ function applyLang() {
     document.querySelectorAll('[data-i18n-title]').forEach(el => { const v = t(el.getAttribute('data-i18n-title'), null); if (v != null) el.title = v; });
     document.querySelectorAll('[data-lang]').forEach(b => b.classList.toggle('sel', b.getAttribute('data-lang') === lang));
 }
-function setLang(l) { lang = (l === 'en' ? 'en' : 'zh'); try { localStorage.setItem('lang', lang); } catch {} applyLang(); }
+function setLang(l) {
+    lang = (l === 'en' ? 'en' : 'zh');
+    try { localStorage.setItem('lang', lang); } catch {}
+    applyLang();
+    // 牌桌上有些文案是 JS 每帧写的（过牌/跟注按钮等）→ 切语言后重渲染一次立即生效
+    try { if (typeof lastState !== 'undefined' && lastState && typeof render === 'function') render(lastState); } catch {}
+}
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyLang);
 else applyLang();

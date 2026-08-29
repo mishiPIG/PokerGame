@@ -212,46 +212,46 @@
             </div>
             <!-- SNG -->
             <div id="create-sng">
-                <div class="cfg-note">初始盲注 25/50 每级递增、淘汰制；冠军赢得奖池</div>
-                <label>比赛名字 <input type="text" id="cfgName" placeholder="不服就推" maxlength="20"></label>
-                <div class="cfg-field"><span class="cfg-label">报名费（冠军奖励）</span>
+                <div class="cfg-note" data-i18n="cfg.sngNote">初始盲注 25/50 每级递增、淘汰制；冠军赢得奖池</div>
+                <label><span data-i18n="cfg.name">比赛名字</span> <input type="text" id="cfgName" placeholder="不服就推" maxlength="20" data-i18n-ph="cfg.namePh"></label>
+                <div class="cfg-field"><span class="cfg-label" data-i18n="cfg.buyin">报名费（冠军奖励）</span>
                     <div class="tier-row" id="sngBuyinRow"></div></div>
-                <label>开赛人数：<b id="cfgMaxVal">2</b> 人
+                <label><span data-i18n="cfg.maxPlayers">开赛人数：</span><b id="cfgMaxVal">2</b> <span data-i18n="cfg.unitPeople">人</span>
                     <input type="range" id="cfgMax" min="2" max="9" step="1" value="2"
                            oninput="document.getElementById('cfgMaxVal').textContent=this.value"></label>
-                <label>初始记分牌：<b id="cfgStackVal">10,000 (200BB)</b>
+                <label><span data-i18n="cfg.startStack">初始记分牌：</span><b id="cfgStackVal">10,000 (200BB)</b>
                     <input type="range" id="cfgStack" min="5000" max="30000" step="1000" value="10000"
                            oninput="document.getElementById('cfgStackVal').textContent=(+this.value).toLocaleString()+' ('+Math.round(this.value/50)+'BB)'"></label>
-                <label>级别时间（涨盲间隔）：<b id="cfgLevelVal">3</b> 分钟
+                <label><span data-i18n="cfg.levelTime">级别时间（涨盲间隔）：</span><b id="cfgLevelVal">3</b> <span data-i18n="cfg.unitMin">分钟</span>
                     <input type="range" id="cfgLevel" min="3" max="10" step="1" value="3"
                            oninput="document.getElementById('cfgLevelVal').textContent=this.value"></label>
             </div>
             <!-- 现金桌 -->
             <div id="create-cash" style="display:none">
-                <div class="cfg-note">2–9 人，固定盲注。金币↔筹码买入：110 金币→1000 筹码，离场 1000 筹码→100 金币</div>
-                <label>牌桌名字 <input type="text" id="ccName" placeholder="欢乐场" maxlength="20"></label>
-                <label>基础分（盲注）：<b id="ccBlindVal">20 / 40</b>
+                <div class="cfg-note" data-i18n="cfg.cashNote">2–9 人，固定盲注。金币↔筹码买入：110 金币→1000 筹码，离场 1000 筹码→100 金币</div>
+                <label><span data-i18n="cfg.tableName">牌桌名字</span> <input type="text" id="ccName" placeholder="欢乐场" maxlength="20" data-i18n-ph="cfg.tableNamePh"></label>
+                <label><span data-i18n="cfg.blinds">基础分（盲注）：</span><b id="ccBlindVal">20 / 40</b>
                     <input type="range" id="ccBlind" min="0" max="7" step="1" value="1" oninput="updateCashLabels()"></label>
-                <label>Ante 前注：<b id="ccAnteVal">0</b>
+                <label><span data-i18n="cfg.ante">Ante 前注：</span><b id="ccAnteVal">0</b>
                     <input type="range" id="ccAnte" min="0" max="80" step="10" value="0" oninput="updateCashLabels()"></label>
                 <label class="toggle-label"><input type="checkbox" id="ccStraddle">
-                    允许 UTG Straddle（固定 2BB）</label>
-                <label>单桌最大人数：<b id="ccMaxVal">6</b> 人
+                    <span data-i18n="cfg.straddle">允许 UTG Straddle（固定 2BB）</span></label>
+                <label><span data-i18n="cfg.maxSeats">单桌最大人数：</span><b id="ccMaxVal">6</b> <span data-i18n="cfg.unitPeople">人</span>
                     <input type="range" id="ccMax" min="2" max="9" step="1" value="6" oninput="updateCashLabels()"></label>
-                <label>单次最小带入：<b id="ccMinVal">2,000</b>
+                <label><span data-i18n="cfg.minBuyin">单次最小带入：</span><b id="ccMinVal">2,000</b>
                     <input type="range" id="ccMin" min="2000" max="8000" step="1000" value="2000" oninput="updateCashLabels()"></label>
-                <label>带入上限：<b id="ccCapVal">无限制</b>
+                <label><span data-i18n="cfg.buyinCap">带入上限：</span><b id="ccCapVal">无限制</b>
                     <input type="range" id="ccCap" min="0" max="60000" step="4000" value="0" oninput="updateCashLabels()"></label>
-                <div class="cfg-field"><span class="cfg-label">训练时长（到点自动结束并结算排名）</span>
+                <div class="cfg-field"><span class="cfg-label" data-i18n="cfg.duration">训练时长（到点自动结束并结算排名）</span>
                     <div class="tier-row" id="ccDurRow"></div></div>
             </div>
             <div class="create-actions">
-                <button class="confirm" onclick="submitCreate()">确定创建</button>
-                <button class="cancel" onclick="hideCreateForm()">取消</button>
+                <button class="confirm" onclick="submitCreate()" data-i18n="cfg.confirm">确定创建</button>
+                <button class="cancel" onclick="hideCreateForm()" data-i18n="cfg.cancel">取消</button>
             </div>
         </div>
 
-        <h3 class="room-list-title">房间列表 <span id="room-count"></span></h3>
+        <h3 class="room-list-title"><span data-i18n="lobby.roomList">房间列表</span> <span id="room-count"></span></h3>
         <div id="room-list"></div>
         <!-- 版本：放在大厅底部，落地就能看见，不用去设置面板里翻。
              同时显示【前端】和【服务端】—— 不一致说明本机缓存了旧前端。 -->
@@ -297,8 +297,8 @@
         <div class="wait-host" id="sitOutPanel" style="display:none">💤 记分牌耗尽，已坐出
             <button class="start" style="margin-left:8px" onclick="openRebuy()">💵 补码回来</button></div>
         <!-- 留座 / 站起围观，回到座位 -->
-        <div class="wait-host" id="reserveBackPanel" style="display:none"><span id="reserveBackLabel">💺 留座中</span>
-            <button class="start" style="margin-left:8px" onclick="sitBack()">🪑 回到座位</button></div>
+        <div class="wait-host" id="reserveBackPanel" style="display:none"><span id="reserveBackLabel" data-i18n="reserve.reserving">💺 留座中</span>
+            <button class="start" style="margin-left:8px" onclick="sitBack()" data-i18n="reserve.sitback">🪑 回到座位</button></div>
         <!-- 快捷池比例：一键直接下注/加注 -->
         <div class="size-quick-group" id="quick-bet-group" style="display:none"></div>
         <!-- 精调面板：点「下注/加注」展开 -->
@@ -307,63 +307,63 @@
                 <input type="range"   id="betSlider"   min="0" max="0" step="1" value="0" oninput="onSliderInput()">
                 <input type="number"  id="raiseAmount" min="0" step="1" oninput="onAmountInput()">
             </div>
-            <button class="action-btn bet" id="btnConfirmBet" onclick="confirmBet()">确认</button>
+            <button class="action-btn bet" id="btnConfirmBet" onclick="confirmBet()" data-i18n="act.confirm">确认</button>
             <div id="bet-info" class="bet-info"></div>
         </div>
         <!-- 主行动按钮（德扑之星式：弃牌✕ 左 · 加注金球 中 · 过牌/跟注 右，过牌跟注合并）-->
         <div id="buttons-row" style="display:none">
-            <button class="action-btn fold"  id="btnFold"  onclick="act('fold')" title="弃牌">✕</button>
-            <button class="action-btn bet"   id="btnBet"   onclick="openSizing()">下注…</button>
-            <button class="action-btn raise" id="btnRaise" onclick="openSizing()">加注…</button>
-            <button class="action-btn call"  id="btnCheckCall" onclick="actCheckCall()">过牌</button>
+            <button class="action-btn fold"  id="btnFold"  onclick="act('fold')" title="弃牌" data-i18n-title="act.fold">✕</button>
+            <button class="action-btn bet"   id="btnBet"   onclick="openSizing()" data-i18n="act.bet">下注…</button>
+            <button class="action-btn raise" id="btnRaise" onclick="openSizing()" data-i18n="act.raise">加注…</button>
+            <button class="action-btn call"  id="btnCheckCall" onclick="actCheckCall()" data-i18n="act.check">过牌</button>
         </div>
-        <button class="action-btn rabbit" id="btnRabbit" onclick="rabbitDeal()" style="display:none">🐰 看后续牌</button>
+        <button class="action-btn rabbit" id="btnRabbit" onclick="rabbitDeal()" style="display:none" data-i18n="act.rabbit">🐰 看后续牌</button>
     </div>
 
     <!-- 预操作：人物左右各一个小按钮（不轮到我时提前勾选，到点自动执行；不遮手牌）-->
     <div id="preaction-bar" style="display:none">
-        <button class="pa-btn" data-pa="checkfold" onclick="togglePre('checkfold')">过/弃</button>
-        <button class="pa-btn" data-pa="call" onclick="togglePre('call')">跟注</button>
+        <button class="pa-btn" data-pa="checkfold" onclick="togglePre('checkfold')" data-i18n="pa.checkfold">过/弃</button>
+        <button class="pa-btn" data-pa="call" onclick="togglePre('call')" data-i18n="pa.call">跟注</button>
     </div>
 
     <!-- 底部控制栏（牌局中）：左=菜单/加时，右=聊天/语音 -->
     <div id="table-controls">
         <div class="tc-left">
-            <button class="tc-btn" onclick="toggleTableMenu()" title="菜单">☰</button>
-            <button class="tc-btn" id="tcAddTime" onclick="addTime()" title="加时" disabled>⏱<span id="tcAddInfo"></span></button>
-            <button class="tc-btn" id="tcFullscreen" onclick="toggleFullscreen()" title="全屏">⛶</button>
+            <button class="tc-btn" onclick="toggleTableMenu()" title="菜单" data-i18n-title="tc.menu">☰</button>
+            <button class="tc-btn" id="tcAddTime" onclick="addTime()" title="加时" data-i18n-title="tc.addtime" disabled>⏱<span id="tcAddInfo"></span></button>
+            <button class="tc-btn" id="tcFullscreen" onclick="toggleFullscreen()" title="全屏" data-i18n-title="title.fullscreen">⛶</button>
         </div>
         <div class="tc-right">
             <button class="tc-btn" onclick="toggleChat()" title="聊天/表情">💬</button>
-            <button class="tc-btn" id="voice-btn" title="按住说话">🎤</button>
+            <button class="tc-btn" id="voice-btn" title="按住说话" data-i18n-title="voice.hold">🎤</button>
         </div>
     </div>
-    <div id="voice-recording" style="display:none">按住说话</div>
+    <div id="voice-recording" style="display:none" data-i18n="voice.rec">按住说话</div>
 
     <!-- 桌内菜单（B7：整合所有牌桌操作）-->
     <div id="table-menu" class="tbl-pop" style="display:none">
         <div class="tm-grid">
-            <button onclick="openSettings();toggleTableMenu()">🎨 桌面设置</button>
-            <button class="owner-only" onclick="openInvite();toggleTableMenu()">🔗 邀请朋友</button>
-            <button class="cash-only" onclick="openRebuy();toggleTableMenu()">💵 补充记分牌</button>
-            <button class="seat-only" onclick="reserveLeave();toggleTableMenu()">💺 留座离桌</button>
-            <button class="seat-only" onclick="standUp();toggleTableMenu()">🧍 站起围观</button>
-            <button class="owner-only cash-only" id="tmPause" onclick="togglePauseDealing();toggleTableMenu()">⏸️ 暂停发牌</button>
-            <button class="owner-only" onclick="openMatchSettings();toggleTableMenu()">⚙️ 比赛设置</button>
-            <button onclick="leaveRoom();toggleTableMenu()">🚪 退出比赛</button>
-            <button class="owner-only danger" onclick="dissolveRoom();toggleTableMenu()">🛑 解散比赛</button>
+            <button onclick="openSettings();toggleTableMenu()" data-i18n="tm.settings">🎨 桌面设置</button>
+            <button class="owner-only" onclick="openInvite();toggleTableMenu()" data-i18n="tm.invite">🔗 邀请朋友</button>
+            <button class="cash-only" onclick="openRebuy();toggleTableMenu()" data-i18n="tm.rebuy">💵 补充记分牌</button>
+            <button class="seat-only" onclick="reserveLeave();toggleTableMenu()" data-i18n="tm.reserve">💺 留座离桌</button>
+            <button class="seat-only" onclick="standUp();toggleTableMenu()" data-i18n="tm.standup">🧍 站起围观</button>
+            <button class="owner-only cash-only" id="tmPause" onclick="togglePauseDealing();toggleTableMenu()" data-i18n="tm.pause">⏸️ 暂停发牌</button>
+            <button class="owner-only" onclick="openMatchSettings();toggleTableMenu()" data-i18n="tm.matchSettings">⚙️ 比赛设置</button>
+            <button onclick="leaveRoom();toggleTableMenu()" data-i18n="tm.leave">🚪 退出比赛</button>
+            <button class="owner-only danger" onclick="dissolveRoom();toggleTableMenu()" data-i18n="tm.dissolve">🛑 解散比赛</button>
         </div>
     </div>
 
     <!-- 聊天 + 表情（桌内底部抽屉）-->
     <div id="chat-panel" style="display:none">
-        <div class="chat-head"><b>💬 聊天</b><button onclick="toggleChat()">✕</button></div>
+        <div class="chat-head"><b data-i18n="chat.title">💬 聊天</b><button onclick="toggleChat()">✕</button></div>
         <div id="chat-list"></div>
         <div class="chat-phrases" id="chat-phrases" style="display:none"></div>
         <div class="chat-input-row">
-            <button class="chat-phrase-toggle" id="phrase-toggle" onclick="togglePhrases()">常用语</button>
-            <input id="chat-input" maxlength="120" placeholder="说点什么…" onkeydown="if(event.key==='Enter')sendChat()">
-            <button onclick="sendChat()">发送</button>
+            <button class="chat-phrase-toggle" id="phrase-toggle" onclick="togglePhrases()" data-i18n="chat.phrases">常用语</button>
+            <input id="chat-input" maxlength="120" placeholder="说点什么…" onkeydown="if(event.key==='Enter')sendChat()" data-i18n-ph="chat.inputPh">
+            <button onclick="sendChat()" data-i18n="chat.send">发送</button>
         </div>
     </div>
 
@@ -437,27 +437,27 @@
 
 <!-- 消息收件箱（放在 table-view 外，大厅也能开）-->
 <div id="inbox-panel" class="side-panel" style="display:none">
-    <div class="sp-head"><b>📬 消息</b><button onclick="closeInbox()">✕</button></div>
+    <div class="sp-head"><b data-i18n="inbox.title">📬 消息</b><button onclick="closeInbox()">✕</button></div>
     <div id="inbox-list"></div>
 </div>
 
 <!-- 每日签到 -->
 <div id="checkin-overlay" class="c-overlay" style="display:none" onclick="if(event.target===this)closeCheckin()">
     <div class="c-box">
-        <div class="sp-head"><b>🎁 每日签到</b><button onclick="closeCheckin()">✕</button></div>
-        <div id="checkin-body"><div class="hist-empty">加载中…</div></div>
+        <div class="sp-head"><b data-i18n="checkin.title">🎁 每日签到</b><button onclick="closeCheckin()">✕</button></div>
+        <div id="checkin-body"><div class="hist-empty" data-i18n="common.loading">加载中…</div></div>
     </div>
 </div>
 
 <!-- Bug / 建议反馈 -->
 <div id="feedback-overlay" class="c-overlay" style="display:none" onclick="if(event.target===this)closeFeedback()">
     <div class="c-box">
-        <div class="sp-head"><b>🐞 反馈 Bug / 建议</b><button onclick="closeFeedback()">✕</button></div>
-        <div style="font-size:13px;opacity:.75;margin:4px 0 8px">遇到问题或有建议？直接告诉我们，会尽快改进 🙏</div>
-        <textarea id="fb-text" class="be-input" style="width:100%;height:120px;resize:vertical" placeholder="描述你遇到的 Bug 或想法…（越详细越好）"></textarea>
-        <input id="fb-contact" class="be-input" style="width:100%;margin-top:8px" placeholder="联系方式（选填：邮箱/微信，方便回复）">
+        <div class="sp-head"><b data-i18n="feedback.title">🐞 反馈 Bug / 建议</b><button onclick="closeFeedback()">✕</button></div>
+        <div style="font-size:13px;opacity:.75;margin:4px 0 8px" data-i18n="feedback.hint">遇到问题或有建议？直接告诉我们，会尽快改进 🙏</div>
+        <textarea id="fb-text" class="be-input" style="width:100%;height:120px;resize:vertical" placeholder="描述你遇到的 Bug 或想法…（越详细越好）" data-i18n-ph="feedback.textPh"></textarea>
+        <input id="fb-contact" class="be-input" style="width:100%;margin-top:8px" placeholder="联系方式（选填：邮箱/微信，方便回复）" data-i18n-ph="feedback.contactPh">
         <div id="fb-msg" class="be-msg" style="min-height:18px"></div>
-        <button class="prof-tab active" style="width:100%;margin-top:6px;padding:10px" onclick="submitFeedback()">提交反馈</button>
+        <button class="prof-tab active" style="width:100%;margin-top:6px;padding:10px" onclick="submitFeedback()" data-i18n="feedback.submit">提交反馈</button>
     </div>
 </div>
 
