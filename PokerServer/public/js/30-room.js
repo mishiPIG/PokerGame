@@ -19,7 +19,7 @@ function answerStraddle(accept) {
     const targetHandSeq = straddleOffer.targetHandSeq, amount = straddleOffer.amount;
     hideStraddleOffer();                       // 点完立刻消失
     socket.emit('straddle_decision', { targetHandSeq, accept: accept === true });
-    if (accept === true) toast(`🔥 下一手 straddle ${fmtChips(amount)}`);
+    if (accept === true) toast(L(`🔥 下一手 straddle ${fmtChips(amount)}`, `🔥 Next hand straddle ${fmtChips(amount)}`));
 }
 
 function showReconnecting() {
@@ -110,35 +110,35 @@ function showRunitOffer(o) {
     if (o.deciderId === myUserId) {
         const maxN = Math.max(2, Math.min(5, o.max || 5));   // 牌堆不足时服务端会给更小的 max
         const btns = Array.from({ length: maxN }, (_, i) => i + 1);
-        el.innerHTML = `<div class="ri-title">🎲 发几次牌？<span class="ri-hint">（你落后，可要求多发几次分摊运气）</span></div>`
+        el.innerHTML = `<div class="ri-title">${L('🎲 发几次牌？', '🎲 Run it how many times?')}<span class="ri-hint">${L('（你落后，可要求多发几次分摊运气）', ' (you\'re behind — run it more to spread the variance)')}</span></div>`
             + `<div class="ri-btns">` + btns.map(n => `<button onclick="proposeRuns(${n})">${n}</button>`).join('') + `</div>`
-            + `<div class="ri-count">⏳ <span id="runit-countdown">--</span> 后自动只发 1 次</div>`;
+            + `<div class="ri-count">⏳ <span id="runit-countdown">--</span> ${L('后自动只发 1 次', 'left — defaults to 1 run')}</div>`;
         startRunitCountdown(o.deadlineAt);
         runitAlert();
     } else if (o.leaderId === myUserId) {
-        el.innerHTML = `<div class="ri-title">🎲 等待对方选择发牌次数…</div>`
-            + `<div class="ri-sub">你领先${eqTxt(myUserId)}，对方可提议发多次</div>`;
+        el.innerHTML = `<div class="ri-title">${L('🎲 等待对方选择发牌次数…', '🎲 Waiting for them to choose how many runs…')}</div>`
+            + `<div class="ri-sub">${L('你领先', 'You lead')}${eqTxt(myUserId)}${L('，对方可提议发多次', ' — they may propose multiple runs')}</div>`;
     } else {
-        el.innerHTML = `<div class="ri-title">🎲 双方协商发牌中…</div>`;
+        el.innerHTML = `<div class="ri-title">${L('🎲 双方协商发牌中…', '🎲 Players negotiating runs…')}</div>`;
     }
     el.style.display = 'block';
 }
 function showRunitProposal(pr) {
     const el = runitPanel();
     if (pr.leaderId === myUserId) {
-        el.innerHTML = `<div class="ri-title">🎲 对方想发 <b>${pr.n}</b> 次</div>`
-            + `<div class="ri-sub">同意则底池均分 ${pr.n} 份、各发一次不同公共牌</div>`
-            + `<div class="ri-btns"><button class="ri-yes" onclick="respondRuns(true)">同意发 ${pr.n} 次</button>`
-            + `<button class="ri-no" onclick="respondRuns(false)">只发 1 次</button></div>`
-            + `<div class="ri-count">⏳ <span id="runit-countdown">--</span> 未回应则默认只发 1 次</div>`;
+        el.innerHTML = `<div class="ri-title">${L('🎲 对方想发', '🎲 They want to run it')} <b>${pr.n}</b> ${L('次', 'times')}</div>`
+            + `<div class="ri-sub">${L(`同意则底池均分 ${pr.n} 份、各发一次不同公共牌`, `If you agree, the pot splits into ${pr.n} and each runs a different board`)}</div>`
+            + `<div class="ri-btns"><button class="ri-yes" onclick="respondRuns(true)">${L(`同意发 ${pr.n} 次`, `Agree: ${pr.n} runs`)}</button>`
+            + `<button class="ri-no" onclick="respondRuns(false)">${L('只发 1 次', 'Just 1')}</button></div>`
+            + `<div class="ri-count">⏳ <span id="runit-countdown">--</span> ${L('未回应则默认只发 1 次', 'left — no reply defaults to 1 run')}</div>`;
         startRunitCountdown(pr.deadlineAt);
         runitAlert();
     } else {
-        el.innerHTML = `<div class="ri-title">🎲 已提议发 <b>${pr.n}</b> 次，等待领先方同意…</div>`;
+        el.innerHTML = `<div class="ri-title">${L(`🎲 已提议发 ${pr.n} 次，等待领先方同意…`, `🎲 Proposed ${pr.n} runs — waiting for the leader to agree…`)}</div>`;
     }
     el.style.display = 'block';
 }
-function proposeRuns(n) { if (socket) socket.emit('propose_runs', { n }); const el = runitPanel(); el.innerHTML = `<div class="ri-title">🎲 已选发 ${n} 次，等待对方同意…</div>`; }
+function proposeRuns(n) { if (socket) socket.emit('propose_runs', { n }); const el = runitPanel(); el.innerHTML = `<div class="ri-title">${L(`🎲 已选发 ${n} 次，等待对方同意…`, `🎲 Chose ${n} runs — waiting for them to agree…`)}</div>`; }
 function respondRuns(agree) { if (socket) socket.emit('respond_runs', { agree }); hideRunitPanel(); }
 
 // 多次发牌桌面：共享底牌只显示一次，剩余街 N 组「并列」分行显示（都留在桌上、不覆盖）
@@ -192,9 +192,9 @@ let _toastTimer = 0;
 function awardTags(awards, userId) {
     if (!awards) return '';
     const t = [];
-    if (awards.boss && awards.boss.userId === userId) t.push('🥇老板');
+    if (awards.boss && awards.boss.userId === userId) t.push(L('🥇老板', '🥇Boss'));
     if (awards.mvp && awards.mvp.userId === userId) t.push('🥈MVP');
-    if (awards.worker && awards.worker.userId === userId) t.push('🥉力工');
+    if (awards.worker && awards.worker.userId === userId) t.push(L('🥉力工', '🥉Grinder'));
     return t.map(x => `<span class="rk-tag">${x}</span>`).join('');
 }
 function renderPodium(awards) {
@@ -219,8 +219,8 @@ function renderPodium(awards) {
     // 视觉顺序：银(左) 金(中) 铜(右)，符合领奖台直觉
     box.innerHTML =
         cell(awards.mvp, 'silver', '🥈', 'MVP', `+${(awards.mvp?.net || 0).toLocaleString()} ${awards.mvp?.unit || ''}`)
-        + cell(awards.boss, 'gold', '🥇', '老板', `${(awards.boss?.net || 0).toLocaleString()} ${awards.boss?.unit || ''}`)
-        + cell(awards.worker, 'bronze', '🥉', '力工', `${awards.worker?.handsPlayed || 0} 手`);
+        + cell(awards.boss, 'gold', '🥇', L('老板', 'Boss'), `${(awards.boss?.net || 0).toLocaleString()} ${awards.boss?.unit || ''}`)
+        + cell(awards.worker, 'bronze', '🥉', L('力工', 'Grinder'), `${awards.worker?.handsPlayed || 0} ${L('手', 'hands')}`);
 }
 
 function toast(msg, ms = 2600) {
@@ -310,7 +310,7 @@ function updateCashLabels() {
     document.getElementById('ccMaxVal').textContent = document.getElementById('ccMax').value;
     document.getElementById('ccMinVal').textContent = (+document.getElementById('ccMin').value).toLocaleString();
     const cap = +document.getElementById('ccCap').value;
-    document.getElementById('ccCapVal').textContent = cap === 0 ? '无限制' : cap.toLocaleString();
+    document.getElementById('ccCapVal').textContent = cap === 0 ? L('无限制', 'Unlimited') : cap.toLocaleString();
 }
 function submitCreate() {
     if (!socket) return;
@@ -365,8 +365,8 @@ function onCodePaste(e) {
 // 房间码校验：服务端成功→授予下场资格；房间不存在→invite_error 里 toast 提示并清空重输。
 function joinByCode() {
     const code = getJoinCode();
-    if (!/^\d{4}$/.test(code)) { toast('请输入四位数字房间码'); return; }
-    if (!socket || !socket.connected) { toast('正在连接服务器，请稍后'); return; }
+    if (!/^\d{4}$/.test(code)) { toast(L('请输入四位数字房间码', 'Enter the 4-digit room code')); return; }
+    if (!socket || !socket.connected) { toast(L('正在连接服务器，请稍后', 'Connecting to server, please wait')); return; }
     if (window._joinSubmitting) return;   // 防抖：一次输满只发一次
     window._joinSubmitting = true;
     socket.emit('join_by_code', { code });
@@ -421,7 +421,7 @@ async function copyText(text, successMessage) {
         }
         toast(successMessage);
     } catch {
-        toast('复制失败，请长按内容手动复制');
+        toast(L('复制失败，请长按内容手动复制', 'Copy failed — long-press to copy manually'));
     }
 }
 function formatRoomInvite(invite) {
@@ -438,7 +438,7 @@ function toggleEntryLock() {
 }
 function resetRoomInvite() {
     if (!socket || !roomInviteInfo) return;
-    if (!confirm('重置后，已经发出的旧链接和旧房间码会立即失效；已加入的朋友不受影响。确定重置？')) return;
+    if (!confirm(L('重置后，已经发出的旧链接和旧房间码会立即失效；已加入的朋友不受影响。确定重置？', 'Resetting immediately invalidates the old link and room code; friends already in are unaffected. Reset?'))) return;
     socket.emit('reset_room_invite');
 }
 function leaveRoom() {
@@ -446,7 +446,7 @@ function leaveRoom() {
     const isCash = lastState && lastState.roomType === 'cash';
     const amSeated = lastState && lastState.players && lastState.players.some(p => p.userId === myUserId);
     if (isCash && amSeated) {
-        if (!confirm('离开牌桌：座位与筹码【保留】，只在本局结束/解散时才统一结算金币；之后可随时「重新进入」接上原座位与盈亏（战绩不清零）。确定离开？')) return;
+        if (!confirm(L('离开牌桌：座位与筹码【保留】，只在本局结束/解散时才统一结算金币；之后可随时「重新进入」接上原座位与盈亏（战绩不清零）。确定离开？', 'Leave the table: your seat and chips are KEPT and only settled to coins when the game ends/dissolves; you can "Re-enter" anytime to resume your seat and P/L. Leave?'))) return;
     }
     socket.emit('leave_room');
 }
@@ -482,7 +482,7 @@ function toggleTableMenu() {
 }
 // 站起围观 / 留座离座 / 回到座位
 function standUp() {
-    if (socket && confirm('确定站起围观？将【离开座位】（座位空出、他人可坐），筹码保留至结束/解散时结算；可随时「回到座位」带原筹码回来。')) socket.emit('stand_up');
+    if (socket && confirm(L('确定站起围观？将【离开座位】（座位空出、他人可坐），筹码保留至结束/解散时结算；可随时「回到座位」带原筹码回来。', 'Stand up to watch? You LEAVE your seat (it frees up for others); chips are kept until the game ends/dissolves. You can "Sit back" anytime with your chips.'))) socket.emit('stand_up');
 }
 function reserveLeave() {
     if (socket) { socket.emit('reserve_leave'); alert('已留座离座，2 分钟内回来保留座位（点座位「回到座位」即可）'); }
@@ -501,7 +501,7 @@ function forceStand(targetUserId) {
     const st = lastState; if (!st) return;
     const tp = (st.players || []).find(p => p.userId === targetUserId);
     const nm = tp ? (tp.displayName || tp.username) : '该玩家';
-    if (confirm(`把「${nm}」移到观战席？其座位将空出（筹码保留至结束结算，TA 可自行「回到座位」）。`)) {
+    if (confirm(L(`把「${nm}」移到观战席？其座位将空出（筹码保留至结束结算，TA 可自行「回到座位」）。`, `Move "${nm}" to the rail? Their seat frees up (chips kept until settlement; they can "Sit back").`))) {
         socket.emit('force_stand', { targetUserId });
         closeAvatarPopup();
     }
@@ -519,7 +519,7 @@ function openSitDown(seat) {
         return;
     }
     // 观战者无下场资格：提示，不弹买入框
-    if (!iCanPlay) { toast('👀 观战中，无法入座——请使用房主分享的邀请链接或四位房间码加入'); return; }
+    if (!iCanPlay) { toast(L('👀 观战中，无法入座——请使用房主分享的邀请链接或四位房间码加入', "👀 Spectating — to sit down, join via the host's invite link or 4-digit code")); return; }
     buyinMode = 'sit';
     pendingSeat = (seat == null ? -1 : seat);
     const min = st.minBuyIn || 2000;
@@ -626,10 +626,11 @@ function renderStats(st) {
 
 // ===== 大厅房间列表 =====
 function renderRoomList(rooms) {
+    window._lastRooms = rooms;   // 缓存：切语言时可立即用新语言重渲染
     const box = document.getElementById('room-list');
     document.getElementById('room-count').textContent = rooms.length ? `(${rooms.length})` : '';
     if (!rooms.length) {
-        box.innerHTML = '<div class="room-empty">暂无房间，点「创建比赛」发起一局</div>';
+        box.innerHTML = `<div class="room-empty">${L('暂无房间，点「创建比赛」发起一局', 'No rooms yet — tap "Create game" to start one')}</div>`;
         return;
     }
     box.innerHTML = rooms.map(r => {
@@ -637,13 +638,13 @@ function renderRoomList(rooms) {
         const running = r.status === 'running';
         // 我是本房成员 → 始终可「重新进入」（重连回桌）；否则进行中/已满则灰
         let btnLabel, disabled, cls = '';
-        if (r.isMember) { btnLabel = '重新进入'; disabled = false; cls = 'rejoin'; }
-        else            { btnLabel = '👀 观战';  disabled = false; }   // 非成员：只能观战（下场需验证邀请）
+        if (r.isMember) { btnLabel = L('重新进入', 'Re-enter'); disabled = false; cls = 'rejoin'; }
+        else            { btnLabel = L('👀 观战', '👀 Spectate');  disabled = false; }   // 非成员：只能观战（下场需验证邀请）
         const isCash = r.roomType === 'cash';
-        const tag  = isCash ? `<span class="rc-tag cash">现金桌</span>` : `<span class="rc-tag">SNG·升盲</span>`;
+        const tag  = isCash ? `<span class="rc-tag cash">${L('现金桌', 'Cash')}</span>` : `<span class="rc-tag">${L('SNG·升盲', 'SNG')}</span>`;
         const meta = isCash
-            ? `👤 ${r.playerCount}/${r.maxPlayers} · 盲注 ${r.sb}/${r.bb}${r.ante ? ' · ante '+r.ante : ''} · 带入≥${(r.minBuyIn||0).toLocaleString()}`
-            : `👤 ${r.playerCount}/${r.maxPlayers} · ⏱ ${r.levelMinutes}min · 🪙报名 ${r.buyIn}`;
+            ? `👤 ${r.playerCount}/${r.maxPlayers} · ${L('盲注', 'Blinds')} ${r.sb}/${r.bb}${r.ante ? ' · ante '+r.ante : ''} · ${L('带入≥', 'Buy-in≥')}${(r.minBuyIn||0).toLocaleString()}`
+            : `👤 ${r.playerCount}/${r.maxPlayers} · ⏱ ${r.levelMinutes}min · 🪙${L('报名', 'Buy-in')} ${r.buyIn}`;
         return `<div class="room-card">
             <div class="rc-main">
                 <div class="rc-name">${escapeHtml(r.name)}</div>
@@ -706,7 +707,7 @@ function setUtgStraddle(enabled) {
 }
 function extendMatch(minutes) {
     if (!socket) return;
-    if (!confirm(`确定为本场比赛加时 +${minutes} 分钟？`)) return;
+    if (!confirm(L(`确定为本场比赛加时 +${minutes} 分钟？`, `Extend this game by +${minutes} minutes?`))) return;
     socket.emit('extend_match', { minutes });
     alert(`已加时 +${minutes} 分钟`);
 }

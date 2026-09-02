@@ -72,7 +72,7 @@ async function loadVersion() {
 }
 function copyVersion() {
     if (!_verText) return;
-    navigator.clipboard?.writeText(_verText).then(() => toast('已复制版本信息'), () => {});
+    navigator.clipboard?.writeText(_verText).then(() => toast(L('已复制版本信息', 'Version info copied')), () => {});
 }
 loadVersion();
 

@@ -95,8 +95,8 @@ function connectSocket(token) {
     // SNG 被淘汰：不再踢回大厅，留在桌上继续观战（想走点「退出房间」即可）
     socket.on('eliminated', ({ canSpectate } = {}) => {
         if (!canSpectate) { setTimeout(() => { alert('你已出局'); showLobby(); }, 300); return; }
-        toast('💀 你已出局，可继续观战；想离开点「退出房间」', 4500);
-        showTableNotice('💀 你已出局，正在观战');
+        toast(L('💀 你已出局，可继续观战；想离开点「退出房间」', '💀 You are out — you can keep watching. Tap "Leave room" to exit'), 4500);
+        showTableNotice(L('💀 你已出局，正在观战', '💀 You are out — now spectating'));
     });
 
     // 按 userId 判断夺冠（不用用户名——显示名可改，id 才稳定）
@@ -108,16 +108,17 @@ function connectSocket(token) {
     socket.on('match_result', ({ title, ranking, awards }) => {
         setTimeout(() => {
             const me = (ranking || []).find(r => r.userId === myUserId);
-            document.getElementById('result-title').textContent = title || '比赛结束';
+            document.getElementById('result-title').textContent = title || L('比赛结束', 'Game over');
             document.getElementById('result-sub').innerHTML = me
-                ? `你排名 <b>第 ${me.rank}</b> / ${ranking.length}，盈亏 <b>${me.net >= 0 ? '+' : ''}${me.net}</b> ${me.unit}，共打 <b>${me.handsPlayed || 0}</b> 手`
+                ? L(`你排名 <b>第 ${me.rank}</b> / ${ranking.length}，盈亏 <b>${me.net >= 0 ? '+' : ''}${me.net}</b> ${me.unit}，共打 <b>${me.handsPlayed || 0}</b> 手`,
+                    `You placed <b>#${me.rank}</b> / ${ranking.length}, P/L <b>${me.net >= 0 ? '+' : ''}${me.net}</b> ${me.unit}, played <b>${me.handsPlayed || 0}</b> hands`)
                 : '';
             renderPodium(awards);
             document.getElementById('result-ranking').innerHTML = (ranking || []).map(r =>
                 `<div class="rk-row${r.userId === myUserId ? ' me' : ''}">
                     <span class="rk-no">${r.rank}</span>
                     <span class="rk-name">${escapeHtml(r.displayName || r.username)}${awardTags(awards, r.userId)}</span>
-                    <span class="rk-hands">${r.handsPlayed || 0} 手</span>
+                    <span class="rk-hands">${r.handsPlayed || 0} ${L('手', 'hands')}</span>
                     <span class="rk-net" style="color:${r.net >= 0 ? '#4ade80' : '#f87171'}">${r.net >= 0 ? '+' : ''}${r.net} ${r.unit}</span>
                 </div>`).join('');
             document.getElementById('result-overlay').style.display = 'flex';
@@ -162,10 +163,10 @@ function connectSocket(token) {
     socket.on('match_time_expired', () => {
         const isOwner = lastState && lastState.ownerUserId === myUserId;
         if (isOwner) {
-            toast('⏰ 训练时间已到！本手结束后暂停发牌，请调整时间或结束比赛', 6000);
+            toast(L('⏰ 训练时间已到！本手结束后暂停发牌，请调整时间或结束比赛', '⏰ Session time is up! Dealing pauses after this hand — adjust the time or end the game'), 6000);
             openMatchSettings();
         } else {
-            toast('⏰ 训练时间已到，本手结束后暂停，等待房主决定', 5000);
+            toast(L('⏰ 训练时间已到，本手结束后暂停，等待房主决定', '⏰ Session time is up — pausing after this hand, waiting for the host'), 5000);
         }
     });
     // 临时语音不进聊天历史：只在当前房间飘出 10 秒可点击气泡
@@ -182,7 +183,7 @@ function connectSocket(token) {
     // ===== 多次发牌（run it N times）：桌面依次发、每组比牌后飞池给赢家 =====
     socket.on('runit_offer', (o) => showRunitOffer(o));
     socket.on('runit_proposal', (pr) => showRunitProposal(pr));
-    socket.on('runit_decided', (d) => { hideRunitPanel(); if (d && d.n > 1) toast(`🎲 本手发 ${d.n} 次`, 2000); });
+    socket.on('runit_decided', (d) => { hideRunitPanel(); if (d && d.n > 1) toast(L(`🎲 本手发 ${d.n} 次`, `🎲 Running it ${d.n} times`), 2000); });
     socket.on('runit_begin', (m) => {
         hideRunitPanel();
         if (m && m.reveals) { revealedCards = m.reveals; revealJustHappened = true; if (lastState) render(lastState); }
@@ -192,7 +193,7 @@ function connectSocket(token) {
     socket.on('runit_award', (m) => runitAward(m));         // 该组比完 → 飞池给本组赢家
     socket.on('runit_done', (m) => {
         const t = Object.keys((m && m.totalByUser) || {}).map(id => `${nameOf(id)} +${m.totalByUser[id]}`).join('，');
-        if (t) toast(`🎲 发牌结束　${t}`, 3600);
+        if (t) toast(L(`🎲 发牌结束　${t}`, `🎲 Run-out done　${t}`), 3600);
     });
 
     // 全押跑马实时胜率
@@ -254,11 +255,11 @@ function connectSocket(token) {
     socket.on('straddle_decision_result', (result) => {
         if (straddleOffer && result.targetHandSeq !== straddleOffer.targetHandSeq) return;
         hideStraddleOffer();
-        if (result.status === 'accepted') toast(`🔥 已选择：下一局 Straddle ${result.amount}`, 2600);
-        else if (result.status === 'invalidated') toast('座位或筹码状态变化，Straddle 已取消', 3000);
+        if (result.status === 'accepted') toast(L(`🔥 已选择：下一局 Straddle ${result.amount}`, `🔥 Selected: next hand straddle ${result.amount}`), 2600);
+        else if (result.status === 'invalidated') toast(L('座位或筹码状态变化，Straddle 已取消', 'Seat/chip state changed — straddle cancelled'), 3000);
     });
     socket.on('straddle_posted', ({ userId, amount }) => {
-        if (userId === myUserId) toast(`🔥 本局已 Straddle ${amount}`, 2400);
+        if (userId === myUserId) toast(L(`🔥 本局已 Straddle ${amount}`, `🔥 Straddled ${amount} this hand`), 2400);
     });
 
     // 网络延迟测量：每 3s 一次

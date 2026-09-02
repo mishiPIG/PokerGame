@@ -125,7 +125,7 @@ function openSizing() {
     // 无效加注：前方短码全押不足一个完整加注 → 行动未重开，我只能跟/弃。
     // 给出可见提示（server_msg 只进 console，玩家看不到，会以为按钮坏了）
     if (lastState && lastState.raiseClosed) {
-        toast('⚠️ 前方是无效加注（全押不足一个完整加注），本轮不能再加注，只能跟注或弃牌', 3200);
+        toast(L('⚠️ 前方是无效加注（全押不足一个完整加注），本轮不能再加注，只能跟注或弃牌', '⚠️ That was an invalid raise (all-in under a full raise) — this round you can only call or fold'), 3200);
         return;
     }
     if (!sizeCtx) return;

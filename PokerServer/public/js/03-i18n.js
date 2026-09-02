@@ -33,7 +33,7 @@ const I18N = {
         'cfg.tableName': '牌桌名字', 'cfg.tableNamePh': '欢乐场', 'cfg.blinds': '基础分（盲注）：', 'cfg.ante': 'Ante 前注：',
         'cfg.straddle': '允许 UTG Straddle（固定 2BB）', 'cfg.maxSeats': '单桌最大人数：', 'cfg.minBuyin': '单次最小带入：',
         'cfg.buyinCap': '带入上限：', 'cfg.duration': '训练时长（到点自动结束并结算排名）', 'cfg.confirm': '确定创建', 'cfg.cancel': '取消',
-        'lobby.roomList': '房间列表',
+        'lobby.roomList': '房间列表', 'cfg.tabSng': '🏆 SNG 升盲', 'cfg.tabCash': '💵 现金桌',
         'voice.rec': '按住说话', 'voice.hold': '按住说话',
         'tm.settings': '🎨 桌面设置', 'tm.invite': '🔗 邀请朋友', 'tm.rebuy': '💵 补充记分牌', 'tm.reserve': '💺 留座离桌',
         'tm.standup': '🧍 站起围观', 'tm.pause': '⏸️ 暂停发牌', 'tm.matchSettings': '⚙️ 比赛设置', 'tm.leave': '🚪 退出比赛', 'tm.dissolve': '🛑 解散比赛',
@@ -77,7 +77,7 @@ const I18N = {
         'cfg.tableName': 'Table name', 'cfg.tableNamePh': 'e.g. Fun Room', 'cfg.blinds': 'Blinds: ', 'cfg.ante': 'Ante: ',
         'cfg.straddle': 'Allow UTG straddle (2BB)', 'cfg.maxSeats': 'Max players: ', 'cfg.minBuyin': 'Min buy-in: ',
         'cfg.buyinCap': 'Buy-in cap: ', 'cfg.duration': 'Session length (auto-ends & settles at time)', 'cfg.confirm': 'Create', 'cfg.cancel': 'Cancel',
-        'lobby.roomList': 'Rooms',
+        'lobby.roomList': 'Rooms', 'cfg.tabSng': '🏆 SNG', 'cfg.tabCash': '💵 Cash',
         'voice.rec': 'Hold to talk', 'voice.hold': 'Hold to talk',
         'tm.settings': '🎨 Settings', 'tm.invite': '🔗 Invite friends', 'tm.rebuy': '💵 Rebuy chips', 'tm.reserve': '💺 Reserve & leave',
         'tm.standup': '🧍 Stand up (watch)', 'tm.pause': '⏸️ Pause dealing', 'tm.matchSettings': '⚙️ Game settings', 'tm.leave': '🚪 Leave game', 'tm.dissolve': '🛑 Dissolve game',
@@ -93,6 +93,8 @@ const I18N = {
 };
 let lang = (() => { try { return localStorage.getItem('lang') || (String(navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'zh'); } catch { return 'zh'; } })();
 function t(key, fallback) { return (I18N[lang] && I18N[lang][key]) || (I18N.zh && I18N.zh[key]) || (fallback != null ? fallback : key); }
+// 动态 JS 文案用这个：翻译直接写在调用处，省去为每条散字符串建 key。lang=en 时取第二个参数。
+function L(zh, en) { return (lang === 'en' && en != null) ? en : zh; }
 function applyLang() {
     try { document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN'; } catch {}
     document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.getAttribute('data-i18n'), null); if (v != null) el.textContent = v; });
@@ -104,8 +106,9 @@ function setLang(l) {
     lang = (l === 'en' ? 'en' : 'zh');
     try { localStorage.setItem('lang', lang); } catch {}
     applyLang();
-    // 牌桌上有些文案是 JS 每帧写的（过牌/跟注按钮等）→ 切语言后重渲染一次立即生效
+    // 牌桌/大厅里有些文案是 JS 写的（过牌/跟注按钮、房间列表卡片等）→ 切语言后重渲染一次立即生效
     try { if (typeof lastState !== 'undefined' && lastState && typeof render === 'function') render(lastState); } catch {}
+    try { if (window._lastRooms && typeof renderRoomList === 'function') renderRoomList(window._lastRooms); } catch {}
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyLang);
 else applyLang();

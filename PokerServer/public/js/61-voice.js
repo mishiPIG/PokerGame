@@ -49,7 +49,7 @@ function clearVoiceTimers() {
 async function beginVoiceRecording(e) {
     if (!currentRoom || voiceUploading || voiceRecorder || e.button > 0) return;
     if (!voiceSupported()) {
-        toast(window.isSecureContext ? '当前设备不支持语音录制' : '语音需 HTTPS 环境，正式版可用'); return;
+        toast(window.isSecureContext ? L('当前设备不支持语音录制', 'Voice recording not supported on this device') : L('语音需 HTTPS 环境，正式版可用', 'Voice needs HTTPS — available in the release build')); return;
     }
     e.preventDefault();
     voiceHold = true; voiceCancel = false; voiceStartY = e.clientY;
@@ -87,7 +87,7 @@ async function beginVoiceRecording(e) {
         }, VOICE_MAX_MS);
     } catch (err) {
         voiceHold = false; btn.classList.remove('recording'); hideVoiceStatus(); stopVoiceTracks();
-        toast(err?.name === 'NotAllowedError' ? '需要允许麦克风权限才能发送语音' : '无法启动麦克风，请稍后重试');
+        toast(err?.name === 'NotAllowedError' ? L('需要允许麦克风权限才能发送语音', 'Allow microphone access to send voice') : L('无法启动麦克风，请稍后重试', 'Could not start the microphone, try again'));
     }
 }
 

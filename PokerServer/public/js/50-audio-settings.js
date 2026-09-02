@@ -83,7 +83,7 @@ function showButtonDraw(draws, winnerId) {
         el.innerHTML = formatCard(dw.card);
         document.body.appendChild(el);
     });
-    toast('🎴 高牌定庄…', 2600);
+    toast(L('🎴 高牌定庄…', '🎴 High card for the button…'), 2600);
     setTimeout(() => document.querySelectorAll('.bd-card').forEach(e => e.remove()), 2700);
 }
 // 给别人发表情：表情从发送者头像「飞」到目标头像，落点冒泡，增强互动感
