@@ -39,9 +39,9 @@ function buildReplayFrames(h) {
         const sp = byId[h.straddle.userId];
         sp.stack -= h.straddle.amount; sp.bet = h.straddle.amount;
     }
-    snap(`发牌 · 盲注 ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''}`
+    snap(`${L('发牌 · 盲注', 'Deal · blinds')} ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''}`
         + (h.straddle ? ` · UTG Straddle ${h.straddle.amount}` : ''), null);
-    const stName = { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌' };
+    const stName = { preflop: L('翻前', 'Preflop'), flop: L('翻牌', 'Flop'), turn: L('转牌', 'Turn'), river: L('河牌', 'River') };
     for (const a of (h.actions || [])) {
         if (a.action === 'straddle') continue;
         if (a.street !== street) {
@@ -51,13 +51,13 @@ function buildReplayFrames(h) {
             snap(`${stName[street] || street}`, null);
         }
         const p = byId[a.userId]; if (!p) continue;
-        const think = a.thinkMs ? ` · 思考 ${(a.thinkMs / 1000).toFixed(1)}s` : '';
+        const think = a.thinkMs ? L(` · 思考 ${(a.thinkMs / 1000).toFixed(1)}s`, ` · thought ${(a.thinkMs / 1000).toFixed(1)}s`) : '';
         let cap;
-        if (a.action === 'fold') { p.folded = true; cap = `${p.name} 弃牌`; }
-        else if (a.action === 'check') cap = `${p.name} 过牌`;
-        else if (a.action === 'call') { p.stack -= (a.amount - p.bet); p.bet = a.amount; cap = `${p.name} 跟注 ${fmtChips(a.amount)}`; }
-        else if (a.action === 'bet') { p.stack -= (a.amount - p.bet); p.bet = a.amount; cap = `${p.name} 下注 ${fmtChips(a.amount)}`; }
-        else if (a.action === 'raise') { p.stack -= (a.amount - p.bet); p.bet = a.amount; cap = `${p.name} 加注到 ${fmtChips(a.amount)}`; }
+        if (a.action === 'fold') { p.folded = true; cap = `${p.name} ${L('弃牌', 'folds')}`; }
+        else if (a.action === 'check') cap = `${p.name} ${L('过牌', 'checks')}`;
+        else if (a.action === 'call') { p.stack -= (a.amount - p.bet); p.bet = a.amount; cap = `${p.name} ${L('跟注', 'calls')} ${fmtChips(a.amount)}`; }
+        else if (a.action === 'bet') { p.stack -= (a.amount - p.bet); p.bet = a.amount; cap = `${p.name} ${L('下注', 'bets')} ${fmtChips(a.amount)}`; }
+        else if (a.action === 'raise') { p.stack -= (a.amount - p.bet); p.bet = a.amount; cap = `${p.name} ${L('加注到', 'raises to')} ${fmtChips(a.amount)}`; }
         else cap = `${p.name} ${a.action}`;
         snap(`${stName[street] || street} · ${cap}${think}`, a.userId);
     }
@@ -67,13 +67,13 @@ function buildReplayFrames(h) {
     const winners = (h.results || []).filter(r => r.won > 0);
     winners.forEach(r => { const p = byId[r.userId]; if (p) p.stack += r.won; });
     const wn = winners.map(r => byId[r.userId] && byId[r.userId].name).filter(Boolean);
-    snap(`摊牌 · ${wn.length ? wn.join('、') + ' 赢得 ' + fmtChips(winners.reduce((s, r) => s + r.won, 0)) : '结束'}`, null);
+    snap(`${L('摊牌', 'Showdown')} · ${wn.length ? wn.join('、') + L(' 赢得 ', ' won ') + fmtChips(winners.reduce((s, r) => s + r.won, 0)) : L('结束', 'End')}`, null);
     return frames;
 }
 // ===== 牌谱详情（清爽 breakdown，参考商业软件截图3）=====
 let curDetailHand = null;
-const HD_ACT = { fold: { t: '弃', c: 'f' }, check: { t: '过', c: 'ck' }, call: { t: '跟', c: 'c' }, bet: { t: '下', c: 'b' }, raise: { t: '加', c: 'r' }, straddle: { t: 'STR', c: 'r' } };
-const HD_STREET = { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌' };
+const HD_ACT = { fold: { t: L('弃', 'F'), c: 'f' }, check: { t: L('过', 'X'), c: 'ck' }, call: { t: L('跟', 'C'), c: 'c' }, bet: { t: L('下', 'B'), c: 'b' }, raise: { t: L('加', 'R'), c: 'r' }, straddle: { t: 'STR', c: 'r' } };
+const HD_STREET = { preflop: L('翻前', 'Preflop'), flop: L('翻牌', 'Flop'), turn: L('转牌', 'Turn'), river: L('河牌', 'River') };
 function handPositions(seats, buttonUserId) {
     const order = seats.slice().sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
     const n = order.length, bi = order.findIndex(s => s.userId === buttonUserId), pos = {};
@@ -92,22 +92,22 @@ function openHandDetail(h) {
     const pot = (h.results || []).reduce((s, r) => s + (r.won || 0), 0);
     const community = (h.community || []).map(rpParseCard);
     const time = new Date(h.ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-    document.getElementById('hd-title').textContent = `牌谱详情 · ${h.mode === 'cash' ? '现金桌' : 'SNG'} ${h.sb}/${h.bb}`;
+    document.getElementById('hd-title').textContent = `${L('牌谱详情', 'Hand detail')} · ${h.mode === 'cash' ? L('现金桌', 'Cash') : 'SNG'} ${h.sb}/${h.bb}`;
     const commHtml = [0, 1, 2, 3, 4].map(i => community[i] ? formatCard(community[i]) : emptySlot()).join('');
     // 多次发牌（run it N times）：完整展示每组公共牌 + 该组赢家 + 该份金额
     let runitHtml = '';
     if (h.runIt && h.runIt.n > 1) {
         const rr = h.runIt;
-        runitHtml = `<div class="hd-runit"><div class="hd-runit-t">🎲 本手发了 ${rr.n} 次（底池均分）</div>`
+        runitHtml = `<div class="hd-runit"><div class="hd-runit-t">${L(`🎲 本手发了 ${rr.n} 次（底池均分）`, `🎲 Ran it ${rr.n} times (pot split)`)}</div>`
             + (rr.boards || []).map((bd, i) => {
                 const cards = (bd || []).map(cs => formatCard(rpParseCard(cs))).join('');
                 const wn = ((rr.winners || [])[i] || []).map(id => { const s = seats.find(x => x.userId === id); return s ? s.username : id; }).join(' / ');
-                return `<div class="hd-runit-row"><span class="hd-runit-no">第${i + 1}次</span><div class="hd-runit-bd">${cards}</div>`
+                return `<div class="hd-runit-row"><span class="hd-runit-no">${L(`第${i + 1}次`, `#${i + 1}`)}</span><div class="hd-runit-bd">${cards}</div>`
                     + `<span class="hd-runit-w">🏆 ${escapeHtml(wn)} +${fmtChips((rr.amounts || [])[i] || 0)}</span></div>`;
             }).join('') + `</div>`;
     }
     document.getElementById('hd-board').innerHTML =
-        `<div class="hd-pot">${time} · 底池 <b>${fmtChips(pot)}</b></div>`
+        `<div class="hd-pot">${time} · ${L('底池', 'Pot')} <b>${fmtChips(pot)}</b></div>`
         + (runitHtml ? runitHtml : `<div class="hd-comm">${commHtml}</div>`);
     document.getElementById('hd-rows').innerHTML = seats.map(s => {
         const isMe = s.userId === myUserId;
@@ -131,7 +131,7 @@ function openHandDetail(h) {
         // 否则会泄露「弃牌者从未亮过的底牌是什么牌型」——那是本手中谁都不该知道的信息。
         // 自己弃牌的那手可以看（是自己的牌），标注「弃」表示只是假设。
         const catHtml = (showFace && res.category)
-            ? `<span class="hd-cat${folded ? ' dim' : ''}">${folded ? '弃 · ' : ''}${escapeHtml(res.category)}</span>` : '';
+            ? `<span class="hd-cat${folded ? ' dim' : ''}">${folded ? L('弃 · ', 'Fold · ') : ''}${escapeHtml(handCat(res.category))}</span>` : '';
         return `<div class="hd-row${folded ? ' folded' : ''}">
             <div class="hd-who"><div class="hd-av" style="background:hsl(${hashHue(s.userId)},45%,42%)">${av}</div>
               <div class="hd-nm">${escapeHtml(s.username)}${isMe ? '<span class="hd-me">你</span>' : ''}${pos[s.userId] ? `<span class="hd-pos">${pos[s.userId]}</span>` : ''}${folded ? '<span class="hd-fold">弃牌</span>' : ''}</div></div>
