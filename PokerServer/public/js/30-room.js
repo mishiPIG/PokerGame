@@ -524,7 +524,7 @@ function openSitDown(seat) {
     pendingSeat = (seat == null ? -1 : seat);
     const min = st.minBuyIn || 2000;
     const max = st.maxBuyIn > 0 ? st.maxBuyIn : Math.max(min * 4, 8000);
-    setupBuyin(`坐下带入 · ${pendingSeat >= 0 ? (pendingSeat + 1) + ' 号位' : ''}`, [min, max, min], false, false, st.bigBlind || 20);
+    setupBuyin(L(`坐下带入 · ${pendingSeat >= 0 ? (pendingSeat + 1) + ' 号位' : ''}`, `Buy-in · ${pendingSeat >= 0 ? 'Seat ' + (pendingSeat + 1) : ''}`), [min, max, min], false, false, st.bigBlind || 20);
 }
 const REBUY_TIERS_BB = [50, 100, 150, 200, 250, 300, 400, 500];   // 补码梯度（BB）
 let buyinValue = 0;   // 当前选定的带入/补码记分牌数
@@ -537,7 +537,7 @@ function openRebuy() {
     const cap = st.maxBuyIn > 0 ? (st.maxBuyIn - me.chips - (me.pendingRebuy || 0)) : Infinity;   // 受带入上限约束
     // 生成 ≤cap 的 BB 梯度
     const tiers = REBUY_TIERS_BB.map(x => x * bb).filter(c => c <= cap);
-    setupBuyin('补充记分牌', tiers.length ? tiers : [Math.min(50 * bb, cap)], true, !!me.autoRebuy, bb);
+    setupBuyin(L('补充记分牌', 'Rebuy chips'), tiers.length ? tiers : [Math.min(50 * bb, cap)], true, !!me.autoRebuy, bb);
 }
 // tiers: 记分牌数组（梯度按钮）；showAuto: 显示自动补码；bb: 大盲（用于标签）
 function setupBuyin(title, tiers, showAuto, autoOn, bb) {
@@ -606,22 +606,22 @@ function renderStats(st) {
     // 汇总在座 + 已离开，统一按盈利从多到少排序
     const rows = (st.players || []).map(p => {
         const inactive = p.standing || p.reserved || p.away || p.sittingOut;
-        const tag = (p.userId === myUserId ? ' (你)' : '') + (p.standing ? ' 🧍' : p.reserved ? ' 💺' : p.away ? ' 📴' : p.sittingOut ? ' 💤' : '');
+        const tag = (p.userId === myUserId ? L(' (你)', ' (you)') : '') + (p.standing ? ' 🧍' : p.reserved ? ' 💺' : p.away ? ' 📴' : p.sittingOut ? ' 💤' : '');
         return { name: p.displayName || p.username, buyIn: p.buyIn, hands: p.handsPlayed, net: displayNet(p), dim: inactive, tag };
     });
     // 站起围观者（已离座但带入过）：灰显保留战绩，不清空
     (st.vacated || []).filter(v => !curIds.has(v.userId)).forEach(v =>
-        rows.push({ name: v.displayName || v.username, buyIn: v.buyIn, hands: v.handsPlayed, net: v.net || 0, dim: true, tag: ' 🧍围观' }));
+        rows.push({ name: v.displayName || v.username, buyIn: v.buyIn, hands: v.handsPlayed, net: v.net || 0, dim: true, tag: L(' 🧍围观', ' 🧍rail') }));
     const shownIds = new Set([...curIds, ...(st.vacated || []).map(v => v.userId)]);
     (st.statsHistory || []).filter(h => !shownIds.has(h.userId)).forEach(h =>
-        rows.push({ name: h.displayName || h.username, buyIn: h.buyIn, hands: h.handsPlayed, net: h.net || 0, dim: true, tag: ' 🚪已离开' }));
+        rows.push({ name: h.displayName || h.username, buyIn: h.buyIn, hands: h.handsPlayed, net: h.net || 0, dim: true, tag: L(' 🚪已离开', ' 🚪left') }));
     rows.sort((a, b) => b.net - a.net);
     body.innerHTML = rows.map(r => row(r.name, r.buyIn, r.hands, r.net, r.dim, r.tag)).join('')
-        || '<tr><td colspan="4" style="text-align:center;opacity:.6">暂无在座玩家</td></tr>';
+        || `<tr><td colspan="4" style="text-align:center;opacity:.6">${L('暂无在座玩家', 'No seated players')}</td></tr>`;
     const specs = st.spectators || [];
-    document.getElementById('spec-count').textContent = `观众 (${specs.length})`;
+    document.getElementById('spec-count').textContent = L(`观众 (${specs.length})`, `Spectators (${specs.length})`);
     document.getElementById('spec-list').innerHTML = specs.map(s =>
-        `<span class="spec-chip">${escapeHtml(s.displayName || s.username)}</span>`).join('') || '<span style="opacity:.5">无</span>';
+        `<span class="spec-chip">${escapeHtml(s.displayName || s.username)}</span>`).join('') || `<span style="opacity:.5">${L('无', 'none')}</span>`;
 }
 
 // ===== 大厅房间列表 =====
@@ -662,42 +662,42 @@ function renderMatchInfo(st) {
     if (!st) return;
     const isCash = st.roomType === 'cash';
     const rows = [
-        ['类型', isCash ? '现金桌' : 'SNG 升盲'],
-        ['入场状态', iCanPlay ? '🔐 已获下场资格' : '👀 观战中'],
-        ['盲注', `${st.smallBlind}/${st.bigBlind}` + (st.ante ? ` · ante ${st.ante}` : '')],
-        ['最大人数', st.maxPlayers],
+        [L('类型', 'Type'), isCash ? L('现金桌', 'Cash table') : L('SNG 升盲', 'SNG (blinds up)')],
+        [L('入场状态', 'Access'), iCanPlay ? L('🔐 已获下场资格', '🔐 May sit down') : L('👀 观战中', '👀 Spectating')],
+        [L('盲注', 'Blinds'), `${st.smallBlind}/${st.bigBlind}` + (st.ante ? ` · ante ${st.ante}` : '')],
+        [L('最大人数', 'Max players'), st.maxPlayers],
     ];
     if (isCash) {
-        rows.push(['带入区间', `${(st.minBuyIn || 0).toLocaleString()} ~ ${st.maxBuyIn > 0 ? st.maxBuyIn.toLocaleString() : '无限制'}`]);
-        rows.push(['UTG Straddle', st.allowUtgStraddle ? '🔥 已开启 · 2BB' : '未开启']);
+        rows.push([L('带入区间', 'Buy-in range'), `${(st.minBuyIn || 0).toLocaleString()} ~ ${st.maxBuyIn > 0 ? st.maxBuyIn.toLocaleString() : L('无限制', 'Unlimited')}`]);
+        rows.push(['UTG Straddle', st.allowUtgStraddle ? L('🔥 已开启 · 2BB', '🔥 On · 2BB') : L('未开启', 'Off')]);
         if (st.tableEndAt) {
             const rem = Math.max(0, Math.floor((st.tableEndAt - Date.now()) / 60000));
-            rows.push(['剩余时长', `约 ${rem} 分钟`]);
-            rows.push(['预计结束', formatMatchEndTime(st.tableEndAt)]);
+            rows.push([L('剩余时长', 'Time left'), L(`约 ${rem} 分钟`, `~${rem} min`)]);
+            rows.push([L('预计结束', 'Ends at'), formatMatchEndTime(st.tableEndAt)]);
         }
         if (st.timeExpired) {
             const left = st.timeUpGraceAt ? Math.max(0, Math.ceil((st.timeUpGraceAt - Date.now()) / 60000)) : null;
-            rows.push(['当前状态', '⏸️ 已到时，等待房主决定'
-                + (left != null ? `（约 ${left} 分钟后自动结算）` : '')]);
+            rows.push([L('当前状态', 'Status'), L('⏸️ 已到时，等待房主决定', '⏸️ Time up — waiting for host')
+                + (left != null ? L(`（约 ${left} 分钟后自动结算）`, ` (auto-settles in ~${left} min)`) : '')]);
         }
-        else if (st.paused) rows.push(['当前状态', '⏸️ 房主手动暂停']);
-    } else rows.push(['当前级别', (st.currentLevel || 0) + 1]);
+        else if (st.paused) rows.push([L('当前状态', 'Status'), L('⏸️ 房主手动暂停', '⏸️ Paused by host')]);
+    } else rows.push([L('当前级别', 'Level'), (st.currentLevel || 0) + 1]);
     const isOwner = st.ownerUserId === myUserId;
     let html = rows.map(([k, v]) => `<div class="mi-row"><span>${k}</span><b>${v}</b></div>`).join('');
     // 现金桌房主：比赛加时
     if (isCash && isOwner) {
-        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">UTG Straddle（下一手起生效）</span>
+        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('UTG Straddle（下一手起生效）', 'UTG straddle (from next hand)')}</span>
             <div class="tier-row"><button type="button" class="ext-btn" onclick="setUtgStraddle(${!st.allowUtgStraddle})">
-            ${st.allowUtgStraddle ? '关闭 Straddle' : '开启 Straddle 2BB'}</button></div></div>`;
+            ${st.allowUtgStraddle ? L('关闭 Straddle', 'Turn off straddle') : L('开启 Straddle 2BB', 'Turn on straddle 2BB')}</button></div></div>`;
         // 只留加时：提前结束房主本来就有「⏸️ 暂停发牌」和「结束比赛」两个入口，
         // 再放一排「−30/−15」是重复的路径，还容易误点把桌子提前判到时。
-        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">比赛加时（分钟）</span>
+        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('比赛加时（分钟）', 'Extend game (minutes)')}</span>
             <div class="tier-row">` +
             [15, 30, 60, 120].map(m => `<button type="button" class="ext-btn" onclick="adjustMatchEnd(${m})">+${m}</button>`).join('') +
             `</div></div>`;
-        if (st.timeExpired) html += '<div class="mi-note">⏸️ 加时即可继续；若一直无人处理，5 分钟后会自动结算收桌（筹码照常兑回金币，不会被卡住）。</div>';
+        if (st.timeExpired) html += `<div class="mi-note">${L('⏸️ 加时即可继续；若一直无人处理，5 分钟后会自动结算收桌（筹码照常兑回金币，不会被卡住）。', '⏸️ Extend to continue; if left unhandled, it auto-settles in 5 min (chips convert back to coins — nothing gets stuck).')}</div>`;
     }
-    if (!isOwner) html += '<div class="mi-note">仅房主可调整时间 / 结束比赛</div>';
+    if (!isOwner) html += `<div class="mi-note">${L('仅房主可调整时间 / 结束比赛', 'Only the host can adjust time / end the game')}</div>`;
     document.getElementById('match-info').innerHTML = html;
     document.querySelectorAll('#match-modal .owner-only').forEach(e => e.style.display = isOwner ? '' : 'none');
 }

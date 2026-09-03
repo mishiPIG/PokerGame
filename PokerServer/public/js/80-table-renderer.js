@@ -204,7 +204,7 @@ function renderSeats(state) {
     const banner = document.getElementById('spectator-banner');
     if (amSpectator) {
         banner.style.display = '';
-        banner.textContent = isCash ? '👀 观战中 · 点空座「坐下」带入入座' : '👀 观战中';
+        banner.textContent = isCash ? L('👀 观战中 · 点空座「坐下」带入入座', '👀 Spectating · tap an empty seat to buy in') : L('👀 观战中', '👀 Spectating');
     } else banner.style.display = 'none';
 }
 
@@ -241,8 +241,8 @@ function triggerSeatRotate() {
 }
 // 空座位：现金桌观众可点击「坐下」入座（携带座位号）；其余淡色占位
 function emptySeatHtml(canSit, seat) {
-    if (canSit) return `<div class="empty-seat sit" onclick="openSitDown(${seat})">坐下</div>`;
-    return `<div class="empty-seat">空位</div>`;
+    if (canSit) return `<div class="empty-seat sit" onclick="openSitDown(${seat})">${L('坐下', 'Sit')}</div>`;
+    return `<div class="empty-seat">${L('空位', 'Empty')}</div>`;
 }
 
 function buildSeat(p, state) {
@@ -255,13 +255,13 @@ function buildSeat(p, state) {
 
     // 状态气泡：按需显示（弃牌/坐出/离桌…灰；All in 红），平时不占地方
     let stText = '', stCls = 'wait';
-    if (p.standing) stText = '围观';
-    else if (p.reserved) stText = '留座';
-    else if (p.away) stText = '离桌';
-    else if (p.sittingOut) stText = '坐出';
-    else if (p.pendingRebuy > 0) stText = '补码';
+    if (p.standing) stText = L('围观', 'Rail');
+    else if (p.reserved) stText = L('留座', 'Held');
+    else if (p.away) stText = L('离桌', 'Away');
+    else if (p.sittingOut) stText = L('坐出', 'Sitting out');
+    else if (p.pendingRebuy > 0) stText = L('补码', 'Rebuy');
     else if (p.allIn) { stText = 'All in'; stCls = 'allin'; }
-    else if (p.folded) { stText = '弃牌'; stCls = 'fold'; }
+    else if (p.folded) { stText = L('弃牌', 'Fold'); stCls = 'fold'; }
     const statusBubble = stText ? `<div class="status-bubble ${stCls}">${stText}</div>` : '';
 
     // 手牌展示
@@ -313,7 +313,7 @@ function buildSeat(p, state) {
         ? `<div class="equity-badge">${eqPct}%</div>` : '';
 
     // 头像（小方块）+ 行动倒计时数字
-    const displayName = p.displayName || p.username || '玩家';
+    const displayName = p.displayName || p.username || L('玩家', 'Player');
     const initial = displayName.charAt(0).toUpperCase();
     const hue = hashHue(p.userId);
     const showRing = isActing && state.actionDeadline;
@@ -323,23 +323,23 @@ function buildSeat(p, state) {
     // 准备徽标（仅开赛前）
     const canReady  = state.status === 'waiting' && (state.phase === 'waiting' || state.phase === 'showdown');
     const readyHtml = canReady
-        ? `<div class="ready-badge ${p.ready ? 'yes' : 'no'}">${p.ready ? '✓ 已准备' : '未准备'}</div>` : '';
+        ? `<div class="ready-badge ${p.ready ? 'yes' : 'no'}">${p.ready ? L('✓ 已准备', '✓ Ready') : L('未准备', 'Not ready')}</div>` : '';
 
     // 牌型徽章（独立深色小牌，绝不盖筹码）：赢家 or 我行牌中的当前牌型
     let handTypeBadge = '';
     if (showdownInfo && showdownInfo.winners.includes(p.userId) && showdownInfo.category)
-        handTypeBadge = `<div class="hand-type-badge win">🏆 ${showdownInfo.category}</div>`;
+        handTypeBadge = `<div class="hand-type-badge win">🏆 ${handCat(showdownInfo.category)}</div>`;
     else if (isMe && myHand && state.phase !== 'waiting') {
         // 已弃牌也显示（玩家反馈想知道「我弃掉的牌最后会是什么」）——加「弃」前缀+灰样式，
         // 明确这是假设性的牌型，不会误以为自己还在牌局里。摊牌阶段同样保留（那时才最想看）。
-        if (p.folded) handTypeBadge = `<div class="hand-type-badge folded-hint">弃 · ${myHand.category}</div>`;
-        else if (!showdownInfo) handTypeBadge = `<div class="hand-type-badge">${myHand.category}</div>`;
+        if (p.folded) handTypeBadge = `<div class="hand-type-badge folded-hint">${L('弃', 'Fold')} · ${handCat(myHand.category)}</div>`;
+        else if (!showdownInfo) handTypeBadge = `<div class="hand-type-badge">${handCat(myHand.category)}</div>`;
     }
 
     // 亮牌提示（摊牌局间，含弃牌者可亮牌）
     const showHint = (isMe && state.phase === 'showdown'
         && !revealedCards[myUserId] && myHoleCards.length === 2 && myShown.size < 2)
-        ? '<div class="show-hint">👁️ 点亮牌给对手</div>' : '';
+        ? `<div class="show-hint">${L('👁️ 点亮牌给对手', '👁️ Tap to show a card')}</div>` : '';
 
     // 对手亮牌：覆盖在头像上（不占额外高度、不顶出屏幕），牌型徽章压在牌下沿
     const oppCardsOverlay = (!isMe && cardsHtml)
@@ -353,7 +353,7 @@ function buildSeat(p, state) {
     </div>`;
 
     const nameHtml  = `<div class="name">${escapeHtml(displayName)}</div>`;
-    const chipsHtml = `<div class="chips${isMe ? ' clickable' : ''}"${isMe ? ' onclick="toggleDisplayBB()" title="点击切换 筹码/BB 显示"' : ''}>${fmtChips(p.chips)}</div>`;
+    const chipsHtml = `<div class="chips${isMe ? ' clickable' : ''}"${isMe ? ` onclick="toggleDisplayBB()" title="${L('点击切换 筹码/BB 显示', 'Tap to toggle chips/BB')}"` : ''}>${fmtChips(p.chips)}</div>`;
 
     if (isMe) {
         // 自己：横向——左=名字/头像/筹码，右=两张牌（+牌型）
@@ -368,7 +368,7 @@ function buildSeat(p, state) {
 
 // roomId 仅作内部标识，不再展示为可输入的邀请凭证。
 function roomNoHtml() {
-    return iCanPlay ? `<span class="room-no">🔐 已加入</span>` : `<span class="room-no">👀 观战中</span>`;
+    return iCanPlay ? `<span class="room-no">${L('🔐 已加入', '🔐 Joined')}</span>` : `<span class="room-no">${L('👀 观战中', '👀 Spectating')}</span>`;
 }
 function render(state) {
     // 底池竖排（商业级）：中间=总底池；有边池时 上=主池、下=各边池；下注中 上=上一轮总底池
@@ -381,14 +381,14 @@ function render(state) {
     const hasRealSide = activeCount >= 3 && pots.length > 1 && pots.slice(1).some(p => p.eligibleCount >= 2);
     let above = '', below = '';
     if (hasRealSide) {
-        above = `<div class="pot-row main"><span class="pot-chip gold"></span>主池 ${fmtChips(pots[0].amount)}</div>`;
+        above = `<div class="pot-row main"><span class="pot-chip gold"></span>${L('主池', 'Main')} ${fmtChips(pots[0].amount)}</div>`;
         for (let i = 1; i < pots.length; i++)
-            below += `<div class="pot-row side"><span class="pot-chip green"></span>边池${i} ${fmtChips(pots[i].amount)}</div>`;
+            below += `<div class="pot-row side"><span class="pot-chip green"></span>${L('边池', 'Side')}${i} ${fmtChips(pots[i].amount)}</div>`;
     } else if (collected > 0 && bets > 0) {
         above = `<div class="pot-row prev"><span class="pot-chip"></span>${fmtChips(collected)}</div>`;
     }
     document.getElementById('pot').innerHTML =
-        above + `<div class="pot-total">底池: ${fmtChips(totalPot)}</div>` + below;
+        above + `<div class="pot-total">${L('底池', 'Pot')}: ${fmtChips(totalPot)}</div>` + below;
 
     // SNG 比赛信息：作为桌面中央淡色水印（不再占顶栏空间）
     const sng = document.getElementById('table-info');
@@ -396,22 +396,22 @@ function render(state) {
         const lvl = (state.currentLevel || 0) + 1;
         nextLevelAt = state.nextLevelAt || 0;
         sng.innerHTML = `${escapeHtml(state.roomName)} · ${roomNoHtml()}<br>`
-            + `级别 ${lvl} · 盲注 ${state.smallBlind}/${state.bigBlind}`
-            + (state.pendingLevelUp ? ' · <span style="color:#ff9f1c">⏫本局后升盲</span>' : ` · <span id="next-level"></span>`);
+            + `${L('级别', 'Level')} ${lvl} · ${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}`
+            + (state.pendingLevelUp ? ` · <span style="color:#ff9f1c">${L('⏫本局后升盲', '⏫ Blinds up next hand')}</span>` : ` · <span id="next-level"></span>`);
     } else {
         nextLevelAt = 0; tableEndAt = state.tableEndAt || 0;
         sng.innerHTML = `${escapeHtml(state.roomName)} · ${roomNoHtml()}<br>`
-            + `现金桌 · 盲注 ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
+            + `${L('现金桌', 'Cash')} · ${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
             + (state.allowUtgStraddle ? ' · STR 2BB' : '')
             + (tableEndAt ? ` · <span id="table-remain"></span>` : '');
     }
     if (state.timeExpired) {
         // 带上兜底倒计时：让全桌都知道「不处理的话什么时候会自动结算」，而不是干等着
         const left = state.timeUpGraceAt ? Math.max(0, Math.ceil((state.timeUpGraceAt - Date.now()) / 60000)) : null;
-        sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 训练时间已到，等待房主决定`
-            + (left != null ? `（约 ${left} 分钟后自动结算）` : '') + `</span>`;
+        sng.innerHTML += `<br><span style="color:#ffcf5c">${L('⏸️ 训练时间已到，等待房主决定', '⏸️ Session time up — waiting for host')}`
+            + (left != null ? L(`（约 ${left} 分钟后自动结算）`, ` (auto-settles in ~${left} min)`) : '') + `</span>`;
     }
-    else if (state.paused) sng.innerHTML += `<br><span style="color:#ffcf5c">⏸️ 房主已暂停发牌</span>`;
+    else if (state.paused) sng.innerHTML += `<br><span style="color:#ffcf5c">${L('⏸️ 房主已暂停发牌', '⏸️ Host paused dealing')}</span>`;
 
     // 公共牌：固定 5 个位置（已发的是牌，未发的占位空槽），避免发牌时布局跳动
     const comm = state.communityCards;
@@ -492,8 +492,8 @@ function render(state) {
     const btnReady = document.getElementById('btnReady');
     btnReady.style.display = canReady ? '' : 'none';
     btnReady.disabled = !me || !canReady;
-    if (me && me.ready) { btnReady.textContent = '⏳ 已准备（点击取消）'; btnReady.classList.add('readied'); }
-    else                { btnReady.textContent = '✅ 准备';              btnReady.classList.remove('readied'); }
+    if (me && me.ready) { btnReady.textContent = L('⏳ 已准备（点击取消）', '⏳ Ready (tap to cancel)'); btnReady.classList.add('readied'); }
+    else                { btnReady.textContent = L('✅ 准备', '✅ Ready');              btnReady.classList.remove('readied'); }
 
     // ── 现金桌开赛：房主「开始」/ 其他人「等待房主」──
     const seatedCount = state.players.length;
@@ -509,7 +509,7 @@ function render(state) {
     const amSittingOut = isCash && me && !amReserved && me.sittingOut && (me.pendingRebuy || 0) === 0;
     document.getElementById('reserveBackPanel').style.display = (amReserved || amVacated) ? '' : 'none';
     if (amReserved || amVacated) document.getElementById('reserveBackLabel').textContent =
-        amVacated ? '🧍 站起围观中（点「回到座位」带原筹码回来）' : '💺 留座离桌中';
+        amVacated ? L('🧍 站起围观中（点「回到座位」带原筹码回来）', '🧍 On the rail (tap "Sit back" to return with your chips)') : L('💺 留座离桌中', '💺 Seat held (away)');
     document.getElementById('sitOutPanel').style.display = amSittingOut ? '' : 'none';
 
     // ── 解散房间按钮（仅房主，开赛后可用；在设置面板内）──
@@ -557,7 +557,7 @@ function render(state) {
     const rabbitVisible = state.phase === 'showdown' && commLen < 5;
     if (rabbitVisible) {
         btnRabbit.style.display = '';
-        btnRabbit.textContent = commLen === 0 ? '🐰 看翻牌' : (commLen === 3 ? '🐰 看转牌' : '🐰 看河牌');
+        btnRabbit.textContent = commLen === 0 ? L('🐰 看翻牌', '🐰 See flop') : (commLen === 3 ? L('🐰 看转牌', '🐰 See turn') : L('🐰 看河牌', '🐰 See river'));
     } else {
         btnRabbit.style.display = 'none';
     }

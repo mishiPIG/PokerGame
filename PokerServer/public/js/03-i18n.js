@@ -45,6 +45,11 @@ const I18N = {
         'act.allinParen': '(全下)', 'act.confirmBet': '确认下注 ', 'act.confirmRaise': '确认加注到 ', 'act.rabbit': '🐰 看后续牌',
         'pa.checkfold': '过/弃', 'pa.call': '跟注', 'tc.menu': '菜单', 'tc.addtime': '加时',
         'reserve.reserving': '💺 留座中', 'reserve.sitback': '🪑 回到座位',
+        'bm.titleDefault': '坐下带入', 'bm.chips': '记分牌', 'bm.cost': '消耗 🪙', 'bm.avail': '可用 🪙',
+        'bm.auto': '自动补码（耗尽自动补最小带入）', 'bm.cancel': '取消', 'bm.confirm': '确定',
+        'stats.title': '当前战绩', 'stats.name': '昵称', 'stats.buyin': '带入', 'stats.hands': '手数', 'stats.net': '战绩', 'hist.title': '本局牌谱',
+        'prof.title': '👤 个人主页', 'prof.info': '资料', 'prof.stats': '生涯战绩', 'prof.hands': '牌谱', 'prof.avatar': '头像',
+        'filter.all': '全部', 'filter.cash': '现金桌', 'filter.sng': 'SNG',
     },
     en: {
         'brand.tagline': 'Poker Dojo · Play with friends · Grow together',
@@ -89,12 +94,20 @@ const I18N = {
         'act.allinParen': '(all-in)', 'act.confirmBet': 'Confirm bet ', 'act.confirmRaise': 'Confirm raise to ', 'act.rabbit': '🐰 Rabbit hunt',
         'pa.checkfold': 'Check/Fold', 'pa.call': 'Call', 'tc.menu': 'Menu', 'tc.addtime': 'Add time',
         'reserve.reserving': '💺 Seat held', 'reserve.sitback': '🪑 Sit back',
+        'bm.titleDefault': 'Buy-in', 'bm.chips': 'chips', 'bm.cost': 'Cost 🪙', 'bm.avail': 'Have 🪙',
+        'bm.auto': 'Auto-rebuy (top up to min when out)', 'bm.cancel': 'Cancel', 'bm.confirm': 'OK',
+        'stats.title': 'Standings', 'stats.name': 'Name', 'stats.buyin': 'Buy-in', 'stats.hands': 'Hands', 'stats.net': 'P/L', 'hist.title': 'This game',
+        'prof.title': '👤 Profile', 'prof.info': 'Info', 'prof.stats': 'Career', 'prof.hands': 'Hands', 'prof.avatar': 'Avatar',
+        'filter.all': 'All', 'filter.cash': 'Cash', 'filter.sng': 'SNG',
     },
 };
 let lang = (() => { try { return localStorage.getItem('lang') || (String(navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'zh'); } catch { return 'zh'; } })();
 function t(key, fallback) { return (I18N[lang] && I18N[lang][key]) || (I18N.zh && I18N.zh[key]) || (fallback != null ? fallback : key); }
 // 动态 JS 文案用这个：翻译直接写在调用处，省去为每条散字符串建 key。lang=en 时取第二个参数。
 function L(zh, en) { return (lang === 'en' && en != null) ? en : zh; }
+// 牌型名（服务端发的是中文，固定 10 种）→ 英文映射
+const HAND_CAT_EN = { '皇家同花顺': 'Royal Flush', '同花顺': 'Straight Flush', '四条': 'Four of a Kind', '葫芦': 'Full House', '同花': 'Flush', '顺子': 'Straight', '三条': 'Three of a Kind', '两对': 'Two Pair', '一对': 'One Pair', '高牌': 'High Card' };
+function handCat(c) { return (lang === 'en' && HAND_CAT_EN[c]) ? HAND_CAT_EN[c] : (c || ''); }
 function applyLang() {
     try { document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN'; } catch {}
     document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.getAttribute('data-i18n'), null); if (v != null) el.textContent = v; });
@@ -109,6 +122,7 @@ function setLang(l) {
     // 牌桌/大厅里有些文案是 JS 写的（过牌/跟注按钮、房间列表卡片等）→ 切语言后重渲染一次立即生效
     try { if (typeof lastState !== 'undefined' && lastState && typeof render === 'function') render(lastState); } catch {}
     try { if (window._lastRooms && typeof renderRoomList === 'function') renderRoomList(window._lastRooms); } catch {}
+    try { if (document.getElementById('settings-overlay')?.style.display === 'flex' && typeof buildSettingsPanel === 'function') buildSettingsPanel(); } catch {}
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyLang);
 else applyLang();

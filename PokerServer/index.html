@@ -370,31 +370,31 @@
     <!-- 坐下/补码 通用买入弹窗 -->
     <div id="buyin-modal" class="modal-mask" style="display:none">
         <div class="modal-box">
-            <h3 id="bm-title">坐下带入</h3>
-            <div class="bm-amt"><span id="bm-val">2,000</span> <small>记分牌</small></div>
+            <h3 id="bm-title" data-i18n="bm.titleDefault">坐下带入</h3>
+            <div class="bm-amt"><span id="bm-val">2,000</span> <small data-i18n="bm.chips">记分牌</small></div>
             <!-- 补码：BB 梯度选项；坐下：滑块 -->
             <div id="bm-tiers" class="bm-tier-row" style="display:none"></div>
             <input type="range" id="bm-slider" min="2000" max="8000" step="500" value="2000" oninput="onBuyinSlide()">
-            <div class="bm-info"><span>消耗 🪙 <b id="bm-cost">220</b></span><span>可用 🪙 <b id="bm-gold">0</b></span></div>
-            <label class="bm-auto" id="bm-auto-wrap" style="display:none"><input type="checkbox" id="bm-auto"> 自动补码（耗尽自动补最小带入）</label>
+            <div class="bm-info"><span><span data-i18n="bm.cost">消耗 🪙</span> <b id="bm-cost">220</b></span><span><span data-i18n="bm.avail">可用 🪙</span> <b id="bm-gold">0</b></span></div>
+            <label class="bm-auto" id="bm-auto-wrap" style="display:none"><input type="checkbox" id="bm-auto"> <span data-i18n="bm.auto">自动补码（耗尽自动补最小带入）</span></label>
             <div class="modal-actions">
-                <button class="cancel" onclick="closeBuyin()">取消</button>
-                <button class="confirm" id="bm-confirm" onclick="confirmBuyin()">确定</button>
+                <button class="cancel" onclick="closeBuyin()" data-i18n="bm.cancel">取消</button>
+                <button class="confirm" id="bm-confirm" onclick="confirmBuyin()" data-i18n="bm.confirm">确定</button>
             </div>
         </div>
     </div>
 
     <!-- 当前战绩面板 -->
     <div id="stats-panel" class="side-panel" style="display:none">
-        <div class="sp-head"><b>当前战绩</b><button onclick="closeStats()">✕</button></div>
-        <table class="sp-table"><thead><tr><th>昵称</th><th>带入</th><th>手数</th><th>战绩</th></tr></thead>
+        <div class="sp-head"><b data-i18n="stats.title">当前战绩</b><button onclick="closeStats()">✕</button></div>
+        <table class="sp-table"><thead><tr><th data-i18n="stats.name">昵称</th><th data-i18n="stats.buyin">带入</th><th data-i18n="stats.hands">手数</th><th data-i18n="stats.net">战绩</th></tr></thead>
             <tbody id="stats-body"></tbody></table>
         <div class="sp-spec"><b id="spec-count">观众 (0)</b><div id="spec-list"></div></div>
     </div>
 
     <!-- 牌谱回顾面板 -->
     <div id="history-panel" class="side-panel" style="display:none">
-        <div class="sp-head"><b>本局牌谱</b><button onclick="closeHistory()">✕</button></div>
+        <div class="sp-head"><b data-i18n="hist.title">本局牌谱</b><button onclick="closeHistory()">✕</button></div>
         <div id="history-list"></div>
     </div>
 
@@ -464,32 +464,32 @@
 <!-- 个人主页（资料 / 战绩 / 牌谱）——放在 table-view 外，大厅也能开 -->
 <div id="profile-overlay" style="display:none">
     <div class="profile-box">
-        <div class="sp-head"><b>👤 个人主页</b><button onclick="closeProfile()">✕</button></div>
+        <div class="sp-head"><b data-i18n="prof.title">👤 个人主页</b><button onclick="closeProfile()">✕</button></div>
         <div class="prof-tabs">
-            <button class="prof-tab active" data-pt="info" onclick="profileTab('info')">资料</button>
-            <button class="prof-tab" data-pt="stats" onclick="profileTab('stats')">生涯战绩</button>
-            <button class="prof-tab" data-pt="hands" onclick="profileTab('hands')">牌谱</button>
+            <button class="prof-tab active" data-pt="info" onclick="profileTab('info')" data-i18n="prof.info">资料</button>
+            <button class="prof-tab" data-pt="stats" onclick="profileTab('stats')" data-i18n="prof.stats">生涯战绩</button>
+            <button class="prof-tab" data-pt="hands" onclick="profileTab('hands')" data-i18n="prof.hands">牌谱</button>
         </div>
         <div id="pt-info" class="prof-pane">
             <div class="pi-card" id="pi-head"></div>
             <div class="pi-card" id="pi-display-name"></div>
             <div class="pi-card" id="pi-email" style="margin-top:10px"></div>
-            <div class="sec-title" style="margin-top:14px">头像</div>
+            <div class="sec-title" style="margin-top:14px" data-i18n="prof.avatar">头像</div>
             <div class="avatar-grid" id="profile-avatar-grid"></div>
         </div>
         <div id="pt-stats" class="prof-pane" style="display:none">
             <div class="hist-filter">
-                <button class="hf active" onclick="statsFilter(this,'')">全部</button>
-                <button class="hf" onclick="statsFilter(this,'cash')">现金桌</button>
-                <button class="hf" onclick="statsFilter(this,'sng')">SNG</button>
+                <button class="hf active" onclick="statsFilter(this,'')" data-i18n="filter.all">全部</button>
+                <button class="hf" onclick="statsFilter(this,'cash')" data-i18n="filter.cash">现金桌</button>
+                <button class="hf" onclick="statsFilter(this,'sng')" data-i18n="filter.sng">SNG</button>
             </div>
             <div id="stats-body2"></div>
         </div>
         <div id="pt-hands" class="prof-pane" style="display:none">
             <div class="hist-filter">
-                <button class="hf active" onclick="phistFilter(this,'')">全部</button>
-                <button class="hf" onclick="phistFilter(this,'cash')">现金桌</button>
-                <button class="hf" onclick="phistFilter(this,'sng')">SNG</button>
+                <button class="hf active" onclick="phistFilter(this,'')" data-i18n="filter.all">全部</button>
+                <button class="hf" onclick="phistFilter(this,'cash')" data-i18n="filter.cash">现金桌</button>
+                <button class="hf" onclick="phistFilter(this,'sng')" data-i18n="filter.sng">SNG</button>
             </div>
             <div id="history-list2"></div>
         </div>

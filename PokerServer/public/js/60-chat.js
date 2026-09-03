@@ -62,15 +62,15 @@ function openAvatarPopup(userId) {
     if (!lastState) return;
     avatarPopupUserId = userId;
     const p = (lastState.players || []).find(x => x.userId === userId)
-        || (lastState.spectators || []).find(x => x.userId === userId) || { username: '玩家', avatar: null };
-    const name = p.displayName || p.username || '玩家';
+        || (lastState.spectators || []).find(x => x.userId === userId) || { username: L('玩家', 'Player'), avatar: null };
+    const name = p.displayName || p.username || L('玩家', 'Player');
     const isMe = userId === myUserId;
     const av = p.avatar ? `<img src="${p.avatar}" onerror="this.style.display='none'">` : escapeHtml((name || '?')[0].toUpperCase());
     const avEl = document.getElementById('ap-av');
     avEl.style.background = `hsl(${hashHue(p.userId || name)},45%,42%)`; avEl.innerHTML = av;
-    document.getElementById('ap-name').textContent = name + (isMe ? '（你）' : '');
-    document.getElementById('ap-emo-title').textContent = isMe ? '发表情（所有人可见）' : `给「${name}」扔表情`;
-    document.getElementById('ap-stats').innerHTML = '<div class="ap-loading">加载中…</div>';
+    document.getElementById('ap-name').textContent = name + (isMe ? L('（你）', ' (you)') : '');
+    document.getElementById('ap-emo-title').textContent = isMe ? L('发表情（所有人可见）', 'Send emote (everyone sees)') : L(`给「${name}」扔表情`, `Throw an emote at ${name}`);
+    document.getElementById('ap-stats').innerHTML = `<div class="ap-loading">${L('加载中…', 'Loading…')}</div>`;
     document.getElementById('ap-emotes').innerHTML = EMOTES.map(e => `<button class="emote-btn" onclick="sendPopupEmote('${e}')">${e}</button>`).join('');
     // 房主管理：对其他在座玩家显示「移到观战席」（腾座位）
     const apo = document.getElementById('ap-owner');
@@ -78,7 +78,7 @@ function openAvatarPopup(userId) {
     const targetSeated = (lastState.players || []).some(x => x.userId === userId);
     if (iAmOwner && !isMe && targetSeated && lastState.roomType === 'cash') {
         apo.style.display = '';
-        apo.innerHTML = `<button class="ap-owner-btn" onclick="forceStand('${userId}')">🧍 移到观战席（腾出座位）</button>`;
+        apo.innerHTML = `<button class="ap-owner-btn" onclick="forceStand('${userId}')">${L('🧍 移到观战席（腾出座位）', '🧍 Move to the rail (free the seat)')}</button>`;
     } else { apo.style.display = 'none'; apo.innerHTML = ''; }
     document.getElementById('avatar-popup').style.display = 'flex';
     if (socket) socket.emit('req_player_stats', { targetUserId: userId });
@@ -115,7 +115,7 @@ function renderPlayerStats(userId, s) {
     document.getElementById('ap-stats').innerHTML =
         cell('VPIP', (s.vpip || 0) + '%') + cell('PFR', (s.pfr || 0) + '%')
         + cell('3Bet', (s.threeBet || 0) + '%') + cell('ATS', (s.ats || 0) + '%')
-        + cell('手数', handsVal) + cell('本房战绩', (netVal > 0 ? '+' : '') + netVal);
+        + cell(L('手数', 'Hands'), handsVal) + cell(L('本房战绩', 'Table P/L'), (netVal > 0 ? '+' : '') + netVal);
 }
 function appendChat(username, text, mine) {
     const l = document.getElementById('chat-list'); if (!l) return;

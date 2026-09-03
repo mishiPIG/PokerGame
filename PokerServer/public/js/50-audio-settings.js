@@ -180,10 +180,10 @@ function toggleSound() {
 
 // ===== 设置面板 =====
 const THEMES = [
-    { id: 'blue',   name: '孔雀蓝', css: 'radial-gradient(ellipse at center,#1d5a7a 0%,#0d2f44 75%)' },
-    { id: 'green',  name: '翡翠绿', css: 'radial-gradient(ellipse at center,#2d6a4f 0%,#1b4332 75%)' },
-    { id: 'gray',   name: '太空灰', css: 'radial-gradient(ellipse at center,#3a3f44 0%,#1c1f22 75%)' },
-    { id: 'purple', name: '宝石紫', css: 'radial-gradient(ellipse at center,#4a2d6a 0%,#2a1b43 75%)' }
+    { id: 'blue',   name: '孔雀蓝', nameEn: 'Peacock', css: 'radial-gradient(ellipse at center,#1d5a7a 0%,#0d2f44 75%)' },
+    { id: 'green',  name: '翡翠绿', nameEn: 'Emerald', css: 'radial-gradient(ellipse at center,#2d6a4f 0%,#1b4332 75%)' },
+    { id: 'gray',   name: '太空灰', nameEn: 'Space gray', css: 'radial-gradient(ellipse at center,#3a3f44 0%,#1c1f22 75%)' },
+    { id: 'purple', name: '宝石紫', nameEn: 'Amethyst', css: 'radial-gradient(ellipse at center,#4a2d6a 0%,#2a1b43 75%)' }
 ];
 const POST_CHOICES = [0.25, 0.33, 0.5, 0.6, 0.67, 0.75, 0.8, 1, 1.25, 1.5];   // 翻后池比例
 const PRE_CHOICES  = [2, 2.2, 2.5, 3, 3.5, 4, 5];                              // 翻前 BB 倍数
@@ -239,7 +239,7 @@ function setAvatar(url) {
 }
 function buildSettingsPanel() {
     document.getElementById('theme-row').innerHTML = THEMES.map(t =>
-        `<div class="theme-swatch ${settings.theme === t.id ? 'sel' : ''}" style="background:${t.css}" onclick="setTheme('${t.id}')"><span>${t.name}</span></div>`).join('');
+        `<div class="theme-swatch ${settings.theme === t.id ? 'sel' : ''}" style="background:${t.css}" onclick="setTheme('${t.id}')"><span>${L(t.name, t.nameEn)}</span></div>`).join('');
     document.querySelectorAll('.cs-opt').forEach(b => b.classList.toggle('sel', b.dataset.cs === settings.cardStyle));
     // 布局按钮复用了 .cs-opt 样式，上一行会把它们的选中态一并清掉，这里按 data-lay 重新点亮
     document.querySelectorAll('.lay-opt').forEach(b => b.classList.toggle('sel', b.dataset.lay === settings.layout));
@@ -267,7 +267,7 @@ function toggleQuickBet(kind, v) {
     const i = list.indexOf(v);
     if (i >= 0) list.splice(i, 1);
     else {
-        if (list.length >= MAX_QUICK) { alert(`最多 ${MAX_QUICK} 个快捷尺度`); return; }
+        if (list.length >= MAX_QUICK) { alert(L(`最多 ${MAX_QUICK} 个快捷尺度`, `Up to ${MAX_QUICK} quick sizes`)); return; }
         list.push(v); list.sort((a, b) => a - b);
     }
     saveSettings(); renderQuickBets(); buildSettingsPanel();
@@ -276,7 +276,7 @@ function toggleQuickBet(kind, v) {
 function addCustomQuick(kind) {
     const input = document.getElementById(kind === 'pre' ? 'customPre' : 'customPost');
     let n = parseFloat(input.value);
-    if (isNaN(n) || n <= 0) { alert('请输入有效数字'); return; }
+    if (isNaN(n) || n <= 0) { alert(L('请输入有效数字', 'Enter a valid number')); return; }
     const v = kind === 'pre' ? Math.round(n * 10) / 10 : Math.round(n) / 100;  // 百分比转小数
     const list = qbList(kind);
     if (list.includes(v)) { input.value = ''; return; }
@@ -327,7 +327,7 @@ function toggleFullscreen() {
     if (!d.fullscreenElement && !d.webkitFullscreenElement) {
         const req = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen;
         if (req) req.call(el);
-        else alert('当前浏览器不支持全屏，建议把网页「添加到主屏幕」后从图标打开');
+        else alert(L('当前浏览器不支持全屏，建议把网页「添加到主屏幕」后从图标打开', 'Fullscreen not supported here — try "Add to Home Screen" and open from the icon'));
     } else {
         const exit = d.exitFullscreen || d.webkitExitFullscreen;
         if (exit) exit.call(d);
@@ -335,7 +335,7 @@ function toggleFullscreen() {
 }
 document.addEventListener('fullscreenchange', () => {
     const b = document.getElementById('btnFullscreen');
-    if (b) b.textContent = document.fullscreenElement ? '⛶ 退出全屏' : '⛶ 全屏';
+    if (b) b.textContent = document.fullscreenElement ? L('⛶ 退出全屏', '⛶ Exit fullscreen') : L('⛶ 全屏', '⛶ Fullscreen');
 });
 
 // ===== 显示单位设置 =====
