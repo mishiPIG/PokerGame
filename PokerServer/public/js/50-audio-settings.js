@@ -280,7 +280,7 @@ function addCustomQuick(kind) {
     const v = kind === 'pre' ? Math.round(n * 10) / 10 : Math.round(n) / 100;  // 百分比转小数
     const list = qbList(kind);
     if (list.includes(v)) { input.value = ''; return; }
-    if (list.length >= MAX_QUICK) { alert(`最多 ${MAX_QUICK} 个快捷尺度`); return; }
+    if (list.length >= MAX_QUICK) { alert(L(`最多 ${MAX_QUICK} 个快捷尺度`, `Up to ${MAX_QUICK} quick sizes`)); return; }
     list.push(v); list.sort((a, b) => a - b);
     input.value = '';
     saveSettings(); renderQuickBets(); buildSettingsPanel();

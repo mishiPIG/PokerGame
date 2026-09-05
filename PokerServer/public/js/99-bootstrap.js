@@ -58,17 +58,17 @@ async function loadVersion() {
     const cEl = document.getElementById('ver-client'), sEl = document.getElementById('ver-server');
     if (!cEl || !sEl) return;
     const client = CLIENT_BUILD === '__' + 'BUILD__' ? 'dev' : CLIENT_BUILD;
-    cEl.textContent = `前端 ${client}`;
+    cEl.textContent = `${L('前端', 'Client')} ${client}`;
     try {
         const r = await fetch('/api/version');
         const v = await r.json();
-        sEl.textContent = `服务端 ${v.label}${v.env && v.env !== 'unknown' ? ' · ' + v.env : ''}`;
+        sEl.textContent = `${L('服务端', 'Server')} ${v.label}${v.env && v.env !== 'unknown' ? ' · ' + v.env : ''}`;
         // 服务端知道自己是用哪个 commit 构建的；前端常量若对不上，说明这份 JS 是旧的
         const stale = client !== 'dev' && v.commit !== 'dev' && client !== v.commit;
         document.getElementById('version-box').classList.toggle('stale', stale);
-        if (stale) sEl.textContent += '  ⚠️ 前端是旧的，请下拉刷新';
+        if (stale) sEl.textContent += L('  ⚠️ 前端是旧的，请下拉刷新', '  ⚠️ Client is stale — pull to refresh');
         _verText = `${cEl.textContent} / ${sEl.textContent}`;
-    } catch (e) { sEl.textContent = '服务端 ?'; }
+    } catch (e) { sEl.textContent = L('服务端 ?', 'Server ?'); }
 }
 function copyVersion() {
     if (!_verText) return;

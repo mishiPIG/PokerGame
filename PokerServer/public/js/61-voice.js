@@ -136,7 +136,7 @@ async function completeVoiceRecording() {
     if (!shouldSend || !chunks.length) { hideVoiceStatus(); return; }
 
     const blob = new Blob(chunks, { type: mime });
-    if (!blob.size || blob.size > 512 * 1024) { hideVoiceStatus(); alert('语音文件过大，请重试'); return; }
+    if (!blob.size || blob.size > 512 * 1024) { hideVoiceStatus(); alert(L('语音文件过大，请重试', 'Voice clip too large, try again')); return; }
     voiceUploading = true; voiceStatus('正在发送语音…');
     try {
         const res = await fetch('/api/voice', {

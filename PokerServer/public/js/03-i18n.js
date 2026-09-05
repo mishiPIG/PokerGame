@@ -53,6 +53,11 @@ const I18N = {
         'inv.title': '🔗 邀请朋友加入', 'inv.note': '复制后直接发送给朋友；可点链接加入，跨设备时也可输入房间码。', 'inv.loading': '正在获取邀请信息…',
         'inv.label': '邀请信息', 'inv.copy': '一键复制', 'inv.open': '🔓 开放入场', 'inv.reset': '↻ 重置邀请', 'inv.close': '关闭',
         'edge.stats': '战绩', 'edge.hands': '牌谱',
+        'compliance': '绿色竞技 · 远离赌博 · 谨防诈骗 · 健康生活',
+        'ms.title': '比赛设置', 'ms.close': '关闭', 'ms.end': '🛑 提前结束',
+        'rp.title': '牌谱回放', 'rp.prev': '上一步', 'rp.play': '播放/暂停', 'rp.next': '下一步', 'rp.speed': '速度',
+        'hd.title': '牌谱详情', 'hd.replay': '▶ 回放', 'ap.sub': '本局数据', 'ap.emo': '发表情',
+        'result.title': '比赛结束', 'result.back': '返回大厅',
     },
     en: {
         'brand.tagline': 'Poker Dojo · Play with friends · Grow together',
@@ -105,10 +110,22 @@ const I18N = {
         'inv.title': '🔗 Invite friends', 'inv.note': 'Copy and send to a friend; they can tap the link, or type the room code across devices.', 'inv.loading': 'Getting invite info…',
         'inv.label': 'Invite', 'inv.copy': 'Copy', 'inv.open': '🔓 Open entry', 'inv.reset': '↻ Reset invite', 'inv.close': 'Close',
         'edge.stats': 'Stats', 'edge.hands': 'Hands',
+        'compliance': 'Play for fun · No gambling · Beware of scams · Stay healthy',
+        'ms.title': 'Game settings', 'ms.close': 'Close', 'ms.end': '🛑 End early',
+        'rp.title': 'Hand replay', 'rp.prev': 'Previous', 'rp.play': 'Play/Pause', 'rp.next': 'Next', 'rp.speed': 'Speed',
+        'hd.title': 'Hand detail', 'hd.replay': '▶ Replay', 'ap.sub': 'This hand', 'ap.emo': 'Emote',
+        'result.title': 'Game over', 'result.back': 'Back to lobby',
     },
 };
 let lang = (() => { try { return localStorage.getItem('lang') || (String(navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'zh'); } catch { return 'zh'; } })();
-function t(key, fallback) { return (I18N[lang] && I18N[lang][key]) || (I18N.zh && I18N.zh[key]) || (fallback != null ? fallback : key); }
+function t(key, fallback) {
+    // ⚠️ 用 `key in dict` 判断而不是 ||：英文译文可能是空串（如单位"人"在英文里去掉），
+    // 空串是合法翻译，不能被当成"缺失"回退到中文。
+    const d = I18N[lang];
+    if (d && key in d) return d[key];
+    if (I18N.zh && key in I18N.zh) return I18N.zh[key];
+    return fallback != null ? fallback : key;
+}
 // 动态 JS 文案用这个：翻译直接写在调用处，省去为每条散字符串建 key。lang=en 时取第二个参数。
 function L(zh, en) { return (lang === 'en' && en != null) ? en : zh; }
 // 牌型名（服务端发的是中文，固定 10 种）→ 英文映射

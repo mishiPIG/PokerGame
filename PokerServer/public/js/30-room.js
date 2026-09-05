@@ -454,8 +454,8 @@ function dissolveRoom() {
     if (!socket) return;
     const isCash = lastState && lastState.roomType === 'cash';
     const msg = isCash
-        ? '确定解散牌桌？各家将按汇率把剩余筹码兑回金币、全部回到大厅。'
-        : '确定解散比赛？比赛将结束，奖池归当前筹码领先者。';
+        ? L('确定解散牌桌？各家将按汇率把剩余筹码兑回金币、全部回到大厅。', 'Dissolve the table? Everyone\'s remaining chips convert back to coins and all return to the lobby.')
+        : L('确定解散比赛？比赛将结束，奖池归当前筹码领先者。', 'Dissolve the game? It ends now and the pool goes to the current chip leader.');
     if (confirm(msg)) socket.emit('dissolve_room');
 }
 function closeResult() {
@@ -476,7 +476,7 @@ function toggleTableMenu() {
         m.querySelectorAll('.seat-only').forEach(e => e.style.display = (isCash && amSeated) ? '' : 'none');
         m.querySelectorAll('.owner-only').forEach(e => e.style.display = isOwner ? '' : 'none');
         const pb = document.getElementById('tmPause');
-        if (pb) pb.textContent = st.paused ? '▶️ 继续发牌' : '⏸️ 暂停发牌';
+        if (pb) pb.textContent = st.paused ? L('▶️ 继续发牌', '▶️ Resume dealing') : L('⏸️ 暂停发牌', '⏸️ Pause dealing');
     }
     m.style.display = show ? '' : 'none';
 }
@@ -485,7 +485,7 @@ function standUp() {
     if (socket && confirm(L('确定站起围观？将【离开座位】（座位空出、他人可坐），筹码保留至结束/解散时结算；可随时「回到座位」带原筹码回来。', 'Stand up to watch? You LEAVE your seat (it frees up for others); chips are kept until the game ends/dissolves. You can "Sit back" anytime with your chips.'))) socket.emit('stand_up');
 }
 function reserveLeave() {
-    if (socket) { socket.emit('reserve_leave'); alert('已留座离座，2 分钟内回来保留座位（点座位「回到座位」即可）'); }
+    if (socket) { socket.emit('reserve_leave'); alert(L('已留座离座，2 分钟内回来保留座位（点座位「回到座位」即可）', 'Seat held — come back within 2 min to keep it (tap the seat "Sit back").')); }
 }
 function sitBack() { if (socket) socket.emit('sit_back'); }
 
@@ -493,7 +493,7 @@ function sitBack() { if (socket) socket.emit('sit_back'); }
 function togglePauseDealing() {
     if (!socket) return;
     if (lastState && lastState.paused) socket.emit('resume_dealing');
-    else { socket.emit('pause_dealing'); alert('已暂停发牌：当前这手打完后暂停，随时可点「继续发牌」恢复。'); }
+    else { socket.emit('pause_dealing'); alert(L('已暂停发牌：当前这手打完后暂停，随时可点「继续发牌」恢复。', 'Dealing paused: it stops after this hand — tap "Resume dealing" anytime.')); }
 }
 // 房主：强制某玩家站起到观战席（腾出座位）
 function forceStand(targetUserId) {
@@ -531,7 +531,7 @@ let buyinValue = 0;   // 当前选定的带入/补码记分牌数
 function openRebuy() {
     const st = lastState; if (!st || st.roomType !== 'cash') return;
     const me = st.players.find(p => p.userId === myUserId);
-    if (!me) { alert('请先坐下入座'); return; }
+    if (!me) { alert(L('请先坐下入座', 'Sit down at a seat first')); return; }
     buyinMode = 'rebuy';
     const bb = st.bigBlind || 20;
     const cap = st.maxBuyIn > 0 ? (st.maxBuyIn - me.chips - (me.pendingRebuy || 0)) : Infinity;   // 受带入上限约束
@@ -709,7 +709,7 @@ function extendMatch(minutes) {
     if (!socket) return;
     if (!confirm(L(`确定为本场比赛加时 +${minutes} 分钟？`, `Extend this game by +${minutes} minutes?`))) return;
     socket.emit('extend_match', { minutes });
-    alert(`已加时 +${minutes} 分钟`);
+    alert(L(`已加时 +${minutes} 分钟`, `Extended by +${minutes} min`));
 }
 function formatMatchEndTime(value) {
     return new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -720,7 +720,7 @@ function adjustMatchEnd(minutes) {
     const oldEndAt = lastState.tableEndAt || now;
     const base = minutes > 0 ? Math.max(now, oldEndAt) : oldEndAt;
     const endAt = Math.max(now, base + minutes * 60000);
-    const detail = `预计结束时间将从 ${formatMatchEndTime(oldEndAt)} 调整为 ${formatMatchEndTime(endAt)}。`;
-    if (!confirm(`${detail}\n\n确定调整吗？`)) return;
+    const detail = L(`预计结束时间将从 ${formatMatchEndTime(oldEndAt)} 调整为 ${formatMatchEndTime(endAt)}。`, `End time will change from ${formatMatchEndTime(oldEndAt)} to ${formatMatchEndTime(endAt)}.`);
+    if (!confirm(`${detail}\n\n${L('确定调整吗？', 'Adjust it?')}`)) return;
     socket.emit('adjust_match_end', { endAt });
 }

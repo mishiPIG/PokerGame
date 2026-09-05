@@ -74,7 +74,7 @@ async function sendAdminMail() {
     const title = document.getElementById('adm-mail-title').value.trim();
     const text = document.getElementById('adm-mail-text').value.trim();
     if (!text) { admMsg('内容不能为空', false); return; }
-    if (!confirm(`确认发送给 ${username || '【全体玩家】'}？`)) return;
+    if (!confirm(L(`确认发送给 ${username || '【全体玩家】'}？`, `Send to ${username || 'ALL players'}?`))) return;
     const res = await fetch('/api/admin/broadcast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admToken()}` },
@@ -130,7 +130,7 @@ function adminEnterRoom(roomId) {
 function adminDissolveRoom(roomId, name) {
     if (!socket) return;
     const nm = name ? decodeURIComponent(name) : roomId;
-    if (!confirm(`确定解散房间「${nm}」(#${roomId})？\n进行中会等本手打完；现金桌会结算筹码并公布排名。`)) return;
+    if (!confirm(L(`确定解散房间「${nm}」(#${roomId})？\n进行中会等本手打完；现金桌会结算筹码并公布排名。`, `Dissolve room "${nm}" (#${roomId})?\nIn-hand it waits for the hand to finish; cash tables settle chips and post rankings.`))) return;
     socket.emit('admin_dissolve_room', { roomId });
     setTimeout(loadAdminRooms, 1500);   // 稍后刷新列表
 }

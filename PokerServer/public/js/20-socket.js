@@ -89,12 +89,12 @@ function connectSocket(token) {
     });
 
     socket.on('busted_out', () => {
-        setTimeout(() => { alert('你已离开牌桌'); showLobby(); }, 300);
+        setTimeout(() => { alert(L('你已离开牌桌', 'You left the table')); showLobby(); }, 300);
     });
 
     // SNG 被淘汰：不再踢回大厅，留在桌上继续观战（想走点「退出房间」即可）
     socket.on('eliminated', ({ canSpectate } = {}) => {
-        if (!canSpectate) { setTimeout(() => { alert('你已出局'); showLobby(); }, 300); return; }
+        if (!canSpectate) { setTimeout(() => { alert(L('你已出局', 'You are out')); showLobby(); }, 300); return; }
         toast(L('💀 你已出局，可继续观战；想离开点「退出房间」', '💀 You are out — you can keep watching. Tap "Leave room" to exit'), 4500);
         showTableNotice(L('💀 你已出局，正在观战', '💀 You are out — now spectating'));
     });

@@ -270,7 +270,7 @@
             <span class="sf-tag">STR</span><span class="sf-n" id="straddle-flag-n">×1</span>
         </button>
         <!-- 合规横幅（纯娱乐定位）-->
-        <div id="compliance-banner">绿色竞技 · 远离赌博 · 谨防诈骗 · 健康生活</div>
+        <div id="compliance-banner" data-i18n="compliance">绿色竞技 · 远离赌博 · 谨防诈骗 · 健康生活</div>
         <!-- 中央水印（房名/级别/邀请码）-->
         <div id="table-info"></div>
         <!-- 公共牌 + 底池（绝对居中，布局稳定不随行动浮层移动）-->
@@ -401,11 +401,11 @@
     <!-- 比赛设置弹窗（房主）-->
     <div id="match-modal" class="modal-mask" style="display:none">
         <div class="modal-box">
-            <h3>比赛设置</h3>
+            <h3 data-i18n="ms.title">比赛设置</h3>
             <div id="match-info" class="match-info"></div>
             <div class="modal-actions">
-                <button class="cancel" onclick="closeMatchSettings()">关闭</button>
-                <button class="confirm danger owner-only" onclick="dissolveRoom();closeMatchSettings()">🛑 提前结束</button>
+                <button class="cancel" onclick="closeMatchSettings()" data-i18n="ms.close">关闭</button>
+                <button class="confirm danger owner-only" onclick="dissolveRoom();closeMatchSettings()" data-i18n="ms.end">🛑 提前结束</button>
             </div>
         </div>
     </div>
@@ -502,7 +502,7 @@
 <!-- 牌谱回放（还原当时桌面场景，逐步/播放）-->
 <div id="replay-overlay" style="display:none">
     <div class="replay-box">
-        <div class="rp-head"><b id="rp-title">牌谱回放</b><button onclick="closeReplay()">✕</button></div>
+        <div class="rp-head"><b id="rp-title" data-i18n="rp.title">牌谱回放</b><button onclick="closeReplay()">✕</button></div>
         <div id="rp-info"></div>
         <div id="rp-table">
             <div id="rp-ring"></div>
@@ -510,11 +510,11 @@
         </div>
         <div id="rp-caption"></div>
         <div class="rp-controls">
-            <button onclick="rpStep(-1)" title="上一步">⏮</button>
-            <button id="rp-play" onclick="rpToggle()" title="播放/暂停">▶</button>
-            <button onclick="rpStep(1)" title="下一步">⏭</button>
+            <button onclick="rpStep(-1)" title="上一步" data-i18n-title="rp.prev">⏮</button>
+            <button id="rp-play" onclick="rpToggle()" title="播放/暂停" data-i18n-title="rp.play">▶</button>
+            <button onclick="rpStep(1)" title="下一步" data-i18n-title="rp.next">⏭</button>
             <span id="rp-progress"></span>
-            <button onclick="rpSpeed()" id="rp-speed" title="速度">1×</button>
+            <button onclick="rpSpeed()" id="rp-speed" title="速度" data-i18n-title="rp.speed">1×</button>
         </div>
     </div>
 </div>
@@ -523,9 +523,9 @@
 <div id="hand-detail" style="display:none">
     <div class="hd-box">
         <div class="hd-head">
-            <b id="hd-title">牌谱详情</b>
+            <b id="hd-title" data-i18n="hd.title">牌谱详情</b>
             <div class="hd-head-btns">
-                <button class="hd-replay" onclick="replayCurrentDetail()">▶ 回放</button>
+                <button class="hd-replay" onclick="replayCurrentDetail()" data-i18n="hd.replay">▶ 回放</button>
                 <button class="hd-close" onclick="closeHandDetail()">✕</button>
             </div>
         </div>
@@ -546,9 +546,9 @@
             <div class="ap-name" id="ap-name"></div>
             <button class="ap-close" onclick="closeAvatarPopup()">✕</button>
         </div>
-        <div class="ap-sub">本局数据</div>
-        <div class="ap-stats" id="ap-stats"><div class="ap-loading">加载中…</div></div>
-        <div class="ap-emo-title" id="ap-emo-title">发表情</div>
+        <div class="ap-sub" data-i18n="ap.sub">本局数据</div>
+        <div class="ap-stats" id="ap-stats"><div class="ap-loading" data-i18n="common.loading">加载中…</div></div>
+        <div class="ap-emo-title" id="ap-emo-title" data-i18n="ap.emo">发表情</div>
         <div class="ap-emotes" id="ap-emotes"></div>
         <div class="ap-owner" id="ap-owner" style="display:none"></div>
     </div>
@@ -558,11 +558,11 @@
 <div id="result-overlay" style="display:none">
     <div class="result-box">
         <div class="result-trophy">🏆</div>
-        <div class="result-title" id="result-title">比赛结束</div>
+        <div class="result-title" id="result-title" data-i18n="result.title">比赛结束</div>
         <div class="result-sub" id="result-sub"></div>
         <div id="result-podium"></div>
         <div id="result-ranking"></div>
-        <button class="result-btn" onclick="closeResult()">返回大厅</button>
+        <button class="result-btn" onclick="closeResult()" data-i18n="result.back">返回大厅</button>
     </div>
 </div>
 
