@@ -282,7 +282,7 @@ function renderSngTiers() {
     const row = document.getElementById('sngBuyinRow');
     row.innerHTML = SNG_TIERS.map(([fee, prize]) =>
         `<button type="button" class="tier-btn${fee === sngBuyin ? ' sel' : ''}" onclick="selectSngTier(${fee})">
-            🪙${fee}<small>冠军≈${prize}</small></button>`).join('');
+            🪙${fee}<small>${L('冠军≈', 'Win≈')}${prize}</small></button>`).join('');
 }
 function selectSngTier(fee) { sngBuyin = fee; renderSngTiers(); }
 // 现金桌训练时长档位（小时）
@@ -401,7 +401,7 @@ function renderInviteInfo() {
     document.getElementById('invite-content').style.display = '';
     document.getElementById('invite-message').textContent = formatRoomInvite(roomInviteInfo);
     const lock = document.getElementById('invite-lock-btn');
-    lock.textContent = roomInviteInfo.entryLocked ? '🔒 已锁定入场' : '🔓 开放入场';
+    lock.textContent = roomInviteInfo.entryLocked ? L('🔒 已锁定入场', '🔒 Entry locked') : L('🔓 开放入场', '🔓 Open entry');
     lock.classList.toggle('locked', !!roomInviteInfo.entryLocked);
 }
 async function copyText(text, successMessage) {
@@ -426,11 +426,11 @@ async function copyText(text, successMessage) {
 }
 function formatRoomInvite(invite) {
     if (!invite?.inviteUrl || !invite?.joinCode) return '';
-    const roomName = invite.roomName ? `房间名：${invite.roomName}\n` : '';
-    return `${roomName}邀请链接：${invite.inviteUrl}\n房间码：${invite.joinCode}`;
+    const roomName = invite.roomName ? `${L('房间名', 'Room')}：${invite.roomName}\n` : '';
+    return `${roomName}${L('邀请链接', 'Invite link')}：${invite.inviteUrl}\n${L('房间码', 'Room code')}：${invite.joinCode}`;
 }
 function copyRoomInvite() {
-    copyText(formatRoomInvite(roomInviteInfo), '邀请信息已复制');
+    copyText(formatRoomInvite(roomInviteInfo), L('邀请信息已复制', 'Invite copied'));
 }
 function toggleEntryLock() {
     if (!socket || !roomInviteInfo) return;

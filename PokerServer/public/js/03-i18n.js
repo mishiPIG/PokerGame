@@ -50,6 +50,9 @@ const I18N = {
         'stats.title': '当前战绩', 'stats.name': '昵称', 'stats.buyin': '带入', 'stats.hands': '手数', 'stats.net': '战绩', 'hist.title': '本局牌谱',
         'prof.title': '👤 个人主页', 'prof.info': '资料', 'prof.stats': '生涯战绩', 'prof.hands': '牌谱', 'prof.avatar': '头像',
         'filter.all': '全部', 'filter.cash': '现金桌', 'filter.sng': 'SNG',
+        'inv.title': '🔗 邀请朋友加入', 'inv.note': '复制后直接发送给朋友；可点链接加入，跨设备时也可输入房间码。', 'inv.loading': '正在获取邀请信息…',
+        'inv.label': '邀请信息', 'inv.copy': '一键复制', 'inv.open': '🔓 开放入场', 'inv.reset': '↻ 重置邀请', 'inv.close': '关闭',
+        'edge.stats': '战绩', 'edge.hands': '牌谱',
     },
     en: {
         'brand.tagline': 'Poker Dojo · Play with friends · Grow together',
@@ -99,6 +102,9 @@ const I18N = {
         'stats.title': 'Standings', 'stats.name': 'Name', 'stats.buyin': 'Buy-in', 'stats.hands': 'Hands', 'stats.net': 'P/L', 'hist.title': 'This game',
         'prof.title': '👤 Profile', 'prof.info': 'Info', 'prof.stats': 'Career', 'prof.hands': 'Hands', 'prof.avatar': 'Avatar',
         'filter.all': 'All', 'filter.cash': 'Cash', 'filter.sng': 'SNG',
+        'inv.title': '🔗 Invite friends', 'inv.note': 'Copy and send to a friend; they can tap the link, or type the room code across devices.', 'inv.loading': 'Getting invite info…',
+        'inv.label': 'Invite', 'inv.copy': 'Copy', 'inv.open': '🔓 Open entry', 'inv.reset': '↻ Reset invite', 'inv.close': 'Close',
+        'edge.stats': 'Stats', 'edge.hands': 'Hands',
     },
 };
 let lang = (() => { try { return localStorage.getItem('lang') || (String(navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'zh'); } catch { return 'zh'; } })();
