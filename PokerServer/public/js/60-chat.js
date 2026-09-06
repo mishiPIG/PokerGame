@@ -1,5 +1,5 @@
 // ===== 聊天 + 表情 (B) =====
-const QUICK_PHRASES = [
+const QUICK_PHRASES_ZH = [
     '少一些套路，多一些真诚',
     '搏一搏，单车变摩托',
     '我不偷鸡，但绝对不要偷我鸡！',
@@ -13,6 +13,22 @@ const QUICK_PHRASES = [
     '撑死胆大的！饿死胆小的！其实结果都一样！',
     '论成败人生豪迈，大不了从头再来！'
 ];
+// 英文版：不是直译，是对应意境的扑克梗（英文用户点了就发英文）
+const QUICK_PHRASES_EN = [
+    'Less tricks, more honest poker',
+    'Go big or go home 🏍️',
+    "I don't bluff — but don't try to bluff me!",
+    'Chasing royals with 7-2 energy',
+    'Any day now… ⏳',
+    "Scared money don't make money",
+    'Folding now, shoving later 🚀',
+    'Real pros fold aces… right?',
+    "Can't spot the fish? It's you 🐟",
+    "No offense — you're all fish 🐟",
+    'Bold or timid, we all bust 😅',
+    'Win or lose — rebuy and run it back'
+];
+function curPhrases() { return lang === 'en' ? QUICK_PHRASES_EN : QUICK_PHRASES_ZH; }
 // 表情集：把玩家实际最常用的排在前面（送花/干杯/拇指/狗屎），并补上德州梗。
 // 🎣 = 叉鱼/捕鱼（"在座各位都是鱼"），🦈 = 鲨鱼（高手），🍀 = 运气，💰 = 收钱，🧊 = 冷静/慢玩
 const EMOTES = [
@@ -20,11 +36,10 @@ const EMOTES = [
     '🎣', '🦈', '🍀', '💰', '🧊',               // 德州梗
     '😂', '😎', '😡', '😭', '🤔', '🎉', '👏', '🤡', '💪'
 ];
-let chatBuilt = false;
 function buildChatBars() {
-    if (chatBuilt) return; chatBuilt = true;
-    // 表情已移到「点头像」发送，聊天面板不再放表情行；只保留常用语（折叠 + 可滚动）
-    document.getElementById('chat-phrases').innerHTML = QUICK_PHRASES.map(p => `<button class="phrase-btn" onclick="sendPhrase('${p.replace(/'/g, "\\'")}')">${p}</button>`).join('');
+    // 表情已移到「点头像」发送，聊天面板不再放表情行；只保留常用语（折叠 + 可滚动）。
+    // 每次重建（不再用 chatBuilt 一次性守卫）——这样切语言后常用语也跟着换。
+    document.getElementById('chat-phrases').innerHTML = curPhrases().map(p => `<button class="phrase-btn" onclick="sendPhrase('${p.replace(/'/g, "\\'")}')">${p}</button>`).join('');
 }
 function togglePhrases() {
     const el = document.getElementById('chat-phrases');

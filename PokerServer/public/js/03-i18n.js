@@ -146,6 +146,7 @@ function setLang(l) {
     try { if (typeof lastState !== 'undefined' && lastState && typeof render === 'function') render(lastState); } catch {}
     try { if (window._lastRooms && typeof renderRoomList === 'function') renderRoomList(window._lastRooms); } catch {}
     try { if (document.getElementById('settings-overlay')?.style.display === 'flex' && typeof buildSettingsPanel === 'function') buildSettingsPanel(); } catch {}
+    try { if (typeof buildChatBars === 'function') buildChatBars(); } catch {}   // 快捷聊天语随语言切换
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyLang);
 else applyLang();
