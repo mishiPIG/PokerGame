@@ -7,9 +7,9 @@ function formatInboxText(text) {
     for (const raw of lines) {
         const line = raw.trim();
         if (!line) { html += '<div class="ib-gap"></div>'; continue; }
-        const esc = escapeHtml(line);
+        const esc = escapeHtml(inboxTextL(line));   // 检测用原文 line，显示用译文
         if (first) { html += `<div class="ib-title">${esc}</div>`; first = false; continue; }
-        if (/^——.*——$/.test(line)) { html += `<div class="ib-sec">${escapeHtml(line.replace(/——/g, '').trim())}</div>`; continue; }
+        if (/^——.*——$/.test(line)) { html += `<div class="ib-sec">${escapeHtml(inboxTextL(line).replace(/——/g, '').trim())}</div>`; continue; }
         if (/^你第/.test(line)) {                       // 我自己的名次/盈亏：高亮成一条
             const cls = /盈亏 -/.test(line) ? 'lose' : 'win';
             html += `<div class="ib-mine ${cls}">${esc}</div>`; continue;
@@ -17,7 +17,7 @@ function formatInboxText(text) {
         if (/^[🥇🥈🥉]/.test(line)) { html += `<div class="ib-award">${esc}</div>`; continue; }
         const rank = line.match(/^(\d+)\.\s*(.*)$/);     // 排名行：序号单独成块
         if (rank) {
-            html += `<div class="ib-rank"><span class="ib-no">${rank[1]}</span><span>${escapeHtml(rank[2])}</span></div>`;
+            html += `<div class="ib-rank"><span class="ib-no">${rank[1]}</span><span>${escapeHtml(inboxTextL(rank[2]))}</span></div>`;
             continue;
         }
         html += `<div class="ib-line">${esc}</div>`;

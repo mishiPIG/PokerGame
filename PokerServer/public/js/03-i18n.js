@@ -134,8 +134,23 @@ function handCat(c) { return (lang === 'en' && HAND_CAT_EN[c]) ? HAND_CAT_EN[c] 
 // 结算面板的单位（服务端发中文）→ 英文
 function unitL(u) { return lang === 'en' ? ({ '筹码': 'chips', '金币': 'coins' }[u] || u) : u; }
 // 结算标题里服务端拼的「原因」后缀（房间名在【】内，保持不动）→ 英文（固定小集合）
-const MATCH_REASON_EN = { '房主提前结束': 'Host ended early', '比赛结束': 'Game over', '管理员解散': 'Dissolved by admin', '训练时间到': 'Session time up', '到时结算': 'Settled at time' };
+const MATCH_REASON_EN = {
+    '训练时长已到（5 分钟无人处理，自动结算）': 'Session time up (auto-settled after 5 min)',
+    '房主提前结束': 'Host ended early', '比赛结束': 'Game over', '管理员解散': 'Dissolved by admin',
+    '房间空置已关闭': 'Closed (empty room)', '恢复未完成结算': 'Recovered settlement',
+};
 function matchTitleL(tt) { if (lang !== 'en' || !tt) return tt; let s = tt; for (const k in MATCH_REASON_EN) s = s.split(k).join(MATCH_REASON_EN[k]); return s; }
+// 收件箱结算消息（服务端固定模板拼的整段中文，含历史消息）→ 英文。按行调用，检测靠原文、显示用译文。
+function inboxTextL(line) {
+    if (lang !== 'en' || !line) return line;
+    let s = matchTitleL(line);
+    return s
+        .replace(/你第 /g, 'You placed #').replace(/ 名，盈亏 /g, ', P/L ').replace(/，共打 /g, ', played ').replace(/ 手/g, ' hands')
+        .replace(/—— 本场称号 ——/g, '—— Awards ——').replace(/—— 完整排名 ——/g, '—— Full ranking ——')
+        .replace(/🥇 老板：/g, '🥇 Boss: ').replace(/🥈 MVP：/g, '🥈 MVP: ').replace(/🥉 力工：/g, '🥉 Grinder: ')
+        .replace(/🥇老板/g, '🥇Boss').replace(/🥉力工/g, '🥉Grinder')
+        .replace(/筹码/g, 'chips').replace(/金币/g, 'coins');
+}
 function applyLang() {
     try { document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN'; } catch {}
     document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.getAttribute('data-i18n'), null); if (v != null) el.textContent = v; });
