@@ -218,8 +218,8 @@ function renderPodium(awards) {
     };
     // 视觉顺序：银(左) 金(中) 铜(右)，符合领奖台直觉
     box.innerHTML =
-        cell(awards.mvp, 'silver', '🥈', 'MVP', `+${(awards.mvp?.net || 0).toLocaleString()} ${awards.mvp?.unit || ''}`)
-        + cell(awards.boss, 'gold', '🥇', L('老板', 'Boss'), `${(awards.boss?.net || 0).toLocaleString()} ${awards.boss?.unit || ''}`)
+        cell(awards.mvp, 'silver', '🥈', 'MVP', `+${(awards.mvp?.net || 0).toLocaleString()} ${unitL(awards.mvp?.unit || '')}`)
+        + cell(awards.boss, 'gold', '🥇', L('老板', 'Boss'), `${(awards.boss?.net || 0).toLocaleString()} ${unitL(awards.boss?.unit || '')}`)
         + cell(awards.worker, 'bronze', '🥉', L('力工', 'Grinder'), `${awards.worker?.handsPlayed || 0} ${L('手', 'hands')}`);
 }
 

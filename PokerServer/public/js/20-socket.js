@@ -108,10 +108,10 @@ function connectSocket(token) {
     socket.on('match_result', ({ title, ranking, awards }) => {
         setTimeout(() => {
             const me = (ranking || []).find(r => r.userId === myUserId);
-            document.getElementById('result-title').textContent = title || L('比赛结束', 'Game over');
+            document.getElementById('result-title').textContent = matchTitleL(title) || L('比赛结束', 'Game over');
             document.getElementById('result-sub').innerHTML = me
-                ? L(`你排名 <b>第 ${me.rank}</b> / ${ranking.length}，盈亏 <b>${me.net >= 0 ? '+' : ''}${me.net}</b> ${me.unit}，共打 <b>${me.handsPlayed || 0}</b> 手`,
-                    `You placed <b>#${me.rank}</b> / ${ranking.length}, P/L <b>${me.net >= 0 ? '+' : ''}${me.net}</b> ${me.unit}, played <b>${me.handsPlayed || 0}</b> hands`)
+                ? L(`你排名 <b>第 ${me.rank}</b> / ${ranking.length}，盈亏 <b>${me.net >= 0 ? '+' : ''}${me.net}</b> ${unitL(me.unit)}，共打 <b>${me.handsPlayed || 0}</b> 手`,
+                    `You placed <b>#${me.rank}</b> / ${ranking.length}, P/L <b>${me.net >= 0 ? '+' : ''}${me.net}</b> ${unitL(me.unit)}, played <b>${me.handsPlayed || 0}</b> hands`)
                 : '';
             renderPodium(awards);
             document.getElementById('result-ranking').innerHTML = (ranking || []).map(r =>
@@ -119,7 +119,7 @@ function connectSocket(token) {
                     <span class="rk-no">${r.rank}</span>
                     <span class="rk-name">${escapeHtml(r.displayName || r.username)}${awardTags(awards, r.userId)}</span>
                     <span class="rk-hands">${r.handsPlayed || 0} ${L('手', 'hands')}</span>
-                    <span class="rk-net" style="color:${r.net >= 0 ? '#4ade80' : '#f87171'}">${r.net >= 0 ? '+' : ''}${r.net} ${r.unit}</span>
+                    <span class="rk-net" style="color:${r.net >= 0 ? '#4ade80' : '#f87171'}">${r.net >= 0 ? '+' : ''}${r.net} ${unitL(r.unit)}</span>
                 </div>`).join('');
             document.getElementById('result-overlay').style.display = 'flex';
             if (me && me.rank === 1) sndWin();

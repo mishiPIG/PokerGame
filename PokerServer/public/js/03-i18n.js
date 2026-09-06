@@ -131,6 +131,11 @@ function L(zh, en) { return (lang === 'en' && en != null) ? en : zh; }
 // 牌型名（服务端发的是中文，固定 10 种）→ 英文映射
 const HAND_CAT_EN = { '皇家同花顺': 'Royal Flush', '同花顺': 'Straight Flush', '四条': 'Four of a Kind', '葫芦': 'Full House', '同花': 'Flush', '顺子': 'Straight', '三条': 'Three of a Kind', '两对': 'Two Pair', '一对': 'One Pair', '高牌': 'High Card' };
 function handCat(c) { return (lang === 'en' && HAND_CAT_EN[c]) ? HAND_CAT_EN[c] : (c || ''); }
+// 结算面板的单位（服务端发中文）→ 英文
+function unitL(u) { return lang === 'en' ? ({ '筹码': 'chips', '金币': 'coins' }[u] || u) : u; }
+// 结算标题里服务端拼的「原因」后缀（房间名在【】内，保持不动）→ 英文（固定小集合）
+const MATCH_REASON_EN = { '房主提前结束': 'Host ended early', '比赛结束': 'Game over', '管理员解散': 'Dissolved by admin', '训练时间到': 'Session time up', '到时结算': 'Settled at time' };
+function matchTitleL(tt) { if (lang !== 'en' || !tt) return tt; let s = tt; for (const k in MATCH_REASON_EN) s = s.split(k).join(MATCH_REASON_EN[k]); return s; }
 function applyLang() {
     try { document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN'; } catch {}
     document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.getAttribute('data-i18n'), null); if (v != null) el.textContent = v; });
