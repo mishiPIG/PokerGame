@@ -202,7 +202,11 @@ Android / iOS / PC
 >
 > **📌 2026-09-06 更新（1.3.0 已上香港生产）**：本轮完成并上生产 —— **#3 音效分场景** ✅、**#4 发牌逐张翻出** ✅、**#10 中英文切换** ✅（part1/2/3 全做完，含创建表单/牌桌/行动按钮/结算/颁奖台/收件箱结算消息/12 条聊天梗英文版；`t()` 空串回退 bug 已修；服务端发的单位「筹码/金币」与标题原因在客户端映射掉。**唯一不译：管理面板 `90-admin.js`（用户说不做）+ 房间名（房主自输内容）**）。**故 #3/#4/#10 视为完成。** 剩余见下（#1、2、5、6、7、8②、9、11、12）。
 > **✅ 恢复快照排查结论（2026-09-06，之前的"空快照"是误报）**：进行中的局**每次 `broadcastState` 都写快照**（`state-presenter.js` → `game-persistence-service` → `match-repository` INSERT `active_match_states`）。上线时我查到"空"是**查询列名写错**（写了 `updated_at`，实际是 `updated_at_ms`，`2>/dev/null` 吞了报错）。**底线安全，重启能恢复，没有洞。**
-> **🐛 待办（低优先，2026-09-06 用户实拍）：全员掉线的 SNG 空转不结束**。根因：`canPlay(p)=chips>0 && !sittingOut` **没算 `away`（掉线）** → 两个掉线玩家仍算 live，heads-up 互交盲注谁也不快速破产 → 一直发牌+涨盲，房间不自我了结（僵尸局空耗，但**不丢数据**：快照照写、能恢复、手动解散正常）。修法方向：全员 `away` 持续一段时间就暂停发牌 / 自动收桌（类似现金桌 `scheduleEmptyCleanup` 的思路，但要处理"有筹码但没人连着"）。
+> **✅ 已修（2026-09-06）：僵尸局——全员掉线还一直空转发牌/涨盲**。用户实拍：两人开了 SNG 后都退出，牌局一直发牌涨盲不结束，只能手动解散。
+> - **根因**：`canPlay(p)=chips>0 && !sittingOut` **没算 `away`（掉线）** → 掉线玩家仍算 live，`scheduleNextHand` 只看 `liveCount>=2` 就继续开新一手；heads-up 两人互交盲注谁也不快速破产 → 无限空转。
+> - **修 ①（停空转）**：`scheduleNextHand` / `restoreNextHandTimer` 增加 `connectedLive = players.filter(chips>0 && !sittingOut && !away).length` 守卫——**全员掉线就不再发牌**（停在 SHOWDOWN），有人重连即续。重连恢复分支从「仅 cash」放宽到 **cash+sng**（否则 SNG 暂停后重连不会续局）。重启恢复同样受益：`game-hydrator` 本来就把恢复出来的玩家标成 `away:true`，所以重启后没人连也不会空转。
+> - **修 ②（自动解散，用户提的）**：**掉线也挂空房清理**（原来只在主动退出时挂）——`disconnect` 里调 `scheduleEmptyCleanup`，3 分钟宽限**到点再查 `io` 房间还有没有连接**：**只要还有任何人连着就直接不解散**（用户强调的"绝不能把还有人在玩的房解散"由这道 fire-time 复查保证），并且**重连时清掉该计时**（membership-service），playing 中的房不残留待解散计时。全员离线到点才按房型结算：现金→`endCashTable`（筹码兑回金币）、**SNG→`dissolveNow` 路由到 `dissolveSngRoom`**（原来 `scheduleEmptyCleanup` 对 SNG 会误用现金结算，一并修了）。宽限支持 `EMPTY_GRACE_MS` env 覆盖（仅为测试）。
+> - **验证**（`zombie.js`）：①正常发牌 ②全员掉线后手数不再增长（停空转）③**有观众连着时绝不解散** ④重连后恢复发牌 ⑤真·全员离线到点自动解散（事后 join 不进、也不在大厅列表）——全通；standflow/hostfeat/sngdiss/sngleave/sidepot/adminroom 回归全通。（`reconnect.js` 失败是**过期测试**：BASE 指向测试服、且用 `join_room` 让第二人入座，早已改为「下场必须用房间码」。）
 
 **玩法**
 1. **房主中途修改盲注（需全体同意）** —— 牌局进行中房主发起改盲注 → 所有在座玩家同意才生效（下一手起）。

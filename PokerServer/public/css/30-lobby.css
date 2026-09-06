@@ -148,15 +148,22 @@
         .rc-tag.cash { background: rgba(6,214,160,0.18); color: #06d6a0; }
         #create-form button.confirm { background: #06d6a0; color: #0a1f1a; }
         #create-form button.cancel  { background: rgba(255,255,255,0.12); }
-        .room-list-title { font-size: 14px; color: #9bb; margin: 8px 0; }
+        .room-list-title { font-size: 14px; color: #a8c4b6; margin: 8px 0; letter-spacing: 0.3px; }
         .room-card {
-            display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+            display: flex; align-items: center; gap: 12px;
+            background: linear-gradient(160deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+            border: 1px solid rgba(255,255,255,0.12); border-radius: 11px; padding: 12px 14px; margin-bottom: 9px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+            transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+        }
+        .room-card:hover {
+            transform: translateY(-2px); border-color: rgba(255,255,255,0.22);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
         }
         .rc-main { flex: 1; }
         .rc-name { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
-        .rc-meta { font-size: 12px; color: #9bb; }
-        .rc-owner { color: #cde; margin-right: 6px; }
+        .rc-meta { font-size: 12px; color: #a8c4b6; }
+        .rc-owner { color: #cfe3d7; margin-right: 6px; }
         .rc-tag { background: rgba(244,211,94,0.18); color: #f4d35e; padding: 1px 7px; border-radius: 8px; margin-right: 6px; }
         .rc-join { min-width: 72px; }
         .rc-join:disabled { opacity: 0.4; cursor: not-allowed; }

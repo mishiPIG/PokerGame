@@ -31,6 +31,8 @@ function createMembershipService({ io, runtime, tableService, config }) {
         if (existing) {
             existing.socketId = socket.id;
             existing.away = false;
+            // 人回来了 → 撤掉「全员离线自动解散」的待执行计时，避免还在玩的房残留待解散状态
+            if (game.emptyCleanupTimer) { clearTimeout(game.emptyCleanupTimer); game.emptyCleanupTimer = null; }
             if (existing.reserveTimer) { clearTimeout(existing.reserveTimer); existing.reserveTimer = null; }
             if (existing.reserved || existing.standing) {
                 existing.reserved = false; existing.standing = false;
@@ -47,9 +49,9 @@ function createMembershipService({ io, runtime, tableService, config }) {
             if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN
                 && game.actionOnIdx >= 0 && game.players[game.actionOnIdx]?.userId === user.id) {
                 startActionTimer(roomId);
-            } else if (game.roomType === 'cash' && game.status === 'running' && !existing.sittingOut
+            } else if ((game.roomType === 'cash' || game.roomType === 'sng') && game.status === 'running' && !existing.sittingOut
                 && (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) && liveCount(game) >= 2) {
-                scheduleNextHand(roomId);
+                scheduleNextHand(roomId);   // 续局（含：全员掉线暂停后，有人重连即恢复发牌；SNG 也适用）
             }
             broadcastState(roomId);
             emitStraddleOffer(game, socket);

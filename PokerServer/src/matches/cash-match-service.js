@@ -122,7 +122,7 @@ function endCashTable(roomId, reason) {
 const { scheduleEmptyCleanup } = createRoomLifecycle({
     io,
     roomGames,
-    hooks: { endCashTable, clearActionTimer, broadcastRoomList, finishRoom: persistence.finish }
+    hooks: { endCashTable, clearActionTimer, broadcastRoomList, finishRoom: persistence.finish, dissolveNow: hooks.dissolveNow }
 });
 
 // 一局结束后自动开下一局（SNG/现金桌进行中，无需重新准备）
@@ -147,8 +147,10 @@ function scheduleNextHand(roomId) {
         if (g.pendingEnd) { endCashTable(roomId, '训练时长已到（5 分钟无人处理，自动结算）'); return; }
         if (g.timeExpired) { io.in(roomId).emit('server_msg', '⏸️ 训练时间已到，等待房主加时或结束比赛'); broadcastState(roomId); return; }
         if (g.paused) { io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（本手结束）'); broadcastState(roomId); return; }
-        if (liveCount(g) >= 2) startHand(roomId);
-        else broadcastState(roomId);   // 人不够：停摆，等补码/坐下（坐出状态已标记）
+        // 全员掉线（都 away）时不再空转发牌——否则会一直发牌+涨盲、僵尸局空耗。有人重连即续（见 membership 重连分支）。
+        const connectedLive = g.players.filter(p => p.chips > 0 && !p.sittingOut && !p.away).length;
+        if (liveCount(g) >= 2 && connectedLive >= 1) startHand(roomId);
+        else broadcastState(roomId);   // 人不够 / 全员掉线：停摆，等补码/坐下/重连
     }, 5000);
     persistence.commit(roomId, 'next_hand_scheduled', null, { nextHandAt: game.nextHandAt });
 }
@@ -164,8 +166,9 @@ function restoreNextHandTimer(roomId) {
         if (g.pendingDissolve) { hooks.dissolveNow(roomId); return; }
         if (g.timeExpired) { broadcastState(roomId); return; }
         if (g.paused) { broadcastState(roomId); return; }
-        if (liveCount(g) >= 2) startHand(roomId);
-        else broadcastState(roomId);
+        const connectedLive = g.players.filter(p => p.chips > 0 && !p.sittingOut && !p.away).length;
+        if (liveCount(g) >= 2 && connectedLive >= 1) startHand(roomId);
+        else broadcastState(roomId);   // 全员掉线不空转（重启恢复同理）
     }, Math.max(0, game.nextHandAt - Date.now()));
 }
 

@@ -5,7 +5,7 @@ function registerDisconnectEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
     const { PHASES, STANDARD_BLIND_LEVELS, SNG_BUYIN_TIERS, BUYIN_RATE, CASHOUT_RATE, RUNIT_MAX, EXTRA_MAX, EXTRA_STEP, ACTION_TIME, gameBB, sngPrize } = config;
     const { roomGames, lobbySockets } = runtime;
-    const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction } = tableService;
+    const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, scheduleEmptyCleanup, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction } = tableService;
     socket.on('disconnect', () => {
         console.log(`[-] ${user.username} 下线`);
         lobbySockets.delete(socket.id);
@@ -31,6 +31,11 @@ function registerDisconnectEvents(context) {
         //  · 若没轮到他：留在本局，等轮到他时 startActionTimer 见 away 走快速超时自动处理。
         // 重连(join_room)会把 away 置回 false 并（若轮到他）重启计时。
         broadcastState(roomId);
+        // 掉线也挂上「空房清理」计时（原来只在主动退出时挂）：3 分钟宽限后【到点再查】房里还有没有连接，
+        // ⚠️ 只要还有任何人连着就直接不解散——所以绝不会把「还有人在玩」的房解散掉；
+        // 只有全员离线且到点仍无人回来，才按房型自动结算/解散（现金=筹码兑回金币，SNG=奖池给领先者）。
+        // 重连时会清掉这个计时（见 membership-service），playing 中的房不会残留待解散计时。
+        scheduleEmptyCleanup(roomId);
     });
 }
 
