@@ -1,15 +1,41 @@
         /* ===== Auth overlay ===== */
+        /* 登录页「场」：道场深绿渐变底 + 缓慢漂移柔光 + 淡绿呢纹理 + 暗角（与开场 splash 同色系 #2f4a3e）*/
         #auth-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.92);
-            display: flex; align-items: center; justify-content: center; z-index: 200;
+            position: fixed; inset: 0; z-index: 200; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            background: radial-gradient(ellipse 120% 85% at 50% 32%, #3a5c4b 0%, #2a4238 46%, #182821 100%);
         }
+        #auth-overlay::before {   /* 两团缓慢漂移的柔光，像远处灯笼，给纵深感 */
+            content: ''; position: absolute; inset: -20%; pointer-events: none;
+            background:
+                radial-gradient(circle at 30% 26%, rgba(122,230,166,0.10), transparent 40%),
+                radial-gradient(circle at 72% 72%, rgba(244,211,94,0.07), transparent 42%);
+            animation: authDrift 16s ease-in-out infinite alternate;
+        }
+        #auth-overlay::after {    /* 极淡绿呢斜纹 + 暗角，压住四周聚焦中心 */
+            content: ''; position: absolute; inset: 0; pointer-events: none;
+            background:
+                repeating-linear-gradient(135deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 6px),
+                radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,0.5) 100%);
+        }
+        @keyframes authDrift { from { transform: translate(-3%,-2%) scale(1.05); } to { transform: translate(3%,2%) scale(1.12); } }
+        @media (prefers-reduced-motion: reduce) { #auth-overlay::before { animation: none; } }
         #auth-box {
-            background: #1a2a3a; border: 1px solid rgba(255,255,255,0.1);
+            position: relative; z-index: 1;
+            background: linear-gradient(165deg, rgba(30,50,41,0.96), rgba(18,30,25,0.97));
+            border: 1px solid rgba(244,211,94,0.18);
             border-radius: 16px; padding: 32px; width: 340px;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+            animation: authBoxIn 0.55s cubic-bezier(0.22,1,0.36,1) both;
         }
+        @keyframes authBoxIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
         #auth-box h1 { text-align: center; color: #f4d35e; margin-bottom: 4px; font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 10px; }
-        .auth-logo { width: 44px; height: 44px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.4); vertical-align: middle; }
-        .auth-sub { text-align: center; color: #8fa2c4; font-size: 12px; margin-bottom: 20px; letter-spacing: 0.5px; }
+        .auth-logo { width: 44px; height: 44px; border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.4), 0 0 18px rgba(244,211,94,0.28); vertical-align: middle;
+            animation: authLogoIn 0.7s cubic-bezier(0.22,1,0.36,1) 0.08s both; }
+        @keyframes authLogoIn { from { opacity: 0; transform: scale(0.72) translateY(6px); } to { opacity: 1; transform: none; } }
+        .auth-sub { text-align: center; color: #9db9a9; font-size: 12px; margin-bottom: 20px; letter-spacing: 0.5px;
+            animation: authBoxIn 0.6s ease 0.14s both; }
         .auth-tabs { display: flex; margin-bottom: 20px; border-radius: 8px; overflow: hidden; }
         .auth-tab {
             flex: 1; padding: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: bold;
