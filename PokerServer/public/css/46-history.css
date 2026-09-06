@@ -1,7 +1,9 @@
         /* ===== 侧栏面板（战绩 / 牌谱）===== */
+        /* 侧栏（收件箱/战绩/牌谱共用）：跟随道场绿主色，和结算面板、大厅同一套 */
         .side-panel { position: fixed; top: 0; left: 0; bottom: 0; width: 84%; max-width: 380px; z-index: 180;
-            background: linear-gradient(160deg,#1b2740,#0e1626); color: #e7eefb; padding: 16px;
-            box-shadow: 6px 0 30px rgba(0,0,0,0.5); overflow-y: auto; }
+            background: linear-gradient(160deg,#22392e,#12201a); color: #eaf3ee; padding: 16px;
+            border-right: 1px solid rgba(244,211,94,0.14);
+            box-shadow: 6px 0 34px rgba(0,0,0,0.55); overflow-y: auto; }
         .sp-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; font-size: 17px; }
         .sp-head button { background: none; border: none; color: #9fb0cc; font-size: 20px; cursor: pointer; }
         .sp-table { width: 100%; border-collapse: collapse; font-size: 13px; }

@@ -210,29 +210,38 @@
         .tier-btn.sel small { opacity: 0.85; }
 
         /* ===== 比赛结算 ===== */
+        /* 结算面板：每局收尾都会看到 —— 用道场绿氛围底 + 金色仪式感，和登录页/大厅同一套视觉 */
         #result-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 150;
+            position: fixed; inset: 0; z-index: 150; overflow: hidden;
             display: flex; align-items: center; justify-content: center; padding: 20px;
+            background: radial-gradient(ellipse 110% 80% at 50% 34%, rgba(58,92,75,0.93) 0%, rgba(26,42,35,0.95) 45%, rgba(10,18,15,0.96) 100%);
         }
         .result-box {
-            background: linear-gradient(160deg, #1e3550, #142336); border: 1px solid rgba(244,211,94,0.4);
+            position: relative;
+            background: linear-gradient(160deg, #22392e, #16261f); border: 1px solid rgba(244,211,94,0.45);
             border-radius: 18px; padding: 28px 32px; text-align: center; max-width: 320px; width: 100%;
-            box-shadow: 0 16px 50px rgba(0,0,0,0.6);
+            box-shadow: 0 20px 56px rgba(0,0,0,0.62), inset 0 1px 0 rgba(255,255,255,0.06);
+            animation: resultIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
         }
-        .result-trophy { font-size: 56px; animation: trophyPop 0.5s cubic-bezier(0.22,1,0.36,1) backwards; }
+        @keyframes resultIn { from { opacity: 0; transform: translateY(18px) scale(0.96); } to { opacity: 1; transform: none; } }
+        .result-trophy { font-size: 56px; filter: drop-shadow(0 0 16px rgba(244,211,94,0.55));
+            animation: trophyPop 0.5s cubic-bezier(0.22,1,0.36,1) backwards; }
         @keyframes trophyPop { from { transform: scale(0.3); opacity: 0; } to { transform: none; opacity: 1; } }
-        .result-title { font-size: 22px; font-weight: bold; color: #f4d35e; margin: 10px 0 6px; }
-        .result-sub { font-size: 15px; color: #cde; margin-bottom: 14px; }
+        .result-title { font-size: 22px; font-weight: bold; color: #f4d35e; margin: 10px 0 6px;
+            text-shadow: 0 2px 10px rgba(244,211,94,0.25); }
+        .result-sub { font-size: 15px; color: #cfe3d7; margin-bottom: 14px; }
         .result-sub b { color: #f4d35e; font-size: 18px; }
         #result-ranking { width: 100%; max-width: 320px; margin: 0 auto 18px; max-height: 40vh; overflow-y: auto; }
-        .rk-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px;
-            background: rgba(255,255,255,0.05); margin-bottom: 5px; font-size: 14px; }
-        .rk-row.me { background: rgba(244,211,94,0.15); border: 1px solid rgba(244,211,94,0.4); }
+        .rk-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px;
+            background: linear-gradient(160deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+            border: 1px solid rgba(255,255,255,0.07); margin-bottom: 6px; font-size: 14px; }
+        .rk-row.me { background: linear-gradient(160deg, rgba(244,211,94,0.22), rgba(244,211,94,0.07));
+            border-color: rgba(244,211,94,0.5); box-shadow: 0 0 14px rgba(244,211,94,0.18); }
         .rk-no { width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; background: rgba(255,255,255,0.12);
             display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
         .rk-row:nth-child(1) .rk-no { background: #f4d35e; color: #2a1c00; }
-        .rk-name { flex: 1; text-align: left; color: #e7eefb; }
-        .rk-hands { font-size: 11px; color: #8fa2c4; flex-shrink: 0; }
+        .rk-name { flex: 1; text-align: left; color: #eaf3ee; }
+        .rk-hands { font-size: 11px; color: #9db9a9; flex-shrink: 0; }
         .rk-net { font-weight: bold; }
         .rk-tag { font-size: 10px; padding: 1px 5px; border-radius: 6px; margin-left: 5px; white-space: nowrap;
             background: rgba(244,211,94,0.18); color: #f4d35e; border: 1px solid rgba(244,211,94,0.35); }
@@ -246,6 +255,16 @@
         .pd-item.silver { animation-delay: 0.25s; }
         .pd-item.bronze { animation-delay: 0.40s; }
         @keyframes pdRise { from { opacity: 0; transform: translateY(18px) scale(0.9); } to { opacity: 1; transform: none; } }
+        /* 真正的领奖台阶：金台最高、银次之、铜最矮（容器 align-items:flex-end，所以冠军会被垫高）*/
+        .pd-item::after {
+            content: ''; width: 100%; margin-top: 5px; border-radius: 7px 7px 0 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.15), rgba(255,255,255,0.04));
+            border: 1px solid rgba(255,255,255,0.14); border-bottom: none;
+        }
+        .pd-item.gold::after   { height: 34px; border-color: rgba(244,211,94,0.5);
+            background: linear-gradient(180deg, rgba(244,211,94,0.32), rgba(244,211,94,0.07)); }
+        .pd-item.silver::after { height: 24px; }
+        .pd-item.bronze::after { height: 18px; }
         .pd-medal { font-size: 20px; line-height: 1; }
         .pd-avatar { width: 44px; height: 44px; border-radius: 10px; object-fit: cover;
             background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;
@@ -264,7 +283,10 @@
         .pd-item.gold   .pd-step { height: 26px; background: linear-gradient(180deg,rgba(244,211,94,0.5),rgba(244,211,94,0.12)); }
         .pd-item.silver .pd-step { height: 18px; }
         .pd-item.bronze .pd-step { height: 12px; background: linear-gradient(180deg,rgba(208,139,82,0.45),rgba(208,139,82,0.1)); }
-        .result-btn { background: #f4d35e; color: #1a1a1a; border: none; border-radius: 8px;
-            padding: 11px 28px; font-size: 15px; font-weight: bold; cursor: pointer; }
-        .result-btn:hover { filter: brightness(1.1); }
+        .result-btn { background: linear-gradient(180deg, #f7dd7a, #e5c24a); color: #2a1c00; border: none; border-radius: 10px;
+            padding: 12px 30px; font-size: 15px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 6px 18px rgba(244,211,94,0.28);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
+        .result-btn:hover { filter: brightness(1.06); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(244,211,94,0.38); }
+        .result-btn:active { transform: translateY(0); }
 
