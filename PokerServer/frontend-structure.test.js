@@ -85,6 +85,37 @@ test('index contains no large inline style or application script', () => {
     assert.equal(inlineScripts.length, 0, '应用脚本必须放 public/js/，不要内联进 index.html');
 });
 
+test('缩小牌面必须走 --card-w，或自己显式覆盖 rank/suit 字号', () => {
+    // 🔴 2026-09-09 线上 bug：牌谱回放把牌缩到 24-26px 时只写了 width/height，
+    //    但 rank/suit 字号是 calc(var(--card-w) * 0.62 / 0.6) 算出来的，
+    //    --card-w 仍停留在 :root 的值 ——【电脑宽屏会顶到上限 40px】，
+    //    于是 26px 的牌上顶着 24.8px 的数字，直接撑爆牌面。
+    //    手机上 --card-w 本来就小，所以这个 bug 只在电脑端暴露、肉眼也难发现。
+    // 合法写法只有两种：① 在容器上设 --card-w/--card-h（推荐，见 .hd-hole / .hi-cards）
+    //                   ② 直接写 width，但【同时】显式覆盖 .rank / .suit 字号（见 .cs-preview）
+    const files = fs.readdirSync(CSS_DIR).filter(f => f.endsWith('.css'));
+    const offenders = [];
+    for (const file of files) {
+        const text = fs.readFileSync(path.join(CSS_DIR, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+        for (const m of text.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+            const selector = m[1].trim().split('\n').pop().trim();
+            if (!/\.card\b/.test(selector)) continue;
+            if (!/\bwidth:\s*\d+px/.test(m[2])) continue;
+            const prefix = selector.split('.card')[0].trim();
+            // 合法情形 ①：容器自己设了 --card-w（字号就会跟着对）
+            const varAt = prefix ? text.indexOf(prefix + ' {') : -1;
+            const containerSetsVar = varAt >= 0 && /--card-w/.test(text.slice(varAt, varAt + 200));
+            // 合法情形 ②：显式覆盖了 rank 字号
+            const marker = prefix ? prefix + ' .card .rank' : '.card .rank';
+            const at = text.indexOf(marker);
+            const declaresRank = at >= 0 && /font-size/.test(text.slice(at, at + 120));
+            if (!containerSetsVar && !declaresRank) offenders.push(file + '  ' + selector);
+        }
+    }
+    assert.deepEqual(offenders, [],
+        '这些规则把牌缩小了却没设 --card-w、也没覆盖 rank/suit 字号 —— 电脑端字会撑爆牌面');
+});
+
 test('state module owns data only and does not manipulate the DOM', () => {
     const state = source('00-state.js');
     assert.doesNotMatch(state, /\bdocument\b/);
