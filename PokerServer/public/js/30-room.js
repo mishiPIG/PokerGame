@@ -46,14 +46,14 @@ function showKickedNotice(reason) {
         el = document.createElement('div');
         el.id = 'kicked-overlay';
         el.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;'
-            + 'background:rgba(6,10,18,0.88);padding:24px';
-        el.innerHTML = '<div style="max-width:340px;background:linear-gradient(160deg,#1b2740,#0e1626);color:#e7eefb;'
+            + 'background:rgba(8,18,13,0.9);padding:24px';
+        el.innerHTML = '<div style="max-width:340px;background:linear-gradient(160deg,#22392e,#12201a);color:#eaf3ee;'
             + 'border-radius:16px;padding:22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.1)">'
             + '<div style="font-size:34px;margin-bottom:8px">🔒</div>'
             + '<div style="font-size:16px;font-weight:bold;margin-bottom:8px">此页面已断开</div>'
-            + '<div id="kicked-reason" style="font-size:13px;color:#9fb4d6;line-height:1.6;margin-bottom:16px"></div>'
+            + '<div id="kicked-reason" style="font-size:13px;color:#9db9a9;line-height:1.6;margin-bottom:16px"></div>'
             + '<button onclick="location.reload()" style="width:100%;padding:11px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:bold;'
-            + 'background:rgba(120,160,220,0.25);border:1px solid rgba(120,160,220,0.6);color:#eaf1fb">在此页面继续（刷新）</button></div>';
+            + 'background:rgba(6,214,160,0.22);border:1px solid rgba(6,214,160,0.55);color:#eaf3ee">在此页面继续（刷新）</button></div>';
         document.body.appendChild(el);
     }
     document.getElementById('kicked-reason').textContent =
@@ -228,8 +228,12 @@ function toast(msg, ms = 2600) {
     if (!el) {
         el = document.createElement('div');
         el.id = 'mini-toast';
+        // toast 是唯一「主动告知」的通道（所有 ⚠️ 开头的服务端拒绝都走这里），
+        // 加 aria-live 让读屏能念出来；也是 Play 商店 accessibility scanner 会检查的项。
+        el.setAttribute('aria-live', 'polite');
+        el.setAttribute('role', 'status');
         el.style.cssText = 'position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:9998;max-width:82%;'
-            + 'background:rgba(18,27,43,0.96);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;line-height:1.4;'
+            + 'background:rgba(20,34,27,0.96);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;line-height:1.4;'
             + 'text-align:center;box-shadow:0 6px 22px rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.15);pointer-events:none;';
         document.body.appendChild(el);
     }

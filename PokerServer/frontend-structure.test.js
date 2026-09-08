@@ -24,6 +24,7 @@ const EXPECTED_SCRIPTS = [
     '60-chat.js',
     '61-voice.js',
     '70-actions.js',
+    '71-hotkeys.js',
     '80-table-renderer.js',
     '90-admin.js',
     '99-bootstrap.js'

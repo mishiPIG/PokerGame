@@ -229,7 +229,7 @@ function setLayout(mode) {
 }
 // 窗口尺寸变化（电脑拖窗口 / 手机转屏）时，auto 模式要跟着切
 window.addEventListener('resize', () => { if (settings.layout === 'auto') applyLayoutMode(); });
-function openSettings()  { buildSettingsPanel(); document.getElementById('settings-overlay').style.display = 'flex'; }
+function openSettings()  { buildSettingsPanel(); renderHotkeySettings(); document.getElementById('settings-overlay').style.display = 'flex'; }
 function closeSettings() { document.getElementById('settings-overlay').style.display = 'none'; }
 function setAvatar(url) {
     myAvatar = url;

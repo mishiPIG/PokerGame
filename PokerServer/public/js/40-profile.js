@@ -133,7 +133,7 @@ async function submitFeedback() {
     const text = document.getElementById('fb-text').value.trim();
     const msg = document.getElementById('fb-msg');
     if (!text) { msg.style.color = '#f87171'; msg.textContent = L('请先填写反馈内容', 'Please write your feedback first'); return; }
-    msg.style.color = '#8fa2c4'; msg.textContent = L('提交中…', 'Submitting…');
+    msg.style.color = '#9db9a9'; msg.textContent = L('提交中…', 'Submitting…');
     // 自动带上前端构建号：指望玩家自己去设置面板翻版本号复制过来，基本不会发生
     const { ok, data } = await authPostToken('/api/feedback', {
         text,

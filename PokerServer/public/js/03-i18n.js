@@ -25,6 +25,10 @@ const I18N = {
         'settings.quickPost': '翻后快捷加注（底池 %，最多 5 个；最小/All-in 固定）',
         'ph.customBB': '自定义 BB', 'ph.customPct': '自定义 %', 'btn.add': '+ 添加',
         'settings.showBB': '显示 BB', 'settings.sound': '游戏音效',
+        'settings.hotkeys': '⌨️ 键盘快捷键',
+        'settings.hotkeysHint': '点右侧按键可重新绑定。光标在输入框里、或按住 Ctrl/Alt 时不会触发。快捷键只是替你点按钮——按钮不能点时快捷键也不生效。',
+        'settings.hotkeysReset': '恢复默认',
+        'a11y.close': '关闭',
         'btn.fullscreen': '⛶ 全屏', 'btn.leaveRoom': '🚪 退出房间', 'btn.dissolve': '🛑 解散房间', 'btn.logout': '⎋ 退出登录',
         'cfg.sngNote': '初始盲注 25/50 每级递增、淘汰制；冠军赢得奖池', 'cfg.name': '比赛名字', 'cfg.namePh': '不服就推',
         'cfg.buyin': '报名费（冠军奖励）', 'cfg.maxPlayers': '开赛人数：', 'cfg.unitPeople': '人', 'cfg.startStack': '初始记分牌：',
@@ -82,6 +86,10 @@ const I18N = {
         'settings.quickPost': 'Postflop quick raises (% pot, up to 5; Min/All-in fixed)',
         'ph.customBB': 'Custom ×BB', 'ph.customPct': 'Custom %', 'btn.add': '+ Add',
         'settings.showBB': 'Show BB', 'settings.sound': 'Sound effects',
+        'settings.hotkeys': '⌨️ Keyboard shortcuts',
+        'settings.hotkeysHint': 'Click a key to rebind. Never fires while typing in a field, or while Ctrl/Alt is held. A shortcut only clicks the button for you — if the button is unavailable, so is the shortcut.',
+        'settings.hotkeysReset': 'Reset to defaults',
+        'a11y.close': 'Close',
         'btn.fullscreen': '⛶ Fullscreen', 'btn.leaveRoom': '🚪 Leave room', 'btn.dissolve': '🛑 Dissolve room', 'btn.logout': '⎋ Log out',
         'cfg.sngNote': 'Blinds start 25/50 and rise each level; last player standing wins the pool', 'cfg.name': 'Game name', 'cfg.namePh': 'e.g. All-in Club',
         'cfg.buyin': 'Buy-in (winner takes the pool)', 'cfg.maxPlayers': 'Players: ', 'cfg.unitPeople': '', 'cfg.startStack': 'Starting stack: ',
@@ -155,7 +163,13 @@ function applyLang() {
     try { document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN'; } catch {}
     document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.getAttribute('data-i18n'), null); if (v != null) el.textContent = v; });
     document.querySelectorAll('[data-i18n-ph]').forEach(el => { const v = t(el.getAttribute('data-i18n-ph'), null); if (v != null) el.placeholder = v; });
-    document.querySelectorAll('[data-i18n-title]').forEach(el => { const v = t(el.getAttribute('data-i18n-title'), null); if (v != null) el.title = v; });
+    // title 顺带镜像一份 aria-label：顶栏那排按钮全是纯 emoji（🔊 ⛶ 🎁 🐞 📬），
+    // title 只在【电脑悬停】时出现——手机上看不到、读屏软件也不保证会念。
+    // 这样每个已翻译的 title 自动带一个同文案的 aria-label，不用维护第二份。
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const v = t(el.getAttribute('data-i18n-title'), null);
+        if (v != null) { el.title = v; el.setAttribute('aria-label', v); }
+    });
     document.querySelectorAll('[data-lang]').forEach(b => b.classList.toggle('sel', b.getAttribute('data-lang') === lang));
 }
 function setLang(l) {

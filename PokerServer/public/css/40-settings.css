@@ -61,3 +61,17 @@
         .lobby-version:active { color: rgba(255,255,255,0.55); }
         /* 前端与服务端版本对不上 = 本机缓存了旧前端，标黄提示 */
         .lobby-version.stale { color: #e0a33e; }
+
+        /* 键盘快捷键绑定（电脑端）：一行一个动作，右侧按钮显示当前按键、点了进入录制 */
+        .hk-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 2px; }
+        .hk-name { font-size: 13px; color: #dfe9e2; }
+        .hk-key { min-width: 96px; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18);
+            color: #eaf3ee; font-size: 13px; font-weight: bold; font-family: inherit;
+            transition: background 0.15s ease, border-color 0.15s ease; }
+        .hk-key:hover { background: rgba(255,255,255,0.14); }
+        .hk-row.capturing .hk-key { background: rgba(6,214,160,0.18); border-color: #06d6a0; color: #8ff0d0; }
+        /* 撞键时两行都标红——只标新的那行看不出跟谁冲突 */
+        .hk-row.conflict .hk-key { border-color: #ef476f; color: #ff9aa6; }
+        .hk-reset { margin-top: 8px; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: #cbd9d0; }

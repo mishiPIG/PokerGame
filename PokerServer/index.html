@@ -278,7 +278,7 @@
             <div id="pot">💰 底池: 0</div>
             <div id="community"></div>
             <div id="runit-boards" style="display:none"></div>
-            <div id="table-notice" style="display:none"></div>
+            <div id="table-notice" aria-live="polite" role="status" style="display:none"></div>
         </div>
         <!-- 所有座位绝对环形定位（含自己=底部）-->
         <div id="ring-layer"></div>
@@ -357,7 +357,7 @@
 
     <!-- 聊天 + 表情（桌内底部抽屉）-->
     <div id="chat-panel" style="display:none">
-        <div class="chat-head"><b data-i18n="chat.title">💬 聊天</b><button onclick="toggleChat()">✕</button></div>
+        <div class="chat-head"><b data-i18n="chat.title">💬 聊天</b><button onclick="toggleChat()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <div id="chat-list"></div>
         <div class="chat-phrases" id="chat-phrases" style="display:none"></div>
         <div class="chat-input-row">
@@ -386,7 +386,7 @@
 
     <!-- 当前战绩面板 -->
     <div id="stats-panel" class="side-panel" style="display:none">
-        <div class="sp-head"><b data-i18n="stats.title">当前战绩</b><button onclick="closeStats()">✕</button></div>
+        <div class="sp-head"><b data-i18n="stats.title">当前战绩</b><button onclick="closeStats()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <table class="sp-table"><thead><tr><th data-i18n="stats.name">昵称</th><th data-i18n="stats.buyin">带入</th><th data-i18n="stats.hands">手数</th><th data-i18n="stats.net">战绩</th></tr></thead>
             <tbody id="stats-body"></tbody></table>
         <div class="sp-spec"><b id="spec-count">观众 (0)</b><div id="spec-list"></div></div>
@@ -394,7 +394,7 @@
 
     <!-- 牌谱回顾面板 -->
     <div id="history-panel" class="side-panel" style="display:none">
-        <div class="sp-head"><b data-i18n="hist.title">本局牌谱</b><button onclick="closeHistory()">✕</button></div>
+        <div class="sp-head"><b data-i18n="hist.title">本局牌谱</b><button onclick="closeHistory()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <div id="history-list"></div>
     </div>
 
@@ -437,14 +437,14 @@
 
 <!-- 消息收件箱（放在 table-view 外，大厅也能开）-->
 <div id="inbox-panel" class="side-panel" style="display:none">
-    <div class="sp-head"><b data-i18n="inbox.title">📬 消息</b><button onclick="closeInbox()">✕</button></div>
+    <div class="sp-head"><b data-i18n="inbox.title">📬 消息</b><button onclick="closeInbox()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
     <div id="inbox-list"></div>
 </div>
 
 <!-- 每日签到 -->
 <div id="checkin-overlay" class="c-overlay" style="display:none" onclick="if(event.target===this)closeCheckin()">
     <div class="c-box">
-        <div class="sp-head"><b data-i18n="checkin.title">🎁 每日签到</b><button onclick="closeCheckin()">✕</button></div>
+        <div class="sp-head"><b data-i18n="checkin.title">🎁 每日签到</b><button onclick="closeCheckin()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <div id="checkin-body"><div class="hist-empty" data-i18n="common.loading">加载中…</div></div>
     </div>
 </div>
@@ -452,7 +452,7 @@
 <!-- Bug / 建议反馈 -->
 <div id="feedback-overlay" class="c-overlay" style="display:none" onclick="if(event.target===this)closeFeedback()">
     <div class="c-box">
-        <div class="sp-head"><b data-i18n="feedback.title">🐞 反馈 Bug / 建议</b><button onclick="closeFeedback()">✕</button></div>
+        <div class="sp-head"><b data-i18n="feedback.title">🐞 反馈 Bug / 建议</b><button onclick="closeFeedback()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <div style="font-size:13px;opacity:.75;margin:4px 0 8px" data-i18n="feedback.hint">遇到问题或有建议？直接告诉我们，会尽快改进 🙏</div>
         <textarea id="fb-text" class="be-input" style="width:100%;height:120px;resize:vertical" placeholder="描述你遇到的 Bug 或想法…（越详细越好）" data-i18n-ph="feedback.textPh"></textarea>
         <input id="fb-contact" class="be-input" style="width:100%;margin-top:8px" placeholder="联系方式（选填：邮箱/微信，方便回复）" data-i18n-ph="feedback.contactPh">
@@ -464,7 +464,7 @@
 <!-- 个人主页（资料 / 战绩 / 牌谱）——放在 table-view 外，大厅也能开 -->
 <div id="profile-overlay" style="display:none">
     <div class="profile-box">
-        <div class="sp-head"><b data-i18n="prof.title">👤 个人主页</b><button onclick="closeProfile()">✕</button></div>
+        <div class="sp-head"><b data-i18n="prof.title">👤 个人主页</b><button onclick="closeProfile()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <div class="prof-tabs">
             <button class="prof-tab active" data-pt="info" onclick="profileTab('info')" data-i18n="prof.info">资料</button>
             <button class="prof-tab" data-pt="stats" onclick="profileTab('stats')" data-i18n="prof.stats">生涯战绩</button>
@@ -502,7 +502,7 @@
 <!-- 牌谱回放（还原当时桌面场景，逐步/播放）-->
 <div id="replay-overlay" style="display:none">
     <div class="replay-box">
-        <div class="rp-head"><b id="rp-title" data-i18n="rp.title">牌谱回放</b><button onclick="closeReplay()">✕</button></div>
+        <div class="rp-head"><b id="rp-title" data-i18n="rp.title">牌谱回放</b><button onclick="closeReplay()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <div id="rp-info"></div>
         <div id="rp-table">
             <div id="rp-ring"></div>
@@ -526,7 +526,7 @@
             <b id="hd-title" data-i18n="hd.title">牌谱详情</b>
             <div class="hd-head-btns">
                 <button class="hd-replay" onclick="replayCurrentDetail()" data-i18n="hd.replay">▶ 回放</button>
-                <button class="hd-close" onclick="closeHandDetail()">✕</button>
+                <button class="hd-close" onclick="closeHandDetail()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button>
             </div>
         </div>
         <div id="hd-board"></div>
@@ -544,7 +544,7 @@
         <div class="ap-head">
             <div class="ap-av" id="ap-av"></div>
             <div class="ap-name" id="ap-name"></div>
-            <button class="ap-close" onclick="closeAvatarPopup()">✕</button>
+            <button class="ap-close" onclick="closeAvatarPopup()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button>
         </div>
         <div class="ap-sub" data-i18n="ap.sub">本局数据</div>
         <div class="ap-stats" id="ap-stats"><div class="ap-loading" data-i18n="common.loading">加载中…</div></div>
@@ -571,7 +571,7 @@
     <div class="settings-box">
         <div class="settings-head">
             <h2 data-i18n="settings.title">桌面设置</h2>
-            <button class="settings-close" onclick="closeSettings()">✕</button>
+            <button class="settings-close" onclick="closeSettings()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button>
         </div>
         <div class="settings-sec">
             <div class="sec-title" data-i18n="settings.language">语言 / Language</div>
@@ -619,6 +619,12 @@
                 <button onclick="addCustomQuick('post')" data-i18n="btn.add">+ 添加</button>
             </div>
         </div>
+        <div class="settings-sec">
+            <div class="sec-title" data-i18n="settings.hotkeys">⌨️ 键盘快捷键</div>
+            <div id="hotkey-list"></div>
+            <div class="sec-hint" data-i18n="settings.hotkeysHint">点右侧按键可重新绑定。光标在输入框里、或按住 Ctrl/Alt 时不会触发。快捷键只是替你点按钮——按钮不能点时快捷键也不生效。</div>
+            <button class="hk-reset" onclick="resetHotkeys()" data-i18n="settings.hotkeysReset">恢复默认</button>
+        </div>
         <div class="settings-sec toggles">
             <label class="set-toggle"><span data-i18n="settings.showBB">显示 BB</span>
                 <input type="checkbox" id="set-bb" onchange="setDisplayBBChecked(this.checked)"></label>
@@ -647,6 +653,7 @@
 <script src="/js/60-chat.js"></script>
 <script src="/js/61-voice.js"></script>
 <script src="/js/70-actions.js"></script>
+<script src="/js/71-hotkeys.js"></script>
 <script src="/js/80-table-renderer.js"></script>
 <script src="/js/90-admin.js"></script>
 <script src="/js/99-bootstrap.js"></script>
