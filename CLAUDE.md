@@ -9,7 +9,7 @@ Android / iOS / PC
 ## ⭐ 数据资产与可迁移性（最重要原则）
 **数据是这个项目最宝贵的资产，比服务器本身更重要。** 底层代码可随时重新部署，但用户数据与对局数据必须能跟着走。
 
-- **服务器是临时的**：现在跑在阿里云香港，到期后会迁移到新服务器。迁移时**代码不变，但所有数据必须一起搬过去**。
+- **服务器是临时的**：**2026-09-08 已从阿里云香港迁到 AWS 新加坡**（t3.micro，弹性 IP 18.140.12.176；细节见私有 `OPS.local.md`）。这次迁移验证了「代码不变、数据搬走」这套做法可行——**APK 指的是域名，已装客户端零改动自动生效**。将来还会再迁，原则不变：**代码不变，但所有数据必须一起搬过去**。
 - **当前数据存储**：服务器内存 + `PokerServer/data.json`（用户库：账号/金币/头像/isAdmin）。该文件**被 .gitignore 排除、deploy 脚本也不覆盖它**（tar 排除 data.json），所以发版不会丢数据——但也**不会自动备份**。
 - **迁移/备份必做**：换服务器时，从旧机 `scp` 下 `data.json`（及将来的牌谱库）到新机，否则用户全丢。建议定期备份 data.json。
 - **牌谱（hand history）是核心数据资产**（后期务必实现，见下）：
@@ -289,11 +289,13 @@ Android / iOS / PC
 - **现象**：新机上跑备份 cron 报 `cannot execute: required file not found`。顺手查香港，发现**同样是坏的**——
   `backup.log` 里刷满 `/bin/sh: 1: .../backup-cron.sh: not found`，**最后一次成功的每日备份是 `pokerdojo-20260828_040001.sqlite`，到发现时已整整 11 天没有任何自动备份**。
 - **根因**：`core.autocrlf=true`（Windows 默认）→ git 索引里是 LF、**工作区被检出成 CRLF**；而 `deploy.sh` 打包的是**工作区文件**，
-  于是把 CRLF 一路传到 Linux。内核按 shebang 去找 **`/bin/bash`** 这个不存在的解释器 → `required file not found`。
+  于是把 CRLF 一路传到 Linux。内核按 shebang 去找 **`/bin/bash
+`** 这个不存在的解释器 → `required file not found`。
   仓库**没有 `.gitattributes`**，没有任何东西强制 `.sh` 保持 LF。
 - **修**：
   - 根因：新增 `.gitattributes`（`*.sh text eol=lf`），并重新检出把工作区归一化成 LF。
-  - 存量：两台服务器 `sed -i "s/$//" scripts/*.sh` 就地修复，并**立即实跑验证**（香港 `integrity: ok`、57 用户/26,462 手；AWS 同样通过）。
+  - 存量：两台服务器 `sed -i "s/
+$//" scripts/*.sh` 就地修复，并**立即实跑验证**（香港 `integrity: ok`、57 用户/26,462 手；AWS 同样通过）。
 - ⚠️ **教训（比 bug 本身重要）**：**cron 失败是静默的**——它只往日志里写，没人看。这 11 天里备份为零，
   而唯一的保险是人工做的那份异地副本。这和「告警变吵会被忽略」是同一类问题的两面：
   **一个只写日志、没人读的检查，等于没有检查。**
