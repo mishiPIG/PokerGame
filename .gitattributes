@@ -1,0 +1,11 @@
+# 🔴 Shell 脚本必须用 LF 换行 —— 否则在 Windows 上 checkout 成 CRLF 后，
+# deploy.sh 打包的是【工作区】文件，CRLF 会一起传到 Linux 服务器，
+# 内核按 shebang 去找 "/bin/bash\r" 这个不存在的解释器 → "required file not found"。
+#
+# 2026-09-08 实际事故：香港生产的每日备份 cron 从 08-28 起【静默失败 11 天】，
+# backup.log 里刷满 "not found" 但没人看，直到迁移时才发现。
+# 备份是数据资产的最后一道防线，这类静默失败比崩溃更危险。
+*.sh text eol=lf
+
+# 同理：带 shebang、可能被直接执行的脚本
+*.bash text eol=lf

@@ -284,6 +284,22 @@ Android / iOS / PC
 - **验收**：测试服——我的 6 项回归 + 朋友 25 个测试 + 客户端 jsdom 全过；**pm2 restart 后牌局/座位/筹码完整恢复（7940→7940）**；备份→还原→完整性 ok→数据可读→**审计可直接对备份文件运行**（事后追查不必碰生产库）；测试服全部 1975 手筹码守恒。生产——数据基线全对、登录接口正常查库、日志无新错误。
 - 💡 **排障备忘**：生产 `poker-error.log` 里的 `db is not defined`(2026-07-26) 与测试服的 `EXTRA_MAX is not defined`(2026-07-17) 都是**历史日志**，早已修复，别再当成新问题。`https://pokerdojo.space` 在 KAUST 网络打不开是**域名被过滤**（见前文备忘），直连 IP 与服务器本地自测均 200。
 
+## 🔴 CRLF 导致香港每日备份静默失败 11 天（2026-09-08，迁移 AWS 时才发现）
+
+- **现象**：新机上跑备份 cron 报 `cannot execute: required file not found`。顺手查香港，发现**同样是坏的**——
+  `backup.log` 里刷满 `/bin/sh: 1: .../backup-cron.sh: not found`，**最后一次成功的每日备份是 `pokerdojo-20260828_040001.sqlite`，到发现时已整整 11 天没有任何自动备份**。
+- **根因**：`core.autocrlf=true`（Windows 默认）→ git 索引里是 LF、**工作区被检出成 CRLF**；而 `deploy.sh` 打包的是**工作区文件**，
+  于是把 CRLF 一路传到 Linux。内核按 shebang 去找 **`/bin/bash`** 这个不存在的解释器 → `required file not found`。
+  仓库**没有 `.gitattributes`**，没有任何东西强制 `.sh` 保持 LF。
+- **修**：
+  - 根因：新增 `.gitattributes`（`*.sh text eol=lf`），并重新检出把工作区归一化成 LF。
+  - 存量：两台服务器 `sed -i "s/$//" scripts/*.sh` 就地修复，并**立即实跑验证**（香港 `integrity: ok`、57 用户/26,462 手；AWS 同样通过）。
+- ⚠️ **教训（比 bug 本身重要）**：**cron 失败是静默的**——它只往日志里写，没人看。这 11 天里备份为零，
+  而唯一的保险是人工做的那份异地副本。这和「告警变吵会被忽略」是同一类问题的两面：
+  **一个只写日志、没人读的检查，等于没有检查。**
+  → 待办：让审计 cron（每天 04:30，本来就有发信能力）顺带检查「最近 24h 内有没有产出备份」，没有就告警。
+- 💡 顺带发现：`deploy.sh` 打包工作区而非 `git archive`，所以**任何工作区与索引的差异都会被带上生产**。CRLF 只是其中一种表现。
+
 ## 🗄️ SQLite 持久化 + 重启恢复（朋友 PR #7，2026-08-08 合并）
 - **来源**：dreamingwill 的 `merge/sqlite-database`（84 文件 / +6186 −1179）。正好实现待办里的**牌局状态持久化 + 重启恢复**（原 P0 第 2 条）。
 - **内容**：SQLite 存储（用户/经济流水/牌谱/**活跃比赛快照**）、旧 data.json→SQLite 迁移、活跃牌局重启恢复、备份工具 `scripts/backup-sqlite.js`、部署防护、测试与部署文档 `docs/refactor/database/DEPLOYMENT.md`。
