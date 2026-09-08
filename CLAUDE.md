@@ -75,7 +75,8 @@ Android / iOS / PC
 
 ## 🎉 正式上线 + 签到 + 反馈 + 数据备份（2026-07-10，香港生产已上线）
 - **香港正式上线**：`https://pokerdojo.space` 对外开放，管理员账号已设置。生产数据（邮箱/金币/牌谱）为**核心资产必须保全**。
-- **数据自动备份（香港）**：每日 04:00 cron 快照 `data.json`/`hands.jsonl`/`feedback.jsonl`（各留最近 30 份，自动清旧）；**异地副本** `scp` 到本地 `backups_offsite/`（gitignore，防整机丢失）；deploy 脚本 tar 均排除这些数据文件（不覆盖）。换服务器须手动带走。（cron/路径细节见私有 `OPS.local.md`）
+- **数据自动备份**：每日 04:00 cron 在**服务器本机**留最近若干份带完整性校验的快照（现 AWS 保留 14 份）；deploy 脚本 tar 均排除数据文件（不覆盖）。换服务器须手动带走。（cron/路径细节见私有 `OPS.local.md`）
+  - 🔴 **纠正一处长期与现实不符的记载（2026-09-08 查实）**：本节原先写着「异地副本 `scp` 到本地 `backups_offsite/`」，**但 `backup-cron.sh` 里从来没有任何 scp/rsync/S3 推送**——异地副本一直是**纯手动**做的（只有 2026-07-25 和 09-08 两次）。也就是说**整机丢失（实例误删/区域故障/账号问题）目前仍会丢掉最近的数据**。这是数据资产链条上现存最弱的一环，待补自动化。
 - **每日签到（测试服，待验收）**：连续签到递增奖励表 `CHECKIN_REWARDS=[200,300,400,500,600,800,1000]`（第 1~7 天，7 天后封顶 1000，均值≈543/天），**断签重置**为第 1 天。日边界按香港时间 UTC+8。服务端 `GET /api/checkin/status`+`POST /api/checkin`（原子 `db.applyCheckin` 记 lastCheckin/checkinStreak+发金币）。客户端顶栏 🎁 按钮（未签到红点）+ 7 天进度网格弹窗。E2E：签到+200→重复签到 400→连签+300→断签重置+200 全通。
 - **Bug/建议反馈**：顶栏 🐞 按钮 → 文本+联系方式表单 → `POST /api/feedback`(requireAuth)。落库 `feedback.jsonl`（数据资产，纳入备份/deploy 不覆盖）**且同时发一封邮件到管理员邮箱**（`mailer.sendFeedback`，发给 mail.json 的 user，可 feedbackTo 覆盖；未配置则 DEV 打日志）。管理员 `GET /api/admin/feedback`。E2E：提交/空校验/管理员鉴权/UTF-8+emoji 往返/邮件回退 全通。
 - **✅ 已上香港生产**（2026-07-10 `deploy.sh`）：签到/反馈/更换邮箱三项已同步香港，端点 checkin/feedback/bind-email 齐全，data.json 未被覆盖（用户数据完好），https://pokerdojo.space 验证 200/401 正常。

@@ -8,12 +8,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVER_HOST="Hongkong"                       # 生产服务器（阿里云香港，替代卡顿的深圳）
+SERVER_HOST="PokerAWS"                       # 生产服务器（AWS 新加坡 ap-southeast-1，2026-09-08 从阿里云香港迁来）
 SERVER_PATH="/root/PokerGame/PokerServer"
 DB_PATH="/root/PokerGame/data/pokerdojo.sqlite"
 BACKUP_PATH="/root/PokerGame/backups"
 PM2_APP="poker"
-PUBLIC_URL="http://47.76.61.168:3000"
+PUBLIC_URL="http://18.140.12.176:3000"
 
 # Step 0: 部署前安全体检（eslint no-undef + 解构交叉核对）——专抓"用了但没定义/没准备好"的崩溃隐患。
 # 不过就中止部署，绝不把会崩全服的代码上线。（首次需在 PokerServer 里 npm install 装上 eslint）
