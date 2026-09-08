@@ -95,7 +95,7 @@
         .ap-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
         .ap-loading { grid-column: 1/-1; text-align: center; color: #7e9686; padding: 14px; font-size: 13px; }
         .ap-stat { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 9px 4px; text-align: center; }
-        .ap-val { font-size: 16px; font-weight: bold; color: #f4d35e; }
+        .ap-val { font-size: 16px; font-weight: bold; color: #eaf3ee; }
         .ap-lab { font-size: 10px; color: #9db9a9; margin-top: 2px; }
         .ap-emo-title { font-size: 11px; color: #9db9a9; margin: 14px 2px 6px; }
         .ap-emotes { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }

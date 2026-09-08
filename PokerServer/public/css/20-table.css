@@ -186,11 +186,11 @@
             to   { transform: none; opacity: 1; }
         }
         /* 摊牌阶段可点击亮牌的自己手牌 */
-        .card.showable { cursor: pointer; box-shadow: 0 0 0 2px rgba(244,211,94,0.6), 0 2px 5px rgba(0,0,0,0.35); }
+        .card.showable { cursor: pointer; box-shadow: 0 0 0 2px rgba(255,255,255,0.55), 0 2px 5px rgba(0,0,0,0.35); }
         .card.showable:hover { transform: translateY(-4px); transition: transform 0.12s; }
         .card.showable.shown { box-shadow: 0 0 0 2px #06d6a0, 0 2px 5px rgba(0,0,0,0.35); cursor: default; }
         .fly-coin { position: fixed; z-index: 50; font-size: 22px; pointer-events: none; will-change: transform, opacity; }
-        .show-hint { font-size: 11px; color: #f4d35e; margin: 2px 0; animation: hintPulse 1.2s ease-in-out infinite; }
+        .show-hint { font-size: 11px; color: #cbd9d0; margin: 2px 0; animation: hintPulse 1.2s ease-in-out infinite; }
         @keyframes hintPulse { 50% { opacity: 0.5; } }
         /* showdown 牌型高亮：组成最强牌的牌拉出+金光，其余变灰 */
         .card.hl { position: relative; z-index: 2;
@@ -204,7 +204,7 @@
         .card.dim { filter: brightness(0.72); opacity: 0.6; }   /* 只压暗，保留四色，仍能看清点数花色 */
         .card.dim.reveal-anim { animation: dimOut 0.5s ease-out backwards; }
         @keyframes dimOut { from { filter: none; opacity: 1; } to { filter: brightness(0.72); opacity: 0.6; } }
-        .hand-type { font-size: 13px; font-weight: bold; color: #f4d35e; margin: 2px 0;
+        .hand-type { font-size: 13px; font-weight: bold; color: #eaf3ee; margin: 2px 0;
             text-shadow: 0 0 8px rgba(244,211,94,0.6); animation: dealIn 0.4s ease-out backwards; }
         .my-hand-type { font-size: 12px; font-weight: bold; color: #06d6a0; margin: 2px 0; }
         /* 行牌中：我当前最强 5 张的高亮（绿环，区别于 showdown 金光拉出）*/
@@ -243,7 +243,7 @@
             to   { opacity: 1; transform: none; }
         }
         /* 公共牌下方一行提示（如"谁想看转牌"）*/
-        #table-notice { display: table; margin: 8px auto 0; text-align: center; font-size: 13px; font-weight: bold; color: #f4d35e;
+        #table-notice { display: table; margin: 8px auto 0; text-align: center; font-size: 13px; font-weight: bold; color: #dfe9e2;
             background: rgba(0,0,0,0.45); border-radius: 10px; padding: 4px 12px;
             text-shadow: 0 1px 3px rgba(0,0,0,0.7); animation: dealIn 0.3s ease-out; }
         /* 公共牌整排必须能塞进【两侧座位之间】，否则会压住玩家的后手筹码数字（玩家实拍反馈）。
