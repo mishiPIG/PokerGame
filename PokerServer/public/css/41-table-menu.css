@@ -3,7 +3,7 @@
             justify-content: center; font-size: 13px; color: rgba(255,255,255,0.34);
             border: 1.5px dashed rgba(255,255,255,0.18); background: rgba(255,255,255,0.03); }
         .empty-seat.sit { color: #9fc6ff; border-color: rgba(120,170,255,0.55);
-            background: rgba(58,134,255,0.12); cursor: pointer; font-weight: bold; transition: .15s; }
+            background: rgba(58,134,255,0.12); cursor: pointer; font-weight: bold; transition: 0.15s; }
         .empty-seat.sit:hover { background: rgba(58,134,255,0.28); color: #fff; }
         .spectator-hint { text-align: center; color: rgba(255,255,255,0.55); font-size: 13px; padding: 8px; }
         .wait-host { color: #ffd166; font-size: 14px; padding: 10px; text-align: center; }

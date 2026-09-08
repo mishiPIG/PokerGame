@@ -29,7 +29,7 @@
         /* 头像块（小方块 + 顶部下注 chip + 庄家 D + 倒计时）*/
         /* 头像方块：46→40（玩家反馈头像偏大压地方）。改这里必须同步 80-table-renderer.js 的 SEAT_BOX */
         .avatar-block { position: relative; width: 40px; height: 40px; }
-        .avatar { position: absolute; inset: 0; border-radius: 11px; overflow: hidden;
+        .avatar { position: absolute; inset: 0; border-radius: 12px; overflow: hidden;
             display: flex; align-items: center; justify-content: center;
             color: #fff; font-weight: bold; font-size: 15px; border: 2px solid rgba(255,255,255,0.22); }
         .avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -50,7 +50,7 @@
            并把 z-index 提到 12（原 8 与 .opp-cards 同层、DOM 靠后被牌盖住）*/
         .equity-badge { position: absolute; top: -34px; left: -10px; z-index: 12;
             background: linear-gradient(135deg,#12b886,#0ca678); color: #fff; font-size: 16px; font-weight: 800;
-            padding: 2px 9px; border-radius: 11px; box-shadow: 0 3px 8px rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.75);
+            padding: 2px 9px; border-radius: 12px; box-shadow: 0 3px 8px rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.75);
             letter-spacing: -0.3px; text-shadow: 0 1px 2px rgba(0,0,0,0.45); white-space: nowrap; animation: eqPulse 1.6s ease-in-out infinite; }
         @keyframes eqPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
         /* 当前行动：呼吸金框 + 倒计时数字（区别于 All-in 火光）*/
@@ -105,7 +105,7 @@
         .ring-seat.bottom .self-cards .card, .ring-seat.bottom .self-cards .empty-slot {
             width: calc(var(--card-w) * 1.4); height: calc(var(--card-h) * 1.4); }
         .hand-type-badge { width: 100%; text-align: center; font-size: 10.5px; font-weight: bold; color: #eaf3ee;
-            background: rgba(0,0,0,0.62); padding: 1px 6px; border-radius: 7px; margin-top: 1px; }
+            background: rgba(0,0,0,0.62); padding: 1px 6px; border-radius: 8px; margin-top: 1px; }
         .hand-type-badge.win { color: #f4d35e; }
         /* 弃牌后仍显示「我本来会是什么牌型」：灰调+虚线，明确是假设性的，不是还在局里 */
         .hand-type-badge.folded-hint { background: rgba(20,26,34,0.72); color: #9db9a9;
@@ -187,7 +187,7 @@
         }
         /* 摊牌阶段可点击亮牌的自己手牌 */
         .card.showable { cursor: pointer; box-shadow: 0 0 0 2px rgba(255,255,255,0.55), 0 2px 5px rgba(0,0,0,0.35); }
-        .card.showable:hover { transform: translateY(-4px); transition: transform 0.12s; }
+        .card.showable:hover { transform: translateY(-4px); transition: transform 0.15s; }
         .card.showable.shown { box-shadow: 0 0 0 2px #06d6a0, 0 2px 5px rgba(0,0,0,0.35); cursor: default; }
         .fly-coin { position: fixed; z-index: 50; font-size: 22px; pointer-events: none; will-change: transform, opacity; }
         .show-hint { font-size: 11px; color: #cbd9d0; margin: 2px 0; animation: hintPulse 1.2s ease-in-out infinite; }
@@ -230,7 +230,7 @@
             color: #eaf3ee; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
         .pot-row.prev { color: #9db9a9; }
         /* 筹码堆小图标（顶部亮环 + 侧壁，像一叠筹码）*/
-        .pot-chip { display: inline-block; width: 13px; height: 15px; border-radius: 3px;
+        .pot-chip { display: inline-block; width: 13px; height: 15px; border-radius: 4px;
             background: linear-gradient(#7fb4ff, #3a7bd5); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
         .pot-chip.gold  { background: linear-gradient(#ffe08a, #e0a200); box-shadow: inset 0 3px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.5); }
         .pot-chip.green { background: linear-gradient(#8fe6a8, #2fae5f); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
@@ -283,7 +283,7 @@
             display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05;
             border: 1.5px solid rgba(244,211,94,0.5); background: radial-gradient(circle at 50% 35%, rgba(244,211,94,0.22), rgba(244,211,94,0.06));
             color: #f4d35e; font-size: 10px; font-weight: bold; cursor: pointer;
-            transition: background 0.15s, transform 0.1s; box-shadow: 0 2px 7px rgba(0,0,0,0.4);
+            transition: background 0.15s, transform 0.15s; box-shadow: 0 2px 7px rgba(0,0,0,0.4);
         }
         .size-quick small { font-size: 8.5px; font-weight: normal; opacity: 0.8; }
         .size-quick:hover { background: rgba(244,211,94,0.25); }
@@ -293,12 +293,12 @@
         /* 加注滑条：大拇指块 + touch-action:none（手机拖动不被页面滚动手势抢走 → 灵敏） */
         #betSlider { flex: 1; min-width: 0; cursor: pointer; -webkit-appearance: none; appearance: none;
             height: 36px; background: transparent; touch-action: none; }
-        #betSlider::-webkit-slider-runnable-track { height: 9px; border-radius: 5px;
+        #betSlider::-webkit-slider-runnable-track { height: 9px; border-radius: 6px;
             background: linear-gradient(90deg,#06d6a0 var(--fill,0%), rgba(255,255,255,0.18) var(--fill,0%)); }
         #betSlider::-webkit-slider-thumb { -webkit-appearance: none; width: 32px; height: 32px; margin-top: -12px;
             border-radius: 50%; background: #06d6a0; border: 3px solid #fff; box-shadow: 0 2px 7px rgba(0,0,0,0.55); }
-        #betSlider::-moz-range-track { height: 9px; border-radius: 5px; background: rgba(255,255,255,0.18); }
-        #betSlider::-moz-range-progress { height: 9px; border-radius: 5px; background: #06d6a0; }
+        #betSlider::-moz-range-track { height: 9px; border-radius: 6px; background: rgba(255,255,255,0.18); }
+        #betSlider::-moz-range-progress { height: 9px; border-radius: 6px; background: #06d6a0; }
         #betSlider::-moz-range-thumb { width: 32px; height: 32px; border-radius: 50%; background: #06d6a0;
             border: 3px solid #fff; box-shadow: 0 2px 7px rgba(0,0,0,0.55); }
         #btnConfirmBet { flex-shrink: 0; white-space: nowrap; }

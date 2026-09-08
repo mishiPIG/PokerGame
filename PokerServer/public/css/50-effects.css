@@ -19,7 +19,7 @@
         /* 多次发牌桌面：N 组公共牌并列分行（共享底只显一行）*/
         #board.runit-on #community { display: none; }
         #runit-boards { flex-direction: column; gap: 5px; align-items: center; margin-top: 4px; }
-        #runit-boards .rib-shared, #runit-boards .rib-row { display: flex; align-items: center; gap: 8px; padding: 3px 8px; border-radius: 9px; transition: background 0.2s; }
+        #runit-boards .rib-shared, #runit-boards .rib-row { display: flex; align-items: center; gap: 8px; padding: 3px 8px; border-radius: 10px; transition: background 0.15s; }
         #runit-boards .rib-row.active { background: rgba(120,160,220,0.16); }
         #runit-boards .rib-row.win { background: rgba(244,211,94,0.14); box-shadow: inset 3px 0 0 #f4d35e; }
         #runit-boards .rib-label { font-size: 11px; color: #9db9a9; min-width: 38px; text-align: right; }
@@ -84,7 +84,7 @@
         /* 连发计数：同一表情连扔时在目标头上累加 ×N，而不是刷一堆重复气泡 */
         .emote-combo { position: absolute; top: -26px; right: -14px; z-index: 20; opacity: 0;
             background: linear-gradient(135deg,#ff8f5e,#e2492a); color: #fff; font-weight: 800; font-size: 13px;
-            padding: 1px 8px; border-radius: 11px; border: 2px solid rgba(255,255,255,0.8);
+            padding: 1px 8px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.8);
             box-shadow: 0 3px 9px rgba(0,0,0,0.5); pointer-events: none; transition: opacity 0.15s; }
         .emote-combo.show { opacity: 1; }
         .emote-combo.bump { animation: comboBump 0.18s ease-out; }

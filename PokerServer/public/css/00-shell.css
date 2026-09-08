@@ -61,7 +61,7 @@
         #preaction-bar { position: absolute; left: 0; right: 0; bottom: 120px; z-index: 18;
             display: flex; justify-content: center; align-items: center;
             gap: clamp(150px, 52vw, 250px); pointer-events: none; }
-        .pa-btn { pointer-events: auto; padding: 8px 14px; border-radius: 11px; font-size: 13px; font-weight: bold;
+        .pa-btn { pointer-events: auto; padding: 8px 14px; border-radius: 12px; font-size: 13px; font-weight: bold;
             background: rgba(13,22,36,0.92); border: 1.5px solid rgba(255,255,255,0.24); color: #dfe9e2; cursor: pointer;
             box-shadow: 0 2px 8px rgba(0,0,0,0.45); }
         .pa-btn.sel { background: #06d6a0; border-color: #06d6a0; color: #0a1f1a; box-shadow: 0 0 0 2px rgba(6,214,160,0.35); }
@@ -108,7 +108,7 @@
         body:not(.in-room) #table-controls { display: none; }
         #table-controls .tc-left, #table-controls .tc-right { display: flex; gap: 8px; pointer-events: auto; }
         .tc-btn {
-            min-width: 38px; height: 34px; padding: 0 8px; border-radius: 9px;
+            min-width: 38px; height: 34px; padding: 0 8px; border-radius: 10px;
             background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.18); color: #fff;
             font-size: 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;
         }

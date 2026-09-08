@@ -30,7 +30,7 @@
             border: 3px solid transparent; display: flex; align-items: flex-end; justify-content: center;
         }
         .theme-swatch span { font-size: 12px; color: #fff; background: rgba(0,0,0,0.35);
-            width: 100%; text-align: center; padding: 2px 0; border-radius: 0 0 7px 7px; }
+            width: 100%; text-align: center; padding: 2px 0; border-radius: 0 0 8px 8px; }
         .theme-swatch.sel { border-color: #06d6a0; box-shadow: 0 0 0 2px rgba(6,214,160,0.35); }
         .cardstyle-row { display: flex; gap: 10px; margin-bottom: 10px; }
         .cs-opt { flex: 1; padding: 10px; border: 2px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); border-radius: 8px;
