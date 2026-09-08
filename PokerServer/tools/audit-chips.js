@@ -94,6 +94,69 @@ function loadFromSqlite(pathname, opt, range) {
     } finally { db.close(); }
 }
 
+// 钱包里的「手中补码」流水 —— 补码判定的【权威凭证】。
+// 为什么需要：牌谱 seats 里没有 buyIn 字段（只有 userId/username/seat/avatar/startChips/hole），
+// 所以光看牌谱无法区分「补码」和「凭空多出来的筹码」——只能靠「正向整百」这种启发式猜，
+// 而一笔正好是整百的凭空筹码就会被当成补码放过（实测注入 +5,000 确实漏了）。
+// 钱包流水里有真金白银的扣款记录（transaction_type='cash_rebuy'，metadata.chips = 补了多少筹码），
+// 有流水才算补码，没有就是凭空 —— 判定从「猜」升级成「查账」。
+// ⚠️ 只覆盖 2026-08-09（SQLite 上线）之后的牌局；更早的牌谱没有 matchId 也没有流水，
+//    那部分仍然回退到启发式（见 matchRebuySubset）。
+function loadRebuyLedger(src) {
+    if (src.kind !== 'sqlite') return null;          // JSONL 模式没有账本可查 → 回退启发式
+    let Database;
+    try { Database = require('better-sqlite3'); } catch (e) { return null; }
+    let db;
+    try { db = new Database(src.pathname, { readonly: true, fileMustExist: true }); }
+    catch (e) { return null; }
+    try {
+        const byMatch = new Map();
+        const rows = db.prepare(
+            "SELECT user_id, match_id, metadata_json, created_at_ms FROM wallet_transactions"
+            + " WHERE transaction_type = 'cash_rebuy' AND match_id IS NOT NULL"
+        ).all();
+        for (const r of rows) {
+            let chips = 0;
+            try { chips = JSON.parse(r.metadata_json || '{}').chips || 0; } catch (e) { continue; }
+            if (chips <= 0) continue;
+            if (!byMatch.has(r.match_id)) byMatch.set(r.match_id, []);
+            byMatch.get(r.match_id).push({ userId: r.user_id, chips, ts: r.created_at_ms });
+        }
+        return byMatch;
+    } catch (e) { return null; }                     // 老库没有这张表 → 回退启发式
+    finally { if (db) db.close(); }
+}
+
+// 本手窗口内、且【本手确实在座】的补码流水。
+// ⚠️ 必须按人筛：同一时刻可能有坐出的玩家也在补码，他没被发牌，
+//    筹码不进本手的 start/end，算进来会让金额对不上（房间 832138 seq177 实测：
+//    窗口里有两笔，只有在座那位的 4,000 计入本手）。
+// ⚠️ 窗口用 [ts, completedAt]：补码是在【这一手进行当中】提交的才会计入本手 endChips
+//    （seq123 实测流水时间比开手晚 11 秒）。手快结束时提交的会落到下一手，
+//    那种情况本手 delta=0，走不到这里。
+function ledgerRebuysFor(hand, ledger) {
+    if (!ledger) return null;
+    if (!hand.matchId || !hand.completedAt) return null;   // 迁移前的老牌谱 → 无法查账
+    const seated = new Set((hand.seats || []).map(s => s.userId));
+    return (ledger.get(hand.matchId) || [])
+        .filter(r => seated.has(r.userId) && r.ts >= hand.ts && r.ts <= hand.completedAt);
+}
+
+// 权威判定：整手差额必须能用【账本里真实存在的补码】凑出来（一手可能多人、或同一人多笔）。
+function matchRebuyLedger(delta, entries) {
+    if (delta <= 0 || !entries || !entries.length) return null;
+    const cand = entries.slice(0, 14);
+    for (let mask = 1; mask < (1 << cand.length); mask++) {
+        let sum = 0;
+        for (let i = 0; i < cand.length; i++) if (mask & (1 << i)) sum += cand[i].chips;
+        if (sum !== delta) continue;
+        const picked = [];
+        for (let i = 0; i < cand.length; i++) if (mask & (1 << i)) picked.push(cand[i]);
+        return picked;
+    }
+    return null;
+}
+
 function loadFromJsonl(pathname, opt, range) {
     const out = [];
     for (const line of fs.readFileSync(pathname, 'utf8').split('\n')) {
@@ -159,6 +222,20 @@ function contributions(hand) {
         const u = k.slice(0, k.lastIndexOf('|'));
         total[u] = (total[u] || 0) + perStreet[k];
     }
+    // 🔴 前注 ante 必须单独补：它在发牌前就直接扣掉进底池（hand-service「先收 Ante，再收盲注」），
+    // 【不是一个 action】，所以上面扫 actions 永远算不到它。不补的话每个交了前注的人都被少算一份，
+    // 归因差额整体偏移 −ante —— 后果不是「差一点」，而是把「手中补码」的差额从 10,000 变成 9,990，
+    // 不再是整百 → matchRebuySubset 认不出来 → 合法补码被误报成凭空造筹码。
+    // 实测：房间 832138（唯一开 ante=10 的桌）4 处「异常」全部是这个原因造成的误报。
+    // ⚠️ 误报比漏报更危险：cron 每天 --yesterday --mail，退出码 1 就发告警邮件，
+    //    告警一旦变吵就会被忽略，那才是真正的风险。
+    const ante = hand.ante || 0;
+    if (ante > 0) {
+        for (const s of hand.seats || []) {
+            // 服务端收的是 min(ante, chips)（短码只交得起手上那点）
+            total[s.userId] = (total[s.userId] || 0) + Math.min(ante, s.startChips ?? ante);
+        }
+    }
     return total;
 }
 
@@ -180,7 +257,7 @@ function illegalActionSignature(hand, nameOf) {
     return hits;
 }
 
-function auditHand(hand) {
+function auditHand(hand, ledger) {
     const nameOf = id => (hand.seats.find(s => s.userId === id) || {}).username || String(id).slice(0, 8);
     const start = new Map(hand.seats.map(s => [s.userId, s.startChips]));
     const results = hand.results || [];
@@ -210,11 +287,21 @@ function auditHand(hand) {
     // 一手里可能有两人同时补码（如 15,000 = 10,000 + 5,000），所以用子集和而不是只看单人；
     // 其余玩家的零星差额是「未跟注退还」造成的，不影响守恒，不参与凑数。
     // 有非法行动特征时一律告警，不走补码豁免。
-    const rebuySet = illegal.length ? null : matchRebuySubset(delta, suspects);
+    // 补码判定：优先【查钱包账本】（权威：有真金白银的扣款流水才算补码），
+    // 账本覆盖不到的老牌谱（2026-08-09 之前、无 matchId）才退回「正向整百」的启发式。
+    // 有非法行动特征时一律告警，两条路径都不给豁免。
+    const ledgerEntries = illegal.length ? null : ledgerRebuysFor(hand, ledger);
+    let rebuySet = null, verdictBy = 'heuristic';
+    if (illegal.length) rebuySet = null;
+    else if (ledgerEntries) {
+        verdictBy = 'ledger';
+        const picked = matchRebuyLedger(delta, ledgerEntries);
+        rebuySet = picked ? picked.map(r => ({ userId: r.userId, username: nameOf(r.userId), amount: r.chips })) : null;
+    } else rebuySet = matchRebuySubset(delta, suspects);
 
     return {
         handSeq: hand.handSeq, ts: hand.ts, roomId: String(hand.roomId || hand.room || ''),
-        delta, suspects, illegal,
+        delta, suspects, illegal, verdictBy,
         kind: rebuySet ? 'rebuy' : 'ALARM',
         rebuys: rebuySet || [],
         // 真实凭空金额：整手差额（补码时该额度是合法带入，不算凭空）
@@ -277,10 +364,14 @@ const when = ts => new Date(ts).toISOString().replace('T', ' ').slice(0, 19) + '
 async function main() {
     const opt = parseArgs(process.argv);
     const hands = loadHands(opt);
+    const ledger = loadRebuyLedger(hands.source || {});
     const findings = [];
-    for (const h of hands) { const f = auditHand(h); if (f) findings.push(f); }
+    for (const h of hands) { const f = auditHand(h, ledger); if (f) findings.push(f); }
     const alarms = findings.filter(f => f.kind === 'ALARM');
     const rebuys = findings.filter(f => f.kind === 'rebuy');
+    // 判定来源覆盖率：能查账本的才是权威判定，其余靠启发式（会漏掉「正好整百的凭空筹码」）。
+    // 把它打出来，免得以后误以为整份报告都是权威结论。
+    const byLedger = findings.filter(f => f.verdictBy === 'ledger').length;
     const phantomTotal = alarms.reduce((s, f) => s + f.phantom, 0);
 
     if (opt.json) {
@@ -293,6 +384,11 @@ async function main() {
     console.log(`\n🔍 筹码守恒审计 · ${scope} · 共扫描 ${hands.length} 手`);
     console.log(`   数据源：${src.kind === 'sqlite' ? 'SQLite' : 'hands.jsonl'} ${src.pathname || ''}`);
     console.log(`   最新一手：${hands.newestTs ? when(hands.newestTs) : '（无）'}`);
+    if (findings.length) {
+        const pct = Math.round(byLedger * 100 / findings.length);
+        console.log(`   补码判定：${byLedger}/${findings.length} 查钱包账本（权威）· 其余 ${findings.length - byLedger} 处无账本可查，回退启发式`
+            + (pct < 100 ? '（2026-08-09 之前的牌谱没有 matchId/流水）' : ''));
+    }
     if (hands.misconfigured) {
         console.log('');
         console.log('🚨 数据源配置错误：SQLite 数据库已存在，审计却在读旧的 hands.jsonl。');
