@@ -11,6 +11,8 @@ const CSS_DIR = path.join(ROOT, 'public', 'css');
 
 const EXPECTED_SCRIPTS = [
     '00-state.js',
+    // i18n 必须排在 05-utils 之前：后面几乎每个文件都会用到 t() / L()（2026-08-28 加）
+    '03-i18n.js',
     '05-utils.js',
     '10-auth.js',
     '20-socket.js',
@@ -70,8 +72,17 @@ test('index loads componentized scripts and styles in dependency order', () => {
 });
 
 test('index contains no large inline style or application script', () => {
-    assert.doesNotMatch(INDEX, /<style(?:\s|>)/);
-    assert.doesNotMatch(INDEX, /<script>\s*\/\/ ===== State =====/);
+    // 唯一允许的内联样式 = 开场画面(#boot-splash)的首屏关键 CSS：外链样式表到达之前
+    // 就必须是深绿底，否则会先闪一层白，比没有开场更难看（见 index.html 里的注释）。
+    // 所以这里不再一刀切禁止 <style>，而是守住「只此一块、且必须小」——
+    // 防的是大段样式表重新爬回 index.html，不是防这块刻意为之的关键 CSS。
+    const inlineStyles = [...INDEX.matchAll(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/g)].map(m => m[1]);
+    assert.equal(inlineStyles.length, 1, 'index.html 只应保留开场画面那一块内联关键 CSS');
+    assert.match(inlineStyles[0], /#boot-splash/, '唯一的内联样式必须是开场画面的关键 CSS');
+    assert.ok(inlineStyles[0].length < 2500, `内联关键 CSS 过大（${inlineStyles[0].length} 字符）——样式该放 public/css/`);
+    // 应用脚本一律外链：内联 <script> 一个都不该有
+    const inlineScripts = [...INDEX.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)];
+    assert.equal(inlineScripts.length, 0, '应用脚本必须放 public/js/，不要内联进 index.html');
 });
 
 test('state module owns data only and does not manipulate the DOM', () => {
@@ -124,6 +135,8 @@ test('room owner invitation presents one combined, copyable message', () => {
     assert.match(INDEX, /onclick="copyRoomInvite\(\)"/);
     assert.doesNotMatch(INDEX, /id="invite-code"|id="invite-url"/);
     assert.match(source('30-room.js'), /function formatRoomInvite\b/);
-    assert.match(source('30-room.js'), /房间名：\$\{invite\.roomName\}/);
-    assert.match(source('30-room.js'), /邀请链接：\$\{invite\.inviteUrl\}[\s\S]*房间码：\$\{invite\.joinCode\}/);
+    // ⚠️ 别断言中文字面量：i18n(2026-09-02 part3) 之后这些标签是 L('房间名','Room') 这种运行时取值，
+    // 写死中文会让这条测试在翻译时假失败。改成断言【结构】——三段信息齐全、且链接排在房间码之前。
+    assert.match(source('30-room.js'), /\$\{invite\.roomName\}/);
+    assert.match(source('30-room.js'), /\$\{invite\.inviteUrl\}[\s\S]*\$\{invite\.joinCode\}/);
 });
