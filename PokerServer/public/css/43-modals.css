@@ -1,40 +1,47 @@
-        /* ===== 通用弹窗 ===== */
-        .modal-mask { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.55);
+        /* ===== 通用弹窗 =====
+           ⚠️ 2026-09-08 从「近白浅色」改为道场绿深色。
+           原来 .modal-box 是 #eef3fb，而牌桌是深绿——每次点「坐下」弹买入框都会
+           从深绿突然跳到近白，晚上玩尤其刺眼。这是全站三套配色里最刺眼的一处
+           （买入/补码/邀请是最高频弹窗）。
+           配色基准与大厅/结算面板一致：底 #22392e→#16261f、金边、主确认用 #06d6a0。 */
+        .modal-mask { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.6);
             display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .modal-box { background: #eef3fb; border-radius: 18px; padding: 22px; width: 100%; max-width: 360px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
-        .modal-box h3 { margin: 0 0 14px; text-align: center; color: #1d2b45; }
+        .modal-box { background: linear-gradient(160deg, #22392e, #16261f); color: #eaf3ee;
+            border: 1px solid rgba(244,211,94,0.18);
+            border-radius: 18px; padding: 22px; width: 100%; max-width: 360px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+        .modal-box h3 { margin: 0 0 14px; text-align: center; color: #eaf3ee; }
         .modal-actions { display: flex; gap: 12px; margin-top: 18px; }
         .modal-actions button { flex: 1; padding: 12px; border: none; border-radius: 12px; font-size: 15px; font-weight: bold; cursor: pointer; }
-        .modal-actions .cancel { background: #fff; color: #5a6a82; border: 1px solid #cdd6e3; }
-        .modal-actions .confirm { background: #3a86ff; color: #fff; }
-        .modal-actions .confirm.danger { background: #ef476f; }
-        .invite-note { margin: -4px 0 14px; text-align: center; color: #60718b; font-size: 12px; line-height: 1.5; }
+        .modal-actions .cancel { background: rgba(255,255,255,0.1); color: #cbd9d0; border: 1px solid rgba(255,255,255,0.16); }
+        .modal-actions .confirm { background: #06d6a0; color: #0a1f1a; }
+        .modal-actions .confirm.danger { background: #ef476f; color: #fff; }
+        .invite-note { margin: -4px 0 14px; text-align: center; color: #9db9a9; font-size: 12px; line-height: 1.5; }
         .invite-field { margin: 12px 0; }
-        .invite-label { display: block; color: #52627a; font-size: 12px; margin-bottom: 5px; font-weight: bold; }
+        .invite-label { display: block; color: #9db9a9; font-size: 12px; margin-bottom: 5px; font-weight: bold; }
         .invite-copy-row { display: flex; gap: 8px; }
-        .invite-value { flex: 1; min-width: 0; border: 1px solid #cdd6e3; border-radius: 10px;
-            background: #fff; color: #24344e; padding: 10px 11px; font-size: 13px; overflow: hidden;
+        .invite-value { flex: 1; min-width: 0; border: 1px solid rgba(255,255,255,0.16); border-radius: 10px;
+            background: rgba(0,0,0,0.25); color: #eaf3ee; padding: 10px 11px; font-size: 13px; overflow: hidden;
             text-overflow: ellipsis; white-space: nowrap; }
         .invite-value.message { white-space: pre-line; line-height: 1.45; }
-        .invite-copy-row button { flex: 0 0 auto; border: none; border-radius: 10px; padding: 0 13px;
-            background: #3a86ff; color: #fff; font-weight: bold; cursor: pointer; }
+        .invite-copy-row button { flex: 0 0 auto; border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; padding: 0 13px;
+            background: rgba(255,255,255,0.1); color: #eaf3ee; font-weight: bold; cursor: pointer; }
         .invite-manage { display: flex; gap: 8px; margin-top: 14px; }
-        .invite-manage button { flex: 1; border: 1px solid #c7d1df; border-radius: 10px; padding: 10px 7px;
-            background: #fff; color: #33445e; font-weight: bold; cursor: pointer; }
-        .invite-manage button.locked { background: #e9f8f2; color: #087b58; border-color: #8cd8bd; }
-        .invite-manage button.reset { color: #c34858; border-color: #e6a9b1; }
-        .bm-amt { text-align: center; font-size: 30px; font-weight: 800; color: #ef6c2d; margin: 6px 0 2px; }
-        .bm-amt small { font-size: 13px; color: #7a8aa2; font-weight: normal; }
-        #buyin-modal input[type=range] { width: 100%; margin: 14px 0 10px; }
+        .invite-manage button { flex: 1; border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; padding: 10px 7px;
+            background: rgba(255,255,255,0.07); color: #dfe9e2; font-weight: bold; cursor: pointer; }
+        .invite-manage button.locked { background: rgba(6,214,160,0.15); color: #6fe6c0; border-color: rgba(6,214,160,0.45); }
+        .invite-manage button.reset { color: #ff9aa6; border-color: rgba(239,71,111,0.45); }
+        .bm-amt { text-align: center; font-size: 30px; font-weight: 800; color: #ffa05c; margin: 6px 0 2px; }
+        .bm-amt small { font-size: 13px; color: #9db9a9; font-weight: normal; }
+        #buyin-modal input[type=range] { width: 100%; margin: 14px 0 10px; accent-color: #06d6a0; }
         .bm-tier-row { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 10px; justify-content: center; }
         .bm-tier { flex: 0 0 auto; min-width: 58px; display: flex; flex-direction: column; align-items: center;
-            padding: 7px 8px; border: 1.5px solid #cdd6e3; background: #fff; color: #2a3a52;
+            padding: 7px 8px; border: 1.5px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); color: #dfe9e2;
             border-radius: 10px; font-weight: bold; font-size: 14px; cursor: pointer; }
-        .bm-tier small { font-size: 10px; font-weight: normal; color: #7a8aa2; margin-top: 1px; }
-        .bm-tier.sel { border-color: #3a86ff; background: linear-gradient(180deg,#5a9bff,#3a86ff); color: #fff; }
-        .bm-tier.sel small { color: rgba(255,255,255,0.85); }
-        .bm-info { display: flex; justify-content: space-between; font-size: 14px; color: #44546e; }
-        .bm-info b { color: #ef6c2d; }
-        .bm-auto { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: #44546e; }
-        .bm-auto input { width: 16px; height: 16px; }
+        .bm-tier small { font-size: 10px; font-weight: normal; color: #9db9a9; margin-top: 1px; }
+        .bm-tier.sel { border-color: #06d6a0; background: linear-gradient(180deg,#0be6ad,#06d6a0); color: #06231c; }
+        .bm-tier.sel small { color: rgba(4,32,26,0.75); }
+        .bm-info { display: flex; justify-content: space-between; font-size: 14px; color: #cbd9d0; }
+        .bm-info b { color: #ffa05c; }
+        .bm-auto { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: #cbd9d0; }
+        .bm-auto input { width: 16px; height: 16px; accent-color: #06d6a0; }

@@ -62,9 +62,9 @@
             display: flex; justify-content: center; align-items: center;
             gap: clamp(150px, 52vw, 250px); pointer-events: none; }
         .pa-btn { pointer-events: auto; padding: 8px 14px; border-radius: 11px; font-size: 13px; font-weight: bold;
-            background: rgba(13,22,36,0.92); border: 1.5px solid rgba(255,255,255,0.24); color: #cdd9ef; cursor: pointer;
+            background: rgba(13,22,36,0.92); border: 1.5px solid rgba(255,255,255,0.24); color: #dfe9e2; cursor: pointer;
             box-shadow: 0 2px 8px rgba(0,0,0,0.45); }
-        .pa-btn.sel { background: #3a86ff; border-color: #3a86ff; color: #fff; box-shadow: 0 0 0 2px rgba(58,134,255,0.35); }
+        .pa-btn.sel { background: #06d6a0; border-color: #06d6a0; color: #0a1f1a; box-shadow: 0 0 0 2px rgba(6,214,160,0.35); }
         /* 行动悬浮球：悬浮在「自己座位+手牌」的正上方（德扑之星式），不遮挡手牌 */
         #action-bar {
             position: absolute; left: 6px; right: 6px; bottom: 150px; z-index: 20;

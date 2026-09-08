@@ -6,7 +6,7 @@
         #admin-panel h3 { color: #f4d35e; font-size: 14px; margin-bottom: 10px; }
         /* 管理员：Tab + 房间总览 + 钱包流水 */
         .adm-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-        .adm-tab { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #cdd8ea;
+        .adm-tab { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #dfe9e2;
             border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
         .adm-tab.sel { background: rgba(244,211,94,0.2); border-color: rgba(244,211,94,0.5); color: #f4d35e; font-weight: bold; }
         .adm-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
@@ -14,8 +14,8 @@
             border-radius: 6px; padding: 5px 8px; font-size: 12px; min-width: 0; }
         .adm-bar button, .adm-adjust button { background: #3a86ff; color: #fff; border: none; border-radius: 6px;
             padding: 5px 12px; font-size: 12px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
-        .adm-dim { color: #8fa2c4; font-size: 11px; }
-        .adm-empty { color: #8fa2c4; font-size: 12px; padding: 10px; text-align: center; }
+        .adm-dim { color: #9db9a9; font-size: 11px; }
+        .adm-empty { color: #9db9a9; font-size: 12px; padding: 10px; text-align: center; }
         .adm-room { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 8px 10px; margin-bottom: 7px; }
         .adm-room-h { font-size: 13px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
         .adm-tags { font-size: 11px; color: #f4d35e; margin-left: auto; }
@@ -24,7 +24,7 @@
         .adm-room-act button { font-size: 12px; padding: 3px 10px; }
         #admin-panel button.danger { background: #f87171; color: #1a1a1a; }
         .adm-p { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; font-size: 12px; align-items: center; }
-        .adm-wallet-h { font-size: 12px; color: #cdd8ea; margin-bottom: 8px; }
+        .adm-wallet-h { font-size: 12px; color: #dfe9e2; margin-bottom: 8px; }
         .adm-wallet-h b { color: #f4d35e; }
         .adm-adjust { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
         .adm-adjust input { flex: 1; min-width: 90px; background: rgba(0,0,0,0.3);
@@ -197,7 +197,7 @@
         .tier-row { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
         .tier-btn { flex: 1; min-width: 64px; display: flex; flex-direction: column; align-items: center;
             padding: 8px 6px; border: 1.5px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05);
-            color: #e7eefb; border-radius: 10px; font-weight: bold; font-size: 14px; cursor: pointer; }
+            color: #eaf3ee; border-radius: 10px; font-weight: bold; font-size: 14px; cursor: pointer; }
         /* 比赛设置是浅色弹窗：加时按钮与标签需深色，否则看不清 */
         #match-modal .cfg-label { color: #3a4d70; }
         .ext-btn { flex: 1; min-width: 58px; padding: 10px 6px; border-radius: 10px; cursor: pointer;
@@ -260,16 +260,16 @@
         .pd-medal { font-size: 20px; line-height: 1; }
         .pd-avatar { width: 44px; height: 44px; border-radius: 10px; object-fit: cover;
             background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;
-            font-weight: bold; font-size: 18px; color: #e7eefb; border: 2px solid rgba(255,255,255,0.25); }
+            font-weight: bold; font-size: 18px; color: #eaf3ee; border: 2px solid rgba(255,255,255,0.25); }
         .pd-item.gold   .pd-avatar { border-color: #f4d35e; box-shadow: 0 0 12px rgba(244,211,94,0.5); }
         .pd-item.silver .pd-avatar { border-color: #cfd8e3; }
         .pd-item.bronze .pd-avatar { border-color: #d08b52; }
         .pd-title { font-size: 12px; font-weight: bold; color: #f4d35e; }
         .pd-item.silver .pd-title { color: #dbe4ef; }
         .pd-item.bronze .pd-title { color: #e0a678; }
-        .pd-name { font-size: 12px; color: #e7eefb; max-width: 100%; overflow: hidden;
+        .pd-name { font-size: 12px; color: #eaf3ee; max-width: 100%; overflow: hidden;
             text-overflow: ellipsis; white-space: nowrap; }
-        .pd-val { font-size: 11px; color: #9fb4d6; }
+        .pd-val { font-size: 11px; color: #9db9a9; }
         /* 台阶：金最高、银次之、铜最矮 */
         .pd-step { width: 100%; border-radius: 6px 6px 0 0; background: linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.05));
             border: 1px solid rgba(255,255,255,0.12); border-bottom: none; box-shadow: inset 0 1px 0 rgba(255,255,255,0.12); }

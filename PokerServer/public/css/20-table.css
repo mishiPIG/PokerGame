@@ -104,11 +104,11 @@
         .self-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
         .ring-seat.bottom .self-cards .card, .ring-seat.bottom .self-cards .empty-slot {
             width: calc(var(--card-w) * 1.4); height: calc(var(--card-h) * 1.4); }
-        .hand-type-badge { width: 100%; text-align: center; font-size: 10.5px; font-weight: bold; color: #e7eefb;
+        .hand-type-badge { width: 100%; text-align: center; font-size: 10.5px; font-weight: bold; color: #eaf3ee;
             background: rgba(0,0,0,0.62); padding: 1px 6px; border-radius: 7px; margin-top: 1px; }
         .hand-type-badge.win { color: #f4d35e; }
         /* 弃牌后仍显示「我本来会是什么牌型」：灰调+虚线，明确是假设性的，不是还在局里 */
-        .hand-type-badge.folded-hint { background: rgba(20,26,34,0.72); color: #9fb4d6;
+        .hand-type-badge.folded-hint { background: rgba(20,26,34,0.72); color: #9db9a9;
             border: 1px dashed rgba(159,180,214,0.45); font-weight: normal; }
         /* 下注 chip 弹入 */
         .bet-badge { animation: betPop 0.22s cubic-bezier(0.34,1.56,0.64,1); }
@@ -227,8 +227,8 @@
         .pot-total { font-size: 19px; font-weight: bold; color: #f4d35e; text-shadow: 0 2px 6px rgba(0,0,0,0.7);
             background: rgba(0,0,0,0.32); padding: 1px 12px; border-radius: 12px; }
         .pot-row { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: bold;
-            color: #e7eefb; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
-        .pot-row.prev { color: #9fb0cc; }
+            color: #eaf3ee; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+        .pot-row.prev { color: #9db9a9; }
         /* 筹码堆小图标（顶部亮环 + 侧壁，像一叠筹码）*/
         .pot-chip { display: inline-block; width: 13px; height: 15px; border-radius: 3px;
             background: linear-gradient(#7fb4ff, #3a7bd5); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
@@ -329,7 +329,7 @@
 
 
         /* 下注辅助信息：压下去之后还剩多少 / 占底池多少 / 对手要跟多少（省得自己心算）*/
-        .bet-info { font-size: 11px; color: #cdd8ea; text-align: center; margin-top: 5px;
+        .bet-info { font-size: 11px; color: #dfe9e2; text-align: center; margin-top: 5px;
             white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
         .bet-info b { color: #f4d35e; }
         .bet-info .bi-allin { color: #ff8f5e; font-weight: bold; }
