@@ -229,7 +229,23 @@ function setLayout(mode) {
 }
 // 窗口尺寸变化（电脑拖窗口 / 手机转屏）时，auto 模式要跟着切
 window.addEventListener('resize', () => { if (settings.layout === 'auto') applyLayoutMode(); });
-function openSettings()  { buildSettingsPanel(); renderHotkeySettings(); document.getElementById('settings-overlay').style.display = 'flex'; }
+// 设置分页：8 个区块堆一个面板里翻不到底，分成 外观/牌桌/操作 三页。
+// 记住上次停留的页——调快捷键那种要反复试的场景，每次都跳回第一页很烦。
+function switchSettingsTab(pane) {
+    document.querySelectorAll('#settings-overlay .set-tab').forEach(b =>
+        b.classList.toggle('active', b.getAttribute('data-pane') === pane));
+    document.querySelectorAll('#settings-overlay .set-pane').forEach(d =>
+        d.classList.toggle('active', d.getAttribute('data-pane') === pane));
+    try { localStorage.setItem('settingsTab', pane); } catch (e) {}
+}
+function openSettings()  {
+    buildSettingsPanel(); renderHotkeySettings();
+    let last = 'look';
+    try { last = localStorage.getItem('settingsTab') || 'look'; } catch (e) {}
+    if (!document.querySelector(`#settings-overlay .set-pane[data-pane="${last}"]`)) last = 'look';
+    switchSettingsTab(last);
+    document.getElementById('settings-overlay').style.display = 'flex';
+}
 function closeSettings() { document.getElementById('settings-overlay').style.display = 'none'; }
 function setAvatar(url) {
     myAvatar = url;

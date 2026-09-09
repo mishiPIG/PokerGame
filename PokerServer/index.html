@@ -573,6 +573,15 @@
             <h2 data-i18n="settings.title">桌面设置</h2>
             <button class="settings-close" onclick="closeSettings()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button>
         </div>
+        <!-- 设置分页：原来 8 个区块堆在一个面板里翻不到底（玩家反馈「内容太多」）。
+             ⚠️ 底部的 .set-actions（全屏/退出房间/解散/退出登录）【刻意不进 Tab】——
+             那是逃生出口，埋进分页里等于藏起来。 -->
+        <div class="set-tabs">
+            <button class="set-tab active" data-pane="look" onclick="switchSettingsTab('look')" data-i18n="settings.tab.look">外观</button>
+            <button class="set-tab" data-pane="table" onclick="switchSettingsTab('table')" data-i18n="settings.tab.table">牌桌</button>
+            <button class="set-tab" data-pane="action" onclick="switchSettingsTab('action')" data-i18n="settings.tab.action">操作</button>
+        </div>
+        <div class="set-pane active" data-pane="look">
         <div class="settings-sec">
             <div class="sec-title" data-i18n="settings.language">语言 / Language</div>
             <div class="cardstyle-row">
@@ -594,6 +603,8 @@
             </div>
             <div class="cs-preview" id="cs-preview"></div>
         </div>
+        </div>
+        <div class="set-pane" data-pane="table">
         <div class="settings-sec">
             <div class="sec-title" data-i18n="settings.layout">屏幕布局</div>
             <div class="cardstyle-row">
@@ -603,6 +614,14 @@
             </div>
             <div class="sec-hint" data-i18n="settings.layoutHint">电脑浏览器/大屏建议「横屏」：牌桌收成合适比例居中，牌面更大、座位更聚拢。</div>
         </div>
+        <div class="settings-sec toggles">
+            <label class="set-toggle"><span data-i18n="settings.showBB">显示 BB</span>
+                <input type="checkbox" id="set-bb" onchange="setDisplayBBChecked(this.checked)"></label>
+            <label class="set-toggle"><span data-i18n="settings.sound">游戏音效</span>
+                <input type="checkbox" id="set-sound" onchange="setSoundChecked(this.checked)"></label>
+        </div>
+        </div>
+        <div class="set-pane" data-pane="action">
         <div class="settings-sec">
             <div class="sec-title" data-i18n="settings.quickPre">翻前快捷加注（BB 倍数，最多 5 个；最小/All-in 固定）</div>
             <div class="quickbet-opts" id="quickbet-pre"></div>
@@ -625,11 +644,6 @@
             <div class="sec-hint" data-i18n="settings.hotkeysHint">点右侧按键可重新绑定。光标在输入框里、或按住 Ctrl/Alt 时不会触发。快捷键只是替你点按钮——按钮不能点时快捷键也不生效。</div>
             <button class="hk-reset" onclick="resetHotkeys()" data-i18n="settings.hotkeysReset">恢复默认</button>
         </div>
-        <div class="settings-sec toggles">
-            <label class="set-toggle"><span data-i18n="settings.showBB">显示 BB</span>
-                <input type="checkbox" id="set-bb" onchange="setDisplayBBChecked(this.checked)"></label>
-            <label class="set-toggle"><span data-i18n="settings.sound">游戏音效</span>
-                <input type="checkbox" id="set-sound" onchange="setSoundChecked(this.checked)"></label>
         </div>
         <div class="settings-sec set-actions">
             <button class="sa-btn" onclick="toggleFullscreen(); closeSettings()" id="setFullscreen" data-i18n="btn.fullscreen">⛶ 全屏</button>

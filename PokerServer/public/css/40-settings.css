@@ -75,3 +75,14 @@
         .hk-row.conflict .hk-key { border-color: #ef476f; color: #ff9aa6; }
         .hk-reset { margin-top: 8px; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;
             background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: #cbd9d0; }
+
+        /* 设置分页（2026-09-09）：原来 8 个区块堆在一个面板里，玩家反馈「内容太多」翻不到底。
+           分成 外观 / 牌桌 / 操作 三页；底部 .set-actions 不进分页（逃生出口不能藏）。 */
+        .set-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+        .set-tab { flex: 1; padding: 8px 4px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: bold;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #cbd9d0;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+        .set-tab:hover { background: rgba(255,255,255,0.12); }
+        .set-tab.active { background: #06d6a0; border-color: #06d6a0; color: #0a1f1a; }
+        .set-pane { display: none; }
+        .set-pane.active { display: block; }

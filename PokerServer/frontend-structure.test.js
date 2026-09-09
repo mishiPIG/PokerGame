@@ -117,6 +117,41 @@ test('缩小牌面必须走 --card-w，或自己显式覆盖 rank/suit 字号', 
         '这些规则把牌缩小了却没设 --card-w、也没覆盖 rank/suit 字号 —— 电脑端字会撑爆牌面');
 });
 
+test('设置面板：每个区块都必须归属某个分页（除了刻意常驻的操作栏）', () => {
+    // 2026-09-09 分页后新增的结构约束。风险是：以后加一个 .settings-sec 却忘了放进
+    // 某个 .set-pane 里 —— 它会在【所有页】都显示，或者干脆哪页都不显示，
+    // 而这两种都不会报错、只能靠肉眼发现。
+    // ⚠️ 唯一允许在分页外的是 .set-actions（全屏/退出房间/解散/退出登录）——
+    //    那是逃生出口，刻意常驻底部，埋进分页里等于藏起来。
+    const box = INDEX.slice(INDEX.indexOf('<div id="settings-overlay"'), INDEX.indexOf('<script src="/js/00-state.js"'));
+
+    const tabs = [...box.matchAll(/class="set-tab[^"]*"[^>]*data-pane="(\w+)"/g)].map(m => m[1]);
+    const panes = [...box.matchAll(/class="set-pane[^"]*"[^>]*data-pane="(\w+)"/g)].map(m => m[1]);
+    assert.ok(tabs.length >= 2, '至少要有两个分页，否则分页没意义');
+    assert.deepEqual(tabs, panes, 'Tab 与内容页必须一一对应且顺序一致');
+
+    // 用真正的「祖先判断」而不是「按标记切段」——第一版就是按标记切的，
+    // 结果游离区块正好夹在最后一个 pane 和 set-actions 之间，被连着挖掉了，检查形同虚设。
+    // （反向对照当场发现：塞了游离区块进去测试照样全绿。）
+    const orphan = [];
+    const stack = [];
+    for (const m of box.matchAll(/<div\b([^>]*)>|<\/div>/g)) {
+        if (m[0] === '</div>') { stack.pop(); continue; }
+        const attrs = m[1] || '';
+        const secCls = attrs.match(/class="(settings-sec[^"]*)"/);
+        if (secCls && !stack.some(Boolean)) orphan.push(secCls[1]);   // 没有任何 set-pane 祖先
+        stack.push(/class="set-pane/.test(attrs));
+    }
+    assert.deepEqual(orphan, ['settings-sec set-actions'],
+        '这些设置区块没有归属任何分页（只有 set-actions 允许在分页外）：' + orphan.join(', '));
+
+    // 每一页都不能是空的
+    for (const p of panes) {
+        const seg = box.slice(box.indexOf(`data-pane="${p}">`));
+        assert.match(seg.slice(0, 4000), /class="settings-sec/, `分页 ${p} 里没有任何设置区块`);
+    }
+});
+
 test('state module owns data only and does not manipulate the DOM', () => {
     const state = source('00-state.js');
     assert.doesNotMatch(state, /\bdocument\b/);
