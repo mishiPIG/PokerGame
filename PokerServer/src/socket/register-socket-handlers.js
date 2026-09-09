@@ -15,7 +15,7 @@ function registerSocketHandlers(deps) {
         const rawOn = socket.on.bind(socket);
         socket.on = (event, handler) => rawOn(event, (...args) => {
             if (runtime.shuttingDown && event !== 'disconnect') {
-                socket.emit('server_msg', '⚠️ 服务正在安全重启，请稍后重新连接');
+                socket.emit('server_msg', { k: 'sys.restarting' });
                 return undefined;
             }
             const handleError = error => {
@@ -38,7 +38,7 @@ function registerSocketHandlers(deps) {
                         console.error('[socket-error] failed to persist paused state', persistError?.stack || persistError);
                     }
                 }
-                socket.emit('server_msg', '⚠️ 本次操作失败，牌桌已安全暂停，请稍后重试或重新连接');
+                socket.emit('server_msg', { k: 'sys.actionFailed' });
             };
             try {
                 const result = handler(...args);

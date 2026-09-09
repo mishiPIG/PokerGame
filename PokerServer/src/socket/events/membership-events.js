@@ -20,14 +20,14 @@ function registerMembershipEvents(context) {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game) return;
-        if (game.roomType !== 'cash') { socket.emit('server_msg', '⚠️ 该房间无需坐下'); return; }
-        if (game.players.find(p => p.userId === user.id)) { socket.emit('server_msg', '⚠️ 你已入座'); return; }
+        if (game.roomType !== 'cash') { socket.emit('server_msg', { k: 'seat.notNeeded' }); return; }
+        if (game.players.find(p => p.userId === user.id)) { socket.emit('server_msg', { k: 'seat.already' }); return; }
         // 站起围观者点座位坐下：带原筹码回座（不重复扣买入 + 清 vacated 记录），杜绝「两个自己」
         if (restoreVacatedPlayer(roomId, socket, user, seat)) return;
         // 防陌生人捣乱：从大厅列表点进来的是观战，必须先验证邀请链接或四位房间码。
         if (socket.playRoom !== roomId) { socket.emit('server_msg', '👀 你在观战——请使用邀请链接或四位房间码加入后再入座'); return; }
-        if (game.players.length >= game.config.maxPlayers) { socket.emit('server_msg', '⚠️ 座位已满'); return; }
-        if (occupiedSeats(game).has(seat)) { socket.emit('server_msg', '⚠️ 该座位已被占用'); return; }
+        if (game.players.length >= game.config.maxPlayers) { socket.emit('server_msg', { k: 'seat.full' }); return; }
+        if (occupiedSeats(game).has(seat)) { socket.emit('server_msg', { k: 'seat.taken' }); return; }
         if (seatPlayer(roomId, socket, user, buyInChips, seat)) {
             // 带入额已在 seatPlayer 内记录（buyIn=chips），此处不再重复累加
             // 入座后若满足开局条件且现金桌进行中/可开，尝试开局
@@ -41,7 +41,7 @@ function registerMembershipEvents(context) {
     socket.on('stand_up', () => {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
-        if (!game || game.roomType !== 'cash') { socket.emit('server_msg', '⚠️ 仅现金桌可站起'); return; }
+        if (!game || game.roomType !== 'cash') { socket.emit('server_msg', { k: 'seat.cashOnlyStand' }); return; }
         const idx = game.players.findIndex(p => p.userId === user.id);
         if (idx < 0) return;
         standUpPlayer(roomId, idx, false);
@@ -51,11 +51,11 @@ function registerMembershipEvents(context) {
     socket.on('force_stand', ({ targetUserId }) => {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
-        if (!game || game.roomType !== 'cash') { socket.emit('server_msg', '⚠️ 仅现金桌可操作'); return; }
-        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可强制玩家站起'); return; }
-        if (targetUserId === user.id) { socket.emit('server_msg', '⚠️ 不能强制自己，请用「站起围观」'); return; }
+        if (!game || game.roomType !== 'cash') { socket.emit('server_msg', { k: 'seat.cashOnly' }); return; }
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyForceStand' }); return; }
+        if (targetUserId === user.id) { socket.emit('server_msg', { k: 'host.notSelf' }); return; }
         const idx = game.players.findIndex(p => p.userId === targetUserId);
-        if (idx < 0) { socket.emit('server_msg', '⚠️ 该玩家不在座'); return; }
+        if (idx < 0) { socket.emit('server_msg', { k: 'seat.playerNotSeated' }); return; }
         standUpPlayer(roomId, idx, true);
     });
 
@@ -64,7 +64,7 @@ function registerMembershipEvents(context) {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game) return;
-        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可暂停发牌'); return; }
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyPause' }); return; }
         game.paused = true;
         io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（当前这手打完后暂停，可随时继续）');
         broadcastState(roomId);
@@ -75,7 +75,7 @@ function registerMembershipEvents(context) {
         const game = roomId && roomGames[roomId];
         if (!game || game.roomType !== 'cash') return;
         if (game.ownerUserId !== user.id) {
-            socket.emit('server_msg', '⚠️ 只有房主可修改 Straddle 设置'); return;
+            socket.emit('server_msg', { k: 'host.onlyStraddle' }); return;
         }
         const next = enabled === true;
         if (!!game.config.allowUtgStraddle === next) return;
@@ -131,8 +131,8 @@ function registerMembershipEvents(context) {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game) return;
-        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可继续发牌'); return; }
-        if (game.timeExpired) { socket.emit('server_msg', '⚠️ 训练时间已到，请先在比赛设置中调整结束时间'); return; }
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyResume' }); return; }
+        if (game.timeExpired) { socket.emit('server_msg', { k: 'table.timeUp' }); return; }
         if (!game.paused) return;
         game.paused = false;
         io.in(roomId).emit('server_msg', '▶️ 房主已继续发牌');

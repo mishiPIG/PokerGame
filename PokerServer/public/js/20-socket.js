@@ -41,10 +41,13 @@ function connectSocket(token) {
     });
 
     socket.on('server_msg', (msg) => {
-        console.log('[server]', msg);   // 动作播报（下注/跟注/弃牌…）仅开发调试，不显示在桌面
+        // 2026-09-09：拒绝类提示改为服务端发 { k, p }、客户端按当前语言渲染。
+        // 普通动作播报（下注/跟注/弃牌…）仍是中文字符串，且本来就只进 console 不上桌面。
+        const text = renderServerMsg(msg);
+        console.log('[server]', text || msg);
         // ⚠️ 开头的都是服务端对「我」的私发拒绝（非法操作/不是你的回合/筹码不足/无效加注…），
         // 以前只进 console → 玩家点了没反应还以为按钮坏了。这类必须可见。
-        if (typeof msg === 'string' && msg.startsWith('⚠️')) toast(msg, 3000);
+        if (text && text.startsWith('⚠️')) toast(text, 3000);
     });
 
     socket.on('room_list', (rooms) => {

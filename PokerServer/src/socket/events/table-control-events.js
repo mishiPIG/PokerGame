@@ -11,13 +11,13 @@ function registerTableControlEvents(context) {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game) return;
-        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可以解散房间'); return; }
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyDissolve' }); return; }
 
         // 牌局进行中 → 不打断这手牌，等它打完再解散（与「涨盲/训练时长到点」一致的做法）。
         // 直接解散会让正在进行的这手牌凭空消失，玩家投入池里的筹码只能按当前状态草草结算。
         const inHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
         if (inHand) {
-            if (game.pendingDissolve) { socket.emit('server_msg', '⚠️ 已在等本手结束后解散'); return; }
+            if (game.pendingDissolve) { socket.emit('server_msg', { k: 'room.dissolvePending' }); return; }
             game.pendingDissolve = true;
             io.in(roomId).emit('server_msg', '🛑 房主已结束比赛，本手打完后解散');
             broadcastState(roomId);
@@ -36,7 +36,7 @@ function registerTableControlEvents(context) {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game || game.roomType !== 'cash') return;
-        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可以加时'); return; }
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyExtend' }); return; }
         const m = clampInt(minutes, 0, 120, 0);
         if (m <= 0) return;
         extendTable(roomId, m * 60000);
@@ -51,11 +51,11 @@ function registerTableControlEvents(context) {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game || game.roomType !== 'cash') return;
-        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可以调整结束时间'); return; }
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyAdjustEnd' }); return; }
         const requested = Number(endAt);
         const now = Date.now();
         if (!Number.isFinite(requested) || requested < now - 10000 || requested > now + 24 * 3600000) {
-            socket.emit('server_msg', '⚠️ 结束时间无效（最多可设置到 24 小时后）'); return;
+            socket.emit('server_msg', { k: 'table.endInvalid' }); return;
         }
         const result = adjustTableEnd(roomId, requested);
         if (!result) return;
@@ -84,7 +84,7 @@ function registerTableControlEvents(context) {
             io.in(roomId).emit('server_msg', `🔁 ${nameOf(user)} ${p.autoRebuy ? '开启' : '关闭'}自动补码`);
             broadcastState(roomId); return;
         }
-        if (cap <= 0) { socket.emit('server_msg', '⚠️ 已达带入上限'); return; }
+        if (cap <= 0) { socket.emit('server_msg', { k: 'seat.buyinCap' }); return; }
         const chips = clampInt(amount, gameBB(game), cap, Math.min(cap, game.config.minBuyIn));
         const outcome = {};
         if (!chargeRebuy(game, p, chips, outcome)) {
@@ -113,9 +113,9 @@ function registerTableControlEvents(context) {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game) return;
-        if (game.ownerUserId !== user.id) { socket.emit('server_msg', '⚠️ 只有房主可以开始'); return; }
-        if (game.status === 'running') { socket.emit('server_msg', '⚠️ 比赛已开始'); return; }
-        if (liveCount(game) < 2) { socket.emit('server_msg', '⚠️ 至少 2 名玩家入座才能开始'); return; }
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyStart' }); return; }
+        if (game.status === 'running') { socket.emit('server_msg', { k: 'room.alreadyStarted' }); return; }
+        if (liveCount(game) < 2) { socket.emit('server_msg', { k: 'room.needTwo' }); return; }
         beginPlay(roomId);
     });
 
@@ -126,10 +126,10 @@ function registerTableControlEvents(context) {
         // 仅开赛前需要准备；比赛开始后自动续局，无需重新准备
         if (game.roomType === 'sng' && game.status === 'running') return;
         if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) {
-            socket.emit('server_msg', '⚠️ 牌局进行中，无法更改准备状态'); return;
+            socket.emit('server_msg', { k: 'room.readyLocked' }); return;
         }
         const p = game.players.find(p => p.userId === user.id);
-        if (!p) { socket.emit('server_msg', '⚠️ 你还未入座'); return; }
+        if (!p) { socket.emit('server_msg', { k: 'seat.notSeated' }); return; }
         p.ready = !p.ready;
         io.in(roomId).emit('server_msg', `${p.ready ? '✅' : '⬜'} ${nameOf(p)} ${p.ready ? '已准备' : '取消准备'}`);
         broadcastState(roomId);

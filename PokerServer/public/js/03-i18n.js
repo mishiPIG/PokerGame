@@ -29,6 +29,65 @@ const I18N = {
         'settings.hotkeysHint': '点右侧按键可重新绑定。光标在输入框里、或按住 Ctrl/Alt 时不会触发。快捷键只是替你点按钮——按钮不能点时快捷键也不生效。',
         'settings.hotkeysReset': '恢复默认',
         'settings.wheelStep': '🖱️ 滚轮步长',
+        // ===== 服务端拒绝提示（结构化 key + 参数）=====
+        // 服务端只发 { k, p }，不再发中文原文；翻译全部在这里。
+        // 这些都是【私发给单个玩家】的拒绝提示（socket.emit），所以不存在
+        // 「一条广播要同时满足两种语言」的问题——每个客户端各自渲染即可。
+        'srv.room.gone': '⚠️ 房间不存在或已结束',
+        'srv.room.full': '⚠️ 房间已满',
+        'srv.room.started': '⚠️ 比赛已开始，无法加入',
+        'srv.room.handInProgress': '⚠️ 牌局进行中，请稍后',
+        'srv.seat.forcedOut': '⚠️ 房主已把你移到观战席（筹码保留，可点「回到座位」重新入座）',
+        'srv.seat.noneToReturn': '⚠️ 暂无空座，无法回座',
+        'srv.seat.none': '⚠️ 没有空座位',
+        'srv.gold.lowBuyin': '⚠️ 金币不足：买入 {chips} 筹码需 {cost} 金币（当前 {gold}）',
+        'srv.gold.lowEntry': '⚠️ 金币不足报名费 {fee}（当前 {gold}）',
+        'srv.gold.low': '⚠️ 金币不足',
+        'srv.admin.denied': '⚠️ 无管理员权限',
+        'srv.admin.roomGone': '⚠️ 房间不存在',
+        'srv.admin.dissolvePending': '⚠️ 房间 {room} 已在等本手结束后解散',
+        'srv.seat.notNeeded': '⚠️ 该房间无需坐下',
+        'srv.seat.already': '⚠️ 你已入座',
+        'srv.seat.full': '⚠️ 座位已满',
+        'srv.seat.taken': '⚠️ 该座位已被占用',
+        'srv.seat.cashOnlyStand': '⚠️ 仅现金桌可站起',
+        'srv.seat.cashOnly': '⚠️ 仅现金桌可操作',
+        'srv.host.onlyForceStand': '⚠️ 只有房主可强制玩家站起',
+        'srv.host.notSelf': '⚠️ 不能强制自己，请用「站起围观」',
+        'srv.seat.playerNotSeated': '⚠️ 该玩家不在座',
+        'srv.host.onlyPause': '⚠️ 只有房主可暂停发牌',
+        'srv.host.onlyStraddle': '⚠️ 只有房主可修改 Straddle 设置',
+        'srv.host.onlyResume': '⚠️ 只有房主可继续发牌',
+        'srv.table.timeUp': '⚠️ 训练时间已到，请先在比赛设置中调整结束时间',
+        'srv.act.notYourTurn': '⚠️ 不是你的回合',
+        'srv.act.noActionNeeded': '⚠️ 你已全押/已弃牌，无需再行动',
+        'srv.act.cannotCheck': '⚠️ 有未跟注，不能 Check',
+        'srv.act.nothingToCall': '⚠️ 无需跟注',
+        'srv.act.useRaise': '⚠️ 已有下注，请用 Raise',
+        'srv.act.betMin': '⚠️ 下注最少 {min}',
+        'srv.act.notEnoughChips': '⚠️ 筹码不足',
+        'srv.act.useBet': '⚠️ 无人下注，请用 Bet',
+        'srv.act.raiseClosed': '⚠️ 前方是无效加注（全押不足一个完整加注），你只能跟注或弃牌',
+        'srv.act.raiseGtCurrent': '⚠️ 加注须大于当前注 {cur}',
+        'srv.act.raiseMinTo': '⚠️ 至少加注到 {to}（最小加注增量 {inc}）',
+        'srv.runit.deciderOnly': '⚠️ 由落后方选择发牌次数',
+        'srv.runit.leaderOnly': '⚠️ 由领先方同意',
+        'srv.act.timeCap': '⚠️ 本次行动加时已达上限（2 分钟）',
+        'srv.act.noTimeCards': '⚠️ 没有时间卡了',
+        'srv.host.onlyDissolve': '⚠️ 只有房主可以解散房间',
+        'srv.room.dissolvePending': '⚠️ 已在等本手结束后解散',
+        'srv.host.onlyExtend': '⚠️ 只有房主可以加时',
+        'srv.host.onlyAdjustEnd': '⚠️ 只有房主可以调整结束时间',
+        'srv.table.endInvalid': '⚠️ 结束时间无效（最多可设置到 24 小时后）',
+        'srv.seat.buyinCap': '⚠️ 已达带入上限',
+        'srv.host.onlyStart': '⚠️ 只有房主可以开始',
+        'srv.room.alreadyStarted': '⚠️ 比赛已开始',
+        'srv.room.needTwo': '⚠️ 至少 2 名玩家入座才能开始',
+        'srv.room.readyLocked': '⚠️ 牌局进行中，无法更改准备状态',
+        'srv.seat.notSeated': '⚠️ 你还未入座',
+        'srv.sys.restarting': '⚠️ 服务正在安全重启，请稍后重新连接',
+        'srv.sys.actionFailed': '⚠️ 本次操作失败，牌桌已安全暂停，请稍后重试或重新连接',
+
         'a11y.close': '关闭',
         'settings.tab.look': '外观', 'settings.tab.table': '牌桌', 'settings.tab.action': '操作',
         'btn.fullscreen': '⛶ 全屏', 'btn.leaveRoom': '🚪 退出房间', 'btn.dissolve': '🛑 解散房间', 'btn.logout': '⎋ 退出登录',
@@ -92,6 +151,61 @@ const I18N = {
         'settings.hotkeysHint': 'Click a key to rebind. Never fires while typing in a field, or while Ctrl/Alt is held. A shortcut only clicks the button for you — if the button is unavailable, so is the shortcut.',
         'settings.hotkeysReset': 'Reset to defaults',
         'settings.wheelStep': '🖱️ Wheel step',
+        'srv.room.gone': '⚠️ Room not found or already ended',
+        'srv.room.full': '⚠️ Room is full',
+        'srv.room.started': '⚠️ The game has already started - you cannot join',
+        'srv.room.handInProgress': '⚠️ A hand is in progress - please wait',
+        'srv.seat.forcedOut': '⚠️ The host moved you to the rail (chips are kept - tap Sit back to return)',
+        'srv.seat.noneToReturn': '⚠️ No empty seat available to sit back into',
+        'srv.seat.none': '⚠️ No empty seats',
+        'srv.gold.lowBuyin': '⚠️ Not enough coins: {chips} chips costs {cost} coins (you have {gold})',
+        'srv.gold.lowEntry': '⚠️ Not enough coins for the {fee} entry fee (you have {gold})',
+        'srv.gold.low': '⚠️ Not enough coins',
+        'srv.admin.denied': '⚠️ Administrator access required',
+        'srv.admin.roomGone': '⚠️ Room not found',
+        'srv.admin.dissolvePending': '⚠️ Room {room} is already set to dissolve after this hand',
+        'srv.seat.notNeeded': '⚠️ No need to sit down in this room',
+        'srv.seat.already': '⚠️ You are already seated',
+        'srv.seat.full': '⚠️ All seats are taken',
+        'srv.seat.taken': '⚠️ That seat is taken',
+        'srv.seat.cashOnlyStand': '⚠️ Standing up is only available at cash tables',
+        'srv.seat.cashOnly': '⚠️ Cash tables only',
+        'srv.host.onlyForceStand': '⚠️ Only the host can move a player to the rail',
+        'srv.host.notSelf': '⚠️ You cannot move yourself - use Stand up',
+        'srv.seat.playerNotSeated': '⚠️ That player is not seated',
+        'srv.host.onlyPause': '⚠️ Only the host can pause dealing',
+        'srv.host.onlyStraddle': '⚠️ Only the host can change the straddle setting',
+        'srv.host.onlyResume': '⚠️ Only the host can resume dealing',
+        'srv.table.timeUp': '⚠️ Session time is up - adjust the end time in game settings first',
+        'srv.act.notYourTurn': '⚠️ It is not your turn',
+        'srv.act.noActionNeeded': '⚠️ You are already all-in or folded - no action needed',
+        'srv.act.cannotCheck': '⚠️ There is a bet to call - you cannot check',
+        'srv.act.nothingToCall': '⚠️ There is nothing to call',
+        'srv.act.useRaise': '⚠️ There is already a bet - use Raise',
+        'srv.act.betMin': '⚠️ Minimum bet is {min}',
+        'srv.act.notEnoughChips': '⚠️ Not enough chips',
+        'srv.act.useBet': '⚠️ Nobody has bet - use Bet',
+        'srv.act.raiseClosed': '⚠️ That was an incomplete raise (all-in under a full raise) - you can only call or fold',
+        'srv.act.raiseGtCurrent': '⚠️ Your raise must be more than the current bet of {cur}',
+        'srv.act.raiseMinTo': '⚠️ Raise to at least {to} (minimum raise increment {inc})',
+        'srv.runit.deciderOnly': '⚠️ The player who is behind chooses how many runs',
+        'srv.runit.leaderOnly': '⚠️ The player who is ahead must agree',
+        'srv.act.timeCap': '⚠️ You have reached the 2-minute cap for this decision',
+        'srv.act.noTimeCards': '⚠️ No time cards left',
+        'srv.host.onlyDissolve': '⚠️ Only the host can dissolve the room',
+        'srv.room.dissolvePending': '⚠️ Already set to dissolve after this hand',
+        'srv.host.onlyExtend': '⚠️ Only the host can extend the time',
+        'srv.host.onlyAdjustEnd': '⚠️ Only the host can adjust the end time',
+        'srv.table.endInvalid': '⚠️ Invalid end time (at most 24 hours from now)',
+        'srv.seat.buyinCap': '⚠️ Buy-in cap reached',
+        'srv.host.onlyStart': '⚠️ Only the host can start',
+        'srv.room.alreadyStarted': '⚠️ The game has already started',
+        'srv.room.needTwo': '⚠️ At least 2 seated players are needed to start',
+        'srv.room.readyLocked': '⚠️ A hand is in progress - you cannot change your ready status',
+        'srv.seat.notSeated': '⚠️ You are not seated yet',
+        'srv.sys.restarting': '⚠️ The server is restarting safely - please reconnect shortly',
+        'srv.sys.actionFailed': '⚠️ That action failed. The table is paused safely - retry or reconnect',
+
         'a11y.close': 'Close',
         'settings.tab.look': 'Look', 'settings.tab.table': 'Table', 'settings.tab.action': 'Controls',
         'btn.fullscreen': '⛶ Fullscreen', 'btn.leaveRoom': '🚪 Leave room', 'btn.dissolve': '🛑 Dissolve room', 'btn.logout': '⎋ Log out',
@@ -188,3 +302,20 @@ function setLang(l) {
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyLang);
 else applyLang();
+
+// 把服务端发来的 { k, p } 渲染成当前语言的一句话。
+// 向后兼容：老服务端（或还没迁移的调用点）发的是字符串，原样返回。
+// 字典缺 key 时返回空串而不是 [object Object]——宁可不显示，也不能显示乱码。
+function renderServerMsg(m) {
+    if (typeof m === 'string') return m;   // 老服务端 / 尚未迁移的调用点仍发字符串，原样透传
+    if (!m || !m.k) return '';
+    const key = 'srv.' + m.k;
+    // ⚠️ 不能用 t(key, null) 判「有没有这条」——t() 找不到时【返回 key 本身】
+    //    （fallback 传 null 也一样，见上面 t 的最后一行）。若照抄那套写法，
+    //    缓存了旧 JS 的客户端碰到服务端的新 key，会把 "srv.xxx" 原样弹成一条 toast。
+    //    这里显式查字典：查不到就什么都不显示。
+    const d = I18N[lang];
+    const s = (d && key in d) ? d[key] : ((I18N.zh && key in I18N.zh) ? I18N.zh[key] : null);
+    if (s == null) return '';
+    return s.replace(/\{(\w+)\}/g, (_, name) => (m.p && m.p[name] != null) ? m.p[name] : '');
+}

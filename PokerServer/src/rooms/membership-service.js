@@ -14,7 +14,7 @@ function createMembershipService({ io, runtime, tableService, config }) {
     function joinRoom(socket, user, roomId) {
         roomId = String(roomId || '');
         const game = roomGames[roomId];
-        if (!game) { socket.emit('server_msg', '⚠️ 房间不存在或已结束'); socket.emit('room_list', listRooms(user.id)); return; }
+        if (!game) { socket.emit('server_msg', { k: 'room.gone' }); socket.emit('room_list', listRooms(user.id)); return; }
         clearTimeout(game.emptyCleanupTimer);
 
         const isKnownMember = game.authorized?.has(user.id)
@@ -64,9 +64,9 @@ function createMembershipService({ io, runtime, tableService, config }) {
             return;
         }
         if (!isKnownMember) { joinAsSpectator(roomId, socket); return; }
-        if (game.players.length >= game.config.maxPlayers) { socket.emit('server_msg', '⚠️ 房间已满'); return; }
-        if (game.status === 'running') { socket.emit('server_msg', '⚠️ 比赛已开始，无法加入'); return; }
-        if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) { socket.emit('server_msg', '⚠️ 牌局进行中，请稍后'); return; }
+        if (game.players.length >= game.config.maxPlayers) { socket.emit('server_msg', { k: 'room.full' }); return; }
+        if (game.status === 'running') { socket.emit('server_msg', { k: 'room.started' }); return; }
+        if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) { socket.emit('server_msg', { k: 'room.handInProgress' }); return; }
         seatPlayer(roomId, socket, user);
     }
 

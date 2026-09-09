@@ -53,7 +53,7 @@ function standUpPlayer(roomId, idx, byOwner) {
     broadcastRoomList();
     if (byOwner) {
         const s = io.sockets.sockets.get(p.socketId);
-        if (s) s.emit('server_msg', '⚠️ 房主已把你移到观战席（筹码保留，可点「回到座位」重新入座）');
+        if (s) s.emit('server_msg', { k: 'seat.forcedOut' });
     }
 }
 
@@ -67,7 +67,7 @@ function restoreVacatedPlayer(roomId, socket, user, preferSeat) {
     if (vi < 0) return false;
     let seat = preferSeat;
     if (seat == null || seat < 0 || seat >= game.config.maxPlayers || occupiedSeats(game).has(seat)) seat = firstFreeSeat(game);
-    if (seat < 0) { socket.emit('server_msg', '⚠️ 暂无空座，无法回座'); return true; }
+    if (seat < 0) { socket.emit('server_msg', { k: 'seat.noneToReturn' }); return true; }
     const vp = game.vacatedPlayers.splice(vi, 1)[0];
     const inHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
     lobbySockets.delete(socket.id);
@@ -230,7 +230,7 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
     if (seat == null || seat < 0 || seat >= game.config.maxPlayers || occupiedSeats(game).has(seat)) {
         seat = firstFreeSeat(game);
     }
-    if (seat < 0) { socket.emit('server_msg', '⚠️ 没有空座位'); return false; }
+    if (seat < 0) { socket.emit('server_msg', { k: 'seat.none' }); return false; }
     let chips;
     let cost;
     let walletType;
@@ -239,12 +239,12 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
         const maxB = game.config.maxBuyIn || 1e9;
         chips = clampInt(buyInChips, game.config.minBuyIn, maxB, game.config.minBuyIn);
         cost = Math.ceil(chips * BUYIN_RATE);
-        if (fresh.gold < cost) { socket.emit('server_msg', `⚠️ 金币不足：买入 ${chips} 筹码需 ${cost} 金币（当前 ${fresh.gold}）`); return false; }
+        if (fresh.gold < cost) { socket.emit('server_msg', { k: 'gold.lowBuyin', p: { chips: chips, cost: cost, gold: fresh.gold } }); return false; }
         walletType = 'cash_buyin';
         operationKey = `cash-buyin:${game.matchId}:${user.id}`;
     } else {
         const fee = game.config.buyIn || 0;
-        if (fresh.gold < fee) { socket.emit('server_msg', `⚠️ 金币不足报名费 ${fee}（当前 ${fresh.gold}）`); return false; }
+        if (fresh.gold < fee) { socket.emit('server_msg', { k: 'gold.lowEntry', p: { fee: fee, gold: fresh.gold } }); return false; }
         cost = fee;
         walletType = 'sng_entry';
         operationKey = `sng-entry:${game.matchId}:${user.id}`;
@@ -296,7 +296,7 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
         if (idx >= 0) game.players.splice(idx, 1);
         if (!inHand && insertedAt <= game.buttonIdx && game.buttonIdx > 0) game.buttonIdx--;
         if (game.roomType === 'sng' && cost > 0) game.prizePool = Math.max(0, game.prizePool - cost);
-        if (error.message === 'INSUFFICIENT_GOLD') socket.emit('server_msg', '⚠️ 金币不足');
+        if (error.message === 'INSUFFICIENT_GOLD') socket.emit('server_msg', { k: 'gold.low' });
         else console.error('[wallet] seat buy-in failed', error);
         return false;
     }

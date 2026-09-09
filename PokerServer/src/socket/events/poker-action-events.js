@@ -10,14 +10,14 @@ function registerPokerActionEvents(context) {
         const game = roomGames[roomId];
         if (!game) return;
         if (game.actionOnIdx < 0 || game.players[game.actionOnIdx]?.userId !== user.id) {
-            socket.emit('server_msg', '⚠️ 不是你的回合'); return;
+            socket.emit('server_msg', { k: 'act.notYourTurn' }); return;
         }
 
         const player = game.players[game.actionOnIdx];
         // 兜底：已全押/已弃牌的人一律不能再行动——他的筹码已在池中、本就无需决策。
         // 万一 actionOnIdx 因任何原因指错（曾出现：全押亮牌后没清行动位，导致他能把牌弃掉、白丢池权），
         // 也不能让这类操作落地。这是服务端权威校验，不依赖客户端是否把按钮藏好。
-        if (!canAct(player)) { socket.emit('server_msg', '⚠️ 你已全押/已弃牌，无需再行动'); return; }
+        if (!canAct(player)) { socket.emit('server_msg', { k: 'act.noActionNeeded' }); return; }
         const tag = nameOf(player);   // 广播给全桌看的名字：改名后要显示新名字
 
         switch (action) {
@@ -28,7 +28,7 @@ function registerPokerActionEvents(context) {
 
             case 'check':
                 if (player.currentBet < game.currentBet) {
-                    socket.emit('server_msg', '⚠️ 有未跟注，不能 Check'); return;
+                    socket.emit('server_msg', { k: 'act.cannotCheck' }); return;
                 }
                 player.hasActed = true;
                 io.in(roomId).emit('server_msg', `✓ ${tag} 过牌`);
@@ -36,7 +36,7 @@ function registerPokerActionEvents(context) {
 
             case 'call': {
                 const toCall = game.currentBet - player.currentBet;
-                if (toCall <= 0) { socket.emit('server_msg', '⚠️ 无需跟注'); return; }
+                if (toCall <= 0) { socket.emit('server_msg', { k: 'act.nothingToCall' }); return; }
                 const pay = Math.min(toCall, player.chips);
                 player.chips -= pay; player.currentBet += pay;
                 if (player.chips === 0) player.allIn = true;
@@ -46,16 +46,16 @@ function registerPokerActionEvents(context) {
             }
 
             case 'bet': {
-                if (game.currentBet > 0) { socket.emit('server_msg', '⚠️ 已有下注，请用 Raise'); return; }
+                if (game.currentBet > 0) { socket.emit('server_msg', { k: 'act.useRaise' }); return; }
                 const betTo = parseInt(amount);
                 const maxBet = player.currentBet + player.chips;   // 全下额
                 const allInBet = betTo === maxBet;
                 const minBet = gameBB(game);
                 // 最小下注 = 大盲（不足大盲只能全下）
                 if (!betTo || (betTo < minBet && !allInBet)) {
-                    socket.emit('server_msg', `⚠️ 下注最少 ${minBet}`); return;
+                    socket.emit('server_msg', { k: 'act.betMin', p: { min: minBet } }); return;
                 }
-                if (betTo > maxBet) { socket.emit('server_msg', '⚠️ 筹码不足'); return; }
+                if (betTo > maxBet) { socket.emit('server_msg', { k: 'act.notEnoughChips' }); return; }
                 player.chips -= betTo; player.currentBet = betTo;
                 if (player.chips === 0) player.allIn = true;
                 game.currentBet = betTo;
@@ -67,25 +67,25 @@ function registerPokerActionEvents(context) {
             }
 
             case 'raise': {
-                if (game.currentBet === 0) { socket.emit('server_msg', '⚠️ 无人下注，请用 Bet'); return; }
+                if (game.currentBet === 0) { socket.emit('server_msg', { k: 'act.useBet' }); return; }
                 // 无效加注规则：若我本街已行动过，且现在面对的加注量不足「一个完整加注」（前方只是短码全押/无效加注），
                 // 则行动没有被重开——我只能跟注或弃牌，不能再加注。（正常德扑规则）
                 if (player.hasActed && (game.currentBet - player.currentBet) < game.lastRaiseSize) {
-                    socket.emit('server_msg', '⚠️ 前方是无效加注（全押不足一个完整加注），你只能跟注或弃牌'); return;
+                    socket.emit('server_msg', { k: 'act.raiseClosed' }); return;
                 }
                 const raiseTo = parseInt(amount);
                 const maxRaise = player.currentBet + player.chips;          // 全下额
                 const allInRaise = raiseTo === maxRaise;
                 const minRaiseTo = game.currentBet + game.lastRaiseSize;    // 最小加注目标
                 if (!raiseTo || raiseTo <= game.currentBet) {
-                    socket.emit('server_msg', `⚠️ 加注须大于当前注 ${game.currentBet}`); return;
+                    socket.emit('server_msg', { k: 'act.raiseGtCurrent', p: { cur: game.currentBet } }); return;
                 }
                 // 未达最小加注：仅当全下时允许（all-in for less）
                 if (raiseTo < minRaiseTo && !allInRaise) {
-                    socket.emit('server_msg', `⚠️ 至少加注到 ${minRaiseTo}（最小加注增量 ${game.lastRaiseSize}）`); return;
+                    socket.emit('server_msg', { k: 'act.raiseMinTo', p: { to: minRaiseTo, inc: game.lastRaiseSize } }); return;
                 }
                 const needed = raiseTo - player.currentBet;
-                if (needed > player.chips) { socket.emit('server_msg', '⚠️ 筹码不足'); return; }
+                if (needed > player.chips) { socket.emit('server_msg', { k: 'act.notEnoughChips' }); return; }
                 const increment = raiseTo - game.currentBet;
                 const fullRaise = increment >= game.lastRaiseSize;   // 达到完整加注增量才算「完整加注」
                 if (fullRaise) game.lastRaiseSize = increment;       // 完整加注才刷新最小增量
@@ -122,7 +122,7 @@ function registerPokerActionEvents(context) {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game || !game.runItPending || !game.runIt) return;
-        if (game.runIt.deciderId !== user.id) { socket.emit('server_msg', '⚠️ 由落后方选择发牌次数'); return; }
+        if (game.runIt.deciderId !== user.id) { socket.emit('server_msg', { k: 'runit.deciderOnly' }); return; }
         n = Math.max(1, Math.min(RUNIT_MAX, parseInt(n) || 1));
         if (n <= 1) { resolveRunIt(roomId, 1, 'single'); return; }
         game.runIt.n = n;
@@ -141,7 +141,7 @@ function registerPokerActionEvents(context) {
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game || !game.runItPending || !game.runIt) return;
-        if (game.runIt.leaderId !== user.id) { socket.emit('server_msg', '⚠️ 由领先方同意'); return; }
+        if (game.runIt.leaderId !== user.id) { socket.emit('server_msg', { k: 'runit.leaderOnly' }); return; }
         resolveRunIt(roomId, agree ? game.runIt.n : 1, agree ? 'agreed' : 'declined');
     });
 
@@ -152,9 +152,9 @@ function registerPokerActionEvents(context) {
         const actor = game.players[game.actionOnIdx];
         if (!actor || actor.userId !== user.id) return;
         if ((game.extraAddedThisTurn || 0) >= EXTRA_MAX) {
-            socket.emit('server_msg', '⚠️ 本次行动加时已达上限（2 分钟）'); return;
+            socket.emit('server_msg', { k: 'act.timeCap' }); return;
         }
-        if ((actor.timeCards || 0) <= 0) { socket.emit('server_msg', '⚠️ 没有时间卡了'); return; }
+        if ((actor.timeCards || 0) <= 0) { socket.emit('server_msg', { k: 'act.noTimeCards' }); return; }
         const add = Math.min(EXTRA_STEP, EXTRA_MAX - (game.extraAddedThisTurn || 0));
         actor.timeCards -= 1;
         game.extraAddedThisTurn = (game.extraAddedThisTurn || 0) + add;
