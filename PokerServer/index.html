@@ -581,6 +581,9 @@
             <button class="set-tab" data-pane="table" onclick="switchSettingsTab('table')" data-i18n="settings.tab.table">牌桌</button>
             <button class="set-tab" data-pane="action" onclick="switchSettingsTab('action')" data-i18n="settings.tab.action">操作</button>
         </div>
+        <!-- 三页用 grid 叠在同一个单元格里：容器高度=最高那页，未激活的用 visibility 隐藏
+             但【仍然占位】——否则切 Tab 时整个弹窗高度会跳，玩家反馈「很难受」。 -->
+        <div class="set-panes">
         <div class="set-pane active" data-pane="look">
         <div class="settings-sec">
             <div class="sec-title" data-i18n="settings.language">语言 / Language</div>
@@ -641,8 +644,13 @@
         <div class="settings-sec">
             <div class="sec-title" data-i18n="settings.hotkeys">⌨️ 键盘快捷键</div>
             <div id="hotkey-list"></div>
+            <div class="hk-row hk-wheel">
+                <span class="hk-name" data-i18n="settings.wheelStep">🖱️ 滚轮步长</span>
+                <div class="hk-steps" id="wheel-step-opts"></div>
+            </div>
             <div class="sec-hint" data-i18n="settings.hotkeysHint">点右侧按键可重新绑定。光标在输入框里、或按住 Ctrl/Alt 时不会触发。快捷键只是替你点按钮——按钮不能点时快捷键也不生效。</div>
             <button class="hk-reset" onclick="resetHotkeys()" data-i18n="settings.hotkeysReset">恢复默认</button>
+        </div>
         </div>
         </div>
         <div class="settings-sec set-actions">

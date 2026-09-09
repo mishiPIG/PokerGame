@@ -86,3 +86,16 @@
         .set-tab.active { background: #06d6a0; border-color: #06d6a0; color: #0a1f1a; }
         .set-pane { display: none; }
         .set-pane.active { display: block; }
+        /* 🔴 高度恒定：三页叠在同一个 grid 单元格里，容器高度取最高那页。
+           未激活的用 visibility:hidden（仍占位、但不可点、读屏也读不到），
+           不能用 display:none —— 那会让格子塌回当前页高度，切 Tab 时弹窗高度乱跳。 */
+        .set-panes { display: grid; }
+        .set-panes > .set-pane { grid-area: 1 / 1; display: block; visibility: hidden; }
+        .set-panes > .set-pane.active { visibility: visible; }
+        /* 滚轮步长：和快捷键绑定同一行式排版，右侧四个小档位 */
+        .hk-steps { display: flex; gap: 5px; }
+        .hk-step { padding: 5px 9px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: #cbd9d0;
+            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
+        .hk-step:hover { background: rgba(255,255,255,0.14); }
+        .hk-step.active { background: #06d6a0; border-color: #06d6a0; color: #0a1f1a; }

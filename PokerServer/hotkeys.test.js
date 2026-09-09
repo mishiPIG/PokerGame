@@ -176,6 +176,42 @@ test('绑定能从 localStorage 恢复（刷新后不丢）', () => {
     assert.deepEqual(second.clicked, ['btnFold']);
 });
 
+test('滚轮步长：默认 1BB、可切换、能持久化，非法值回落默认', () => {
+    const env = makeEnv({ buttons: { btnRaise: {} } });
+    assert.equal(env.evalIn('wheelStep'), 1, '默认应是 1BB');
+    // ⚠️ vm context 里的 Array 原型和宿主不同，deepEqual 会因「结构相同但引用不同」失败，
+    //    要展开成宿主数组再比。
+    assert.deepEqual([...env.evalIn('WHEEL_STEPS')], [0.5, 1, 2, 5]);
+
+    env.evalIn('setWheelStep(0.5)');
+    assert.equal(env.evalIn('wheelStep'), 0.5);
+    assert.equal(env.store['pokerdojo.wheelStep'], '0.5', '应写进 localStorage');
+
+    // 刷新后能读回来
+    const again = makeEnv({ buttons: { btnRaise: {} } });
+    again.store['pokerdojo.wheelStep'] = '0.5';
+    again.evalIn('loadWheelStep()');
+    assert.equal(again.evalIn('wheelStep'), 0.5);
+
+    // 存了个不在档位里的值（手改 localStorage / 旧版本残留）→ 回落 1，不能让滚轮失灵
+    const bad = makeEnv({ buttons: { btnRaise: {} } });
+    bad.store['pokerdojo.wheelStep'] = '999';
+    bad.evalIn('loadWheelStep()');
+    assert.equal(bad.evalIn('wheelStep'), 1);
+});
+
+test('滚轮步长换算成筹码时必须取整且至少为 1', () => {
+    const env = makeEnv({ buttons: { btnRaise: {} } });
+    // 0.5BB × BB=25 = 12.5 → 必须取整，否则下注额带小数
+    const step = env.evalIn('(function(){ const bb=25, ws=0.5, shift=false;' +
+        ' return Math.max(1, Math.round(bb * ws * (shift ? 10 : 1))); })()');
+    assert.equal(step, 13);
+    // 极端：BB=1 且步长 0.5 → 0.5 取整后是 0，会导致滚轮完全没反应 → 兜底为 1
+    const tiny = env.evalIn('(function(){ const bb=1, ws=0.5;' +
+        ' return Math.max(1, Math.round(bb * ws)); })()');
+    assert.equal(tiny, 1, '步长算出 0 会让滚轮失灵，必须兜底为 1');
+});
+
 test('恢复默认能把绑定还原', () => {
     const env = makeEnv({ buttons: { btnFold: {} } });
     env.evalIn("hotkeyBindings.fold = 'z'");

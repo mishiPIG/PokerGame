@@ -19,6 +19,9 @@ const HOTKEY_DEFS = [
     { id: 'ready',   def: ' ',     btns: ['btnReady', 'btnStart'],   zh: '准备 / 开始',  en: 'Ready / Start' },
 ];
 const HOTKEY_LS = 'pokerdojo.hotkeys';
+const WHEEL_LS  = 'pokerdojo.wheelStep';
+const WHEEL_STEPS = [0.5, 1, 2, 5];   // 单位 BB
+let wheelStep = 1;
 let hotkeyBindings = {};
 let hotkeyCapturing = null;   // 正在录制哪个动作的新按键
 
@@ -85,6 +88,7 @@ function onHotkeyDown(e) {
 
 // ===== 设置面板里的绑定 UI =====
 function renderHotkeySettings() {
+    renderWheelStep();
     const box = document.getElementById('hotkey-list');
     if (!box) return;
     box.innerHTML = HOTKEY_DEFS.map(d => {
@@ -126,7 +130,25 @@ function resetHotkeys() {
     renderHotkeySettings();
 }
 
+function loadWheelStep() {
+    let v = NaN;
+    try { v = parseFloat(localStorage.getItem(WHEEL_LS)); } catch (e) {}
+    wheelStep = WHEEL_STEPS.includes(v) ? v : 1;
+}
+function setWheelStep(v) {
+    wheelStep = v;
+    try { localStorage.setItem(WHEEL_LS, String(v)); } catch (e) {}
+    renderWheelStep();
+}
+function renderWheelStep() {
+    const box = document.getElementById('wheel-step-opts');
+    if (!box) return;
+    box.innerHTML = WHEEL_STEPS.map(v =>
+        `<button class="hk-step${v === wheelStep ? ' active' : ''}" onclick="setWheelStep(${v})">${v}BB</button>`).join('');
+}
+
 loadHotkeys();
+loadWheelStep();
 window.addEventListener('keydown', onHotkeyDown);
 
 // ===== 下注面板：滚轮调额 =====
@@ -144,7 +166,9 @@ function onSizingWheel(e) {
     if (!input) return;
     // 步长按大盲算，玩家的心理单位就是 BB；按住 Shift 一次跳 10BB
     const bb = (typeof curBB === 'function' && curBB()) || 20;
-    const step = bb * (e.shiftKey ? 10 : 1);
+    // 步长可在设置里选 0.5 / 1 / 2 / 5 BB；按住 Shift 一次跳 10 倍。
+    // 0.5BB 会算出小数筹码，取整后再交给 clampSize（服务端也会再 clamp 一次）。
+    const step = Math.max(1, Math.round(bb * wheelStep * (e.shiftKey ? 10 : 1)));
     const cur = parseInt(input.value) || sizeCtx.minTo;
     const next = clampSize(cur + (e.deltaY < 0 ? step : -step));   // 上滚加注，下滚减
     if (next !== cur) syncSizeInputs(next);
