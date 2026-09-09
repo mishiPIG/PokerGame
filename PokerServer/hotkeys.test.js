@@ -17,7 +17,7 @@ const vm = require('vm');
 
 const SOURCE = fs.readFileSync(path.join(__dirname, 'public/js/71-hotkeys.js'), 'utf8');
 
-function makeEnv({ inRoom = true, buttons = {} } = {}) {
+function makeEnv({ inRoom = true, buttons = {}, openPanels = [] } = {}) {
     const clicked = [];
     const store = {};
     const els = {};
@@ -40,6 +40,10 @@ function makeEnv({ inRoom = true, buttons = {} } = {}) {
         },
         document: {
             getElementById: (id) => els[id] || null,
+            // ⚠️ 浮层都是 position:fixed，offsetParent 恒为 null，只能用 getClientRects 判可见
+            querySelectorAll: (sel) => (openPanels.includes(sel)
+                ? [{ getClientRects: () => [{}] }]      // 这个选择器对应的面板开着
+                : []),
             body: { classList: { contains: (c) => c === 'in-room' && inRoom } },
         },
         window: {
@@ -152,6 +156,20 @@ test('全下走和快捷池比例按钮同一条路径，且以「加注按钮�
     const blocked = makeEnv({ buttons: { btnRaise: { disabled: true } } });
     assert.equal(blocked.press('a'), false);
     assert.deepEqual(blocked.clicked, []);
+});
+
+test('🔴 任何浮层开着都不触发 —— 点开聊天框但没点输入框时按 f 曾把牌弃了', () => {
+    // 玩家实测反馈。光判断「焦点在不在输入框」不够：面板开着但焦点还在 body 上
+    // 是很常见的状态（刚点开、还没点进输入框）。
+    for (const panel of ['#chat-panel', '#settings-overlay', '.modal-mask', '.side-panel', '#avatar-popup', '#table-menu']) {
+        const env = makeEnv({ buttons: { btnFold: {} }, openPanels: [panel] });
+        assert.equal(env.press('f'), false, `${panel} 开着时不该触发`);
+        assert.deepEqual(env.clicked, [], `${panel} 开着时按钮不该被点`);
+    }
+    // 没有任何浮层 → 正常触发
+    const clean = makeEnv({ buttons: { btnFold: {} } });
+    clean.press('f');
+    assert.deepEqual(clean.clicked, ['btnFold']);
 });
 
 test('重新绑定：写入 localStorage，且抢占时把原主人解绑', () => {

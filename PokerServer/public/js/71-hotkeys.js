@@ -5,10 +5,11 @@
 //    这样快捷键永远不可能绕过任何规则校验（无效加注、不是你的回合、筹码不足…），
 //    也不需要跟着服务端规则同步维护第二套判断逻辑。
 //
-// 三条安全边界：
+// 四条安全边界：
 //    ① 光标在输入框 / 文本域 / 可编辑区里 → 完全不拦（否则聊天打字会误触发弃牌）
 //    ② 按住 Ctrl / Alt / Meta → 完全不拦（不抢浏览器快捷键，如 Ctrl+R 刷新）
 //    ③ 不在牌桌里 → 完全不拦
+//    ④ 任何浮层开着（聊天/设置/买入/牌谱/点头像…）→ 完全不拦
 
 const HOTKEY_DEFS = [
     { id: 'fold',    def: 'f',     btns: ['btnFold'],                zh: '弃牌',        en: 'Fold' },
@@ -74,6 +75,25 @@ function runHotkey(def) {
     btn.click();
     return true;
 }
+// 盖在牌桌上的浮层：只要有一个开着，就说明玩家此刻在跟【那个面板】打交道，不是在行动。
+// 玩家实测反馈：点开聊天框但还没点进输入框时，按 f 居然把牌弃了。
+// 光判断「焦点在不在输入框」不够——面板开着但焦点还在 body 上是很常见的状态。
+//
+// ⚠️ 用【类选择器】而不是逐个列 id：新加的弹窗只要沿用 .modal-mask / .c-overlay /
+//    .side-panel 这几个现成外壳，就自动被覆盖，不会漏。
+// ⚠️ 不能用 offsetParent 判可见 —— 这些浮层都是 position:fixed，offsetParent 恒为 null。
+//    getClientRects().length 对 fixed 元素才是对的。
+const BLOCKING_PANELS = ['.modal-mask', '.c-overlay', '.side-panel', '#chat-panel', '#table-menu',
+    '#settings-overlay', '#profile-overlay', '#avatar-popup', '#replay-overlay', '#hand-detail', '#admin-panel'];
+function anyPanelOpen() {
+    for (const sel of BLOCKING_PANELS) {
+        for (const el of document.querySelectorAll(sel)) {
+            if (el.getClientRects().length > 0) return true;
+        }
+    }
+    return false;
+}
+
 function onHotkeyDown(e) {
     if (hotkeyCapturing) return;                                  // 录制模式由输入框自己处理
     if (e.ctrlKey || e.altKey || e.metaKey) return;               // ② 不抢浏览器快捷键
@@ -83,6 +103,7 @@ function onHotkeyDown(e) {
     const key = hotkeyOf(e);
     const def = HOTKEY_DEFS.find(d => hotkeyBindings[d.id] === key);
     if (!def) return;
+    if (anyPanelOpen()) return;   // ④ 有浮层开着 → 玩家在跟那个面板打交道（查询放在匹配之后，避免每次按键都遍历 DOM）
     if (runHotkey(def)) e.preventDefault();                        // 只有真执行了才吞掉这次按键
 }
 
@@ -157,11 +178,10 @@ window.addEventListener('keydown', onHotkeyDown);
 //
 // 边界：只在下注面板真的展开时生效（body.sizing-open，70-actions.js 里本就有这个 class）；
 // 光标在聊天/侧栏/弹窗这类【自己能滚动】的区域内时不抢——否则会滚不动那些面板。
-const WHEEL_SKIP = ['.side-panel', '#chat-panel', '.modal-mask', '.settings-box', '#profile-overlay', '.c-overlay', '#hand-detail', '#replay-overlay'];
 function onSizingWheel(e) {
     if (!document.body.classList.contains('sizing-open')) return;
     if (typeof sizeCtx === 'undefined' || !sizeCtx) return;
-    if (e.target && e.target.closest && WHEEL_SKIP.some(sel => e.target.closest(sel))) return;
+    if (anyPanelOpen()) return;   // 和快捷键同一条判断：浮层开着时不抢滚轮（那些面板自己要滚）
     const input = document.getElementById('raiseAmount');
     if (!input) return;
     // 步长按大盲算，玩家的心理单位就是 BB；按住 Shift 一次跳 10BB
