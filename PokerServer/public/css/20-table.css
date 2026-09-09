@@ -1,4 +1,21 @@
         /* ===== Table ===== */
+        /* ===== 牌桌视觉层级（2026-09-09）——加新的牌桌元素前先读这段 =====
+           问题不是「元素太多」（常驻 11 个、每座位再叠 7 层，每个都有用），
+           是【权重是平的】：没区分「该一眼看到」和「需要时才看」，
+           新手第一次进桌眼睛不知道往哪落。三档契约：
+
+             T1 焦点   公共牌 · 底池总额 · 当前行动者
+                       最大字号 / 最高对比 /【只有这一档允许动效】
+             T2 信息   座位名字·筹码 · 下注徽章 · 牌型徽章 · 桌面提示 · 状态气泡
+                       中等对比、静止；需要时扫一眼能读到就够
+             T3 背景   合规横幅 · 房间水印 · 观战横幅 · straddle 旗 · 庄家 D
+                       低对比、统一用 var(--t3-op)，【不许有 infinite 动画】
+
+           ⚠️ 最后那条由 table-hierarchy.test.js 把关：牌桌 CSS 里所有
+              `animation: … infinite` 的选择器必须在白名单内，而白名单里全是
+              【瞬时状态】（轮到你 / 只剩 5 秒 / 全押 / 赢了 / 跑马胜率）。
+              再往桌上加一个永远在闪的东西，测试会直接挡下来——
+              常驻动效多一个，「轮到谁」就弱一分。 */
         /* 桌面风格主题 */
         body.theme-blue   #table-area { background: radial-gradient(ellipse at center,#1d5a7a 0%,#0d2f44 75%) !important; }
         body.theme-green  #table-area { background: radial-gradient(ellipse at center,#2d6a4f 0%,#1b4332 75%) !important; }
@@ -14,18 +31,22 @@
         #phase-indicator {
             position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.5); padding: 4px 14px; border-radius: 12px;
-            font-size: 12px; color: #ddd; letter-spacing: 1px;
+            font-size: 12px; color: #dfe9e2; letter-spacing: 1px;
         }
 
         /* ===== Seat（德扑之星式：名上·头像·筹码下 三层；牌朝外；状态按需气泡）===== */
         .seat { display: flex; flex-direction: column; align-items: center; gap: 1px; position: relative; padding: 2px; }
-        .seat .name { font-weight: 600; font-size: 11px; color: #cfd8e6; max-width: 64px;
+        /* 名字是 T2：认人用的，不该和筹码抢。原来 #cfd8e6（A1 统一配色时漏网的旧蓝灰）比筹码还亮。*/
+        .seat .name { font-weight: 600; font-size: 11px; color: var(--t2-text); max-width: 64px;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; margin-bottom: 7px; }
-        .seat .chips { font-size: 12px; color: #e8c14a; font-weight: bold; line-height: 1.2; margin-top: 9px; }
+        /* 筹码=钱，用全站统一的金（原 #e8c14a 是另一支金，同屏两支金正是「说不上哪不对」的来源）。
+           别人的座位压到 0.86——同屏 9 个亮金数字会把底池总额淹掉。*/
+        .seat .chips { font-size: 12px; color: #f4d35e; font-weight: bold; line-height: 1.2; margin-top: 9px; }
+        .ring-seat:not(.bottom) .seat .chips { opacity: 0.86; }
         .seat .chips.clickable { cursor: pointer; }
         .seat.folded { opacity: 0.5; }
         .seat.away-seat .avatar { filter: grayscale(1) brightness(0.7); }
-        .seat.away-seat .name { color: #8a93a3; }
+        .seat.away-seat .name { color: rgba(157,185,169,0.55); }
         /* 头像块（小方块 + 顶部下注 chip + 庄家 D + 倒计时）*/
         /* 头像方块：46→40（玩家反馈头像偏大压地方）。改这里必须同步 80-table-renderer.js 的 SEAT_BOX */
         .avatar-block { position: relative; width: 40px; height: 40px; }
@@ -55,7 +76,14 @@
         @keyframes eqPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
         /* 当前行动：呼吸金框 + 倒计时数字（区别于 All-in 火光）*/
         .seat.acting .avatar { border-color: #f4d35e; }
-        .seat.acting .avatar-block { animation: actGlow 1.1s ease-in-out infinite; border-radius: 12px; }
+        .seat.acting .avatar-block { animation: actGlow 1.1s ease-in-out infinite; border-radius: 12px;
+            transform: scale(1.08); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1); }
+        /* 「轮到谁」是牌桌上唯一必须一眼看到的信息。光环本身在满屏的徽章/气泡里
+           并不够突出，所以再叠两件事：行动者放大一点点，其余座位同时轻压对比。
+           两边一起动，差距才拉得开——只做其中一件都会显得没什么变化。
+           ⚠️ 弃牌座位已经是 opacity .5，再压就快看不见了，所以排除掉。*/
+        #ring-layer.has-actor .seat:not(.acting):not(.folded) {
+            filter: saturate(0.88) brightness(0.86); transition: filter 0.3s ease; }
         @keyframes actGlow { 0%,100% { box-shadow: 0 0 0 2px rgba(244,211,94,0.5), 0 0 10px rgba(244,211,94,0.4); }
             50% { box-shadow: 0 0 0 2px rgba(244,211,94,0.95), 0 0 22px rgba(244,211,94,0.85); } }
         /* 环形倒计时进度条：绕头像一圈，剩余时间用 --p(1→0) 驱动 conic-gradient 收缩 */
@@ -85,8 +113,8 @@
         /* 状态气泡（按需）*/
         .status-bubble { position: absolute; top: -10px; right: -12px; z-index: 7; font-size: 10.5px; font-weight: bold;
             padding: 2px 8px; border-radius: 10px; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.45); }
-        .status-bubble.wait { background: #566275; color: #e8eef7; }
-        .status-bubble.fold { background: #454d5c; color: #cdd4e0; }
+        .status-bubble.wait { background: #3d5346; color: #dfe9e2; }
+        .status-bubble.fold { background: #35453b; color: #9db9a9; }
         .status-bubble.allin { background: #e23b3b; color: #fff; }
         .ready-badge { position: absolute; top: -12px; left: -8px; z-index: 7; font-size: 11px; font-weight: bold;
             padding: 2px 8px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.4); }
@@ -124,6 +152,11 @@
 
         /* ===== Card（随屏幕尺寸连续缩放，取宽/高较小者）===== */
         :root { --card-w: clamp(22px, min(8.5vw, 5dvh), 40px); --card-h: calc(var(--card-w) * 1.39); }
+        /* 三档权重的可调旋钮（含义见文件开头的层级契约）*/
+        :root {
+            --t2-text: #9db9a9;   /* T2 次级文字：座位名字、附注 —— 认得出但不抢戏 */
+            --t3-op: 0.34;        /* T3 背景元素统一透明度：横幅/水印/观战条 */
+        }
         .card {
             display: inline-flex; flex-direction: column; justify-content: space-between;
             width: var(--card-w); height: var(--card-h); border-radius: 6px; background: #fff;
@@ -190,7 +223,7 @@
         .card.showable:hover { transform: translateY(-4px); transition: transform 0.15s; }
         .card.showable.shown { box-shadow: 0 0 0 2px #06d6a0, 0 2px 5px rgba(0,0,0,0.35); cursor: default; }
         .fly-coin { position: fixed; z-index: 50; font-size: 22px; pointer-events: none; will-change: transform, opacity; }
-        .show-hint { font-size: 11px; color: #cbd9d0; margin: 2px 0; animation: hintPulse 1.2s ease-in-out infinite; }
+        .show-hint { font-size: 11px; color: #dfe9e2; margin: 2px 0; animation: hintPulse 1.2s ease-in-out infinite; }
         @keyframes hintPulse { 50% { opacity: 0.5; } }
         /* showdown 牌型高亮：组成最强牌的牌拉出+金光，其余变灰 */
         .card.hl { position: relative; z-index: 2;
@@ -234,6 +267,15 @@
             background: linear-gradient(#7fb4ff, #3a7bd5); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
         .pot-chip.gold  { background: linear-gradient(#ffe08a, #e0a200); box-shadow: inset 0 3px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.5); }
         .pot-chip.green { background: linear-gradient(#8fe6a8, #2fae5f); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
+        /* 中央焦点：给「底池 + 公共牌」垫一层向外淡出的暗影，把桌心从满桌的绿里抠出来。
+           ⚠️ 只能【压暗四周】不能提亮中心——桌布本身是亮绿，再加亮会糊成一片。
+           ⚠️ 是 ::before + 绝对定位，不进布局，所以不影响 seatfit 那套几何断言；
+              #board 本身 pointer-events:none，这层也就不会挡住底下的座位点击。*/
+        #board::before { content: ''; position: absolute; z-index: -1;
+            left: 50%; top: 50%; transform: translate(-50%, -50%);
+            width: 150%; height: 195%; pointer-events: none;
+            background: radial-gradient(ellipse at center,
+                rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.15) 46%, rgba(0,0,0,0) 72%); }
         #community { display: flex; justify-content: center; gap: 5px; min-height: var(--card-h); perspective: 900px; }
         /* 公共牌逐张发出：从上方落下 + 翻牌（rotateY，需容器 perspective 才有立体翻转感），flop 逐张 1→2→3 */
         .card.comm-deal { animation: commDeal 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards; transform-style: preserve-3d; }

@@ -197,6 +197,9 @@ function renderSeats(state) {
         html += `<div class="${cls}" style="left:${pt.x}%;top:${pt.y}%">${inner}</div>`;
     }
     ring.innerHTML = html;
+    // 视觉层级：有人正在行动时给座位层挂个标记，CSS 据此把【其余】座位轻压一档，
+    // 让「轮到谁」一眼可见（压多少在 20-table.css 里，别在这写死样式）。
+    ring.classList.toggle('has-actor', !!state.actionOnUserId);
     // renderSeats 会整体替换座位 DOM；把尚在 10 秒展示期内的临时语音挂回原位。
     restoreVoiceBubbles();
 
