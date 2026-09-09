@@ -660,3 +660,6 @@ function setupSizing(state, me, myTurn) {
     document.getElementById('raiseAmount').disabled = false;
     if (row.style.display === 'none') updateConfirmLabel(minTo);
 }
+
+// 切语言后牌桌要重画一次：过牌/跟注按钮、状态气泡、水印等都是 JS 每帧写的
+onLangChange(() => { if (typeof lastState !== 'undefined' && lastState) render(lastState); });

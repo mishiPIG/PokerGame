@@ -27,11 +27,11 @@ function registerConnectionEvents(context) {
     socket.on('set_display_name', (payload = {}, ack) => {
         payload = payload && typeof payload === 'object' ? payload : {};
         const displayName = normalizeDisplayName(payload.displayName);
-        if (!displayName) return ack?.({ ok: false, error: '显示名称须为 2–16 个字符，仅支持中文、字母、数字、空格、_、-、.' });
+        if (!displayName) return ack?.({ ok: false, error: '显示名称须为 2–16 个字符，仅支持中文、字母、数字、空格、_、-、.', k: 'nameFormat' });
         const freshUser = db.getUserById(user.id);
         if (freshUser?.displayName === displayName) return ack?.({ ok: true, displayName, displayNameChangedAtMs: freshUser.displayNameChangedAtMs });
         if (!freshUser || !displayNameChangeAllowed(freshUser)) {
-            return ack?.({ ok: false, error: '显示名称每 24 小时只能修改一次', remainingMs: displayNameChangeRemainingMs(freshUser) });
+            return ack?.({ ok: false, error: '显示名称每 24 小时只能修改一次', k: 'nameCooldown', remainingMs: displayNameChangeRemainingMs(freshUser) });
         }
         const updated = db.setDisplayName(user.id, displayName);
         Object.assign(user, updated, { displayName: updated.displayName });

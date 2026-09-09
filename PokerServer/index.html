@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>德扑道场 Poker Dojo</title>
+    <!-- i18n-ok: 产品名，不翻译 --><title>德扑道场 Poker Dojo</title><!-- /i18n-ok -->
     <meta name="theme-color" content="#2f4a3e">
     <!-- 开场画面的关键样式【内联】：外链样式表到达之前就要是深绿底，
          否则会先闪一下白，反而比没有开场更难看。与原生 splash 同色 #2f4a3e。 -->
@@ -52,14 +52,14 @@
         别让已登录的人为了看动画多等（见 99-bootstrap.js 的 dismissBootSplash）。 -->
 <div id="boot-splash" onclick="dismissBootSplash('tap')">
     <img src="/avatars/logo.png" alt="">
-    <div class="bs-name">德扑道场</div>
+    <!-- i18n-ok: 产品名 --> <div class="bs-name">德扑道场</div> <!-- /i18n-ok -->
     <div class="bs-sub">POKER DOJO</div>
 </div>
 
 <!-- ===== Auth overlay ===== -->
 <div id="auth-overlay">
     <div id="auth-box">
-        <h1><img src="/avatars/logo.png" class="auth-logo" alt="">德扑道场</h1>
+        <!-- i18n-ok: 产品名 --><h1><img src="/avatars/logo.png" class="auth-logo" alt="">德扑道场</h1><!-- /i18n-ok -->
         <div class="auth-sub" data-i18n="brand.tagline">Poker Dojo · 好友开房 · 切磋成长</div>
         <div class="auth-tabs">
             <button class="auth-tab active" onclick="showTab('login')" data-i18n="tab.login">登录</button>
@@ -123,9 +123,10 @@
         <button class="icon-btn lobby-only" id="admin-toggle" onclick="toggleAdminPanel()" title="管理面板" data-i18n-title="title.admin" style="display:none">👑</button>
         <button class="icon-btn lobby-only" onclick="doLogout()" title="退出登录" data-i18n-title="title.logout">⎋</button>
     </div>
-    <span id="latency" title="网络延迟">📶 --</span>
+    <span id="latency" data-i18n-title="ui.latency" title="网络延迟">📶 --</span>
 
     <!-- 管理员面板（仅 isAdmin 可见） -->
+    <!-- i18n-ok: 管理面板不翻译（用户 2026-09-06 定）——只有管理员自己看 -->
     <div id="admin-panel" style="display:none">
         <h3>⚙️ 管理员面板</h3>
         <div class="adm-tabs">
@@ -180,6 +181,7 @@
         </div>
         <div id="admin-msg"></div>
     </div>
+    <!-- /i18n-ok -->
 
     <!-- ===== 大厅 ===== -->
     <div id="lobby-view">
@@ -240,7 +242,7 @@
                     <input type="range" id="ccMax" min="2" max="9" step="1" value="6" oninput="updateCashLabels()"></label>
                 <label><span data-i18n="cfg.minBuyin">单次最小带入：</span><b id="ccMinVal">2,000</b>
                     <input type="range" id="ccMin" min="2000" max="8000" step="1000" value="2000" oninput="updateCashLabels()"></label>
-                <label><span data-i18n="cfg.buyinCap">带入上限：</span><b id="ccCapVal">无限制</b>
+                <label><span data-i18n="cfg.buyinCap">带入上限：</span><b id="ccCapVal" data-i18n="cfg.capNone">无限制</b>
                     <input type="range" id="ccCap" min="0" max="60000" step="4000" value="0" oninput="updateCashLabels()"></label>
                 <div class="cfg-field"><span class="cfg-label" data-i18n="cfg.duration">训练时长（到点自动结束并结算排名）</span>
                     <div class="tier-row" id="ccDurRow"></div></div>
@@ -255,8 +257,8 @@
         <div id="room-list"></div>
         <!-- 版本：放在大厅底部，落地就能看见，不用去设置面板里翻。
              同时显示【前端】和【服务端】—— 不一致说明本机缓存了旧前端。 -->
-        <div class="lobby-version" id="version-box" onclick="copyVersion()" title="点击复制版本信息">
-            <span id="ver-client">前端 …</span> · <span id="ver-server">服务端 …</span>
+        <div class="lobby-version" id="version-box" onclick="copyVersion()" data-i18n-title="ui.copyVersion" title="点击复制版本信息">
+            <span id="ver-client" data-i18n="ver.client">前端 …</span> · <span id="ver-server" data-i18n="ver.server">服务端 …</span>
         </div>
     </div>
 
@@ -275,7 +277,7 @@
         <div id="table-info"></div>
         <!-- 公共牌 + 底池（绝对居中，布局稳定不随行动浮层移动）-->
         <div id="board">
-            <div id="pot">💰 底池: 0</div>
+            <div id="pot" data-i18n="table.pot0">💰 底池: 0</div>
             <div id="community"></div>
             <div id="runit-boards" style="display:none"></div>
             <div id="table-notice" aria-live="polite" role="status" style="display:none"></div>
@@ -289,13 +291,13 @@
     <!-- 行动浮层：仅在轮到我 / 可准备 / 局间看牌时显示 -->
     <div id="action-bar" style="display:none">
         <!-- 准备按钮（SNG 开赛前）-->
-        <button class="start" id="btnReady" onclick="toggleReady()" style="display:none">✅ 准备</button>
+        <button class="start" id="btnReady" onclick="toggleReady()" style="display:none" data-i18n="table.ready">✅ 准备</button>
         <!-- 开始按钮（现金桌房主开赛）-->
-        <button class="start" id="btnStart" onclick="startGame()" style="display:none">▶ 开始</button>
-        <div class="wait-host" id="waitHost" style="display:none">⏳ 等待房主开始…</div>
+        <button class="start" id="btnStart" onclick="startGame()" style="display:none" data-i18n="table.start">▶ 开始</button>
+        <div class="wait-host" id="waitHost" style="display:none" data-i18n="table.waitHost">⏳ 等待房主开始…</div>
         <!-- 坐出补码（现金桌耗尽）-->
-        <div class="wait-host" id="sitOutPanel" style="display:none">💤 记分牌耗尽，已坐出
-            <button class="start" style="margin-left:8px" onclick="openRebuy()">💵 补码回来</button></div>
+        <div class="wait-host" id="sitOutPanel" style="display:none"><span data-i18n="table.sitOut">💤 记分牌耗尽，已坐出</span>
+            <button class="start" style="margin-left:8px" onclick="openRebuy()" data-i18n="table.rebuyBack">💵 补码回来</button></div>
         <!-- 留座 / 站起围观，回到座位 -->
         <div class="wait-host" id="reserveBackPanel" style="display:none"><span id="reserveBackLabel" data-i18n="reserve.reserving">💺 留座中</span>
             <button class="start" style="margin-left:8px" onclick="sitBack()" data-i18n="reserve.sitback">🪑 回到座位</button></div>
@@ -334,7 +336,7 @@
             <button class="tc-btn" id="tcFullscreen" onclick="toggleFullscreen()" title="全屏" data-i18n-title="title.fullscreen">⛶</button>
         </div>
         <div class="tc-right">
-            <button class="tc-btn" onclick="toggleChat()" title="聊天/表情">💬</button>
+            <button class="tc-btn" onclick="toggleChat()" data-i18n-title="ui.chat" title="聊天/表情">💬</button>
             <button class="tc-btn" id="voice-btn" title="按住说话" data-i18n-title="voice.hold">🎤</button>
         </div>
     </div>
@@ -389,7 +391,7 @@
         <div class="sp-head"><b data-i18n="stats.title">当前战绩</b><button onclick="closeStats()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <table class="sp-table"><thead><tr><th data-i18n="stats.name">昵称</th><th data-i18n="stats.buyin">带入</th><th data-i18n="stats.hands">手数</th><th data-i18n="stats.net">战绩</th></tr></thead>
             <tbody id="stats-body"></tbody></table>
-        <div class="sp-spec"><b id="spec-count">观众 (0)</b><div id="spec-list"></div></div>
+        <div class="sp-spec"><b id="spec-count" data-i18n="table.spec0">观众 (0)</b><div id="spec-list"></div></div>
     </div>
 
     <!-- 牌谱回顾面板 -->

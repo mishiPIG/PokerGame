@@ -25,7 +25,7 @@ async function doLogin() {
     if (!username || !password) return setAuthError(L('请填写账号和密码', 'Enter your username and password'));
     try {
         const { ok, data } = await authPost('/api/login', { username, password });
-        if (!ok) return setAuthError(data.error || L('登录失败', 'Login failed'));
+        if (!ok) return setAuthError(apiErr(data, '登录失败', 'Login failed'));
         onAuthSuccess(data);
     } catch { setAuthError(L('网络错误，请重试', 'Network error, please try again')); }
 }
@@ -45,7 +45,7 @@ async function regSendCode() {
     setAuthError(L('发送中…', 'Sending…'));
     try {
         const { ok, data } = await authPost('/api/register/send-code', { username, email, password });
-        if (!ok) return setAuthError(data.error || L('发送失败', 'Failed to send'));
+        if (!ok) return setAuthError(apiErr(data, '发送失败', 'Failed to send'));
         regEmail = email;
         document.getElementById('reg-step1').style.display = 'none';
         document.getElementById('reg-step2').style.display = '';
@@ -59,7 +59,7 @@ async function regVerify() {
     if (!code) return setAuthError(L('请输入验证码', 'Enter the code'));
     try {
         const { ok, data } = await authPost('/api/register/verify', { email: regEmail, code });
-        if (!ok) return setAuthError(data.error || L('验证失败', 'Verification failed'));
+        if (!ok) return setAuthError(apiErr(data, '验证失败', 'Verification failed'));
         onAuthSuccess(data);
     } catch { setAuthError(L('网络错误，请重试', 'Network error, please try again')); }
 }
@@ -72,7 +72,7 @@ async function fgSendCode() {
     setAuthError(L('发送中…', 'Sending…'));
     try {
         const { ok, data } = await authPost('/api/forgot/send-code', { email });
-        if (!ok) return setAuthError(data.error || L('发送失败', 'Failed to send'));
+        if (!ok) return setAuthError(apiErr(data, '发送失败', 'Failed to send'));
         fgEmail = email;
         document.getElementById('fg-step1').style.display = 'none';
         document.getElementById('fg-step2').style.display = '';
@@ -86,7 +86,7 @@ async function fgReset() {
     if (!code || !newPassword) return setAuthError(L('请输入验证码和新密码', 'Enter the code and a new password'));
     try {
         const { ok, data } = await authPost('/api/forgot/reset', { email: fgEmail, code, newPassword });
-        if (!ok) return setAuthError(data.error || L('重置失败', 'Reset failed'));
+        if (!ok) return setAuthError(apiErr(data, '重置失败', 'Reset failed'));
         onAuthSuccess(data);
     } catch { setAuthError(L('网络错误，请重试', 'Network error, please try again')); }
 }

@@ -33,9 +33,11 @@ function registerPokerCardEvents(context) {
         const n = game.communityCards.length;
         if (n >= 5) return;                       // 已到河牌（含真摊牌），无可发
         const count = n === 0 ? 3 : 1;            // 0→翻牌3张，3→转牌1张，4→河牌1张
-        const streetName = n === 0 ? '翻牌' : (n === 3 ? '转牌' : '河牌');
+        const street = n === 0 ? 'flop' : (n === 3 ? 'turn' : 'river');
         // 公共牌下方显示一行字：谁想看（不走弹幕、不加表情）
-        io.in(roomId).emit('table_notice', { text: `${nameOf(user)} 想看${streetName}` });
+        // ⚠️ 这是广播：同桌两人可能一个中文一个英文，一条写死的文案满足不了 ——
+        //    只发 { k, p }，翻译在各自客户端做（同 server_msg 那套）。
+        io.in(roomId).emit('table_notice', { k: 'notice.wantSee.' + street, p: { name: nameOf(user) } });
         const dealt = dealCommunity(game, count);
         io.in(roomId).emit('server_msg', `🐰 看后续牌：${dealt.map(c => c.toString()).join(' ')}`);
         scheduleNextHand(roomId);                 // 重置局间倒计时，给看牌时间

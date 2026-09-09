@@ -59,6 +59,74 @@ const I18N = {
         'srv.host.onlyStraddle': '⚠️ 只有房主可修改 Straddle 设置',
         'srv.host.onlyResume': '⚠️ 只有房主可继续发牌',
         'srv.table.timeUp': '⚠️ 训练时间已到，请先在比赛设置中调整结束时间',
+        // —— 牌桌提示行 table_notice（广播，各客户端按自己的语言渲染）
+        'srv.notice.wantSee.flop': '{name} 想看翻牌',
+        'srv.notice.wantSee.turn': '{name} 想看转牌',
+        'srv.notice.wantSee.river': '{name} 想看河牌',
+        // —— 房间码 / 邀请链接出错
+        'srv.invite.noRoom': '房间不存在',
+        'srv.invite.tooMany': '尝试次数过多，请稍后再试',
+        'srv.invite.badCode': '房间码无效或当前不可加入',
+        'srv.invite.badLink': '邀请已失效或当前不可加入',
+        // —— HTTP 接口错误（登录/注册/绑邮箱/语音）：服务端仍发中文原文做兼容，额外带一个 k
+        'err.nameFormat': '显示名称须为 2–16 个字符，仅支持中文、字母、数字、空格、_、-、.',
+        'err.nameCooldown': '显示名称每 24 小时只能修改一次',
+        'err.notLoggedIn': '未登录',
+        'err.notAdmin': '无管理员权限',
+        'err.sessionExpired': '登录已过期',
+        'err.noSuchUser': '用户不存在',
+        'err.signupFields': '请填写用户名、邮箱和密码',
+        'err.nameLen': '用户名 2-20 字符',
+        'err.badEmail': '邮箱格式不正确',
+        'err.pwdShort': '密码至少 6 位',
+        'err.nameTaken': '用户名已被注册',
+        'err.emailTakenHint': '该邮箱已注册，可直接登录或找回密码',
+        'err.sendTooOften': '发送太频繁，请 1 分钟后再试',
+        'err.sendFailed': '验证码发送失败，请稍后重试',
+        'err.needCode': '请先获取验证码',
+        'err.codeExpiredNew': '验证码已过期，请重新获取',
+        'err.codeWrong': '验证码错误',
+        'err.emailTaken': '该邮箱已注册',
+        'err.serverError': '服务器错误',
+        'err.loginFields': '请填写账号和密码',
+        'err.badLogin': '账号或密码错误',
+        'err.newPwdShort': '新密码至少 6 位',
+        'err.codeExpired': '验证码已过期',
+        'err.emailOther': '该邮箱已被其他账号绑定',
+        'err.emailInUse': '该邮箱已被占用',
+        'err.checkedIn': '今日已签到',
+        'err.feedbackEmpty': '请填写反馈内容',
+        'err.feedbackLong': '内容过长（≤2000字）',
+        'err.voiceNoSize': '语音上传必须声明文件大小',
+        'err.voiceTooBig': '语音文件过大',
+        'err.voiceBusy': '当前语音上传较多，请稍后再试',
+        'err.voiceMax2': '同一账号最多同时上传 2 条语音',
+        'err.notInRoom': '你已不在该房间',
+        'err.voiceFormat': '不支持的录音格式',
+        'err.voiceEmpty': '语音文件为空或过大',
+        'err.voiceDuration': '无法解析语音真实时长',
+        'err.voiceRange': '语音时长必须在 0.3～15 秒之间',
+        'err.tooOften': '发送太频繁，请稍后再试',
+        'err.voiceFull': '临时语音空间已满，请稍后再试',
+        'err.voiceSave': '语音保存失败',
+        'err.voiceNone': '语音不存在',
+        'err.voiceGone': '语音已失效',
+        'err.voiceExpired': '语音已过期',
+        'err.voiceRoomOnly': '仅当前房间成员可播放',
+        // —— index.html 里的零散静态文案
+        'ui.latency': '网络延迟',
+        'ui.copyVersion': '点击复制版本信息',
+        'ui.chat': '聊天/表情',
+        'cfg.capNone': '无限制',
+        'ver.client': '前端 …',
+        'ver.server': '服务端 …',
+        'table.pot0': '💰 底池: 0',
+        'table.ready': '✅ 准备',
+        'table.start': '▶ 开始',
+        'table.waitHost': '⏳ 等待房主开始…',
+        'table.sitOut': '💤 记分牌耗尽，已坐出',
+        'table.rebuyBack': '💵 补码回来',
+        'table.spec0': '观众 (0)',
         'srv.act.notYourTurn': '⚠️ 不是你的回合',
         'srv.act.noActionNeeded': '⚠️ 你已全押/已弃牌，无需再行动',
         'srv.act.cannotCheck': '⚠️ 有未跟注，不能 Check',
@@ -177,6 +245,74 @@ const I18N = {
         'srv.host.onlyStraddle': '⚠️ Only the host can change the straddle setting',
         'srv.host.onlyResume': '⚠️ Only the host can resume dealing',
         'srv.table.timeUp': '⚠️ Session time is up - adjust the end time in game settings first',
+        // -- table notice line (broadcast; each client renders it in its own language)
+        'srv.notice.wantSee.flop': '{name} wants to see the flop',
+        'srv.notice.wantSee.turn': '{name} wants to see the turn',
+        'srv.notice.wantSee.river': '{name} wants to see the river',
+        // -- room code / invite link errors
+        'srv.invite.noRoom': 'Room not found',
+        'srv.invite.tooMany': 'Too many attempts, try again later',
+        'srv.invite.badCode': 'Invalid room code, or the room cannot be joined right now',
+        'srv.invite.badLink': 'This invite has expired, or the room cannot be joined right now',
+        // -- HTTP API errors (sign-in / sign-up / email binding / voice)
+        'err.nameFormat': 'Display name must be 2-16 characters: letters, digits, spaces, _, - or .',
+        'err.nameCooldown': 'You can only change your display name once every 24 hours',
+        'err.notLoggedIn': 'Not signed in',
+        'err.notAdmin': 'Administrator access required',
+        'err.sessionExpired': 'Your session has expired',
+        'err.noSuchUser': 'User not found',
+        'err.signupFields': 'Enter a username, email and password',
+        'err.nameLen': 'Username must be 2-20 characters',
+        'err.badEmail': 'That email address is not valid',
+        'err.pwdShort': 'Password must be at least 6 characters',
+        'err.nameTaken': 'That username is taken',
+        'err.emailTakenHint': 'That email is already registered — sign in or reset your password',
+        'err.sendTooOften': 'Too many requests — try again in a minute',
+        'err.sendFailed': 'Could not send the code, please try again later',
+        'err.needCode': 'Request a verification code first',
+        'err.codeExpiredNew': 'That code has expired — request a new one',
+        'err.codeWrong': 'Wrong verification code',
+        'err.emailTaken': 'That email is already registered',
+        'err.serverError': 'Server error',
+        'err.loginFields': 'Enter your account and password',
+        'err.badLogin': 'Wrong account or password',
+        'err.newPwdShort': 'New password must be at least 6 characters',
+        'err.codeExpired': 'That code has expired',
+        'err.emailOther': 'That email is linked to another account',
+        'err.emailInUse': 'That email is already in use',
+        'err.checkedIn': 'Already checked in today',
+        'err.feedbackEmpty': 'Please write your feedback',
+        'err.feedbackLong': 'Too long (2000 characters max)',
+        'err.voiceNoSize': 'Voice upload must declare its file size',
+        'err.voiceTooBig': 'Voice clip is too large',
+        'err.voiceBusy': 'Too many uploads right now, try again shortly',
+        'err.voiceMax2': 'You can upload at most 2 clips at a time',
+        'err.notInRoom': 'You are no longer in that room',
+        'err.voiceFormat': 'Unsupported recording format',
+        'err.voiceEmpty': 'Voice clip is empty or too large',
+        'err.voiceDuration': 'Could not read the clip length',
+        'err.voiceRange': 'Voice clips must be between 0.3 and 15 seconds',
+        'err.tooOften': 'Too many requests, try again shortly',
+        'err.voiceFull': 'Voice storage is full, try again shortly',
+        'err.voiceSave': 'Could not save the voice clip',
+        'err.voiceNone': 'That voice clip does not exist',
+        'err.voiceGone': 'That voice clip is no longer available',
+        'err.voiceExpired': 'That voice clip has expired',
+        'err.voiceRoomOnly': 'Only people in this room can play it',
+        // -- odds and ends from index.html
+        'ui.latency': 'Network latency',
+        'ui.copyVersion': 'Tap to copy version info',
+        'ui.chat': 'Chat / emotes',
+        'cfg.capNone': 'No cap',
+        'ver.client': 'Client …',
+        'ver.server': 'Server …',
+        'table.pot0': '💰 Pot: 0',
+        'table.ready': '✅ Ready',
+        'table.start': '▶ Start',
+        'table.waitHost': '⏳ Waiting for the host…',
+        'table.sitOut': '💤 Out of chips — sitting out',
+        'table.rebuyBack': '💵 Buy back in',
+        'table.spec0': 'Spectators (0)',
         'srv.act.notYourTurn': '⚠️ It is not your turn',
         'srv.act.noActionNeeded': '⚠️ You are already all-in or folded - no action needed',
         'srv.act.cannotCheck': '⚠️ There is a bet to call - you cannot check',
@@ -252,7 +388,33 @@ function t(key, fallback) {
     if (I18N.zh && key in I18N.zh) return I18N.zh[key];
     return fallback != null ? fallback : key;
 }
+// 🔴 在字典里查一条；查不到返回 null。
+//    不能用 t(key, null) 代替——t() 查不到时【返回 key 本身】（fallback 传 null 也一样），
+//    照那么写，缓存了旧 JS 的客户端碰到服务端的新 key，会把 "srv.xxx" 原样弹成一条提示。
+function tOrNull(key) {
+    const d = I18N[lang];
+    if (d && key in d) return d[key];
+    if (I18N.zh && key in I18N.zh) return I18N.zh[key];
+    return null;
+}
+// HTTP 接口的错误文案。服务端发 { error: '中文原文', k: 'xxx' }：
+// 优先按 k 查当前语言 → 没 k / 字典里没这条就退回服务端原文 → 都没有才用调用处的兜底。
+// （服务端保留中文原文是故意的：老缓存客户端、curl、日志都还读得懂。）
+function apiErr(data, zh, en) {
+    const s = (data && data.k) ? tOrNull('err.' + data.k) : null;
+    return s || (data && data.error) || L(zh, en);
+}
 // 动态 JS 文案用这个：翻译直接写在调用处，省去为每条散字符串建 key。lang=en 时取第二个参数。
+// 日期/时间按界面语言格式化。原来各处写死 'zh-CN'，英文用户看到的仍是中式格式
+// （和 CLAUDE.md #13「时间显示要脱离服务器时区」同一类问题：别把某一种区域设置写死）。
+function langLocale() { return lang === 'en' ? 'en-US' : 'zh-CN'; }
+function fmtDateTime(ts, opts) {
+    return new Date(ts).toLocaleString(langLocale(),
+        opts || { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function fmtTime(ts) {
+    return new Date(ts).toLocaleTimeString(langLocale(), { hour: '2-digit', minute: '2-digit' });
+}
 function L(zh, en) { return (lang === 'en' && en != null) ? en : zh; }
 // 牌型名（服务端发的是中文，固定 10 种）→ 英文映射
 const HAND_CAT_EN = { '皇家同花顺': 'Royal Flush', '同花顺': 'Straight Flush', '四条': 'Four of a Kind', '葫芦': 'Full House', '同花': 'Flush', '顺子': 'Straight', '三条': 'Three of a Kind', '两对': 'Two Pair', '一对': 'One Pair', '高牌': 'High Card' };
@@ -290,15 +452,21 @@ function applyLang() {
     });
     document.querySelectorAll('[data-lang]').forEach(b => b.classList.toggle('sel', b.getAttribute('data-lang') === lang));
 }
+// 🔴 切语言后需要重画的东西【各模块自己登记】，不要再往 setLang 里手写清单。
+//    applyLang() 只刷新带 data-i18n 的静态节点；凡是 JS 拼出来的 HTML
+//    （牌桌、房间列表、设置面板的动态区…）切完语言都得自己重渲染一次。
+//    以前这里是一张手写清单，于是【后加的面板永远会被漏掉】——键盘快捷键面板
+//    就是这么漏的：切到 English 后那六行仍是中文（本来就写了 L(d.zh, d.en)，
+//    只是没人在切语言后重画它）。现在各模块在自己文件末尾 onLangChange() 登记。
+const LANG_RERENDER = [];
+function onLangChange(fn) { if (typeof fn === 'function') LANG_RERENDER.push(fn); }
+
 function setLang(l) {
     lang = (l === 'en' ? 'en' : 'zh');
     try { localStorage.setItem('lang', lang); } catch {}
     applyLang();
-    // 牌桌/大厅里有些文案是 JS 写的（过牌/跟注按钮、房间列表卡片等）→ 切语言后重渲染一次立即生效
-    try { if (typeof lastState !== 'undefined' && lastState && typeof render === 'function') render(lastState); } catch {}
-    try { if (window._lastRooms && typeof renderRoomList === 'function') renderRoomList(window._lastRooms); } catch {}
-    try { if (document.getElementById('settings-overlay')?.style.display === 'flex' && typeof buildSettingsPanel === 'function') buildSettingsPanel(); } catch {}
-    try { if (typeof buildChatBars === 'function') buildChatBars(); } catch {}   // 快捷聊天语随语言切换
+    // 一个面板重画失败不该连累其余面板
+    LANG_RERENDER.forEach(fn => { try { fn(); } catch (e) { console.warn('[i18n] 重渲染失败', e); } });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyLang);
 else applyLang();
@@ -309,13 +477,8 @@ else applyLang();
 function renderServerMsg(m) {
     if (typeof m === 'string') return m;   // 老服务端 / 尚未迁移的调用点仍发字符串，原样透传
     if (!m || !m.k) return '';
-    const key = 'srv.' + m.k;
-    // ⚠️ 不能用 t(key, null) 判「有没有这条」——t() 找不到时【返回 key 本身】
-    //    （fallback 传 null 也一样，见上面 t 的最后一行）。若照抄那套写法，
-    //    缓存了旧 JS 的客户端碰到服务端的新 key，会把 "srv.xxx" 原样弹成一条 toast。
-    //    这里显式查字典：查不到就什么都不显示。
-    const d = I18N[lang];
-    const s = (d && key in d) ? d[key] : ((I18N.zh && key in I18N.zh) ? I18N.zh[key] : null);
+    // 查不到就什么都不显示——宁可不显示，也绝不能把 "srv.xxx" 弹给玩家（原因见 tOrNull）
+    const s = tOrNull('srv.' + m.k);
     if (s == null) return '';
     return s.replace(/\{(\w+)\}/g, (_, name) => (m.p && m.p[name] != null) ? m.p[name] : '');
 }

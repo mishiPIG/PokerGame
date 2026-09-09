@@ -82,3 +82,59 @@ test('🔴 服务端用到的每个 key 都必须在中英字典里都有', () =
     assert.deepEqual(missZh, [], '中文字典缺这些 key');
     assert.deepEqual(missEn, [], '英文字典缺这些 key');
 });
+
+// ===== 切语言后的重渲染登记（2026-09-10）=====
+// 玩家实拍：界面切成 English 后，设置里键盘快捷键那六行仍是中文。
+// 那六行本来就写了 L(d.zh, d.en) —— 问题是【没人在切完语言后重画它】。
+// 根因是 setLang 里维护着一张手写的重渲染清单，新面板永远会被漏掉。
+// 现在改成各模块自己 onLangChange() 登记，下面两条守住这个机制。
+
+test('setLang 会跑完所有登记的重渲染，且其中一个抛错不连累其余', () => {
+    const src = fs.readFileSync(path.join(__dirname, 'public/js/03-i18n.js'), 'utf8');
+    const store = {};
+    const ctx = {
+        console: { warn() {}, log() {} },
+        localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } },
+        navigator: { language: 'zh-CN' },
+        document: { readyState: 'complete', documentElement: {}, addEventListener() {}, querySelectorAll: () => [] },
+        hits: [],
+    };
+    vm.createContext(ctx);
+    vm.runInContext(src, ctx);
+    vm.runInContext(`
+        onLangChange(() => hits.push('a'));
+        onLangChange(() => { throw new Error('这个面板画挂了'); });
+        onLangChange(() => hits.push('c'));
+        setLang('en');
+    `, ctx);
+    assert.deepEqual([...ctx.hits], ['a', 'c'], '抛错的那个之后的登记项必须照样执行');
+    assert.equal(vm.runInContext('lang', ctx), 'en');
+});
+
+test('🔴 自己拼 HTML 的面板都必须登记 onLangChange', () => {
+    // 只翻译不重渲染 = 玩家切了语言看不到变化。这几个文件都是 JS 拼 HTML 的大户，
+    // 新增同类面板时把文件加进来（并在那个文件里 onLangChange 登记）。
+    const OWNERS = [
+        ['80-table-renderer.js', '牌桌（过牌/跟注按钮、状态气泡都是每帧写的）'],
+        ['30-room.js', '大厅房间列表卡片'],
+        ['50-audio-settings.js', '设置面板动态区'],
+        ['60-chat.js', '快捷聊天梗（中英两套）'],
+        ['71-hotkeys.js', '键盘快捷键绑定列表 —— 就是当初漏掉的那个'],
+    ];
+    const missing = OWNERS.filter(([f]) =>
+        !/onLangChange\s*\(/.test(fs.readFileSync(path.join(__dirname, 'public/js', f), 'utf8')));
+    assert.deepEqual(missing.map(m => m[0]), [],
+        '这些文件自己拼 HTML 却没登记重渲染，切语言后它们会停在旧语言：\n  '
+        + missing.map(([f, why]) => `${f}（${why}）`).join('\n  '));
+});
+
+test('🔴 setLang 里不许再手写重渲染清单', () => {
+    // 手写清单正是漏掉快捷键面板的原因：加面板的人不会想到回来改这里。
+    const src = fs.readFileSync(path.join(__dirname, 'public/js/03-i18n.js'), 'utf8');
+    const body = src.slice(src.indexOf('function setLang'), src.indexOf('\n}', src.indexOf('function setLang')));
+    assert.match(body, /LANG_RERENDER\.forEach/, 'setLang 必须遍历登记表');
+    for (const fn of ['renderRoomList', 'buildSettingsPanel', 'buildChatBars', 'renderHotkeySettings']) {
+        assert.doesNotMatch(body, new RegExp('\b' + fn + '\b'),
+            `setLang 里不该直接点名 ${fn}()——该由 ${fn} 所在的文件自己 onLangChange 登记`);
+    }
+});

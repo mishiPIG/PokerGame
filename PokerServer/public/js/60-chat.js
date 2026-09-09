@@ -1,4 +1,5 @@
 // ===== 聊天 + 表情 (B) =====
+/* i18n-ok: 中英两套快捷梗，curPhrases() 按 lang 取一套 */
 const QUICK_PHRASES_ZH = [
     '少一些套路，多一些真诚',
     '搏一搏，单车变摩托',
@@ -162,3 +163,6 @@ function seatBubble(userId, html, big) {
     seat.appendChild(b);
     setTimeout(() => b.remove(), big ? 2200 : 3500);
 }
+
+// 快捷聊天梗有中英两套，切语言换一套
+onLangChange(() => buildChatBars());

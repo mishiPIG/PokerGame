@@ -10,13 +10,13 @@ function registerInviteEvents(context, handleJoinRoom) {
     socket.on('join_by_code', (payload = {}) => {
         const code = String(payload?.code || '').trim();
         if (codeAttemptLimited(socket, user.id)) {
-            socket.emit('invite_error', { source: 'code', message: '尝试次数过多，请稍后再试' });
+            socket.emit('invite_error', { source: 'code', k: 'invite.tooMany' });
             return;
         }
         const match = findRoomByJoinCode(code);
         if (!match || !canAuthorizeNewUser(match[1], user.id)) {
             recordCodeFailure(socket, user.id);
-            socket.emit('invite_error', { source: 'code', message: '房间码无效或当前不可加入' });
+            socket.emit('invite_error', { source: 'code', k: 'invite.badCode' });
             return;
         }
         const [roomId] = match;
@@ -30,7 +30,7 @@ function registerInviteEvents(context, handleJoinRoom) {
         const token = String(payload?.token || '').trim();
         const match = findRoomByInviteToken(token);
         if (!match || !canAuthorizeNewUser(match[1], user.id)) {
-            socket.emit('invite_error', { source: 'link', message: '邀请已失效或当前不可加入' });
+            socket.emit('invite_error', { source: 'link', k: 'invite.badLink' });
             return;
         }
         const [roomId] = match;

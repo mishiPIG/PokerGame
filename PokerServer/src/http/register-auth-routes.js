@@ -9,19 +9,19 @@ const gen6 = () => String(Math.floor(100000 + Math.random() * 900000));
 app.post('/api/register/send-code', async (req, res) => {
     let { username, email, password } = req.body || {};
     username = (username || '').trim(); email = (email || '').trim().toLowerCase();
-    if (!username || !email || !password) return res.status(400).json({ error: '请填写用户名、邮箱和密码' });
-    if (username.length < 2 || username.length > 20) return res.status(400).json({ error: '用户名 2-20 字符' });
-    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确' });
-    if (password.length < 6) return res.status(400).json({ error: '密码至少 6 位' });
-    if (db.getUserByUsername(username)) return res.status(409).json({ error: '用户名已被注册' });
-    if (db.getUserByEmail(email)) return res.status(409).json({ error: '该邮箱已注册，可直接登录或找回密码' });
+    if (!username || !email || !password) return res.status(400).json({ error: '请填写用户名、邮箱和密码', k: 'signupFields' });
+    if (username.length < 2 || username.length > 20) return res.status(400).json({ error: '用户名 2-20 字符', k: 'nameLen' });
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确', k: 'badEmail' });
+    if (password.length < 6) return res.status(400).json({ error: '密码至少 6 位', k: 'pwdShort' });
+    if (db.getUserByUsername(username)) return res.status(409).json({ error: '用户名已被注册', k: 'nameTaken' });
+    if (db.getUserByEmail(email)) return res.status(409).json({ error: '该邮箱已注册，可直接登录或找回密码', k: 'emailTakenHint' });
     const prev = pendingRegs[email];
-    if (prev && Date.now() - prev.lastSent < 60000) return res.status(429).json({ error: '发送太频繁，请 1 分钟后再试' });
+    if (prev && Date.now() - prev.lastSent < 60000) return res.status(429).json({ error: '发送太频繁，请 1 分钟后再试', k: 'sendTooOften' });
     const code = gen6();
     const hash = await bcrypt.hash(password, 10);
     pendingRegs[email] = { username, email, hash, code, expires: Date.now() + 600000, lastSent: Date.now() };
     try { await mailer.sendCode(email, code, 'register'); }
-    catch (e) { console.error('发信失败', e.message); return res.status(500).json({ error: '验证码发送失败，请稍后重试' }); }
+    catch (e) { console.error('发信失败', e.message); return res.status(500).json({ error: '验证码发送失败，请稍后重试', k: 'sendFailed' }); }
     res.json({ ok: true, mailConfigured: mailer.isConfigured() });
 });
 
@@ -30,17 +30,17 @@ app.post('/api/register/verify', async (req, res) => {
     let { email, code } = req.body || {};
     email = (email || '').trim().toLowerCase();
     const p = pendingRegs[email];
-    if (!p) return res.status(400).json({ error: '请先获取验证码' });
-    if (Date.now() > p.expires) { delete pendingRegs[email]; return res.status(400).json({ error: '验证码已过期，请重新获取' }); }
-    if (String(code).trim() !== p.code) return res.status(400).json({ error: '验证码错误' });
+    if (!p) return res.status(400).json({ error: '请先获取验证码', k: 'needCode' });
+    if (Date.now() > p.expires) { delete pendingRegs[email]; return res.status(400).json({ error: '验证码已过期，请重新获取', k: 'codeExpiredNew' }); }
+    if (String(code).trim() !== p.code) return res.status(400).json({ error: '验证码错误', k: 'codeWrong' });
     try {
         const user = db.createUser(p.username, p.hash, false, p.email);
         delete pendingRegs[email];
         res.json({ token: signToken(user), user: userPayload(user) });
     } catch (err) {
-        if (err.message?.includes('UNIQUE')) return res.status(409).json({ error: '用户名已被注册' });
-        if (err.message?.includes('EMAIL')) return res.status(409).json({ error: '该邮箱已注册' });
-        console.error(err); res.status(500).json({ error: '服务器错误' });
+        if (err.message?.includes('UNIQUE')) return res.status(409).json({ error: '用户名已被注册', k: 'nameTaken' });
+        if (err.message?.includes('EMAIL')) return res.status(409).json({ error: '该邮箱已注册', k: 'emailTaken' });
+        console.error(err); res.status(500).json({ error: '服务器错误', k: 'serverError' });
     }
 });
 
@@ -48,11 +48,11 @@ app.post('/api/register/verify', async (req, res) => {
 app.post('/api/login', async (req, res) => {
     let { username, password } = req.body || {};
     username = (username || '').trim();
-    if (!username || !password) return res.status(400).json({ error: '请填写账号和密码' });
+    if (!username || !password) return res.status(400).json({ error: '请填写账号和密码', k: 'loginFields' });
     const user = username.includes('@') ? db.getUserByEmail(username) : db.getUserByUsername(username);
-    if (!user) return res.status(401).json({ error: '账号或密码错误' });
+    if (!user) return res.status(401).json({ error: '账号或密码错误', k: 'badLogin' });
     const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: '账号或密码错误' });
+    if (!ok) return res.status(401).json({ error: '账号或密码错误', k: 'badLogin' });
     res.json({ token: signToken(user), user: userPayload(user) });
 });
 
@@ -60,12 +60,12 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/forgot/send-code', async (req, res) => {
     let { email } = req.body || {};
     email = (email || '').trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确' });
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确', k: 'badEmail' });
     const user = db.getUserByEmail(email);
     // 不泄露邮箱是否存在：一律回 ok；仅存在时才真的发
     if (user) {
         const prev = pendingResets[email];
-        if (prev && Date.now() - prev.lastSent < 60000) return res.status(429).json({ error: '发送太频繁，请 1 分钟后再试' });
+        if (prev && Date.now() - prev.lastSent < 60000) return res.status(429).json({ error: '发送太频繁，请 1 分钟后再试', k: 'sendTooOften' });
         const code = gen6();
         pendingResets[email] = { userId: user.id, code, expires: Date.now() + 600000, lastSent: Date.now() };
         try { await mailer.sendCode(email, code, 'reset'); } catch (e) { console.error('发信失败', e.message); }
@@ -77,11 +77,11 @@ app.post('/api/forgot/send-code', async (req, res) => {
 app.post('/api/forgot/reset', async (req, res) => {
     let { email, code, newPassword } = req.body || {};
     email = (email || '').trim().toLowerCase();
-    if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: '新密码至少 6 位' });
+    if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: '新密码至少 6 位', k: 'newPwdShort' });
     const p = pendingResets[email];
-    if (!p) return res.status(400).json({ error: '请先获取验证码' });
-    if (Date.now() > p.expires) { delete pendingResets[email]; return res.status(400).json({ error: '验证码已过期' }); }
-    if (String(code).trim() !== p.code) return res.status(400).json({ error: '验证码错误' });
+    if (!p) return res.status(400).json({ error: '请先获取验证码', k: 'needCode' });
+    if (Date.now() > p.expires) { delete pendingResets[email]; return res.status(400).json({ error: '验证码已过期', k: 'codeExpired' }); }
+    if (String(code).trim() !== p.code) return res.status(400).json({ error: '验证码错误', k: 'codeWrong' });
     const hash = await bcrypt.hash(newPassword, 10);
     db.setPassword(p.userId, hash);
     delete pendingResets[email];
@@ -94,24 +94,24 @@ const pendingBinds = {};   // userId -> { email, code, expires, lastSent }
 app.post('/api/bind-email/send-code', requireAuth, async (req, res) => {
     let { email } = req.body || {};
     email = (email || '').trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确' });
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确', k: 'badEmail' });
     const existing = db.getUserByEmail(email);
-    if (existing && existing.id !== req.authUser.id) return res.status(409).json({ error: '该邮箱已被其他账号绑定' });
+    if (existing && existing.id !== req.authUser.id) return res.status(409).json({ error: '该邮箱已被其他账号绑定', k: 'emailOther' });
     const prev = pendingBinds[req.authUser.id];
-    if (prev && Date.now() - prev.lastSent < 60000) return res.status(429).json({ error: '发送太频繁，请 1 分钟后再试' });
+    if (prev && Date.now() - prev.lastSent < 60000) return res.status(429).json({ error: '发送太频繁，请 1 分钟后再试', k: 'sendTooOften' });
     const code = gen6();
     pendingBinds[req.authUser.id] = { email, code, expires: Date.now() + 600000, lastSent: Date.now() };
     try { await mailer.sendCode(email, code, 'bind'); }
-    catch (e) { console.error('发信失败', e.message); return res.status(500).json({ error: '验证码发送失败，请稍后重试' }); }
+    catch (e) { console.error('发信失败', e.message); return res.status(500).json({ error: '验证码发送失败，请稍后重试', k: 'sendFailed' }); }
     res.json({ ok: true });
 });
 app.post('/api/bind-email/verify', requireAuth, (req, res) => {
     const p = pendingBinds[req.authUser.id];
-    if (!p) return res.status(400).json({ error: '请先获取验证码' });
-    if (Date.now() > p.expires) { delete pendingBinds[req.authUser.id]; return res.status(400).json({ error: '验证码已过期' }); }
-    if (String((req.body || {}).code).trim() !== p.code) return res.status(400).json({ error: '验证码错误' });
+    if (!p) return res.status(400).json({ error: '请先获取验证码', k: 'needCode' });
+    if (Date.now() > p.expires) { delete pendingBinds[req.authUser.id]; return res.status(400).json({ error: '验证码已过期', k: 'codeExpired' }); }
+    if (String((req.body || {}).code).trim() !== p.code) return res.status(400).json({ error: '验证码错误', k: 'codeWrong' });
     const existing = db.getUserByEmail(p.email);
-    if (existing && existing.id !== req.authUser.id) return res.status(409).json({ error: '该邮箱已被占用' });
+    if (existing && existing.id !== req.authUser.id) return res.status(409).json({ error: '该邮箱已被占用', k: 'emailInUse' });
     db.setEmail(req.authUser.id, p.email);
     delete pendingBinds[req.authUser.id];
     res.json({ ok: true, email: p.email });

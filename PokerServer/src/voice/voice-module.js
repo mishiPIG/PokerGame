@@ -102,15 +102,15 @@ async function actualVoiceDurationMs(buffer, mime) {
 function voiceUploadGate(req, res, next) {
     const contentLength = Number(req.headers['content-length']);
     if (!Number.isInteger(contentLength) || contentLength <= 0)
-        return res.status(411).json({ error: '语音上传必须声明文件大小' });
+        return res.status(411).json({ error: '语音上传必须声明文件大小', k: 'voiceNoSize' });
     if (contentLength > VOICE_MAX_BYTES)
-        return res.status(413).json({ error: '语音文件过大' });
+        return res.status(413).json({ error: '语音文件过大', k: 'voiceTooBig' });
     if (voiceUploadsInFlight >= VOICE_MAX_CONCURRENT_UPLOADS)
-        return res.status(503).json({ error: '当前语音上传较多，请稍后再试' });
+        return res.status(503).json({ error: '当前语音上传较多，请稍后再试', k: 'voiceBusy' });
     const userId = req.authUser.id;
     const userCount = voiceUserUploads.get(userId) || 0;
     if (userCount >= VOICE_MAX_PER_USER_UPLOADS)
-        return res.status(429).json({ error: '同一账号最多同时上传 2 条语音' });
+        return res.status(429).json({ error: '同一账号最多同时上传 2 条语音', k: 'voiceMax2' });
     voiceUploadsInFlight++;
     voiceUserUploads.set(userId, userCount + 1);
     let released = false;
@@ -141,21 +141,21 @@ app.post('/api/voice', requireAuth, voiceUploadGate,
         const roomId = String(req.headers['x-room-id'] || '');
         const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
         if (!roomGames[roomId] || !userIsConnectedToRoom(req.authUser.id, roomId))
-            return res.status(403).json({ error: '你已不在该房间' });
-        if (!VOICE_MIMES.has(mime)) return res.status(415).json({ error: '不支持的录音格式' });
+            return res.status(403).json({ error: '你已不在该房间', k: 'notInRoom' });
+        if (!VOICE_MIMES.has(mime)) return res.status(415).json({ error: '不支持的录音格式', k: 'voiceFormat' });
         if (!Buffer.isBuffer(req.body) || req.body.length === 0 || req.body.length > VOICE_MAX_BYTES)
-            return res.status(400).json({ error: '语音文件为空或过大' });
+            return res.status(400).json({ error: '语音文件为空或过大', k: 'voiceEmpty' });
         let durationMs;
         try { durationMs = await actualVoiceDurationMs(req.body, mime); }
-        catch { return res.status(422).json({ error: '无法解析语音真实时长' }); }
+        catch { return res.status(422).json({ error: '无法解析语音真实时长', k: 'voiceDuration' }); }
         if (durationMs < 300 || durationMs > VOICE_MAX_DURATION_MS)
-            return res.status(400).json({ error: '语音时长必须在 0.3～15 秒之间' });
+            return res.status(400).json({ error: '语音时长必须在 0.3～15 秒之间', k: 'voiceRange' });
         if (!allowVoiceUpload(req.authUser.id))
-            return res.status(429).json({ error: '发送太频繁，请稍后再试' });
+            return res.status(429).json({ error: '发送太频繁，请稍后再试', k: 'tooOften' });
 
         sweepExpiredVoices();
         if (voiceBytes + req.body.length > VOICE_DIR_MAX_BYTES)
-            return res.status(507).json({ error: '临时语音空间已满，请稍后再试' });
+            return res.status(507).json({ error: '临时语音空间已满，请稍后再试', k: 'voiceFull' });
 
         const id = crypto.randomBytes(16).toString('hex');
         const file = path.join(VOICE_DIR, `${id}.${VOICE_MIMES.get(mime)}`);
@@ -164,7 +164,7 @@ app.post('/api/voice', requireAuth, voiceUploadGate,
             fs.writeFileSync(file, req.body, { mode: 0o600, flag: 'wx' });
         } catch (e) {
             console.error('[voice] 写入失败：', e.message);
-            return res.status(500).json({ error: '语音保存失败' });
+            return res.status(500).json({ error: '语音保存失败', k: 'voiceSave' });
         }
         const entry = {
             id, roomId, userId: req.authUser.id, username: req.authUser.username, displayName: req.authUser.displayName || req.authUser.username,
@@ -181,15 +181,15 @@ app.post('/api/voice', requireAuth, voiceUploadGate,
 
 app.get('/api/voice/:id', requireAuth, (req, res) => {
     const id = String(req.params.id || '');
-    if (!/^[a-f0-9]{32}$/.test(id)) return res.status(404).json({ error: '语音不存在' });
+    if (!/^[a-f0-9]{32}$/.test(id)) return res.status(404).json({ error: '语音不存在', k: 'voiceNone' });
     const entry = voiceEntries.get(id);
-    if (!entry) return res.status(404).json({ error: '语音已失效' });
+    if (!entry) return res.status(404).json({ error: '语音已失效', k: 'voiceGone' });
     if (entry.expiresAt <= Date.now()) {
         removeVoiceEntry(id);
-        return res.status(410).json({ error: '语音已过期' });
+        return res.status(410).json({ error: '语音已过期', k: 'voiceExpired' });
     }
     if (!userIsConnectedToRoom(req.authUser.id, entry.roomId))
-        return res.status(403).json({ error: '仅当前房间成员可播放' });
+        return res.status(403).json({ error: '仅当前房间成员可播放', k: 'voiceRoomOnly' });
     res.set('Cache-Control', 'private, no-store');
     res.type(entry.mime);
     res.sendFile(entry.file);

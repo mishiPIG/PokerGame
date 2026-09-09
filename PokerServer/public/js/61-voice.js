@@ -56,7 +56,7 @@ async function beginVoiceRecording(e) {
     const btn = document.getElementById('voice-btn');
     try { btn.setPointerCapture(e.pointerId); } catch {}
     btn.classList.add('recording');
-    voiceStatus('正在请求麦克风…');
+    voiceStatus(L('正在请求麦克风…', 'Requesting microphone…'));
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
@@ -77,10 +77,12 @@ async function beginVoiceRecording(e) {
         voiceRecorder.onstop = completeVoiceRecording;
         voiceStartedAt = Date.now();
         voiceRecorder.start(250);
-        voiceStatus('🎤 0:00  松开发送 · 上滑取消');
+        voiceStatus(L('🎤 0:00  松开发送 · 上滑取消', '🎤 0:00  Release to send · slide up to cancel'));
         voiceTickTimer = setInterval(() => {
             const sec = Math.min(15, Math.floor((Date.now() - voiceStartedAt) / 1000));
-            voiceStatus(voiceCancel ? '松开取消' : `🎤 0:${String(sec).padStart(2, '0')}  松开发送 · 上滑取消`, voiceCancel);
+            voiceStatus(voiceCancel ? L('松开取消', 'Release to cancel')
+                : L(`🎤 0:${String(sec).padStart(2, '0')}  松开发送 · 上滑取消`,
+                    `🎤 0:${String(sec).padStart(2, '0')}  Release to send · slide up to cancel`), voiceCancel);
         }, 200);
         voiceMaxTimer = setTimeout(() => {
             voiceHold = false; voiceCancel = false; finishVoiceRecording(true);
@@ -137,7 +139,7 @@ async function completeVoiceRecording() {
 
     const blob = new Blob(chunks, { type: mime });
     if (!blob.size || blob.size > 512 * 1024) { hideVoiceStatus(); alert(L('语音文件过大，请重试', 'Voice clip too large, try again')); return; }
-    voiceUploading = true; voiceStatus('正在发送语音…');
+    voiceUploading = true; voiceStatus(L('正在发送语音…', 'Sending…'));
     try {
         const res = await fetch('/api/voice', {
             method: 'POST',
@@ -149,12 +151,12 @@ async function completeVoiceRecording() {
             body: blob
         });
         if (!res.ok) {
-            let msg = '语音发送失败';
-            try { msg = (await res.json()).error || msg; } catch {}
+            let msg = L('语音发送失败', 'Could not send the voice clip');
+            try { msg = apiErr(await res.json(), '语音发送失败', 'Could not send the voice clip'); } catch {}
             throw new Error(msg);
         }
     } catch (err) {
-        alert(err.message || '语音发送失败');
+        alert(err.message || L('语音发送失败', 'Could not send the voice clip'));
     } finally {
         voiceUploading = false; hideVoiceStatus();
     }
@@ -163,7 +165,7 @@ async function completeVoiceRecording() {
 function makeVoiceButton(message) {
     const sec = Math.max(1, Math.round((message.durationMs || 0) / 1000));
     const btn = document.createElement('button');
-    btn.type = 'button'; btn.textContent = `🎤 ${sec}秒`;
+    btn.type = 'button'; btn.textContent = L(`🎤 ${sec}秒`, `🎤 ${sec}s`);
     btn.addEventListener('click', ev => { ev.stopPropagation(); playVoice(message.id, btn); });
     return btn;
 }
@@ -176,7 +178,7 @@ function showVoiceBubble(message) {
     const box = document.createElement('div');
     box.dataset.voiceId = message.id;
     const name = document.createElement('span');
-    name.className = 'voice-sender'; name.textContent = message.username || '观众';
+    name.className = 'voice-sender'; name.textContent = message.username || L('观众', 'Spectator');
     box.append(name, makeVoiceButton(message));
     const entry = { message, box, hideAt, timer: null };
     entry.timer = setTimeout(() => removeVoiceBubble(message.id), hideAt - now);
@@ -238,13 +240,14 @@ async function playVoice(id, button) {
     const requestId = voicePlayRequestId;
     const controller = new AbortController();
     voicePlayController = controller;
-    button.dataset.label = button.textContent; button.textContent = '加载中…';
+    button.dataset.label = button.textContent; button.textContent = L('加载中…', 'Loading…');
     try {
         const res = await fetch('/api/voice/' + encodeURIComponent(id), {
             headers: { Authorization: 'Bearer ' + localStorage.getItem('token') },
             signal: controller.signal
         });
-        if (!res.ok) throw new Error(res.status === 410 || res.status === 404 ? '语音已过期' : '无法播放语音');
+        if (!res.ok) throw new Error(res.status === 410 || res.status === 404 ? L('语音已过期', 'That voice clip has expired')
+                                                          : L('无法播放语音', 'Cannot play that voice clip'));
         const blob = await res.blob();
         if (requestId !== voicePlayRequestId || controller.signal.aborted) return;
         // 下载期间可能已有别的音频开始；真正播放前再清理一次。
@@ -252,7 +255,7 @@ async function playVoice(id, button) {
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         playingVoice = { id, audio, url, button };
-        button.textContent = '⏸ 播放中'; button.classList.add('playing');
+        button.textContent = L('⏸ 播放中', '⏸ Playing'); button.classList.add('playing');
         const done = () => {
             if (playingVoice?.audio !== audio) return;
             URL.revokeObjectURL(url); button.classList.remove('playing');
@@ -267,7 +270,7 @@ async function playVoice(id, button) {
         }
         if (playingVoice?.id === id) stopVoicePlayback();
         button.classList.remove('playing'); button.textContent = button.dataset.label || '🎤';
-        alert(err.message || '无法播放语音');
+        alert(err.message || L('无法播放语音', 'Cannot play that voice clip'));
     } finally {
         if (voicePlayController === controller) voicePlayController = null;
     }
@@ -282,11 +285,13 @@ function setupVoiceRecording() {
     if (!voiceSupported()) {
         // 不支持：不绑「按住说话」(避免 pointer 捕获卡住 + 反复弹窗)，点一下给一次轻提示即可
         btn.classList.add('disabled');
-        btn.title = '语音需在 HTTPS 环境使用';
+        btn.title = L('语音需在 HTTPS 环境使用', 'Voice needs an HTTPS connection');
         btn.addEventListener('click', () => {
             const msg = window.isSecureContext
-                ? '当前设备/浏览器不支持语音录制（建议新版 Chrome / Safari）'
-                : '语音需在 HTTPS 安全环境使用；当前是明文测试地址，正式版 https://pokerdojo.space 可用';
+                ? L('当前设备/浏览器不支持语音录制（建议新版 Chrome / Safari）',
+                    'This device/browser cannot record voice (try a recent Chrome or Safari)')
+                : L('语音需在 HTTPS 安全环境使用；当前是明文测试地址，正式版 https://pokerdojo.space 可用',
+                    'Voice needs a secure (HTTPS) connection. This is the plain-HTTP test address; use https://pokerdojo.space');
             toast(msg);
         });
         return;

@@ -91,7 +91,7 @@ function openHandDetail(h) {
     const resById = {}; (h.results || []).forEach(r => resById[r.userId] = r);
     const pot = (h.results || []).reduce((s, r) => s + (r.won || 0), 0);
     const community = (h.community || []).map(rpParseCard);
-    const time = new Date(h.ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const time = fmtDateTime(h.ts);
     document.getElementById('hd-title').textContent = `${L('牌谱详情', 'Hand detail')} · ${h.mode === 'cash' ? L('现金桌', 'Cash') : 'SNG'} ${h.sb}/${h.bb}`;
     const commHtml = [0, 1, 2, 3, 4].map(i => community[i] ? formatCard(community[i]) : emptySlot()).join('');
     // 多次发牌（run it N times）：完整展示每组公共牌 + 该组赢家 + 该份金额
@@ -149,11 +149,12 @@ function openReplay(h) {
     rpFrames = buildReplayFrames(h);
     rpCommunity = (h.community || []).map(rpParseCard);
     rpIdx = 0; rpPlaying = false;
-    const time = new Date(h.ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const time = fmtDateTime(h.ts);
     const me = (h.seats || []).find(s => s.userId === myUserId);
     document.getElementById('rp-info').textContent =
-        `${time} · ${h.mode === 'cash' ? '现金桌' : 'SNG'} · 盲注 ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''} · ${(h.seats || []).length} 人`
-        + (me ? ` · 你的后手 ${Math.round((me.startChips || 0) / h.bb)}BB` : '');
+        `${time} · ${h.mode === 'cash' ? L('现金桌', 'Cash') : 'SNG'} · ${L('盲注', 'Blinds')} ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''} · ${L(`${(h.seats || []).length} 人`, `${(h.seats || []).length} players`)}`
+        + (me ? L(` · 你的后手 ${Math.round((me.startChips || 0) / h.bb)}BB`,
+                  ` · your stack ${Math.round((me.startChips || 0) / h.bb)}BB`) : '');
     document.getElementById('replay-overlay').style.display = 'flex';
     renderReplayFrame();
     rpToggle();   // 自动播放
@@ -187,7 +188,7 @@ function renderReplayFrame() {
     let cc = '';
     for (let i = 0; i < 5; i++) cc += (i < f.community && rpCommunity[i]) ? formatCard(rpCommunity[i]) : emptySlot();
     document.getElementById('rp-community').innerHTML = cc;
-    document.getElementById('rp-pot').textContent = '💰 底池 ' + fmtChips(f.pot);
+    document.getElementById('rp-pot').textContent = L('💰 底池 ', '💰 Pot ') + fmtChips(f.pot);
     document.getElementById('rp-caption').textContent = f.caption || '';
     document.getElementById('rp-progress').textContent = `${rpIdx + 1}/${rpFrames.length}`;
 }
@@ -213,9 +214,15 @@ function rpSpeed() {
 }
 function renderHistActions(h) {
     const nameOf = {}; (h.seats || []).forEach(s => nameOf[s.userId] = s.username);
-    const streetName = { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌' };
-    const A = { fold: '弃', check: '过', call: '跟', bet: '下注', raise: '加注', allin: '全下', straddle: 'Straddle' };
+    /* i18n-ok: 中英两套，按 lang 取 */
+    const streetName = lang === 'en'
+        ? { preflop: 'Preflop', flop: 'Flop', turn: 'Turn', river: 'River' }
+        : { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌' };
+    /* i18n-ok: 中英两套，按 lang 取 */
+    const A = lang === 'en'
+        ? { fold: 'F', check: 'X', call: 'C', bet: 'Bet', raise: 'Raise', allin: 'All-in', straddle: 'Straddle' }
+        : { fold: '弃', check: '过', call: '跟', bet: '下注', raise: '加注', allin: '全下', straddle: 'Straddle' };
     return (h.actions || []).map(a =>
         `<span class="ha">${streetName[a.street] || a.street}·${escapeHtml(nameOf[a.userId] || '?')} ${A[a.action] || a.action}${a.amount ? ' ' + a.amount : ''}</span>`
-    ).join('') || '<span style="opacity:.5">无动作</span>';
+    ).join('') || `<span style="opacity:.5">${L('无动作', 'no action')}</span>`;
 }

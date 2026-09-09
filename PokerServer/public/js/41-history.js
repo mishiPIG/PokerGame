@@ -54,7 +54,7 @@ function renderHistory(hands, listId) {
         const res = (h.results || []).find(r => r.userId === myUserId);
         const won = res ? res.won : 0;
         const net = res ? ((res.endChips ?? (me ? me.startChips : 0)) - (me ? me.startChips || 0 : 0)) : 0;
-        const time = new Date(h.ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const time = fmtDateTime(h.ts);
         const tag = h.mode === 'cash' ? L('现金', 'Cash') : 'SNG';
         const winCls = net > 0 ? 'win' : (net < 0 ? 'lose' : '');
         const holeCards = me ? me.hole.map(cs => formatCard(rpParseCard(cs))).join('') : '';

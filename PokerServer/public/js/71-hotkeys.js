@@ -11,6 +11,7 @@
 //    ③ 不在牌桌里 → 完全不拦
 //    ④ 任何浮层开着（聊天/设置/买入/牌谱/点头像…）→ 完全不拦
 
+/* i18n-ok: 每项自带 zh/en，渲染时 L(d.zh, d.en) */
 const HOTKEY_DEFS = [
     { id: 'fold',    def: 'f',     btns: ['btnFold'],                zh: '弃牌',        en: 'Fold' },
     { id: 'check',   def: 'c',     btns: ['btnCheckCall'],           zh: '过牌 / 跟注',  en: 'Check / Call' },
@@ -195,3 +196,7 @@ function onSizingWheel(e) {
     e.preventDefault();                                            // 别让页面跟着滚
 }
 window.addEventListener('wheel', onSizingWheel, { passive: false });
+
+// 🔴 这一条就是当初漏掉的那个：切到 English 后快捷键那六行仍是中文。
+// 原因不是没翻译（本来就是 L(d.zh, d.en)），是【没有人在切语言后重画它】。
+onLangChange(() => renderHotkeySettings());

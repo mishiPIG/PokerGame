@@ -47,7 +47,7 @@ async function openInbox() {
     const msgs = await fetchMessages();
     if (!msgs.length) { list.innerHTML = `<div class="hist-empty">${L('暂无消息', 'No messages')}</div>`; return; }
     list.innerHTML = msgs.map(m => {
-        const t = new Date(m.ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const t = fmtDateTime(m.ts);
         const icon = m.type === 'result' ? '🏆' : m.type === 'admin' ? '📢' : '✉️';
         return `<div class="inbox-item${m.read ? '' : ' unread'}">
             <div class="ib-head"><span class="ib-icon">${icon}</span><span class="ib-time">${t}</span></div>
@@ -107,7 +107,7 @@ async function doCheckin() {
     try {
         const r = await fetch('/api/checkin', { method: 'POST', headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } });
         const data = await r.json();
-        if (!r.ok) { if (btn) { btn.disabled = false; } alert(data.error || L('签到失败', 'Check-in failed')); return; }
+        if (!r.ok) { if (btn) { btn.disabled = false; } alert(apiErr(data, '签到失败', 'Check-in failed')); return; }
         myGold = data.gold; updateUserBar();
         playSfx && playSfx('win');
         const body = document.getElementById('checkin-body');
@@ -143,7 +143,7 @@ async function submitFeedback() {
     if (ok) {
         msg.style.color = '#4ade80'; msg.textContent = L('✅ 已收到，感谢反馈！', '✅ Got it — thanks for the feedback!');
         setTimeout(closeFeedback, 900);
-    } else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || L('提交失败，请重试', 'Submit failed, try again'); }
+    } else { msg.style.color = '#f87171'; msg.textContent = apiErr(data, '提交失败，请重试', 'Submit failed, try again'); }
 }
 
 // ===== 个人主页（资料 / 战绩 / 牌谱）=====
@@ -184,7 +184,7 @@ function saveDisplayName() {
     msg.textContent = L('保存中…', 'Saving…');
     socket.emit('set_display_name', { displayName: input.value }, result => {
         if (!result?.ok) {
-            msg.textContent = result?.error || L('保存失败，请重试', 'Save failed, try again');
+            msg.textContent = apiErr(result, '保存失败，请重试', 'Save failed, try again');
             return;
         }
         myDisplayName = result.displayName;
@@ -229,15 +229,15 @@ async function emailSendCode() {
     if (!email) return setBeMsg(L('请输入邮箱', 'Enter an email'));
     setBeMsg(L('发送中…', 'Sending…'));
     const { ok, data } = await authPostToken('/api/bind-email/send-code', { email });
-    if (!ok) return setBeMsg(data.error || L('发送失败', 'Failed to send'));
+    if (!ok) return setBeMsg(apiErr(data, '发送失败', 'Failed to send'));
     document.getElementById('be-step2').style.display = '';
-    setBeMsg(L('验证码已发送到 ' + email + '（含垃圾箱）', 'Code sent to ' + email + ' (check spam)'));
+    setBeMsg(L('验证码已发送到 ' + email + '（含垃圾箱）', 'Code sent to ' + email + ' (check your spam folder)'));
 }
 async function emailVerify() {
     const code = document.getElementById('be-code').value.trim();
     if (!code) return setBeMsg(L('请输入验证码', 'Enter the code'));
     const { ok, data } = await authPostToken('/api/bind-email/verify', { code });
-    if (!ok) return setBeMsg(data.error || L('验证失败', 'Verification failed'));
+    if (!ok) return setBeMsg(apiErr(data, '验证失败', 'Verification failed'));
     setBeMsg(L('✅ 邮箱已更新', '✅ Email updated'));
     setTimeout(renderEmailSection, 900);
 }

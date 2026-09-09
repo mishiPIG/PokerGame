@@ -179,6 +179,7 @@ function toggleSound() {
 }
 
 // ===== 设置面板 =====
+/* i18n-ok: 每项自带 name/nameEn，渲染时 L(t.name, t.nameEn) */
 const THEMES = [
     { id: 'blue',   name: '孔雀蓝', nameEn: 'Peacock', css: 'radial-gradient(ellipse at center,#1d5a7a 0%,#0d2f44 75%)' },
     { id: 'green',  name: '翡翠绿', nameEn: 'Emerald', css: 'radial-gradient(ellipse at center,#2d6a4f 0%,#1b4332 75%)' },
@@ -361,3 +362,8 @@ function toggleDisplayBB() {
     const c = document.getElementById('set-bb'); if (c) c.checked = displayBB;
     if (lastState) render(lastState);
 }
+
+// 设置面板开着时切语言 → 重建面板（快捷下注、主题名等都是 JS 拼的）
+onLangChange(() => {
+    if (document.getElementById('settings-overlay')?.style.display === 'flex') buildSettingsPanel();
+});

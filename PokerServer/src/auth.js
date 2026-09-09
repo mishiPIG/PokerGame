@@ -11,28 +11,28 @@ function createAuth({ db, jwt, jwtSecret }) {
 
     function requireAdmin(req, res, next) {
         const authorization = req.headers.authorization;
-        if (!authorization?.startsWith('Bearer ')) return res.status(401).json({ error: '未登录' });
+        if (!authorization?.startsWith('Bearer ')) return res.status(401).json({ error: '未登录', k: 'notLoggedIn' });
         try {
             const payload = jwt.verify(authorization.slice(7), jwtSecret);
             const user = db.getUserById(payload.id);
-            if (!user?.isAdmin) return res.status(403).json({ error: '无管理员权限' });
+            if (!user?.isAdmin) return res.status(403).json({ error: '无管理员权限', k: 'notAdmin' });
             req.adminUser = user;
             next();
         } catch {
-            res.status(401).json({ error: '登录已过期' });
+            res.status(401).json({ error: '登录已过期', k: 'sessionExpired' });
         }
     }
 
     function requireAuth(req, res, next) {
         const authorization = req.headers.authorization;
-        if (!authorization?.startsWith('Bearer ')) return res.status(401).json({ error: '未登录' });
+        if (!authorization?.startsWith('Bearer ')) return res.status(401).json({ error: '未登录', k: 'notLoggedIn' });
         try {
             const payload = jwt.verify(authorization.slice(7), jwtSecret);
             const user = db.getUserById(payload.id);
-            if (!user) return res.status(401).json({ error: '用户不存在' });
+            if (!user) return res.status(401).json({ error: '用户不存在', k: 'noSuchUser' });
             req.authUser = user;
             next();
-        } catch { res.status(401).json({ error: '登录已过期' }); }
+        } catch { res.status(401).json({ error: '登录已过期', k: 'sessionExpired' }); }
     }
 
     function registerSocketAuth(io) {

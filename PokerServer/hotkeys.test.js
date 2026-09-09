@@ -53,7 +53,12 @@ function makeEnv({ inRoom = true, buttons = {}, openPanels = [] } = {}) {
         sizeCtx: { minTo: 100, maxTo: 5000 },
         // ⚠️ 这些桩必须用【真实存在的函数名】——见下方「依赖的外部全局必须真实存在」那条测试
         quickBet(kind) { clicked.push('quickBet:' + kind); },
+        // 切语言后重画的登记入口（真实定义在 03-i18n.js）。
+        // 漏了这个桩 → 71-hotkeys.js 加载就 ReferenceError，本文件 15 个用例全挂。
+        langRerenders: [],
+        onLangChange(fn) { ctxRef.langRerenders.push(fn); },
     };
+    const ctxRef = ctx;
     ctx.window.localStorage = ctx.localStorage;
     vm.createContext(ctx);
     vm.runInContext(SOURCE, ctx);

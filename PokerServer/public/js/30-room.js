@@ -27,7 +27,7 @@ function showReconnecting() {
     if (!el) {
         el = document.createElement('div');
         el.id = 'reconnecting-toast';
-        el.textContent = '🔌 连接中断，重连中…';
+        el.textContent = L('🔌 连接中断，重连中…', '🔌 Connection lost, reconnecting…');
         el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:8px;'
             + 'background:rgba(214,64,64,0.96);color:#fff;font-size:13px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,0.4)';
         document.body.appendChild(el);
@@ -50,14 +50,17 @@ function showKickedNotice(reason) {
         el.innerHTML = '<div style="max-width:340px;background:linear-gradient(160deg,#22392e,#12201a);color:#eaf3ee;'
             + 'border-radius:16px;padding:22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.1)">'
             + '<div style="font-size:34px;margin-bottom:8px">🔒</div>'
-            + '<div style="font-size:16px;font-weight:bold;margin-bottom:8px">此页面已断开</div>'
+            + `<div style="font-size:16px;font-weight:bold;margin-bottom:8px">${L('此页面已断开', 'This page was disconnected')}</div>`
             + '<div id="kicked-reason" style="font-size:13px;color:#9db9a9;line-height:1.6;margin-bottom:16px"></div>'
             + '<button onclick="location.reload()" style="width:100%;padding:11px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:bold;'
-            + 'background:rgba(6,214,160,0.22);border:1px solid rgba(6,214,160,0.55);color:#eaf3ee">在此页面继续（刷新）</button></div>';
+            + 'background:rgba(6,214,160,0.22);border:1px solid rgba(6,214,160,0.55);color:#eaf3ee">'
+            + L('在此页面继续（刷新）', 'Continue here (reload)') + '</button></div>';
         document.body.appendChild(el);
     }
     document.getElementById('kicked-reason').textContent =
-        (reason || '你的账号在其他页面打开了。') + ' 为保证手牌不外泄，同一账号只能在一个页面使用。';
+        (reason || L('你的账号在其他页面打开了。', 'Your account was opened in another tab.'))
+        + L(' 为保证手牌不外泄，同一账号只能在一个页面使用。',
+            ' To keep your hole cards private, an account can only be used in one page at a time.');
     el.style.display = 'flex';
 }
 // 公共牌下方一行提示（如"某某想看转牌"），几秒后自动消失
@@ -75,7 +78,7 @@ function showTableNotice(text) {
 function nameOf(userId) {
     const st = lastState || {};
     const p = (st.players || []).find(x => x.userId === userId) || (st.spectators || []).find(x => x.userId === userId);
-    return p ? (p.displayName || p.username) : '玩家';
+    return p ? (p.displayName || p.username) : L('玩家', 'Player');
 }
 function runitPanel() {
     let el = document.getElementById('runit-panel');
@@ -155,12 +158,12 @@ function buildRunitBoards(m) {
     if (baseLen > 0) {   // 共享公共牌行（已发的 3/4 张，只显示一次）
         let s = '';
         for (let i = 0; i < 5; i++) s += i < baseLen ? formatCard(base[i]) : '<span class="rib-slot"></span>';
-        html += `<div class="rib-shared"><span class="rib-label">公共</span><div class="rib-slots">${s}</div></div>`;
+        html += `<div class="rib-shared"><span class="rib-label">${L('公共', 'Board')}</span><div class="rib-slots">${s}</div></div>`;
     }
     for (let r = 0; r < n; r++) {   // 每组一行：前 baseLen 个位置留空对齐，剩余街是本组的牌
         let s = '';
         for (let i = 0; i < 5; i++) s += `<span class="rib-slot${i < baseLen ? ' ghost' : ''}"></span>`;
-        html += `<div class="rib-row" data-run="${r}"><span class="rib-label">第${r + 1}次</span><div class="rib-slots">${s}</div></div>`;
+        html += `<div class="rib-row" data-run="${r}"><span class="rib-label">${L(`第${r + 1}次`, `Run ${r + 1}`)}</span><div class="rib-slots">${s}</div></div>`;
     }
     el.innerHTML = html;
     el.style.display = 'flex';
@@ -504,7 +507,7 @@ function forceStand(targetUserId) {
     if (!socket) return;
     const st = lastState; if (!st) return;
     const tp = (st.players || []).find(p => p.userId === targetUserId);
-    const nm = tp ? (tp.displayName || tp.username) : '该玩家';
+    const nm = tp ? (tp.displayName || tp.username) : L('该玩家', 'that player');
     if (confirm(L(`把「${nm}」移到观战席？其座位将空出（筹码保留至结束结算，TA 可自行「回到座位」）。`, `Move "${nm}" to the rail? Their seat frees up (chips kept until settlement; they can "Sit back").`))) {
         socket.emit('force_stand', { targetUserId });
         closeAvatarPopup();
@@ -716,7 +719,7 @@ function extendMatch(minutes) {
     alert(L(`已加时 +${minutes} 分钟`, `Extended by +${minutes} min`));
 }
 function formatMatchEndTime(value) {
-    return new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    return fmtTime(value);
 }
 function adjustMatchEnd(minutes) {
     if (!socket || !lastState) return;
@@ -728,3 +731,6 @@ function adjustMatchEnd(minutes) {
     if (!confirm(`${detail}\n\n${L('确定调整吗？', 'Adjust it?')}`)) return;
     socket.emit('adjust_match_end', { endAt });
 }
+
+// 切语言后房间列表卡片要重画（房型标签、盲注/报名费前缀都是 JS 拼的）
+onLangChange(() => { if (window._lastRooms) renderRoomList(window._lastRooms); });

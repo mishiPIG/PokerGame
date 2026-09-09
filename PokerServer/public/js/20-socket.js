@@ -37,7 +37,7 @@ function connectSocket(token) {
         localStorage.removeItem('token');
         document.getElementById('auth-overlay').style.display = 'flex';
         document.getElementById('game-section').style.display = 'none';
-        setAuthError(err.message || '连接失败，请重新登录');
+        setAuthError(err.message || L('连接失败，请重新登录', 'Connection failed — please sign in again'));
     });
 
     socket.on('server_msg', (msg) => {
@@ -67,14 +67,15 @@ function connectSocket(token) {
         socket.emit('voice_sync', roomId);
     });
 
-    socket.on('invite_error', ({ source, message }) => {
+    socket.on('invite_error', ({ source, message, k }) => {
         if (source === 'link') {
             pendingInviteToken = '';
             try { sessionStorage.removeItem('pendingInviteToken'); } catch {}
         }
         resetJoinCode(source !== 'link');   // 输错房间码→清空四格重输（链接失败不清）
         showLobby();
-        toast(message || '房间不存在或当前不可加入', 3500);
+        // k = 结构化 key（各客户端按自己的语言渲染）；message = 老服务端的中文原文，兼容用
+        toast(renderServerMsg(k ? { k } : null) || message || t('srv.invite.badCode', ''), 3500);
     });
 
     socket.on('room_invite_info', (info) => {
@@ -151,7 +152,7 @@ function connectSocket(token) {
 
     // 收到聊天：进聊天列表 + 弹幕滚过屏幕（带 id）
     socket.on('chat_broadcast', ({ userId, displayName, username, text }) => {
-        const name = displayName || username || '玩家';
+        const name = displayName || username || L('玩家', 'Player');
         appendChat(name, text, userId === myUserId);
         spawnDanmaku(name, text);
     });
@@ -162,7 +163,11 @@ function connectSocket(token) {
     });
     socket.on('player_stats', ({ userId, stats }) => renderPlayerStats(userId, stats));
     socket.on('button_draw', ({ draws, winnerId }) => showButtonDraw(draws, winnerId));
-    socket.on('table_notice', ({ text }) => showTableNotice(text));   // 公共牌下方一行提示（如"谁想看转牌"）
+    // 公共牌下方那行提示（谁想看转牌/河牌）。服务端现在发 { k, p }，老服务端/旧缓存发 { text }，两种都要能显示。
+    socket.on('table_notice', (m) => {
+        const s = renderServerMsg(m && m.k ? m : (m && m.text) || '');
+        if (s) showTableNotice(s);
+    });
     socket.on('match_time_expired', () => {
         const isOwner = lastState && lastState.ownerUserId === myUserId;
         if (isOwner) {

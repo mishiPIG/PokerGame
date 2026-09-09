@@ -11,7 +11,7 @@ function registerAdminRoomEvents(context, handleJoinRoom) {
     socket.on('admin_join_room', ({ roomId } = {}) => {
         if (!user.isAdmin) { socket.emit('server_msg', { k: 'admin.denied' }); return; }
         const game = roomId && roomGames[roomId];
-        if (!game) { socket.emit('invite_error', { source: 'code', message: '房间不存在' }); return; }
+        if (!game) { socket.emit('invite_error', { source: 'code', k: 'invite.noRoom' }); return; }
         authorize(roomId, user.id);
         socket.playRoom = roomId;
         handleJoinRoom(roomId);

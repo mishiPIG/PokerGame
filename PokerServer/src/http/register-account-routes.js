@@ -72,14 +72,14 @@ app.get('/api/checkin/status', requireAuth, (req, res) => {
 app.post('/api/checkin', requireAuth, (req, res) => {
     const u = req.authUser;
     const today = dayStr(0);
-    if (u.lastCheckin === today) return res.status(400).json({ error: '今日已签到' });
+    if (u.lastCheckin === today) return res.status(400).json({ error: '今日已签到', k: 'checkedIn' });
     const streak = (u.lastCheckin === dayStr(1) ? (u.checkinStreak || 0) : 0) + 1;
     const reward = rewardForStreak(streak);
     let gold;
     try {
         gold = db.applyCheckin(u.id, today, streak, reward);
     } catch (error) {
-        if (error.message === 'ALREADY_CHECKED_IN') return res.status(400).json({ error: '今日已签到' });
+        if (error.message === 'ALREADY_CHECKED_IN') return res.status(400).json({ error: '今日已签到', k: 'checkedIn' });
         throw error;
     }
     console.log(`[checkin] ${u.username} 连续${streak}天 +${reward} → ${gold}`);
@@ -89,8 +89,8 @@ app.post('/api/checkin', requireAuth, (req, res) => {
 // ===== Bug / 建议反馈 =====
 app.post('/api/feedback', requireAuth, (req, res) => {
     const text = (req.body?.text || '').toString().trim();
-    if (!text) return res.status(400).json({ error: '请填写反馈内容' });
-    if (text.length > 2000) return res.status(400).json({ error: '内容过长（≤2000字）' });
+    if (!text) return res.status(400).json({ error: '请填写反馈内容', k: 'feedbackEmpty' });
+    if (text.length > 2000) return res.status(400).json({ error: '内容过长（≤2000字）', k: 'feedbackLong' });
     const rec = {
         ts: Date.now(),
         userId: req.authUser.id,

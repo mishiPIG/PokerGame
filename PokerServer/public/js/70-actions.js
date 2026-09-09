@@ -45,14 +45,15 @@ setInterval(() => {
         const rem = Math.max(0, Math.floor((nextLevelAt - Date.now()) / 1000));
         const mm = String(Math.floor(rem / 60)).padStart(2, '0');
         const ss = String(rem % 60).padStart(2, '0');
-        nl.textContent = `· 距升盲 ${mm}:${ss}`;
+        nl.textContent = L(`· 距升盲 ${mm}:${ss}`, `· next level ${mm}:${ss}`);
     }
     // 现金桌训练剩余时长
     const tr = document.getElementById('table-remain');
     if (tr && tableEndAt) {
         const rem = Math.max(0, Math.floor((tableEndAt - Date.now()) / 1000));
         const hh = Math.floor(rem / 3600), mm = Math.floor((rem % 3600) / 60), ss = rem % 60;
-        tr.textContent = `· 剩 ${hh > 0 ? hh + 'h' : ''}${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        const clock = `${hh > 0 ? hh + 'h' : ''}${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        tr.textContent = L(`· 剩 ${clock}`, `· ${clock} left`);
     }
 }, 250);
 
@@ -177,8 +178,10 @@ function updateBetInfo(val) {
     const toCallOpp = Math.max(0, val - (sizeCtx.currentBet || 0));  // 对手需要跟的增量
     const allIn = left === 0;
     el.innerHTML = allIn
-        ? `<span class="bi-allin">全下</span> · 占底池 ${pct}% · 对手需跟 ${fmtChips(toCallOpp)}`
-        : `剩余 <b>${fmtChips(left)}</b> · 占底池 ${pct}% · 对手需跟 ${fmtChips(toCallOpp)}`;
+        ? L(`<span class="bi-allin">全下</span> · 占底池 ${pct}% · 对手需跟 ${fmtChips(toCallOpp)}`,
+            `<span class="bi-allin">All-in</span> · ${pct}% of pot · they call ${fmtChips(toCallOpp)}`)
+        : L(`剩余 <b>${fmtChips(left)}</b> · 占底池 ${pct}% · 对手需跟 ${fmtChips(toCallOpp)}`,
+            `<b>${fmtChips(left)}</b> behind · ${pct}% of pot · they call ${fmtChips(toCallOpp)}`);
 }
 
 // ===== 房间内游戏控制 =====
