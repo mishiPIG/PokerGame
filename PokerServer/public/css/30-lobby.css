@@ -199,7 +199,10 @@
             padding: 8px 6px; border: 1.5px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05);
             color: #eaf3ee; border-radius: 10px; font-weight: bold; font-size: 14px; cursor: pointer; }
         /* 比赛设置是浅色弹窗：加时按钮与标签需深色，否则看不清 */
-        #match-modal .cfg-label { color: #3a4d70; }
+        /* ⚠️ 这条原本是给「近白弹窗」写的深色覆盖（#3a4d70）。2026-09-08 弹窗改成道场绿后
+           就变成「深字配深底」看不见了——玩家反馈「UTG Straddle / 比赛加时」两行字看不清。
+           教训：改容器底色时，JS 渲染出来的内容不在 index.html 里，静态扫描会漏掉。 */
+        #match-modal .cfg-label { color: #dfe9e2; }
         .ext-btn { flex: 1; min-width: 58px; padding: 10px 6px; border-radius: 10px; cursor: pointer;
             border: 1.5px solid #7ea3d8; background: #dbe8fb; color: #1d3a6b; font-weight: bold; font-size: 15px; }
         .ext-btn:hover { background: #c6dbf7; }

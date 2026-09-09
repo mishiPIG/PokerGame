@@ -53,14 +53,17 @@ function hotkeyButton(def) {
 }
 function runHotkey(def) {
     if (def.id === 'allin') {
-        // 全下没有独立按钮：借用「下注/加注」按钮的可用性来判断能不能全下，
-        // 额度仍走和快捷池比例按钮同一条路径（sizeFor/sendSize），不另算一套。
+        // 全下没有独立按钮：借用「下注/加注」按钮的可用性判断能不能全下，
+        // 然后直接调 quickBet('allin') —— 那正是快捷池比例按钮走的同一条路径
+        // （里面已含 inputLocked() 守卫），不自己拼 sendSize + 算额度。
+        // ⚠️ 2026-09-09 修：这里原来写的是 sizeFor（不存在），真实函数叫 sizeForQuick，
+        //    typeof 判断不过 → 全下静默失效。而测试自己 stub 了一个 sizeFor 所以是绿的。
         const gate = hotkeyButton(HOTKEY_DEFS.find(d => d.id === 'raise'));
         // ⚠️ sizeCtx 是 70-actions.js 里的 let 声明——脚本全局可按名字访问，但【不在 window 上】，
         //    所以只能用 typeof 判断，不能写 window.sizeCtx（那永远是 undefined）。
         if (!gate || typeof sizeCtx === 'undefined' || !sizeCtx) return false;
-        if (typeof sendSize !== 'function' || typeof sizeFor !== 'function') return false;
-        sendSize(sizeFor('allin'));
+        if (typeof quickBet !== 'function') return false;
+        quickBet('allin');
         return true;
     }
     const btn = hotkeyButton(def);
@@ -125,3 +128,26 @@ function resetHotkeys() {
 
 loadHotkeys();
 window.addEventListener('keydown', onHotkeyDown);
+
+// ===== 下注面板：滚轮调额 =====
+// 键盘流程是 R 打开 → 调额 → Enter 确认。中间那步原来只能拖滑条/输入数字，
+// 手要离开键盘去精确对准滑条，很别扭。滚轮补上这一环。
+//
+// 边界：只在下注面板真的展开时生效（body.sizing-open，70-actions.js 里本就有这个 class）；
+// 光标在聊天/侧栏/弹窗这类【自己能滚动】的区域内时不抢——否则会滚不动那些面板。
+const WHEEL_SKIP = ['.side-panel', '#chat-panel', '.modal-mask', '.settings-box', '#profile-overlay', '.c-overlay', '#hand-detail', '#replay-overlay'];
+function onSizingWheel(e) {
+    if (!document.body.classList.contains('sizing-open')) return;
+    if (typeof sizeCtx === 'undefined' || !sizeCtx) return;
+    if (e.target && e.target.closest && WHEEL_SKIP.some(sel => e.target.closest(sel))) return;
+    const input = document.getElementById('raiseAmount');
+    if (!input) return;
+    // 步长按大盲算，玩家的心理单位就是 BB；按住 Shift 一次跳 10BB
+    const bb = (typeof curBB === 'function' && curBB()) || 20;
+    const step = bb * (e.shiftKey ? 10 : 1);
+    const cur = parseInt(input.value) || sizeCtx.minTo;
+    const next = clampSize(cur + (e.deltaY < 0 ? step : -step));   // 上滚加注，下滚减
+    if (next !== cur) syncSizeInputs(next);
+    e.preventDefault();                                            // 别让页面跟着滚
+}
+window.addEventListener('wheel', onSizingWheel, { passive: false });

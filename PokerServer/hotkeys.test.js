@@ -47,8 +47,8 @@ function makeEnv({ inRoom = true, buttons = {} } = {}) {
             removeEventListener() {},
         },
         sizeCtx: { minTo: 100, maxTo: 5000 },
-        sendSize(v) { clicked.push('sendSize:' + v); },
-        sizeFor(kind) { return kind === 'allin' ? 5000 : 100; },
+        // ⚠️ 这些桩必须用【真实存在的函数名】——见下方「依赖的外部全局必须真实存在」那条测试
+        quickBet(kind) { clicked.push('quickBet:' + kind); },
     };
     ctx.window.localStorage = ctx.localStorage;
     vm.createContext(ctx);
@@ -68,6 +68,30 @@ function makeEnv({ inRoom = true, buttons = {} } = {}) {
     const evalIn = (expr) => vm.runInContext(expr, ctx);
     return { ctx, clicked, press, store, evalIn };
 }
+
+test('🔴 依赖的外部全局必须真实存在 —— 防「桩跟错误假设一致，测试假绿」', () => {
+    // 2026-09-09 真事故：全下那段写的是 sizeFor(...)，而真实函数叫 sizeForQuick。
+    // typeof 判断不过 → 全下静默失效，玩家实测才发现。
+    // 而测试自己在 vm context 里 stub 了一个 sizeFor，所以一路全绿。
+    // ⇒ 桩只能验「逻辑」，验不了「名字对不对」。名字必须拿真实源码核对。
+    const jsDir = path.join(__dirname, 'public/js');
+    const allSource = fs.readdirSync(jsDir).filter(f => f.endsWith('.js'))
+        .map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
+    const declared = (name) =>
+        // ⚠️ 必须用 String.raw：普通字符串里 \s 会被 JS 折叠成字母 s，正则就废了
+        new RegExp(String.raw`(?:^|\n)\s*(?:function|const|let|var)\s+` + name + String.raw`\b`).test(allSource);
+
+    // ① 显式登记：71-hotkeys.js 用到的每个外部全局
+    for (const name of ['L', 'escapeHtml', 'sizeCtx', 'quickBet', 'clampSize', 'syncSizeInputs', 'curBB']) {
+        assert.ok(declared(name), `71-hotkeys.js 依赖的 ${name}() 在 public/js 里根本没有定义`);
+    }
+    // ② 自动兜底：把源码里所有 typeof X 守卫抓出来逐个核对（就是漏掉 sizeFor 的那种写法）
+    const guarded = [...SOURCE.matchAll(/typeof\s+([A-Za-z_$][\w$]*)\s*[!=]==/g)].map(m => m[1]);
+    for (const name of new Set(guarded)) {
+        if (['undefined', 'window', 'document'].includes(name)) continue;
+        assert.ok(declared(name), `typeof ${name} 守卫里的名字在 public/js 里不存在——多半是拼错了`);
+    }
+});
 
 test('默认绑定能点到对应按钮', () => {
     const { clicked, press } = makeEnv({ buttons: { btnFold: {}, btnCheckCall: {}, btnRaise: {} } });
@@ -123,7 +147,7 @@ test('下注/加注按同一个键：哪个按钮可见就点哪个', () => {
 test('全下走和快捷池比例按钮同一条路径，且以「加注按钮可点」为闸门', () => {
     const ok = makeEnv({ buttons: { btnRaise: {} } });
     ok.press('a');
-    assert.deepEqual(ok.clicked, ['sendSize:5000']);
+    assert.deepEqual(ok.clicked, ['quickBet:allin'], '必须复用 quickBet，不能自己拼 sendSize+算额度');
     // 加注按钮不可用（例如无效加注）→ 全下也必须不生效
     const blocked = makeEnv({ buttons: { btnRaise: { disabled: true } } });
     assert.equal(blocked.press('a'), false);
