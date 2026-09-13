@@ -78,6 +78,14 @@ function connectSocket(token) {
         toast(renderServerMsg(k ? { k } : null) || message || t('srv.invite.badCode', ''), 3500);
     });
 
+    // 牌友列表 / 一起玩过（服务端主动推，所以对方同意的那一刻我这边就会刷新）
+    socket.on('friend_list', (d) => {
+        friendData = { friends: d.friends || [], incoming: d.incoming || [], outgoing: d.outgoing || [] };
+        renderFriends();
+        refreshFriendBadge();
+    });
+    socket.on('friend_recent', (d) => { friendRecent = d.list || []; renderFriends(); });
+
     socket.on('room_invite_info', (info) => {
         roomInviteInfo = info;
         renderInviteInfo();

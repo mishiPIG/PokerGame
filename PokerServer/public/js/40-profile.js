@@ -36,10 +36,8 @@ async function refreshInboxBadge() {
     const msgs = await fetchMessages();
     const unread = msgs.filter(m => !m.read).length;
     const b = document.getElementById('inbox-badge');
-    // 消息入口在「我的」页里，光点亮那一行不够——导航上也要有红点，
-    // 否则玩家停在「约局」页永远看不到有新消息。
-    const dot = document.getElementById('nav-me-dot');
-    if (dot) dot.style.display = unread > 0 ? '' : 'none';
+    _inboxUnread = unread;
+    refreshMeDot();
     if (!b) return;
     if (unread > 0) { b.textContent = unread > 9 ? '9+' : unread; b.style.display = ''; }
     else b.style.display = 'none';
@@ -310,4 +308,15 @@ function profitCurveSVG(curve) {
         <line x1="${pad}" y1="${zeroY}" x2="${W - pad}" y2="${zeroY}" stroke="rgba(255,255,255,0.18)" stroke-dasharray="3 3"/>
         <polyline fill="none" stroke="${stroke}" stroke-width="2" points="${pts}"/>
     </svg>`;
+}
+
+// 「我的」导航上的红点 = 收件箱未读 ∪ 待处理的牌友申请。
+// 两个来源必须合到一处算：谁后跑谁就会把对方的红点抹掉（第一版只算未读，
+// 加了牌友之后就会出现「有好友申请但导航上没红点」）。
+let _inboxUnread = 0;
+function refreshMeDot() {
+    const dot = document.getElementById('nav-me-dot');
+    if (!dot) return;
+    const pending = (typeof friendData !== 'undefined' && friendData.incoming) ? friendData.incoming.length : 0;
+    dot.style.display = (_inboxUnread > 0 || pending > 0) ? '' : 'none';
 }

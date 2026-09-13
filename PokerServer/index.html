@@ -43,6 +43,7 @@
     <link rel="stylesheet" href="/css/44-replay.css">
     <link rel="stylesheet" href="/css/45-profile.css">
     <link rel="stylesheet" href="/css/46-history.css">
+    <link rel="stylesheet" href="/css/47-friends.css">
     <link rel="stylesheet" href="/css/50-effects.css">
 </head>
 <body>
@@ -275,6 +276,9 @@
             <button class="me-row" id="inbox-toggle" onclick="openInbox()">
                 <span class="mr-ico">📬</span><span class="mr-txt" data-i18n="me.inbox">消息</span>
                 <span class="mr-badge" id="inbox-badge" style="display:none"></span><span class="mr-arrow">›</span></button>
+            <button class="me-row" onclick="openFriends()">
+                <span class="mr-ico">👥</span><span class="mr-txt" data-i18n="me.friends">牌友</span>
+                <span class="mr-badge" id="friends-badge" style="display:none"></span><span class="mr-arrow">›</span></button>
             <button class="me-row" id="checkin-btn" onclick="openCheckin()">
                 <span class="mr-ico">🎁</span><span class="mr-txt" data-i18n="me.checkin">每日签到</span>
                 <span class="dot" id="checkin-dot" style="display:none"></span><span class="mr-arrow">›</span></button>
@@ -498,6 +502,15 @@
 </div>
 
 <!-- 消息收件箱（放在 table-view 外，大厅也能开）-->
+<div id="friends-panel" class="side-panel" style="display:none">
+    <div class="sp-head"><b data-i18n="fr.title">👥 牌友</b><button onclick="closeFriends()" data-i18n-title="a11y.close" title="关闭">✕</button></div>
+    <div class="fr-tabs">
+        <button class="fr-tab sel" data-ft="friends" onclick="setFriendTab('friends')" data-i18n="fr.tabFriends">我的牌友</button>
+        <button class="fr-tab" data-ft="recent" onclick="setFriendTab('recent')" data-i18n="fr.tabRecent">一起玩过</button>
+    </div>
+    <div id="friends-body"></div>
+</div>
+
 <div id="inbox-panel" class="side-panel" style="display:none">
     <div class="sp-head"><b data-i18n="inbox.title">📬 消息</b><button onclick="closeInbox()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
     <div id="inbox-list"></div>
@@ -612,6 +625,7 @@
         <div class="ap-stats" id="ap-stats"><div class="ap-loading" data-i18n="common.loading">加载中…</div></div>
         <div class="ap-emo-title" id="ap-emo-title">发表情</div>
         <div class="ap-emotes" id="ap-emotes"></div>
+        <div class="ap-owner" id="ap-friend" style="display:none"></div>
         <div class="ap-owner" id="ap-owner" style="display:none"></div>
     </div>
 </div>
@@ -733,6 +747,7 @@
 <script src="/js/40-profile.js"></script>
 <script src="/js/41-history.js"></script>
 <script src="/js/42-replay.js"></script>
+<script src="/js/43-friends.js"></script>
 <script src="/js/50-audio-settings.js"></script>
 <script src="/js/60-chat.js"></script>
 <script src="/js/61-voice.js"></script>

@@ -144,6 +144,7 @@ const DISMISSIBLE = [
     { id: 'invite-modal',     close: 'closeInvite' },
     { id: 'stats-panel',      close: 'closeStats' },
     { id: 'history-panel',    close: 'closeHistory' },
+    { id: 'friends-panel',    close: 'closeFriends' },
     { id: 'inbox-panel',      close: 'closeInbox' },
     { id: 'checkin-overlay',  close: 'closeCheckin' },
     { id: 'feedback-overlay', close: 'closeFeedback' },

@@ -203,10 +203,12 @@ test('🔴 登记表里的每个面板 id 和关闭函数都必须真实存在',
     assert.ok(entries.length >= 10, '登记表没抓到，正则可能失效了：' + entries.length);
 
     const html = read('index.html');
-    const allJs = ['00-state', '03-i18n', '05-utils', '10-auth', '20-socket', '30-room', '40-profile',
-                   '41-history', '42-replay', '50-audio-settings', '60-chat', '61-voice', '70-actions',
-                   '71-hotkeys', '80-table-renderer', '90-admin', '99-bootstrap']
-        .map(n => read(`public/js/${n}.js`)).join('\n');
+    // 🔴 读目录，不手写清单。第一版是手写的，加了 43-friends.js 之后 closeFriends
+    //    就「找不到」了 —— 和当初手写元素桩、手写重渲染清单是同一类毛病：
+    //    清单不会自己跟着代码走，总有一天会报假错。
+    const jsDir = path.join(__dirname, 'public/js');
+    const allJs = fs.readdirSync(jsDir).filter(f => f.endsWith('.js'))
+        .map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
 
     const badId = entries.filter(e => !html.includes(`id="${e.id}"`));
     assert.deepEqual(badId.map(e => e.id), [], 'index.html 里没有这些元素');

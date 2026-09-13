@@ -1,0 +1,132 @@
+// ===== 牌友（2026-09-13，第 1 批）=====
+// 产品名叫「好友开房」，但在此之前没有好友：想一起玩只能「房主复制房间码 →
+// 切到微信发 → 对方切回来输码」，每局重来一遍。
+//
+// 这一批只做 列表 + 双向确认 + 备注 + 「上次一起玩的人」；一键邀请放第二批。
+// ⚠️ 备注是【私有】的 —— 服务端只写我那一行、也不推给对方。前端同样不显示
+//    「对方给我的备注」这种东西（根本拿不到）。
+
+let friendData = { friends: [], incoming: [], outgoing: [] };
+let friendRecent = [];
+let friendTab = 'friends';                 // friends | recent
+
+function openFriends() {
+    document.getElementById('friends-panel').style.display = 'flex';
+    friendTab = 'friends';
+    renderFriends();
+    socket?.emit('friend_list');
+    socket?.emit('friend_recent');
+}
+function closeFriends() { document.getElementById('friends-panel').style.display = 'none'; }
+
+function setFriendTab(tab) { friendTab = tab; renderFriends(); }
+
+// 在线状态：离线 / 在大厅 / 在牌桌。在牌桌的人才是「现在能约的」，所以单独标出来。
+function presenceHtml(f) {
+    if (!f.online) return `<span class="fr-dot off"></span>${L('离线', 'Offline')}`;
+    if (f.roomId) return `<span class="fr-dot playing"></span>${L('牌桌中', 'At a table')}`;
+    return `<span class="fr-dot on"></span>${L('在线', 'Online')}`;
+}
+
+function friendAvatar(f) {
+    const ltr = escapeHtml((String(f.displayName || '?').trim()[0] || '?').toUpperCase());
+    return f.avatar
+        ? `<img src="${escapeHtml(f.avatar)}" alt="">`
+        : `<span class="fr-ltr">${ltr}</span>`;
+}
+
+function friendRow(f, actions) {
+    const note = f.note ? `<span class="fr-note">${escapeHtml(f.note)}</span>` : '';
+    return `<div class="fr-row">
+        <div class="fr-av">${friendAvatar(f)}</div>
+        <div class="fr-main">
+            <div class="fr-name">${escapeHtml(f.displayName)}${note}</div>
+            <div class="fr-sub">${actions.sub || ''}</div>
+        </div>
+        <div class="fr-acts">${actions.buttons || ''}</div>
+    </div>`;
+}
+
+function renderFriends() {
+    const box = document.getElementById('friends-body');
+    if (!box) return;
+    document.querySelectorAll('#friends-panel .fr-tab')
+        .forEach(b => b.classList.toggle('sel', b.dataset.ft === friendTab));
+
+    // 待处理的申请永远置顶：它需要我做决定，压在列表下面等于没提醒
+    let html = '';
+    if (friendData.incoming.length) {
+        html += `<div class="fr-sec">${L('待处理的申请', 'Pending requests')}</div>`;
+        html += friendData.incoming.map(f => friendRow(f, {
+            sub: L('想加你为牌友', 'wants to be your poker friend'),
+            buttons: `<button class="fr-btn ok" onclick="respondFriend('${f.userId}',true)">${L('同意', 'Accept')}</button>`
+                   + `<button class="fr-btn" onclick="respondFriend('${f.userId}',false)">${L('拒绝', 'Decline')}</button>`,
+        })).join('');
+    }
+
+    if (friendTab === 'friends') {
+        const list = friendData.friends;
+        if (!list.length && !friendData.incoming.length) {
+            html += `<div class="pane-empty"><span class="pe-ico">👥</span>${
+                L('还没有牌友<br>去「一起玩过」里把老对手加上，下次开局直接找他们',
+                  'No poker friends yet<br>Add past opponents from “Played with” — then just ping them next time')}</div>`;
+        } else if (list.length) {
+            html += `<div class="fr-sec">${L('我的牌友', 'My friends')} (${list.length})</div>`;
+            html += list.map(f => friendRow(f, {
+                sub: presenceHtml(f),
+                buttons: `<button class="fr-btn" onclick="editFriendNote('${f.userId}')">${L('备注', 'Note')}</button>`
+                       + `<button class="fr-btn danger" onclick="removeFriend('${f.userId}')">${L('删除', 'Remove')}</button>`,
+            })).join('');
+        }
+        if (friendData.outgoing.length) {
+            html += `<div class="fr-sec">${L('已发出的申请', 'Sent requests')}</div>`;
+            html += friendData.outgoing.map(f => friendRow(f, {
+                sub: L('等待对方同意', 'Waiting for them to accept'),
+                buttons: `<button class="fr-btn" onclick="removeFriend('${f.userId}')">${L('取消', 'Cancel')}</button>`,
+            })).join('');
+        }
+    } else {
+        // 「一起玩过」：纯从牌谱算出来的，已排除掉已有关系的人
+        if (!friendRecent.length) {
+            html += `<div class="pane-empty"><span class="pe-ico">🃏</span>${
+                L('最近没有一起打过牌的人', 'Nobody you have played with recently')}</div>`;
+        } else {
+            html += `<div class="fr-sec">${L('最近一起打过牌', 'Recently played with')}</div>`;
+            html += friendRecent.map(f => friendRow(f, {
+                sub: L(`最近同桌 ${f.handsTogether} 手 · `, `${f.handsTogether} hands together · `) + presenceHtml(f),
+                buttons: `<button class="fr-btn ok" onclick="requestFriend('${f.userId}')">${L('加牌友', 'Add')}</button>`,
+            })).join('');
+        }
+    }
+    box.innerHTML = html;
+}
+
+function requestFriend(userId) { socket?.emit('friend_request', { userId }); }
+function respondFriend(userId, accept) { socket?.emit('friend_respond', { userId, accept }); }
+function removeFriend(userId) {
+    const f = friendData.friends.find(x => x.userId === userId);
+    if (f && !confirm(L(`确定删除牌友「${f.displayName}」？`, `Remove ${f.displayName} from your friends?`))) return;
+    socket?.emit('friend_remove', { userId });
+}
+function editFriendNote(userId) {
+    const f = friendData.friends.find(x => x.userId === userId);
+    if (!f) return;
+    // 备注只有自己看得到，提示里说清楚——否则没人敢写真话
+    const note = prompt(L(`给「${f.displayName}」的备注（只有你自己看得到）`,
+                          `Your private note for ${f.displayName} (only you can see it)`), f.note || '');
+    if (note === null) return;
+    socket?.emit('friend_note', { userId, note });
+}
+
+// 牌友数（含待处理申请）挂到「我的」那一行和导航红点上，不然玩家不会想起来点开
+function refreshFriendBadge() {
+    const pending = friendData.incoming.length;
+    const b = document.getElementById('friends-badge');
+    if (b) {
+        b.textContent = pending > 9 ? '9+' : pending;
+        b.style.display = pending > 0 ? '' : 'none';
+    }
+    if (typeof refreshMeDot === 'function') refreshMeDot();
+}
+
+onLangChange(() => { if (document.getElementById('friends-panel')?.style.display === 'flex') renderFriends(); });

@@ -20,6 +20,7 @@ const EXPECTED_SCRIPTS = [
     '40-profile.js',
     '41-history.js',
     '42-replay.js',
+    '43-friends.js',
     '50-audio-settings.js',
     '60-chat.js',
     '61-voice.js',
@@ -43,6 +44,7 @@ const EXPECTED_STYLES = [
     '44-replay.css',
     '45-profile.css',
     '46-history.css',
+    '47-friends.css',
     '50-effects.css'
 ];
 

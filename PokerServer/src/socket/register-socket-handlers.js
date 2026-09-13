@@ -5,6 +5,7 @@ const { registerRoomEvents } = require('./events/room-events');
 const { registerTableControlEvents } = require('./events/table-control-events');
 const { registerPokerCardEvents } = require('./events/poker-card-events');
 const { registerSocialEvents } = require('./events/social-events');
+const { registerFriendEvents } = require('./events/friend-events');
 const { registerPokerActionEvents } = require('./events/poker-action-events');
 const { registerDisconnectEvents } = require('./events/disconnect-events');
 
@@ -67,6 +68,7 @@ function registerSocketHandlers(deps) {
         registerTableControlEvents(context);
         registerPokerCardEvents(context);
         registerSocialEvents(context);
+        registerFriendEvents(context);
         registerPokerActionEvents(context);
         registerDisconnectEvents(context);
     });

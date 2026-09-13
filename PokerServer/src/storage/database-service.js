@@ -7,6 +7,7 @@ const { createUserRepository } = require('./user-repository');
 const { createWalletRepository } = require('./wallet-repository');
 const { createContentRepository } = require('./content-repository');
 const { createMatchRepository } = require('./match-repository');
+const { createFriendRepository } = require('./friend-repository');
 
 function defaultDatabasePath(baseDir) {
     return process.env.POKER_DB_PATH || path.join(baseDir, '.local', 'pokerdojo.sqlite');
@@ -22,6 +23,7 @@ function createDatabaseService({
     const wallet = createWalletRepository(db);
     const content = createContentRepository(db);
     const matches = createMatchRepository(db);
+    const friends = createFriendRepository(db);
 
     const checkinTx = db.transaction((id, dateStr, streak, reward) => {
         const user = db.prepare('SELECT gold FROM users WHERE id = ?').get(id);
@@ -50,6 +52,7 @@ function createDatabaseService({
         ...content,
         wallet,
         matches,
+        friends,
         applyCheckin(id, dateStr, streak, reward) {
             try {
                 return checkinTx(id, dateStr, streak, reward);
