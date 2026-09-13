@@ -819,6 +819,8 @@ function renderMeHead() {
         <div class="me-id">
             <div class="me-name">${escapeHtml(name)}</div>
             <div class="me-gold">\u{1FA99} ${(myGold || 0).toLocaleString()}</div>
+            ${myFriendCode ? `<div class="me-code" onclick="copyMyCode()" title="${L('点一下复制', 'Tap to copy')}">${
+                L('牌友号', 'Code')} ${escapeHtml(myFriendCode)} ⧉</div>` : ''}
         </div>`;
 }
 

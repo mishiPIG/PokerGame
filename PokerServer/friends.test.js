@@ -169,3 +169,61 @@ test('🔴 迁移可重复执行，且不动存量数据', () => {
     assert.deepEqual(db.friends.listOutgoing(a.id).map(f => f.userId), [b.id], '存量关系必须还在');
     db.close();
 });
+
+// ===== 牌友号 + 搜索（2026-09-13）=====
+
+test('🔴 每个用户都有唯一的 8 位牌友号，且注册时就有', () => {
+    const { db, mk } = freshDb();
+    const codes = new Set();
+    for (let i = 0; i < 30; i++) {
+        const u = mk('u' + i);
+        assert.match(u.friendCode, /^\d{8}$/, '牌友号必须是 8 位数字：' + u.friendCode);
+        assert.ok(!codes.has(u.friendCode), '发重了：' + u.friendCode);
+        codes.add(u.friendCode);
+    }
+    db.close();
+});
+
+test('🔴 牌友号必须是【随机】的，不能递增', () => {
+    // 递增号会暴露「你是第几个注册的」（等于公开用户规模），
+    // 还能顺着号去猜相邻账号。光验「唯一 + 8 位】是拦不住递增的。
+    // 判据：按注册顺序看，号不应该是单调递增的。
+    // 20 个真随机数恰好升序的概率是 1/20!，可以当成不可能。
+    const { db, mk } = freshDb();
+    const codes = [];
+    for (let i = 0; i < 20; i++) codes.push(Number(mk('r' + i).friendCode));
+    const ascending = codes.every((c, i) => i === 0 || c > codes[i - 1]);
+    assert.equal(ascending, false, '号是按注册顺序递增的：' + codes.slice(0, 5).join(', '));
+    db.close();
+});
+
+test('🔴 存量用户补发是幂等的，且不会改掉已有的号', () => {
+    // 生产上是对着真实库跑的：重启一次就再跑一遍，绝不能把号换掉
+    // （号是要念给朋友听的，换了等于朋友存的那串作废）。
+    const { db, mk } = freshDb();
+    const a = mk('alice');
+    const before = a.friendCode;
+    assert.equal(db.backfillFriendCodes(), 0, '没有 NULL 时不该做任何事');
+    assert.equal(db.getUserById(a.id).friendCode, before);
+    db.close();
+});
+
+test('搜索只认精确匹配：牌友号 / 用户名', () => {
+    const { db, mk } = freshDb();
+    const a = mk('alice');
+    assert.equal(db.findByCodeOrName(a.friendCode)?.id, a.id);
+    assert.equal(db.findByCodeOrName('alice')?.id, a.id);
+    assert.equal(db.findByCodeOrName('ALICE')?.id, a.id, '用户名大小写不敏感');
+    assert.equal(db.findByCodeOrName(''), null);
+    assert.equal(db.findByCodeOrName('00000001'), null);
+    db.close();
+});
+
+test('🔴 不许前缀/模糊搜索 —— 那等于让人枚举整个用户库', () => {
+    const { db, mk } = freshDb();
+    const a = mk('alice');
+    assert.equal(db.findByCodeOrName('ali'), null, '前缀不该命中');
+    assert.equal(db.findByCodeOrName('lice'), null, '子串不该命中');
+    assert.equal(db.findByCodeOrName(a.friendCode.slice(0, 4)), null, '半截号不该命中');
+    db.close();
+});

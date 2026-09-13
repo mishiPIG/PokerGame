@@ -83,10 +83,16 @@ function connectSocket(token) {
     // 牌友列表 / 一起玩过（服务端主动推，所以对方同意的那一刻我这边就会刷新）
     socket.on('friend_list', (d) => {
         friendData = { friends: d.friends || [], incoming: d.incoming || [], outgoing: d.outgoing || [] };
+        if (d.myCode) { myFriendCode = d.myCode; renderMeHead(); }   // 「我的」页头卡要显示牌友号
         renderFriends();
         refreshFriendBadge();
     });
     socket.on('friend_recent', (d) => { friendRecent = d.list || []; renderFriends(); });
+    socket.on('friend_search', (d) => {
+        friendSearch = d.found ? { found: d.found }
+            : (d.self ? { self: true } : { notFound: (document.getElementById('fr-search')?.value || '').trim() });
+        renderFriends();
+    });
 
     socket.on('room_invite_info', (info) => {
         roomInviteInfo = info;

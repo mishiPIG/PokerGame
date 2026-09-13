@@ -10,6 +10,16 @@ let myDisplayName = null;
 let myDisplayNameChangedAtMs = null;
 let myGold       = 0;
 let myAvatar     = null;
+// 牜友（跨文件用）。
+// ⚠️ 必须声明在这里而不是 43-friends.js：经典脚本下顶层 let 是脚本全局的，
+//    但在声明它的文件执行之前处于 TDZ —— 比它早加载的文件（如 30-room.js 的
+//    renderMeHead、40-profile.js 的 refreshMeDot）一碰就报 ReferenceError，
+//    而且连 `typeof x !== 'undefined'` 都抦不住（typeof 对 TDZ 变量同样抛错）。
+let friendData   = { friends: [], incoming: [], outgoing: [] };
+let friendRecent = [];
+let friendTab    = 'friends';              // friends | recent
+let friendSearch = null;                   // { found } | { notFound } | { self }
+let myFriendCode = '';                     // 我自己的牌友号（服务端随列表下发）
 let myHoleCards  = [];
 let revealedCards = {};  // userId -> [{suit,rank},{suit,rank}]  (showdown)
 let runitState = null;   // 多次发牌桌面展示状态 { n, baseLen, filled:[] }

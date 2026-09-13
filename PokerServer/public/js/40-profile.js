@@ -317,6 +317,6 @@ let _inboxUnread = 0;
 function refreshMeDot() {
     const dot = document.getElementById('nav-me-dot');
     if (!dot) return;
-    const pending = (typeof friendData !== 'undefined' && friendData.incoming) ? friendData.incoming.length : 0;
+    const pending = friendData.incoming ? friendData.incoming.length : 0;
     dot.style.display = (_inboxUnread > 0 || pending > 0) ? '' : 'none';
 }

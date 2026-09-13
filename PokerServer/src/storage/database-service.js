@@ -24,6 +24,7 @@ function createDatabaseService({
     const content = createContentRepository(db);
     const matches = createMatchRepository(db);
     const friends = createFriendRepository(db);
+    users.backfillFriendCodes();   // 存量用户补发牌友号（幂等，没的才发）
 
     const checkinTx = db.transaction((id, dateStr, streak, reward) => {
         const user = db.prepare('SELECT gold FROM users WHERE id = ?').get(id);

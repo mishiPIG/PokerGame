@@ -6,9 +6,7 @@
 // ⚠️ 备注是【私有】的 —— 服务端只写我那一行、也不推给对方。前端同样不显示
 //    「对方给我的备注」这种东西（根本拿不到）。
 
-let friendData = { friends: [], incoming: [], outgoing: [] };
-let friendRecent = [];
-let friendTab = 'friends';                 // friends | recent
+// 状态变量在 00-state.js 里声明（跨文件引用的东西必须放在最先加载的那份）
 
 function openFriends() {
     // ⚠️ 必须是 ''（交给 CSS），不能写 'flex'。
@@ -16,6 +14,9 @@ function openFriends() {
     //    头部/标签/内容被并排挤成一条条竖字（实拍过）。收件箱/战绩/牌谱都是 ''。
     document.getElementById('friends-panel').style.display = '';
     friendTab = 'friends';
+    friendSearch = null;
+    const si = document.getElementById('fr-search');
+    if (si) si.value = '';
     renderFriends();
     socket?.emit('friend_list');
     socket?.emit('friend_recent');
@@ -56,8 +57,30 @@ function renderFriends() {
     document.querySelectorAll('#friends-panel .fr-tab')
         .forEach(b => b.classList.toggle('sel', b.dataset.ft === friendTab));
 
-    // 待处理的申请永远置顶：它需要我做决定，压在列表下面等于没提醒
     let html = '';
+
+    // 搜索结果置顶：它是玩家刚手动触发的，该第一眼看到
+    if (friendSearch) {
+        html += `<div class="fr-sec">${L('搜索结果', 'Search result')}</div>`;
+        if (friendSearch.self) {
+            html += `<div class="pane-empty">${L('这是你自己', 'That\'s you')}</div>`;
+        } else if (friendSearch.notFound != null) {
+            html += `<div class="pane-empty">${L('没找到这个人<br>牌友号要填完整的 8 位，用户名要完全一致',
+                'No match<br>Enter the full 8-digit code, or the exact username')}</div>`;
+        } else {
+            const f = friendSearch.found;
+            const btn = f.status === 'accepted'
+                ? `<span class="ap-friend-tag">${L('✓ 已是牌友', '✓ Friends')}</span>`
+                : f.status === 'pending'
+                    ? `<span class="ap-friend-tag">${L('已发申请', 'Request sent')}</span>`
+                    : f.status === 'incoming'
+                        ? `<button class="fr-btn ok" onclick="respondFriend('${f.userId}',true)">${L('同意', 'Accept')}</button>`
+                        : `<button class="fr-btn ok" onclick="requestFriend('${f.userId}')">${L('加牌友', 'Add')}</button>`;
+            html += friendRow(f, { sub: `${L('牌友号', 'Code')} ${escapeHtml(f.friendCode)} · ` + presenceHtml(f), buttons: btn });
+        }
+    }
+
+    // 待处理的申请置顶：它需要我做决定，压在列表下面等于没提醒
     if (friendData.incoming.length) {
         html += `<div class="fr-sec">${L('待处理的申请', 'Pending requests')}</div>`;
         html += friendData.incoming.map(f => friendRow(f, {
@@ -148,3 +171,15 @@ function refreshFriendBadge() {
 // 打开时 display 是 ''（交给 CSS），所以只能判「不是 none」，
 // 写 === 'flex' 永远不成立（上一版就是这么错的）。
 onLangChange(() => { if (document.getElementById('friends-panel')?.style.display !== 'none') renderFriends(); });
+
+// 搜索加好友。只认精确匹配（牌友号或用户名），所以不做输入即搜，按回车/点按钮才发。
+function doFriendSearch() {
+    const q = (document.getElementById('fr-search').value || '').trim();
+    if (!q) { friendSearch = null; renderFriends(); return; }
+    socket?.emit('friend_search', { q });
+}
+function copyMyCode() {
+    if (!myFriendCode) return;
+    navigator.clipboard?.writeText(myFriendCode)
+        .then(() => toast(L('牌友号已复制', 'Code copied')), () => {});
+}

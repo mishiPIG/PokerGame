@@ -58,7 +58,9 @@ function loadLobby() {
         openProfile() {}, profileTab() {},
         localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } },
         window: {},
-        myDisplayName: '张三', myUsername: 'zhangsan', myGold: 3848, myAvatar: null,
+        // 00-state.js 启动时会读一下 URL（邀请链接）和 localStorage
+        location: { hash: '', search: '' },
+        sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
         document: {
             getElementById: id => els[id] || null,
             querySelectorAll: sel => {
@@ -71,6 +73,9 @@ function loadLobby() {
     };
     ctx.window.localStorage = ctx.localStorage;
     vm.createContext(ctx);
+    // 跟真实加载顺序走：状态模块在前。
+    // 不要把 myFriendCode / friendData 这类状态“桩”成假值 —— 桩得越多，测的越不是真东西。
+    vm.runInContext(read('public/js/00-state.js'), ctx);
     vm.runInContext(read('public/js/30-room.js'), ctx);
     return { ctx, els, navItems, panes, chips, store, run: expr => vm.runInContext(expr, ctx) };
 }
@@ -432,4 +437,35 @@ test('🔴 uiConfirm 的返回值必须被接住', () => {
         }
     }
     assert.deepEqual(bad, [], '这些 uiConfirm 没有 .then / await，点取消也会照样执行');
+});
+
+test('🔴 不许用 typeof 去「安全地」探测一个 let/const 全局', () => {
+    // 经典脚本下顶层 let/const 是脚本全局的，但在【声明它的那个文件执行之前】处于 TDZ。
+    // 关键陷阱：`typeof x !== 'undefined'` 对 TDZ 变量【同样会抛 ReferenceError】，
+    // 并不像大家以为的那样安全 —— 写了这个守卫反而会给人「已经防住了」的错觉。
+    // 正确做法：把跨文件用的状态声明在最先加载的 00-state.js 里。
+    // ⚠️ 只在【引用方比声明方先加载】时才是隐患。声明在更早文件里的（如 00-state.js
+    //    的 lastState）运行时早就初始化好了，那种 typeof 只是多余、不是 bug ——
+    //    把它们一起报出来只会让这条守卫变成噪音，然后被人无视。
+    const jsDir = path.join(__dirname, 'public/js');
+    const files = fs.readdirSync(jsDir).filter(f => f.endsWith('.js')).sort();   // 数字前缀 = 加载顺序
+    const declaredAt = new Map();
+    files.forEach((f, idx) => {
+        const src = fs.readFileSync(path.join(jsDir, f), 'utf8');
+        for (const m of src.matchAll(/(?:^|\n)(?:let|const)\s+([A-Za-z_$][\w$]*)/g)) {
+            if (!declaredAt.has(m[1])) declaredAt.set(m[1], idx);
+        }
+    });
+    const bad = [];
+    files.forEach((f, idx) => {
+        const src = fs.readFileSync(path.join(jsDir, f), 'utf8');
+        src.split('\n').forEach((ln, i) => {
+            const code = ln.split('//')[0];
+            for (const m of code.matchAll(/typeof\s+([A-Za-z_$][\w$]*)/g)) {
+                const at = declaredAt.get(m[1]);
+                if (at != null && at > idx) bad.push(`${f}:${i + 1} typeof ${m[1]}（声明在更晚的 ${files[at]}）`);
+            }
+        });
+    });
+    assert.deepEqual(bad, [], 'typeof 挡不住 TDZ；这些状态应该声明在 00-state.js 里');
 });

@@ -20,10 +20,27 @@ function mapUser(row) {
         gold: row.gold,
         isAdmin: !!row.is_admin,
         avatar: row.avatar,
+        friendCode: row.friend_code || null,
         lastCheckin: row.last_checkin,
         checkinStreak: row.checkin_streak || 0,
         created_at: new Date(row.created_at_ms).toISOString()
     };
+}
+
+
+// ===== 牌友号（8 位随机数字，注册时发、永不可改）=====
+// 随机而不是递增：递增号会暴露「你是第几个注册的」（等于公开用户规模），
+// 还能顺着号去猜相邻账号。随机没有这两个问题。
+// 8 位 = 9000 万个坑位，几万用户时撞号概率极低；真撞上就重试，别指望「不会撞」。
+const CODE_MIN = 10000000, CODE_MAX = 99999999;
+function newFriendCode(db) {
+    const taken = db.prepare('SELECT 1 FROM users WHERE friend_code = ?');
+    for (let i = 0; i < 50; i++) {
+        const code = String(crypto.randomInt(CODE_MIN, CODE_MAX + 1));
+        if (!taken.get(code)) return code;
+    }
+    // 50 次都撞说明号池真的快满了 —— 这时候宁可报错，也不能发一个重复号出去
+    throw new Error('FRIEND_CODE_EXHAUSTED');
 }
 
 function createUserRepository(db) {
@@ -33,10 +50,10 @@ function createUserRepository(db) {
     const insertUser = db.prepare(`
         INSERT INTO users (
             id, username, display_name, email, password_hash, gold, is_admin, avatar,
-            last_checkin, checkin_streak, created_at_ms, updated_at_ms
+            last_checkin, checkin_streak, created_at_ms, updated_at_ms, friend_code
         ) VALUES (
             @id, @username, @display_name, @email, @password_hash, @gold, @is_admin, @avatar,
-            @last_checkin, @checkin_streak, @created_at_ms, @updated_at_ms
+            @last_checkin, @checkin_streak, @created_at_ms, @updated_at_ms, @friend_code
         )
     `);
     const insertInitial = db.prepare(`
@@ -63,7 +80,8 @@ function createUserRepository(db) {
             last_checkin: options.lastCheckin || null,
             checkin_streak: options.checkinStreak || 0,
             created_at_ms: now,
-            updated_at_ms: now
+            updated_at_ms: now,
+            friend_code: options.friendCode || newFriendCode(db)
         });
         insertInitial.run(
             crypto.randomUUID(),
@@ -88,6 +106,29 @@ function createUserRepository(db) {
                 }
                 throw error;
             }
+        },
+        // 存量用户补发牌友号。迁移只加了列，补发放在这里做 —— 随机撞号要重试，SQL 不好写。
+        // 幂等：只补 NULL 的那些，重复调用无副作用。
+        backfillFriendCodes() {
+            const rows = db.prepare('SELECT id FROM users WHERE friend_code IS NULL').all();
+            if (!rows.length) return 0;
+            const upd = db.prepare('UPDATE users SET friend_code = ? WHERE id = ?');
+            const tx = db.transaction(list => { for (const r of list) upd.run(newFriendCode(db), r.id); });
+            tx(rows);
+            console.log(`[db] 已为 ${rows.length} 个存量用户补发牌友号`);
+            return rows.length;
+        },
+        // 搜索加好友：只认【精确匹配】牌友号或用户名。
+        // ⚠️ 刻意不做模糊/前缀搜索 —— 那等于让任何人把整个用户库枚举出来。
+        findByCodeOrName(q) {
+            const s = String(q || '').trim();
+            if (!s) return null;
+            if (/^\d{6,10}$/.test(s)) {
+                return mapUser(db.prepare(
+                    'SELECT * FROM users WHERE friend_code = ? AND deleted_at_ms IS NULL').get(s));
+            }
+            return mapUser(db.prepare(
+                'SELECT * FROM users WHERE username = ? COLLATE NOCASE AND deleted_at_ms IS NULL').get(s));
         },
         getUserById(id) {
             return mapUser(byId.get(id));

@@ -80,3 +80,16 @@
         .confirm-acts .fr-btn { padding: 8px 16px; font-size: 13px; }
         .fr-btn.danger.ok, #confirm-ok.danger {
             background: rgba(255,120,120,0.18); border-color: rgba(255,120,120,0.5); color: #ff9f9f; }
+
+        /* 搜索加好友：只认精确匹配，所以不做输入即搜（那会让人以为能模糊找）*/
+        .fr-search-row { display: flex; gap: 8px; margin: 10px 0 6px; }
+        .fr-search {
+            flex: 1; min-width: 0; padding: 8px 12px; border-radius: 10px;
+            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.18);
+            color: #eaf3ee; font-size: 13px; outline: none;
+        }
+        .fr-search:focus { border-color: rgba(6,214,160,0.6); }
+        /* 牌友号：让人念给朋友的东西，字要能看清，且点一下就能复制 */
+        .me-code { margin-top: 5px; font-size: 12px; color: #9db9a9; cursor: pointer;
+            font-variant-numeric: tabular-nums; letter-spacing: .6px; }
+        .me-code:active { color: #dfe9e2; }

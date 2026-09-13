@@ -35,6 +35,7 @@ function registerFriendEvents(context) {
         const uid = target.user?.id;
         if (!uid) return;
         target.emit('friend_list', {
+            myCode: db.getUserById(uid)?.friendCode || '',
             friends: withPresence(db.friends.listFriends(uid)),
             incoming: db.friends.listIncoming(uid),
             outgoing: db.friends.listOutgoing(uid),
@@ -56,6 +57,9 @@ function registerFriendEvents(context) {
     }
 
     socket.on('friend_list', () => sendList());
+    // 连上就推一次：否则「待处理申请」的红点要等玩家主动打开面板才会亮，
+    // 那就等于没有提醒（他可能整晚停在「约局」页）。
+    sendList();
 
     // 「上次一起玩的人」：零新数据，全从牌谱查（已排除掉已有关系的人）
     socket.on('friend_recent', () => {
@@ -65,6 +69,27 @@ function registerFriendEvents(context) {
             console.error('[friend] recentTablemates 失败', e);
             socket.emit('friend_recent', { list: [] });
         }
+    });
+
+    // 搜索加好友：只认【精确匹配】牌友号或用户名。
+    // ⚠️ 刻意不做模糊/前缀搜索 —— 那等于让任何人把整个用户库枚举出来。
+    // 返回里带上当前关系，客户端好决定显示「加牌友」还是「已是牌友」。
+    socket.on('friend_search', ({ q } = {}) => {
+        const found = db.findByCodeOrName(q);
+        if (!found || found.id === user.id) {
+            socket.emit('friend_search', { found: null, self: !!(found && found.id === user.id) });
+            return;
+        }
+        socket.emit('friend_search', {
+            found: {
+                userId: found.id,
+                displayName: found.displayName || found.username,
+                avatar: found.avatar || null,
+                friendCode: found.friendCode || '',
+                status: db.friends.edgeStatus(user.id, found.id),
+                ...presenceOf(found.id),
+            },
+        });
     });
 
     socket.on('friend_request', ({ userId } = {}) => {

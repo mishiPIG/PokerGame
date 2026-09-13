@@ -532,6 +532,12 @@
         <button class="fr-tab sel" data-ft="friends" onclick="setFriendTab('friends')" data-i18n="fr.tabFriends">我的牌友</button>
         <button class="fr-tab" data-ft="recent" onclick="setFriendTab('recent')" data-i18n="fr.tabRecent">一起玩过</button>
     </div>
+    <div class="fr-search-row">
+        <input id="fr-search" class="fr-search" type="text" maxlength="24"
+               data-i18n-ph="fr.searchPh" placeholder="输入牌友号或用户名"
+               onkeydown="if(event.key==='Enter')doFriendSearch()">
+        <button class="fr-btn ok" onclick="doFriendSearch()" data-i18n="fr.search">搜索</button>
+    </div>
     <div id="friends-body"></div>
 </div>
 
