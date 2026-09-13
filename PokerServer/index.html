@@ -242,7 +242,7 @@
                     <input type="range" id="ccMax" min="2" max="9" step="1" value="6" oninput="updateCashLabels()"></label>
                 <label><span data-i18n="cfg.minBuyin">单次最小带入：</span><b id="ccMinVal">2,000</b>
                     <input type="range" id="ccMin" min="2000" max="8000" step="1000" value="2000" oninput="updateCashLabels()"></label>
-                <label><span data-i18n="cfg.buyinCap">带入上限：</span><b id="ccCapVal" data-i18n="cfg.capNone">无限制</b>
+                <label><span data-i18n="cfg.buyinCap">带入上限：</span><b id="ccCapVal">无限制</b>
                     <input type="range" id="ccCap" min="0" max="60000" step="4000" value="0" oninput="updateCashLabels()"></label>
                 <div class="cfg-field"><span class="cfg-label" data-i18n="cfg.duration">训练时长（到点自动结束并结算排名）</span>
                     <div class="tier-row" id="ccDurRow"></div></div>
@@ -303,7 +303,7 @@
         <!-- 版本：放在大厅底部，落地就能看见，不用去设置面板里翻。
              同时显示【前端】和【服务端】—— 不一致说明本机缓存了旧前端。 -->
         <div class="lobby-version" id="version-box" onclick="copyVersion()" data-i18n-title="ui.copyVersion" title="点击复制版本信息">
-            <span id="ver-client" data-i18n="ver.client">前端 …</span> · <span id="ver-server" data-i18n="ver.server">服务端 …</span>
+            <span id="ver-client">前端 …</span> · <span id="ver-server">服务端 …</span>
         </div>
       </section>
 
@@ -337,7 +337,7 @@
         <div id="table-info"></div>
         <!-- 公共牌 + 底池（绝对居中，布局稳定不随行动浮层移动）-->
         <div id="board">
-            <div id="pot" data-i18n="table.pot0">💰 底池: 0</div>
+            <div id="pot">💰 底池: 0</div>
             <div id="community"></div>
             <div id="runit-boards" style="display:none"></div>
             <div id="table-notice" aria-live="polite" role="status" style="display:none"></div>
@@ -351,7 +351,7 @@
     <!-- 行动浮层：仅在轮到我 / 可准备 / 局间看牌时显示 -->
     <div id="action-bar" style="display:none">
         <!-- 准备按钮（SNG 开赛前）-->
-        <button class="start" id="btnReady" onclick="toggleReady()" style="display:none" data-i18n="table.ready">✅ 准备</button>
+        <button class="start" id="btnReady" onclick="toggleReady()" style="display:none">✅ 准备</button>
         <!-- 开始按钮（现金桌房主开赛）-->
         <button class="start" id="btnStart" onclick="startGame()" style="display:none" data-i18n="table.start">▶ 开始</button>
         <div class="wait-host" id="waitHost" style="display:none" data-i18n="table.waitHost">⏳ 等待房主开始…</div>
@@ -359,7 +359,7 @@
         <div class="wait-host" id="sitOutPanel" style="display:none"><span data-i18n="table.sitOut">💤 记分牌耗尽，已坐出</span>
             <button class="start" style="margin-left:8px" onclick="openRebuy()" data-i18n="table.rebuyBack">💵 补码回来</button></div>
         <!-- 留座 / 站起围观，回到座位 -->
-        <div class="wait-host" id="reserveBackPanel" style="display:none"><span id="reserveBackLabel" data-i18n="reserve.reserving">💺 留座中</span>
+        <div class="wait-host" id="reserveBackPanel" style="display:none"><span id="reserveBackLabel">💺 留座中</span>
             <button class="start" style="margin-left:8px" onclick="sitBack()" data-i18n="reserve.sitback">🪑 回到座位</button></div>
         <!-- 快捷池比例：一键直接下注/加注 -->
         <div class="size-quick-group" id="quick-bet-group" style="display:none"></div>
@@ -369,7 +369,7 @@
                 <input type="range"   id="betSlider"   min="0" max="0" step="1" value="0" oninput="onSliderInput()">
                 <input type="number"  id="raiseAmount" min="0" step="1" oninput="onAmountInput()">
             </div>
-            <button class="action-btn bet" id="btnConfirmBet" onclick="confirmBet()" data-i18n="act.confirm">确认</button>
+            <button class="action-btn bet" id="btnConfirmBet" onclick="confirmBet()">确认</button>
             <div id="bet-info" class="bet-info"></div>
         </div>
         <!-- 主行动按钮（德扑之星式：弃牌✕ 左 · 加注金球 中 · 过牌/跟注 右，过牌跟注合并）-->
@@ -377,9 +377,9 @@
             <button class="action-btn fold"  id="btnFold"  onclick="act('fold')" title="弃牌" data-i18n-title="act.fold">✕</button>
             <button class="action-btn bet"   id="btnBet"   onclick="openSizing()" data-i18n="act.bet">下注…</button>
             <button class="action-btn raise" id="btnRaise" onclick="openSizing()" data-i18n="act.raise">加注…</button>
-            <button class="action-btn call"  id="btnCheckCall" onclick="actCheckCall()" data-i18n="act.check">过牌</button>
+            <button class="action-btn call"  id="btnCheckCall" onclick="actCheckCall()">过牌</button>
         </div>
-        <button class="action-btn rabbit" id="btnRabbit" onclick="rabbitDeal()" style="display:none" data-i18n="act.rabbit">🐰 看后续牌</button>
+        <button class="action-btn rabbit" id="btnRabbit" onclick="rabbitDeal()" style="display:none">🐰 看后续牌</button>
     </div>
 
     <!-- 预操作：人物左右各一个小按钮（不轮到我时提前勾选，到点自动执行；不遮手牌）-->
@@ -400,7 +400,7 @@
             <button class="tc-btn" id="voice-btn" title="按住说话" data-i18n-title="voice.hold">🎤</button>
         </div>
     </div>
-    <div id="voice-recording" style="display:none" data-i18n="voice.rec">按住说话</div>
+    <div id="voice-recording" style="display:none">按住说话</div>
 
     <!-- 桌内菜单（B7：整合所有牌桌操作）-->
     <div id="table-menu" class="tbl-pop" style="display:none">
@@ -410,7 +410,7 @@
             <button class="cash-only" onclick="openRebuy();toggleTableMenu()" data-i18n="tm.rebuy">💵 补充记分牌</button>
             <button class="seat-only" onclick="reserveLeave();toggleTableMenu()" data-i18n="tm.reserve">💺 留座离桌</button>
             <button class="seat-only" onclick="standUp();toggleTableMenu()" data-i18n="tm.standup">🧍 站起围观</button>
-            <button class="owner-only cash-only" id="tmPause" onclick="togglePauseDealing();toggleTableMenu()" data-i18n="tm.pause">⏸️ 暂停发牌</button>
+            <button class="owner-only cash-only" id="tmPause" onclick="togglePauseDealing();toggleTableMenu()">⏸️ 暂停发牌</button>
             <button class="owner-only" onclick="openMatchSettings();toggleTableMenu()" data-i18n="tm.matchSettings">⚙️ 比赛设置</button>
             <button onclick="leaveRoom();toggleTableMenu()" data-i18n="tm.leave">🚪 退出比赛</button>
             <button class="owner-only danger" onclick="dissolveRoom();toggleTableMenu()" data-i18n="tm.dissolve">🛑 解散比赛</button>
@@ -432,7 +432,7 @@
     <!-- 坐下/补码 通用买入弹窗 -->
     <div id="buyin-modal" class="modal-mask" style="display:none">
         <div class="modal-box">
-            <h3 id="bm-title" data-i18n="bm.titleDefault">坐下带入</h3>
+            <h3 id="bm-title">坐下带入</h3>
             <div class="bm-amt"><span id="bm-val">2,000</span> <small data-i18n="bm.chips">记分牌</small></div>
             <!-- 补码：BB 梯度选项；坐下：滑块 -->
             <div id="bm-tiers" class="bm-tier-row" style="display:none"></div>
@@ -451,7 +451,7 @@
         <div class="sp-head"><b data-i18n="stats.title">当前战绩</b><button onclick="closeStats()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <table class="sp-table"><thead><tr><th data-i18n="stats.name">昵称</th><th data-i18n="stats.buyin">带入</th><th data-i18n="stats.hands">手数</th><th data-i18n="stats.net">战绩</th></tr></thead>
             <tbody id="stats-body"></tbody></table>
-        <div class="sp-spec"><b id="spec-count" data-i18n="table.spec0">观众 (0)</b><div id="spec-list"></div></div>
+        <div class="sp-spec"><b id="spec-count">观众 (0)</b><div id="spec-list"></div></div>
     </div>
 
     <!-- 牌谱回顾面板 -->
@@ -487,7 +487,7 @@
                     </div>
                 </div>
                 <div class="invite-manage">
-                    <button id="invite-lock-btn" onclick="toggleEntryLock()" data-i18n="inv.open">🔓 开放入场</button>
+                    <button id="invite-lock-btn" onclick="toggleEntryLock()">🔓 开放入场</button>
                     <button class="reset" onclick="resetRoomInvite()" data-i18n="inv.reset">↻ 重置邀请</button>
                 </div>
             </div>
@@ -585,7 +585,7 @@
 <div id="hand-detail" style="display:none">
     <div class="hd-box">
         <div class="hd-head">
-            <b id="hd-title" data-i18n="hd.title">牌谱详情</b>
+            <b id="hd-title">牌谱详情</b>
             <div class="hd-head-btns">
                 <button class="hd-replay" onclick="replayCurrentDetail()" data-i18n="hd.replay">▶ 回放</button>
                 <button class="hd-close" onclick="closeHandDetail()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button>
@@ -610,7 +610,7 @@
         </div>
         <div class="ap-sub" data-i18n="ap.sub">本局数据</div>
         <div class="ap-stats" id="ap-stats"><div class="ap-loading" data-i18n="common.loading">加载中…</div></div>
-        <div class="ap-emo-title" id="ap-emo-title" data-i18n="ap.emo">发表情</div>
+        <div class="ap-emo-title" id="ap-emo-title">发表情</div>
         <div class="ap-emotes" id="ap-emotes"></div>
         <div class="ap-owner" id="ap-owner" style="display:none"></div>
     </div>
@@ -620,7 +620,7 @@
 <div id="result-overlay" style="display:none">
     <div class="result-box">
         <div class="result-trophy">🏆</div>
-        <div class="result-title" id="result-title" data-i18n="result.title">比赛结束</div>
+        <div class="result-title" id="result-title">比赛结束</div>
         <div class="result-sub" id="result-sub"></div>
         <div id="result-podium"></div>
         <div id="result-ranking"></div>

@@ -130,7 +130,7 @@ function checkClientJs(file) {
 }
 
 // ---------- ② index.html ----------
-function checkHtml(file) {
+function checkHtml(file, owned) {
     let html = fs.readFileSync(file, 'utf8');
     const name = path.basename(file);
     // <!-- i18n-ok: 理由 --> … <!-- /i18n-ok --> 之间整段放行（管理面板、产品名等）
@@ -144,6 +144,9 @@ function checkHtml(file) {
         if (!text || !CJK.test(text)) continue;
         const tag = html.slice(html.lastIndexOf('<', m.index), m.index + 1);
         if (/data-i18n(=|\s|>)/.test(tag)) continue;
+        // 一个元素只有一个文本所有者：JS 会写它 → HTML 里那串中文只是占位，永远不会被看到
+        const idm = /id="([^"]+)"/.exec(tag);
+        if (idm && owned.has(idm[1])) continue;
         problems.push(`${name}:${lineAt(m.index)} 文本没挂 data-i18n → “${text.slice(0, 34)}”`);
     }
     for (const attr of ['placeholder', 'title']) {                  // 属性
@@ -186,11 +189,61 @@ function checkServer(dir) {
     }
 }
 
+// ---------- ④ data-i18n 不能挂在「文本由 JS 写」的元素上 ----------
+// 2026-09-13 实拍：大厅底部一直显示「前端 …」这个占位符。
+// 原因是我给 #ver-client 挂了 data-i18n，而它的文本是 loadVersion() 填的 ——
+// applyLang() 会 el.textContent = 字典值，把 JS 刚写进去的真实版本号覆盖回占位符。
+// 这类 bug 的表现是「某个值永远停在占位符上」，很难联想到是翻译干的。
+function collectJsOwned() {
+    const jsDir2 = path.join(ROOT, 'public', 'js');
+    const owned = new Map();                       // id -> 哪个文件在写它
+
+    for (const f of fs.readdirSync(jsDir2).filter(x => x.endsWith('.js'))) {
+        const src = blankComments(fs.readFileSync(path.join(jsDir2, f), 'utf8'));
+        // (a) 直接写：getElementById('x').textContent = …
+        for (const m of src.matchAll(/getElementById\('([^']+)'\)\s*\.\s*(?:textContent|innerHTML)\s*=/g)) {
+            owned.set(m[1], f);
+        }
+        // (b) 先存变量再写：const el = document.getElementById('x'); … el.textContent = …
+        // ⚠️ 只在【紧随其后的一小段】里找，不要全文件搜：el / b / cc 这种通用名满文件都是，
+        //    全文件搜会把「只读不写」的元素也算成 JS 拥有（第一版就误报了 btnReady）。
+        const SCOPE = 1500;
+        // 不要要求 const/let/var 开头：`const cEl = …, sEl = …` 这种逗号声明
+        // 只会匹配到第一个（#ver-server 当初就是这么漏的）。
+        for (const m of src.matchAll(/(\w+)\s*=\s*document\.getElementById\('([^']+)'\)/g)) {
+            const near = src.slice(m.index, m.index + SCOPE);
+            const re = new RegExp('\\b' + m[1] + '\\s*\\.\\s*(?:textContent|innerHTML)\\s*=');
+            if (re.test(near)) owned.set(m[2], f);
+        }
+    }
+
+    return owned;
+}
+
+function checkJsOwned(owned) {
+    const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    for (const [id, file] of owned) {
+        // 找到 index.html 里这个元素的开标签
+        const at = html.indexOf(`id="${id}"`);
+        if (at < 0) continue;
+        const tagStart = html.lastIndexOf('<', at);
+        const tag = html.slice(tagStart, html.indexOf('>', at) + 1);
+        if (/i18n-ok/.test(html.slice(Math.max(0, tagStart - 120), tagStart))) continue;
+        const m = /data-i18n="([^"]+)"/.exec(tag);
+        if (m) {
+            problems.push(`index.html: #${id} 的文本由 ${file} 写，却挂着 data-i18n="${m[1]}" `
+                + `→ 切语言/首次 applyLang 会把它覆盖回占位符。改成在 JS 里用 t()/L()，并 onLangChange 重渲染。`);
+        }
+    }
+}
+
 const jsDir = path.join(ROOT, 'public', 'js');
 const jsFiles = fs.readdirSync(jsDir).filter(f => f.endsWith('.js') && !SKIP_JS.has(f));
 jsFiles.forEach(f => checkClientJs(path.join(jsDir, f)));
-checkHtml(path.join(ROOT, 'index.html'));
+const jsOwned = collectJsOwned();
+checkHtml(path.join(ROOT, 'index.html'), jsOwned);
 checkServer(path.join(ROOT, 'src'));
+checkJsOwned(jsOwned);
 
 if (problems.length) {
     console.error(`❌ 双语检查未通过（${problems.length} 处）——英文界面上这些地方会显示中文：`);

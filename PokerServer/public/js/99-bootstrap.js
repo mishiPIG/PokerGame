@@ -54,22 +54,31 @@ if (savedToken) {
 // ===== 版本信息（设置面板底部）=====
 // 前端构建号来自打包进 JS 的常量；服务端版本实时拉。两者不一致 = 本机缓存了旧前端。
 let _verText = '';
+let _verInfo = null;                 // 服务端那份只拉一次，之后切语言直接重渲染
 async function loadVersion() {
+    try { _verInfo = await (await fetch('/api/version')).json(); }
+    catch (e) { _verInfo = null; }
+    renderVersion();
+}
+function renderVersion() {
     const cEl = document.getElementById('ver-client'), sEl = document.getElementById('ver-server');
     if (!cEl || !sEl) return;
     const client = CLIENT_BUILD === '__' + 'BUILD__' ? 'dev' : CLIENT_BUILD;
     cEl.textContent = `${L('前端', 'Client')} ${client}`;
-    try {
-        const r = await fetch('/api/version');
-        const v = await r.json();
-        sEl.textContent = `${L('服务端', 'Server')} ${v.label}${v.env && v.env !== 'unknown' ? ' · ' + v.env : ''}`;
-        // 服务端知道自己是用哪个 commit 构建的；前端常量若对不上，说明这份 JS 是旧的
-        const stale = client !== 'dev' && v.commit !== 'dev' && client !== v.commit;
-        document.getElementById('version-box').classList.toggle('stale', stale);
-        if (stale) sEl.textContent += L('  ⚠️ 前端是旧的，请下拉刷新', '  ⚠️ Client is stale — pull to refresh');
-        _verText = `${cEl.textContent} / ${sEl.textContent}`;
-    } catch (e) { sEl.textContent = L('服务端 ?', 'Server ?'); }
+    if (!_verInfo) { sEl.textContent = L('服务端 ?', 'Server ?'); return; }
+    const v = _verInfo;
+    sEl.textContent = `${L('服务端', 'Server')} ${v.label}${v.env && v.env !== 'unknown' ? ' · ' + v.env : ''}`;
+    // 服务端知道自己是用哪个 commit 构建的；前端常量若对不上，说明这份 JS 是旧的
+    const stale = client !== 'dev' && v.commit !== 'dev' && client !== v.commit;
+    document.getElementById('version-box').classList.toggle('stale', stale);
+    if (stale) sEl.textContent += L('  ⚠️ 前端是旧的，请下拉刷新', '  ⚠️ Client is stale — pull to refresh');
+    _verText = `${cEl.textContent} / ${sEl.textContent}`;
 }
+// 🔴 这两个元素的文本【由 JS 拥有】，绝不能在 HTML 上挂 data-i18n ——
+//    applyLang() 会 el.textContent = 字典值，把刚填好的版本号覆盖回占位符「前端 …」。
+//    实拍过一次：服务端那半截是填好的、前端那半截永远是「…」，因为它先被填、后被覆盖。
+//    （check-i18n.js 现在会拦这一类：JS 写的元素不许挂 data-i18n。）
+onLangChange(() => renderVersion());
 function copyVersion() {
     if (!_verText) return;
     navigator.clipboard?.writeText(_verText).then(() => toast(L('已复制版本信息', 'Version info copied')), () => {});

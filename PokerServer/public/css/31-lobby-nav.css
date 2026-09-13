@@ -14,7 +14,14 @@
 
         /* ---- 页面容器：三页同一时刻只显示一页 ---- */
         .lobby-pane { display: none; }
-        .lobby-pane.active { display: block; }
+        /* 🔴 active 的那页必须【撑满可用高度】并自己是纵向 flex，否则 .lobby-version
+           的 margin-top:auto 顶不到底 —— 内容短的时候版本行会浮在半空中。
+           这个问题 1.1.2 修过一次（当时靠 #lobby-view 的纵向 flex），
+           我把版本行搬进「我的」页之后又破了，因为它现在的父级是一个 display:block 的 section。
+           改元素归属时，顺手检查一下它原来是靠哪条规则定位的。*/
+        #lobby-view .lobby-pane.active {
+            display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+        }
 
         /* ---- 导航条 ---- */
         #lobby-nav {

@@ -311,3 +311,37 @@ test('动效时长只能用 A3 定下的四档', () => {
     }
     assert.deepEqual([...new Set(bad)], [], '这些时长不在四档里（0.15 / 0.3 / 0.5 / 0.8）');
 });
+
+test('🔴 版本行必须真的贴在页底（这条破过两次了）', () => {
+    // 1.1.2 修过一次：房间列表为空时版本行浮在半空中，靠 .lobby-version{margin-top:auto}
+    // + #lobby-view 的纵向 flex 解决。2026-09-13 我把它搬进「我的」页又破了——
+    // 新父级是 display:block 的 section，auto 外边距没有可分配的剩余空间。
+    // 机检这条链：margin-top:auto 还在，且它所在的页是【撑满高度的纵向 flex】。
+    const set = read('public/css/40-settings.css');
+    const at = set.indexOf('.lobby-version {');
+    assert.ok(at >= 0, '.lobby-version 规则不见了');
+    assert.match(set.slice(at, set.indexOf('}', at)), /margin-top:\s*auto/);
+
+    const nav = read('public/css/31-lobby-nav.css');
+    const pane = nav.slice(nav.indexOf('.lobby-pane.active {'),
+                           nav.indexOf('}', nav.indexOf('.lobby-pane.active {')));
+    assert.match(pane, /display:\s*flex/, '当前页必须是纵向 flex，否则 margin-top:auto 没有剩余空间可分配');
+    assert.match(pane, /flex-direction:\s*column/);
+    assert.match(pane, /flex:\s*1/, '当前页必须撑满可用高度，否则页面短时它只撑到内容高度');
+
+    // 版本行必须是那一页的【最后一个】子元素，否则 auto 外边距把它顶到中间去
+    const html = read('index.html');
+    const me = html.slice(html.indexOf('id="pane-me"'), html.indexOf('</section>', html.indexOf('id="pane-me"')));
+    const verAt = me.indexOf('id="version-box"');
+    assert.ok(verAt >= 0, '版本行不在「我的」页里了');
+    assert.doesNotMatch(me.slice(verAt), /<(?:button|div class="me-group")/,
+        '版本行后面不该再有别的块，它必须是最后一项');
+});
+
+test('🔴 文本由 JS 写的元素不许挂 data-i18n', () => {
+    // applyLang() 会 el.textContent = 字典值，把 JS 刚填的真实值覆盖回占位符。
+    // 实拍：大厅底部永远显示「前端 …」。一个元素只能有一个文本所有者。
+    const { execFileSync } = require('node:child_process');
+    // 直接跑关卡本体，避免这里再抄一份判定逻辑（抄一份就会和它漂移）
+    execFileSync(process.execPath, [path.join(__dirname, 'tools/check-i18n.js')], { stdio: 'pipe' });
+});
