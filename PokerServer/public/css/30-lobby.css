@@ -84,7 +84,12 @@
            子元素 flex-shrink:0 —— 否则房间一多会被压扁（滚动由外层 overflow-y:auto 负责）。*/
         /* 大厅氛围：纯绿底加一层纵深渐变（顶亮底暗），不再是平的功能屏；进桌(body.in-room)后不动牌桌背景 */
         body:not(.in-room) { background: radial-gradient(ellipse 100% 65% at 50% 6%, #35513f 0%, #294036 48%, #1e3128 100%) fixed; }
-        #lobby-view { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; }
+        /* 🔴 width:100% 不能删：#lobby-view 是纵向 flex 的子项，而交叉轴上只要有一侧
+           margin 是 auto，flexbox 的 stretch 就【不生效】—— 它会退化成 shrink-to-fit
+           （按内容最宽处算）。「约局」页有两张 min-width:200px 的大卡撑着看不出来，
+           「我的」页只剩几行短文字，整页就缩成窄窄一条，宽度还随文案长度（语言）变。*/
+        #lobby-view { width: 100%; max-width: 720px; margin: 0 auto; display: flex; flex-direction: column;
+                      box-sizing: border-box; }
         #lobby-view > * { flex-shrink: 0; }
         .lobby-top { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         .lobby-entry {

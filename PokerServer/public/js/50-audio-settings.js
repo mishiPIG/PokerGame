@@ -350,10 +350,13 @@ function toggleFullscreen() {
         if (exit) exit.call(d);
     }
 }
-document.addEventListener('fullscreenchange', () => {
+// 全屏按钮的文案：原来写在匿名监听里，只有进/退全屏时才写一次。
+// 抽成具名函数，切语言时也能重画（否则英文界面上会一直挂着中文「退出全屏」）。
+function updateFullscreenBtn() {
     const b = document.getElementById('btnFullscreen');
     if (b) b.textContent = document.fullscreenElement ? L('⛶ 退出全屏', '⛶ Exit fullscreen') : L('⛶ 全屏', '⛶ Fullscreen');
-});
+}
+document.addEventListener('fullscreenchange', updateFullscreenBtn);
 
 // ===== 显示单位设置 =====
 function toggleDisplayBB() {
@@ -367,3 +370,6 @@ function toggleDisplayBB() {
 onLangChange(() => {
     if (document.getElementById('settings-overlay')?.style.display === 'flex') buildSettingsPanel();
 });
+
+// 全屏按钮的文案是进/退全屏时才写的一次性文本，切语言后不会自己变（和快捷键面板同一类问题）
+onLangChange(() => updateFullscreenBtn());

@@ -660,7 +660,6 @@ function renderRoomList(rooms) {
     }
 
     const box = document.getElementById('room-list');
-    document.getElementById('room-count').textContent = others.length ? `(${others.length})` : '';
     if (!others.length) {
         box.innerHTML = `<div class="pane-empty"><span class="pe-ico">\u{1F50D}</span>${
             discoverTotal ? L('这个筛选下没有牌局', 'No games match this filter')

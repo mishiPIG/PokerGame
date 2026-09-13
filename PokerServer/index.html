@@ -473,7 +473,7 @@
     </div>
 
     <!-- 房主邀请朋友 -->
-    <div id="invite-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)closeInvite()">
+    <div id="invite-modal" class="modal-mask" style="display:none">
         <div class="modal-box">
             <h3 data-i18n="inv.title">🔗 邀请朋友加入</h3>
             <div class="invite-note" data-i18n="inv.note">复制后直接发送给朋友；可点链接加入，跨设备时也可输入房间码。</div>
@@ -504,7 +504,7 @@
 </div>
 
 <!-- 每日签到 -->
-<div id="checkin-overlay" class="c-overlay" style="display:none" onclick="if(event.target===this)closeCheckin()">
+<div id="checkin-overlay" class="c-overlay" style="display:none">
     <div class="c-box">
         <div class="sp-head"><b data-i18n="checkin.title">🎁 每日签到</b><button onclick="closeCheckin()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <div id="checkin-body"><div class="hist-empty" data-i18n="common.loading">加载中…</div></div>
@@ -512,7 +512,7 @@
 </div>
 
 <!-- Bug / 建议反馈 -->
-<div id="feedback-overlay" class="c-overlay" style="display:none" onclick="if(event.target===this)closeFeedback()">
+<div id="feedback-overlay" class="c-overlay" style="display:none">
     <div class="c-box">
         <div class="sp-head"><b data-i18n="feedback.title">🐞 反馈 Bug / 建议</b><button onclick="closeFeedback()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button></div>
         <div style="font-size:13px;opacity:.75;margin:4px 0 8px" data-i18n="feedback.hint">遇到问题或有建议？直接告诉我们，会尽快改进 🙏</div>
@@ -601,7 +601,7 @@
 <button class="edge-arrow right room-only" onclick="openHistory()" title="牌谱回顾" data-i18n-title="hist.title"><span data-i18n="edge.hands">牌谱</span>›</button>
 
 <!-- 点头像弹层：本局数据(VPIP/PFR/3bet/ATS) + 发表情(给别人=飞过去) -->
-<div id="avatar-popup" style="display:none" onclick="if(event.target===this)closeAvatarPopup()">
+<div id="avatar-popup" style="display:none">
     <div class="ap-box">
         <div class="ap-head">
             <div class="ap-av" id="ap-av"></div>

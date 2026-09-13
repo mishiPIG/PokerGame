@@ -34,12 +34,17 @@ function makeEl(id) {
     };
 }
 
+// 🔴 元素桩【从真实 index.html 里读】，不手写清单。
+//    第一版是手写的，里面包括一个已经被我删掉的 #room-count，
+//    于是 renderRoomList 里那行 getElementById('room-count').textContent 在测试里一切正常、
+//    到了浏览器里直接 TypeError，「发现」页永远空白。
+//    桩迸合了我的假设，而不是照着真实 DOM —— 和当初 sizeFor 那次是同一类错。
+const HTML_IDS = new Set(
+    [...fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8').matchAll(/id="([^"]+)"/g)].map(m => m[1]));
+
 function loadLobby() {
     const els = {};
-    for (const id of ['lobby-view', 'lobby-shell', 'table-view', 'my-room-list', 'my-room-count',
-                      'room-list', 'room-count', 'nav-discover-badge', 'nav-me-dot', 'me-head']) {
-        els[id] = makeEl(id);
-    }
+    for (const id of HTML_IDS) els[id] = makeEl(id);
     const navItems = ['play', 'discover', 'me'].map(t => { const e = makeEl('nav-' + t); e.dataset.tab = t; return e; });
     const panes = ['play', 'discover', 'me'].map(t => makeEl('pane-' + t));
     const chips = ['all', 'cash', 'sng'].map(f => { const e = makeEl('chip-' + f); e.dataset.df = f; return e; });
@@ -183,4 +188,75 @@ test('🔴 个人向入口不许再回到顶栏', () => {
     }
     // 余额要留着：它是随时要看的数字，藏进二级页面等于看不见
     assert.match(bar, /id="display-gold"/);
+});
+
+// ===== 浮层统一关闭（2026-09-13，玩家反馈「战绩关不掉」）=====
+// 原来是各写各的：4 个面板写了内联 onclick 判 event.target===this，其余只能点 ✕。
+// 改成一处登记 + 文档级监听。下面守住登记表和真实代码不脱节。
+
+test('🔴 登记表里的每个面板 id 和关闭函数都必须真实存在', () => {
+    // 这一条是针对本次踩的坑加的：写一个不存在的名字，浏览器里静默失效，
+    // 而测试桩如果迎合了那个假设就永远发现不了（sizeFor / room-count 都是这么漏的）。
+    const boot = read('public/js/99-bootstrap.js');
+    const block = boot.slice(boot.indexOf('const DISMISSIBLE'), boot.indexOf('];', boot.indexOf('const DISMISSIBLE')));
+    const entries = [...block.matchAll(/id:\s*'([^']+)'\s*,\s*close:\s*'([^']+)'/g)].map(m => ({ id: m[1], fn: m[2] }));
+    assert.ok(entries.length >= 10, '登记表没抓到，正则可能失效了：' + entries.length);
+
+    const html = read('index.html');
+    const allJs = ['00-state', '03-i18n', '05-utils', '10-auth', '20-socket', '30-room', '40-profile',
+                   '41-history', '42-replay', '50-audio-settings', '60-chat', '61-voice', '70-actions',
+                   '71-hotkeys', '80-table-renderer', '90-admin', '99-bootstrap']
+        .map(n => read(`public/js/${n}.js`)).join('\n');
+
+    const badId = entries.filter(e => !html.includes(`id="${e.id}"`));
+    assert.deepEqual(badId.map(e => e.id), [], 'index.html 里没有这些元素');
+    // 必须是【顶层 function 声明】才会挂到 window 上（let/const 定义的不会）——
+    // 而关闭是 window[p.close]() 调的。
+    // ⚠️ 这里用 includes 而不是 new RegExp(`…\(`)：模板字符串里的 `\(` 会被 JS 先解析成 `(`，
+    //    拼出来的正则就变成「未闭合的分组」直接抛错。能不用动态正则就别用。
+    const badFn = entries.filter(e => !allJs.includes('\nfunction ' + e.fn + '('));
+    assert.deepEqual(badFn.map(e => e.fn), [], '这些关闭函数不是顶层 function 声明，window[...] 取不到');
+});
+
+test('🔴 每个能打开的浮层都要登记，别漏掉（漏了就只能点 ✕）', () => {
+    const boot = read('public/js/99-bootstrap.js');
+    const registered = new Set([...boot.matchAll(/id:\s*'([^']+)'\s*,\s*close:\s*'/g)].map(m => m[1]));
+    // 刻意不登记的：聊天抽屉是打牌时一直开着看的，点一下牌桌就收掉会很烦
+    const EXEMPT = new Set(['chat-panel']);
+    const html = read('index.html');
+    const panels = [...html.matchAll(/id="([a-z-]+)"[^>]*class="(?:modal-mask|side-panel|c-overlay)"/g)].map(m => m[1])
+        .concat([...html.matchAll(/class="(?:modal-mask|side-panel|c-overlay)"[^>]*id="([a-z-]+)"/g)].map(m => m[1]));
+    const missing = [...new Set(panels)].filter(id => !registered.has(id) && !EXEMPT.has(id));
+    assert.deepEqual(missing, [], '这些浮层没登记到 DISMISSIBLE 里，点空白处关不掉');
+});
+
+test('🔴 不许再走回「每个面板各写一句内联 onclick」的老路', () => {
+    const html = read('index.html');
+    assert.doesNotMatch(html, /onclick="if\(event\.target===this\)/,
+        '关闭逻辑统一在 99-bootstrap.js 的 DISMISSIBLE 里，别再往 HTML 里写内联判断（加新面板必漏）');
+});
+
+test('🔴 打开面板的那一下点击不能把它自己关掉', () => {
+    // 打开面板的 click 会冒泡到 document。必须用「按下时哪些面板开着」来判断，
+    // 否则点一下菜单 → 开 → 同一个事件立刻把它关了，表现为「点了没反应」。
+    const boot = read('public/js/99-bootstrap.js');
+    assert.match(boot, /addEventListener\('pointerdown'/, '必须在 pointerdown 时记录开着的面板');
+    // ⚠️ 从登记表往后找：文件前面还有开场画面的两个 click 监听，
+    //    直接 indexOf 会切到那一段去（第一版就切错了，报的是个假失败）。
+    const clickAt = boot.indexOf("addEventListener('click'", boot.indexOf('const DISMISSIBLE'));
+    const body = boot.slice(clickAt, clickAt + 700);
+    assert.match(body, /_openAtPress\.has/, 'click 处理里必须先看这个面板在按下时是否已经开着');
+});
+
+test('🔴 「我的」页不许被收缩包裹成窄条', () => {
+    // #lobby-view 是纵向 flex 的子项 + margin:0 auto。flexbox 规则：交叉轴上只要有一侧
+    // margin 是 auto，stretch 就不生效 → 退化成 shrink-to-fit（按内容最宽处算）。
+    // 「约局」页有两张 min-width:200px 的大卡撑着看不出来，「我的」页只剩几行短文字，
+    // 整页就缩成窄窄一条，宽度还随文案长度（语言）变化——玩家实拍报的就是这个。
+    const css = read('public/css/30-lobby.css');
+    const at = css.indexOf('#lobby-view {');
+    assert.ok(at >= 0);
+    const rule = css.slice(at, css.indexOf('}', at));
+    assert.match(rule, /margin:\s*0 auto/);
+    assert.match(rule, /width:\s*100%/, 'margin:0 auto 会关掉 flex stretch，必须显式给 width:100%');
 });

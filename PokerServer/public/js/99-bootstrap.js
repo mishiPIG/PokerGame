@@ -117,3 +117,69 @@ function handoffNativeSplash() {
 requestAnimationFrame(() => { handoffNativeSplash(); dismissBootSplash('ready'); });
 // 兜底：无论发生什么（接口卡住、报错），到点必撤
 setTimeout(() => dismissBootSplash('timeout'), BOOT_MAX_MS);
+
+// ===== 浮层统一的关闭方式（2026-09-13，玩家反馈）=====
+// 原来是各写各的：邀请/签到/反馈/头像弹层写了内联 onclick 判 event.target===this，
+// 而战绩、牌谱、收件箱、个人主页、设置、回放、买入…都只能点 ✕。
+// 玩家的预期是一致的——**点旁边空白处就该关掉**。
+// 一处登记 + 一个文档级监听，加新面板时不用再记得补那句内联 onclick。
+//
+// 两种浮层都要覆盖：
+//   · 满屏遮罩型（.modal-mask / .c-overlay / #profile-overlay …）——点遮罩关
+//   · 侧边抽屉型（.side-panel，左侧滑出、【没有】遮罩）——点页面其它任何地方关
+// 统一判据：点击落点不在这个面板的内容盒子里 → 关。
+const DISMISSIBLE = [
+    { id: 'table-menu',       close: 'toggleTableMenu' },
+    { id: 'buyin-modal',      close: 'closeBuyin' },
+    { id: 'match-modal',      close: 'closeMatchSettings' },
+    { id: 'invite-modal',     close: 'closeInvite' },
+    { id: 'stats-panel',      close: 'closeStats' },
+    { id: 'history-panel',    close: 'closeHistory' },
+    { id: 'inbox-panel',      close: 'closeInbox' },
+    { id: 'checkin-overlay',  close: 'closeCheckin' },
+    { id: 'feedback-overlay', close: 'closeFeedback' },
+    { id: 'profile-overlay',  close: 'closeProfile' },
+    { id: 'settings-overlay', close: 'closeSettings' },
+    { id: 'avatar-popup',     close: 'closeAvatarPopup' },
+    { id: 'hand-detail',      close: 'closeHandDetail' },
+    { id: 'replay-overlay',   close: 'closeReplay' },
+];
+// ⚠️ 故意不含 #chat-panel：它是打牌时一直开着看的抽屉，点一下牌桌就收掉会很烦。
+
+function panelIsOpen(el) { return !!el && el.style.display !== 'none' && el.getClientRects().length > 0; }
+
+// ⚠️ 必须记住「这次点击【按下时】哪些面板是开着的」：
+//    否则打开面板的那一下点击自己会冒泡到 document，刚开就被关掉。
+//    pointerdown 早于 click，那时新面板还没打开，天然不会被算进来。
+let _openAtPress = new Set();
+document.addEventListener('pointerdown', () => {
+    _openAtPress = new Set(DISMISSIBLE
+        .filter(p => panelIsOpen(document.getElementById(p.id)))
+        .map(p => p.id));
+}, true);
+
+document.addEventListener('click', (e) => {
+    for (const p of DISMISSIBLE) {
+        if (!_openAtPress.has(p.id)) continue;          // 这一下点击之前它就没开着
+        const el = document.getElementById(p.id);
+        if (!panelIsOpen(el)) continue;                  // 期间已经被别的方式关了
+        if (el.contains(e.target)) {
+            // 满屏遮罩型：点到的正是遮罩本身（不是里面的内容盒）→ 也算点了空白
+            if (e.target !== el) continue;
+        }
+        try { window[p.close]?.(); } catch (err) { console.warn('[ui] 关闭面板失败', p.id, err); }
+    }
+});
+
+// Esc 关掉最上面那个（浮层是按登记顺序由低到高的，所以倒着找）
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    for (let i = DISMISSIBLE.length - 1; i >= 0; i--) {
+        const p = DISMISSIBLE[i];
+        const el = document.getElementById(p.id);
+        if (!panelIsOpen(el)) continue;
+        e.preventDefault();
+        try { window[p.close]?.(); } catch (err) { console.warn('[ui] 关闭面板失败', p.id, err); }
+        return;                                          // 一次只关一层
+    }
+});
