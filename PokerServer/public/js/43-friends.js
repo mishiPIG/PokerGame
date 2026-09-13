@@ -11,7 +11,10 @@ let friendRecent = [];
 let friendTab = 'friends';                 // friends | recent
 
 function openFriends() {
-    document.getElementById('friends-panel').style.display = 'flex';
+    // ⚠️ 必须是 ''（交给 CSS），不能写 'flex'。
+    //    .side-panel 没声明 display，默认 block；写成 flex 就变成【横向】弹性容器，
+    //    头部/标签/内容被并排挤成一条条竖字（实拍过）。收件箱/战绩/牌谱都是 ''。
+    document.getElementById('friends-panel').style.display = '';
     friendTab = 'friends';
     renderFriends();
     socket?.emit('friend_list');
@@ -129,4 +132,6 @@ function refreshFriendBadge() {
     if (typeof refreshMeDot === 'function') refreshMeDot();
 }
 
-onLangChange(() => { if (document.getElementById('friends-panel')?.style.display === 'flex') renderFriends(); });
+// 打开时 display 是 ''（交给 CSS），所以只能判「不是 none」，
+// 写 === 'flex' 永远不成立（上一版就是这么错的）。
+onLangChange(() => { if (document.getElementById('friends-panel')?.style.display !== 'none') renderFriends(); });

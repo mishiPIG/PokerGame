@@ -354,3 +354,40 @@ test('🔴 文本由 JS 写的元素不许挂 data-i18n', () => {
     // 直接跑关卡本体，避免这里再抄一份判定逻辑（抄一份就会和它漂移）
     execFileSync(process.execPath, [path.join(__dirname, 'tools/check-i18n.js')], { stdio: 'pipe' });
 });
+
+test('🔴 侧边抽屉必须用 style.display = \'\' 打开，不能自己指定 display', () => {
+    // .side-panel 没声明 display（默认 block）。写成 'flex' 就变成【横向】弹性容器，
+    // 头部/标签/内容被并排挤成一条条竖字 —— 牌友面板第一版就是这么废掉的（玩家实拍）。
+    const html = read('index.html');
+    const panels = [...html.matchAll(/id="([a-z-]+)"[^>]*class="side-panel"/g)].map(m => m[1])
+        .concat([...html.matchAll(/class="side-panel"[^>]*id="([a-z-]+)"/g)].map(m => m[1]));
+    const jsDir = path.join(__dirname, 'public/js');
+    const allJs = fs.readdirSync(jsDir).filter(f => f.endsWith('.js'))
+        .map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
+    // ⚠️ 不用动态正则：经 heredoc 写文件时反斜杠会被吃一层，`\(` 塌成分组，
+    //    正则就再也匹配不到字面括号 —— 这条守卫第一版就是这样【永远通过】的。
+    //    纯字符串扫描没有这个问题。
+    const bad = [];
+    for (const id of new Set(panels)) {
+        const needle = `getElementById('${id}').style.display = '`;
+        let i = allJs.indexOf(needle);
+        while (i >= 0) {
+            const rest = allJs.slice(i + needle.length);
+            const value = rest.slice(0, rest.indexOf("'"));
+            if (value !== '' && value !== 'none') bad.push(`#${id} → '${value}'`);
+            i = allJs.indexOf(needle, i + 1);
+        }
+    }
+    assert.deepEqual(bad, [], '侧边抽屉只能用 \'\'（打开，交给 CSS）或 \'none\'（关闭）');
+});
+
+test('🔴 服务端的成功提示也要能弹出来', () => {
+    // 原来只 toast ⚠️ 开头的，于是「✅ 申请已发出」一条都看不到 ——
+    // 玩家点完「加牌友」没有任何反应，只能以为功能坏了。
+    const src = read('public/js/20-socket.js');
+    const at = src.indexOf("socket.on('server_msg'");
+    assert.ok(at >= 0);
+    const body = src.slice(at, src.indexOf('});', at));
+    assert.doesNotMatch(body, /startsWith\('⚠️'\)/, '不能只弹 ⚠️ 开头的');
+    assert.match(body, /✅/, '成功提示（✅）也要弹');
+});

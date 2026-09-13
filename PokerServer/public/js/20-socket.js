@@ -47,7 +47,9 @@ function connectSocket(token) {
         console.log('[server]', text || msg);
         // ⚠️ 开头的都是服务端对「我」的私发拒绝（非法操作/不是你的回合/筹码不足/无效加注…），
         // 以前只进 console → 玩家点了没反应还以为按钮坏了。这类必须可见。
-        if (text && text.startsWith('⚠️')) toast(text, 3000);
+        // ❌ 拒绝和 ✅ 成功都要弹。原来只弹 ⚠️，结果「✅ 申请已发出」这种
+        // 确认性反馈一条都看不到 —— 玩家点完没任何反应，只能以为功能坏了。
+        if (text && /^[⚠✅👥]/.test(text)) toast(text, 3000);
     });
 
     socket.on('room_list', (rooms) => {

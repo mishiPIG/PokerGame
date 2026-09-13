@@ -150,6 +150,8 @@ const I18N = {
         'fr.tabFriends': '我的牌友',
         'fr.tabRecent': '一起玩过',
         // —— 牌友：服务端提示
+        'srv.friend.incomingFrom': '👥 {name} 想加你为牌友',
+        'srv.friend.nowFriends': '✅ 你和 {name} 成为牌友了',
         'srv.friend.noUser': '⚠️ 找不到这个玩家',
         'srv.friend.self': '⚠️ 不能加自己为牌友',
         'srv.friend.already': '⚠️ 你们已经是牌友了',
@@ -367,6 +369,8 @@ const I18N = {
         'fr.tabFriends': 'My friends',
         'fr.tabRecent': 'Played with',
         // -- poker friends: server messages
+        'srv.friend.incomingFrom': '👥 {name} wants to be your poker friend',
+        'srv.friend.nowFriends': '✅ You and {name} are now poker friends',
         'srv.friend.noUser': '⚠️ Player not found',
         'srv.friend.self': '⚠️ You cannot add yourself',
         'srv.friend.already': '⚠️ You are already friends',

@@ -8,6 +8,8 @@
 // ⚠️ 第 1 批【不含】一键邀请。等这批有人用了再接，那条要沿用「只有房主能邀」的闸
 //    （见 lobby-service 的 emitRoomInviteInfo：服务端本来就只把 joinCode 发给房主）。
 
+const { nameOf } = require('../../account/display-name');
+
 function registerFriendEvents(context) {
     const { socket, user, io, db, runtime } = context;
     const { roomGames } = runtime;
@@ -39,6 +41,13 @@ function registerFriendEvents(context) {
         });
     }
 
+    // 给某个在线用户弹一条提示（结构化 key，各客户端按自己的语言渲染）
+    function notify(userId, k, p) {
+        for (const s of io.sockets.sockets.values()) {
+            if (s.user?.id === userId) s.emit('server_msg', { k, p });
+        }
+    }
+
     // 对方也在线时，顺手刷新他那份列表（否则他要手动重开面板才看得到新申请）
     function pushTo(userId) {
         for (const s of io.sockets.sockets.values()) {
@@ -67,6 +76,10 @@ function registerFriendEvents(context) {
         if (msg) socket.emit('server_msg', { k: msg });
         sendList();
         pushTo(userId);
+        // 对方在线时给一条明确提示 —— 只在「我的」上点一个小红点太弱，
+        // 他可能整晚都停在「约局」页，根本不会注意到。
+        if (result === 'requested') notify(userId, 'friend.incomingFrom', { name: nameOf(user) });
+        if (result === 'accepted') notify(userId, 'friend.nowFriends', { name: nameOf(user) });
     });
 
     socket.on('friend_respond', ({ userId, accept } = {}) => {
@@ -74,6 +87,7 @@ function registerFriendEvents(context) {
         if (accept) {
             if (!db.friends.accept(user.id, userId)) { socket.emit('server_msg', { k: 'friend.noRequest' }); return; }
             socket.emit('server_msg', { k: 'friend.accepted' });
+            notify(userId, 'friend.nowFriends', { name: nameOf(user) });
         } else {
             db.friends.remove(user.id, userId);       // 拒绝 = 两行一起删，不留单边关系
         }

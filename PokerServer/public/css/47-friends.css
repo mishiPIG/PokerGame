@@ -1,7 +1,7 @@
         /* ===== 牌友面板（2026-09-13）=====
            形态沿用收件箱/战绩那套左侧抽屉（.side-panel），所以背景、头部、
            「点空白处关闭」都是现成的，这里只写内容部分。*/
-        .fr-tabs { display: flex; gap: 8px; padding: 10px 12px 4px; }
+        .fr-tabs { display: flex; gap: 8px; margin: 10px 0 4px; }
         .fr-tab {
             flex: 1; padding: 8px 10px; border-radius: 10px; cursor: pointer;
             font-size: 13px; font-weight: 600; color: #9db9a9;
@@ -11,7 +11,8 @@
         .fr-tab:hover { color: #dfe9e2; }
         .fr-tab.sel { background: #06d6a0; color: #0a1f1a; border-color: #06d6a0; }
 
-        #friends-body { padding: 6px 12px 16px; overflow-y: auto; }
+        /* .side-panel 自己已经 overflow-y:auto，这里不要再套一层滚动 */
+        #friends-body { padding: 6px 2px 16px; }
         .fr-sec { font-size: 12px; color: #9db9a9; letter-spacing: .3px; margin: 14px 2px 7px; }
         .fr-sec:first-child { margin-top: 6px; }
 
