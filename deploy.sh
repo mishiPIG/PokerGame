@@ -27,7 +27,10 @@ if [ -n "$1" ]; then
     echo "📝 提交并推送到 GitHub..."
     cd "$SCRIPT_DIR"
     git add .
-    git commit -m "$1"
+    # ⚠️ 先手工 commit 再跑 deploy 是常见做法，那时候这里没东西可提交，
+    #    git commit 会以非零退出 → set -e 把整个部署在这里中断（实际什么都没坏）。
+    #    所以容错，但【仍然要 push】——否则代码上了服务器却没上 GitHub。
+    git commit -m "$1" || echo "   （没有新改动可提交，沿用当前 HEAD）"
     git push
     echo "✅ GitHub 已更新"
 else
