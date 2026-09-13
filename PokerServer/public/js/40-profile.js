@@ -36,6 +36,10 @@ async function refreshInboxBadge() {
     const msgs = await fetchMessages();
     const unread = msgs.filter(m => !m.read).length;
     const b = document.getElementById('inbox-badge');
+    // 消息入口在「我的」页里，光点亮那一行不够——导航上也要有红点，
+    // 否则玩家停在「约局」页永远看不到有新消息。
+    const dot = document.getElementById('nav-me-dot');
+    if (dot) dot.style.display = unread > 0 ? '' : 'none';
     if (!b) return;
     if (unread > 0) { b.textContent = unread > 9 ? '9+' : unread; b.style.display = ''; }
     else b.style.display = 'none';

@@ -35,6 +35,7 @@
     <link rel="stylesheet" href="/css/10-auth-user.css">
     <link rel="stylesheet" href="/css/20-table.css">
     <link rel="stylesheet" href="/css/30-lobby.css">
+    <link rel="stylesheet" href="/css/31-lobby-nav.css">
     <link rel="stylesheet" href="/css/40-settings.css">
     <link rel="stylesheet" href="/css/41-table-menu.css">
     <link rel="stylesheet" href="/css/42-chat-voice.css">
@@ -108,7 +109,6 @@
 <div id="game-section" style="display:none">
 
     <div id="user-bar">
-        <span class="uname lobby-only" id="display-username"></span>
         <span class="gold lobby-only">🪙 <span id="display-gold">0</span></span>
         <button class="icon-btn room-only" onclick="leaveRoom()" title="退出房间" data-i18n-title="title.leave">🚪</button>
         <button class="icon-btn danger room-only" id="btnDissolve" onclick="dissolveRoom()" title="解散房间" data-i18n-title="title.dissolve" style="display:none">🛑</button>
@@ -116,12 +116,6 @@
         <button class="icon-btn" onclick="toggleFullscreen()" id="btnFullscreen" title="全屏" data-i18n-title="title.fullscreen">⛶</button>
         <button class="icon-btn" onclick="openSettings()" title="设置" data-i18n-title="title.settings">⚙️</button>
         <span class="bar-spacer"></span>
-        <button class="icon-btn lobby-only" id="checkin-btn" onclick="openCheckin()" title="每日签到" data-i18n-title="title.checkin" style="position:relative">🎁<span id="checkin-dot" class="inbox-badge" style="display:none">!</span></button>
-        <button class="icon-btn lobby-only" onclick="openProfile()" title="个人主页" data-i18n-title="title.profile">👤</button>
-        <button class="icon-btn lobby-only" id="inbox-toggle" onclick="openInbox()" title="消息" data-i18n-title="title.inbox" style="position:relative">📬<span id="inbox-badge" class="inbox-badge" style="display:none"></span></button>
-        <button class="icon-btn" onclick="openFeedback()" title="反馈 Bug / 建议" data-i18n-title="title.feedback">🐞</button>
-        <button class="icon-btn lobby-only" id="admin-toggle" onclick="toggleAdminPanel()" title="管理面板" data-i18n-title="title.admin" style="display:none">👑</button>
-        <button class="icon-btn lobby-only" onclick="doLogout()" title="退出登录" data-i18n-title="title.logout">⎋</button>
     </div>
     <span id="latency" data-i18n-title="ui.latency" title="网络延迟">📶 --</span>
 
@@ -184,7 +178,13 @@
     <!-- /i18n-ok -->
 
     <!-- ===== 大厅 ===== -->
+    <!-- 大厅外壳：内容区 + 导航。导航必须在 #lobby-view 的 max-width 之外，
+         否则宽屏侧栏会被一起夹到中间那条里（横屏那次栽过 body{max-width:720px} 的坑）。-->
+    <div id="lobby-shell">
     <div id="lobby-view">
+
+      <!-- ===== 约局：我和朋友的局 ===== -->
+      <section class="lobby-pane active" id="pane-play">
         <div class="lobby-top">
             <button class="lobby-entry create" onclick="showCreateForm()">
                 <div class="le-title" data-i18n="lobby.createTitle">➕ 创建比赛</div>
@@ -253,13 +253,73 @@
             </div>
         </div>
 
-        <h3 class="room-list-title"><span data-i18n="lobby.roomList">房间列表</span> <span id="room-count"></span></h3>
+        <h3 class="room-list-title"><span data-i18n="lobby.myRooms">我的牌局</span> <span id="my-room-count"></span></h3>
+        <div id="my-room-list"></div>
+      </section>
+
+      <!-- ===== 发现：别人的局 ===== -->
+      <section class="lobby-pane" id="pane-discover">
+        <div class="disc-filters" id="disc-filters">
+            <button class="disc-chip sel" data-df="all" onclick="setDiscoverFilter('all')" data-i18n="disc.all">全部</button>
+            <button class="disc-chip" data-df="cash" onclick="setDiscoverFilter('cash')" data-i18n="disc.cash">现金桌</button>
+            <button class="disc-chip" data-df="sng" onclick="setDiscoverFilter('sng')" data-i18n="disc.sng">SNG</button>
+        </div>
         <div id="room-list"></div>
+      </section>
+
+      <!-- ===== 我的 ===== -->
+      <section class="lobby-pane" id="pane-me">
+        <div class="me-head" id="me-head"></div>
+
+        <div class="me-group">
+            <button class="me-row" id="inbox-toggle" onclick="openInbox()">
+                <span class="mr-ico">📬</span><span class="mr-txt" data-i18n="me.inbox">消息</span>
+                <span class="mr-badge" id="inbox-badge" style="display:none"></span><span class="mr-arrow">›</span></button>
+            <button class="me-row" id="checkin-btn" onclick="openCheckin()">
+                <span class="mr-ico">🎁</span><span class="mr-txt" data-i18n="me.checkin">每日签到</span>
+                <span class="dot" id="checkin-dot" style="display:none"></span><span class="mr-arrow">›</span></button>
+        </div>
+
+        <div class="me-group">
+            <button class="me-row" onclick="openProfileTab('stats')">
+                <span class="mr-ico">📊</span><span class="mr-txt" data-i18n="me.stats">生涯战绩</span><span class="mr-arrow">›</span></button>
+            <button class="me-row" onclick="openProfileTab('hands')">
+                <span class="mr-ico">📜</span><span class="mr-txt" data-i18n="me.hands">牌谱回顾</span><span class="mr-arrow">›</span></button>
+            <button class="me-row" onclick="openProfileTab('info')">
+                <span class="mr-ico">👤</span><span class="mr-txt" data-i18n="me.profile">资料与头像</span><span class="mr-arrow">›</span></button>
+        </div>
+
+        <div class="me-group">
+            <button class="me-row" onclick="openSettings()">
+                <span class="mr-ico">⚙️</span><span class="mr-txt" data-i18n="me.settings">设置</span><span class="mr-arrow">›</span></button>
+            <button class="me-row" onclick="openFeedback()">
+                <span class="mr-ico">🐞</span><span class="mr-txt" data-i18n="me.feedback">反馈问题</span><span class="mr-arrow">›</span></button>
+            <button class="me-row" id="admin-toggle" onclick="toggleAdminPanel()" style="display:none">
+                <span class="mr-ico">🛡️</span><span class="mr-txt" data-i18n="me.admin">管理面板</span><span class="mr-arrow">›</span></button>
+        </div>
+
+        <button class="me-row danger" onclick="doLogout()">
+            <span class="mr-ico">⎋</span><span class="mr-txt" data-i18n="me.logout">退出登录</span></button>
         <!-- 版本：放在大厅底部，落地就能看见，不用去设置面板里翻。
              同时显示【前端】和【服务端】—— 不一致说明本机缓存了旧前端。 -->
         <div class="lobby-version" id="version-box" onclick="copyVersion()" data-i18n-title="ui.copyVersion" title="点击复制版本信息">
             <span id="ver-client" data-i18n="ver.client">前端 …</span> · <span id="ver-server" data-i18n="ver.server">服务端 …</span>
         </div>
+      </section>
+
+    </div>
+    <!-- 导航：窄屏在底部、宽屏在左侧（同一套 DOM，纯 CSS 切换 —— 两份实现必然漂移）。
+         牌桌内整条隐藏：座位环的垂直空间是一寸一寸抠出来的，不能再让它占 56px。-->
+    <nav id="lobby-nav">
+        <button class="nav-item active" data-tab="play" onclick="setLobbyTab('play')">
+            <span class="ni-ico">🎴</span><span class="ni-txt" data-i18n="nav.play">约局</span></button>
+        <button class="nav-item" data-tab="discover" onclick="setLobbyTab('discover')">
+            <span class="ni-ico">🔍</span><span class="ni-txt" data-i18n="nav.discover">发现</span>
+            <span class="ni-badge" id="nav-discover-badge" style="display:none"></span></button>
+        <button class="nav-item" data-tab="me" onclick="setLobbyTab('me')">
+            <span class="ni-ico">👤</span><span class="ni-txt" data-i18n="nav.me">我的</span>
+            <span class="ni-dot" id="nav-me-dot" style="display:none"></span></button>
+    </nav>
     </div>
 
     <!-- ===== 牌桌 ===== -->

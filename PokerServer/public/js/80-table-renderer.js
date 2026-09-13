@@ -1,7 +1,8 @@
 // ===== UI helpers =====
 function updateUserBar() {
-    document.getElementById('display-username').textContent = myDisplayName || myUsername || '';
+    // 用户名/头像已搬到「我的」页的头卡，顶栏只留随时要看的余额
     document.getElementById('display-gold').textContent = myGold?.toLocaleString() || '0';
+    if (typeof renderMeHead === 'function') renderMeHead();
 }
 
 function formatCard(c, animate = false, delayMs = 0, opts = {}) {

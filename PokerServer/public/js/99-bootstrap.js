@@ -36,7 +36,7 @@ if (savedToken) {
             myUsername = payload.username;
             myDisplayName = payload.displayName || payload.username;
             isAdmin    = !!payload.isAdmin;
-            document.getElementById('display-username').textContent = myDisplayName;
+            if (typeof renderMeHead === 'function') renderMeHead();
             document.getElementById('admin-toggle').style.display = isAdmin ? '' : 'none';
             document.getElementById('auth-overlay').style.display = 'none';
             document.getElementById('game-section').style.display = '';

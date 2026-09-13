@@ -1,0 +1,124 @@
+        /* ===== 大厅导航（2026-09-13，信息架构第 1 步）=====
+           原来整个大厅摊在一页：创建/加入/房间列表全平铺，个人向功能被压成顶栏上
+           一排猜不出含义的 emoji。现在拆成 约局 / 发现 / 我的 三页。
+
+           ⚠️ 两条约束（都是踩过的坑）：
+           ① 导航容器必须在 #lobby-view 的 max-width:720px 【之外】——否则宽屏时
+              左侧栏会被一起夹进中间那条里（横屏那次 body{max-width:720px} 的翻版）。
+           ② 牌桌内整条隐藏：座位环的垂直空间是一寸寸抠出来的
+              （#ring-layer 顶部内边距 118px → 28px），不能再让导航占 56px。
+
+           窄屏底部横排 / 宽屏左侧竖排，**同一套 DOM 纯 CSS 切换**——写两份必然漂移。*/
+        #lobby-shell { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        body.in-room #lobby-shell { display: none; }
+
+        /* ---- 页面容器：三页同一时刻只显示一页 ---- */
+        .lobby-pane { display: none; }
+        .lobby-pane.active { display: block; }
+
+        /* ---- 导航条 ---- */
+        #lobby-nav {
+            flex-shrink: 0; display: flex; align-items: stretch;
+            background: linear-gradient(180deg, #1b2f26, #12201a);
+            border-top: 1px solid rgba(255,255,255,0.08);
+            padding-bottom: env(safe-area-inset-bottom, 0px);   /* 手机手势条 */
+        }
+        .nav-item {
+            flex: 1; position: relative; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 2px;
+            padding: 7px 4px 6px; border: 0; background: none; cursor: pointer;
+            color: #9db9a9; font-size: 11px; font-weight: 600; letter-spacing: .3px;
+            transition: color 0.15s ease;
+        }
+        .nav-item .ni-ico { font-size: 19px; line-height: 1.1; filter: saturate(.55) opacity(.75);
+            transition: filter 0.15s ease, transform 0.15s ease; }
+        .nav-item.active { color: #f4d35e; }
+        .nav-item.active .ni-ico { filter: none; transform: translateY(-1px); }
+        /* 选中态还要有一条实线——只靠颜色，色觉障碍和强光下都分不出来 */
+        .nav-item.active::before {
+            content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 30px; height: 2px; border-radius: 999px; background: #f4d35e;
+        }
+        .nav-item:hover { color: #dfe9e2; }
+
+        /* 角标：发现页的房间数（「这里有人」最便宜的信号）/ 我的未读红点 */
+        .ni-badge, .ni-dot {
+            position: absolute; top: 4px; left: 50%; margin-left: 6px;
+            background: #f4d35e; color: #12201a; font-weight: 800; line-height: 1;
+        }
+        .ni-badge { min-width: 15px; padding: 2px 4px; border-radius: 999px; font-size: 10px; text-align: center; }
+        .ni-dot   { width: 8px; height: 8px; border-radius: 50%; margin-left: 10px; }
+
+        /* ---- 宽屏（电脑）：改成左侧竖排 ----
+           底部 tab 条是手机习惯，电脑上一条横栏横贯屏幕底部很怪。*/
+        @media (min-width: 721px) {
+            #lobby-shell { flex-direction: row; }
+            #lobby-nav {
+                order: -1;                       /* DOM 里在后，视觉上放左边 */
+                width: 176px; flex-direction: column; align-items: stretch;
+                border-top: 0; border-right: 1px solid rgba(255,255,255,0.08);
+                padding: 10px 8px; gap: 4px;
+            }
+            .nav-item {
+                flex: 0 0 auto; flex-direction: row; justify-content: flex-start;
+                gap: 10px; padding: 11px 12px; border-radius: 10px; font-size: 14px;
+            }
+            .nav-item.active { background: rgba(244,211,94,0.10); }
+            .nav-item.active::before { top: 50%; left: 0; transform: translateY(-50%);
+                width: 3px; height: 20px; }
+            .ni-badge, .ni-dot { position: static; margin-left: auto; }
+        }
+
+        /* ===== 「我的」页 ===== */
+        .me-head {
+            display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
+            padding: 16px 14px; border-radius: 14px;
+            background: linear-gradient(150deg, #23392e, #172a21);
+            border: 1px solid rgba(244,211,94,0.18);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+        }
+        .me-avatar { width: 58px; height: 58px; border-radius: 14px; overflow: hidden; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.16); }
+        .me-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .me-avatar .me-ltr { font-size: 24px; font-weight: bold; color: #eaf3ee; }
+        .me-name { font-size: 17px; font-weight: bold; color: #eaf3ee; margin-bottom: 4px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
+        .me-gold { font-size: 14px; color: #f4d35e; font-weight: bold; }
+
+        .me-group { border-radius: 14px; overflow: hidden; margin-bottom: 14px;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); }
+        .me-row {
+            width: 100%; display: flex; align-items: center; gap: 11px;
+            padding: 14px 14px; border: 0; background: none; cursor: pointer;
+            color: #dfe9e2; font-size: 15px; text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            transition: background 0.15s ease;
+        }
+        .me-group .me-row:last-child { border-bottom: 0; }
+        .me-row:hover { background: rgba(255,255,255,0.06); }
+        .me-row .mr-ico { font-size: 18px; width: 22px; text-align: center; flex-shrink: 0; }
+        .me-row .mr-txt { flex: 1; }
+        .me-row .mr-arrow { color: #6f8c7c; font-size: 18px; line-height: 1; }
+        .me-row .mr-badge { background: #f4d35e; color: #12201a; font-size: 11px; font-weight: 800;
+            min-width: 18px; padding: 2px 6px; border-radius: 999px; text-align: center; }
+        /* 退出登录单独一块、离常用项远一点——它原来紧挨着「个人主页」，很容易误点 */
+        .me-row.danger { border-radius: 14px; color: #ff8f8f; justify-content: center;
+            background: rgba(255,120,120,0.07); border: 1px solid rgba(255,120,120,0.2); }
+        .me-row.danger .mr-txt { flex: 0 0 auto; }
+        .me-row.danger:hover { background: rgba(255,120,120,0.14); }
+
+        /* ===== 「发现」页的筛选 chips ===== */
+        .disc-filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .disc-chip {
+            padding: 7px 15px; border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 600;
+            background: rgba(255,255,255,0.05); color: #9db9a9;
+            border: 1px solid rgba(255,255,255,0.12); transition: all 0.15s ease;
+        }
+        .disc-chip:hover { color: #dfe9e2; }
+        .disc-chip.sel { background: #06d6a0; color: #0a1f1a; border-color: #06d6a0; }
+
+        /* 空态：空是正常的（「约局」本来就该只有你自己的局），文案要引导而不是报丧 */
+        .pane-empty { text-align: center; color: #9db9a9; font-size: 14px; line-height: 1.9;
+            padding: 34px 18px; }
+        .pane-empty .pe-ico { font-size: 40px; opacity: .45; display: block; margin-bottom: 10px; }

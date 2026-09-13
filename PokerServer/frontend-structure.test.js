@@ -35,6 +35,7 @@ const EXPECTED_STYLES = [
     '10-auth-user.css',
     '20-table.css',
     '30-lobby.css',
+    '31-lobby-nav.css',   // 大厅三页导航（窄屏底部 / 宽屏左侧），必须排在 30-lobby 之后——它要覆盖大厅的基底布局
     '40-settings.css',
     '41-table-menu.css',
     '42-chat-voice.css',
@@ -206,4 +207,25 @@ test('room owner invitation presents one combined, copyable message', () => {
     // 写死中文会让这条测试在翻译时假失败。改成断言【结构】——三段信息齐全、且链接排在房间码之前。
     assert.match(source('30-room.js'), /\$\{invite\.roomName\}/);
     assert.match(source('30-room.js'), /\$\{invite\.inviteUrl\}[\s\S]*\$\{invite\.joinCode\}/);
+});
+
+test('🔴 前端构建号占位符不许被提交成固定 SHA', () => {
+    // 2026-09-13：deploy.sh 原来是「先把 __BUILD__ 换成真实 SHA → 再 git add . / commit」，
+    // 于是打包用的临时构建号被提交进了仓库（7ddcae6）。
+    // 后果不是难看：下次部署 sed 匹配不到占位符会【静默不替换】，
+    // 前端构建号从此冻死在旧 SHA —— 而它唯一的用途就是「判断玩家是不是缓存了旧前端」，
+    // 冻住之后所有人都被永久标成「前端是旧的」，这个判断就废了。
+    const src = fs.readFileSync(path.join(__dirname, 'public/js/00-state.js'), 'utf8');
+    assert.match(src, /const CLIENT_BUILD = '__BUILD__';/,
+        '00-state.js 里的构建号必须保持占位符；仓库里不该出现具体 SHA（部署时才临时替换）');
+
+    // 并确认 deploy 脚本的顺序：git 提交必须在盖构建号之前
+    for (const f of ['../deploy.sh', '../deploy-test.sh']) {
+        const sh = fs.readFileSync(path.join(__dirname, f), 'utf8');
+        const stamp = sh.indexOf("sed -i \"s/const CLIENT_BUILD");
+        if (stamp < 0) continue;                       // deploy-test.sh 不提交，无此风险
+        const commit = sh.indexOf('git commit -m');
+        if (commit < 0) continue;
+        assert.ok(commit < stamp, `${f}: git commit 必须排在盖构建号之前，否则临时 SHA 会被提交进仓库`);
+    }
 });

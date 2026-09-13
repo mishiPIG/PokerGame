@@ -253,8 +253,9 @@ function showLobby() {
     currentRoom = '';
     localStorage.removeItem('currentRoom');
     document.body.classList.remove('in-room');
-    document.getElementById('lobby-view').style.display = '';
+    document.getElementById('lobby-shell').style.display = '';
     document.getElementById('table-view').style.display = 'none';
+    setLobbyTab(lobbyTab);          // 回大厅时停在上次那一页
     // 清空牌桌渲染状态，避免回大厅再进残留上一局
     myHoleCards = []; revealedCards = {}; lastState = null;
     hideRunitPanel(); clearRunit();
@@ -271,7 +272,7 @@ function showLobby() {
     refreshCheckinDot();
 }
 function showTable() {
-    document.getElementById('lobby-view').style.display = 'none';
+    document.getElementById('lobby-shell').style.display = 'none';
     document.getElementById('table-view').style.display = '';
     document.body.classList.add('in-room');
     // 刚从大厅切过来时牌桌尺寸还没定下来，此时算出的座位坐标不准（座位会挤在一起）。
@@ -632,15 +633,46 @@ function renderStats(st) {
 }
 
 // ===== 大厅房间列表 =====
+// 一份数据渲染两个列表：
+//   「约局」= 我参与的（isMember）—— 空是正常的，文案要引导而不是报丧
+//   「发现」= 其余的 —— 带筛选，数量上导航角标
 function renderRoomList(rooms) {
-    window._lastRooms = rooms;   // 缓存：切语言时可立即用新语言重渲染
+    window._lastRooms = rooms;   // 缓存：切语言 / 换筛选时可立即重渲染
+    const mine = rooms.filter(r => r.isMember);
+    const others = rooms.filter(r => !r.isMember)
+        .filter(r => discoverFilter === 'all' || r.roomType === discoverFilter);
+
+    const myBox = document.getElementById('my-room-list');
+    if (myBox) {
+        document.getElementById('my-room-count').textContent = mine.length ? `(${mine.length})` : '';
+        myBox.innerHTML = mine.length ? roomCards(mine)
+            : `<div class="pane-empty"><span class="pe-ico">\u{1F0CF}</span>${
+                L('还没有进行中的牌局<br>创建一局，或输入朋友给你的四位房间码',
+                  'No games in progress<br>Create one, or enter the 4-digit room code a friend gave you')}</div>`;
+    }
+
+    // 发现页的角标用「别人的局」总数，不受当前筛选影响（筛选只是看法，不是有多少）
+    const discoverTotal = rooms.filter(r => !r.isMember).length;
+    const badge = document.getElementById('nav-discover-badge');
+    if (badge) {
+        badge.textContent = discoverTotal > 99 ? '99+' : discoverTotal;
+        badge.style.display = discoverTotal > 0 ? '' : 'none';
+    }
+
     const box = document.getElementById('room-list');
-    document.getElementById('room-count').textContent = rooms.length ? `(${rooms.length})` : '';
-    if (!rooms.length) {
-        box.innerHTML = `<div class="room-empty">${L('暂无房间，点「创建比赛」发起一局', 'No rooms yet — tap "Create game" to start one')}</div>`;
+    document.getElementById('room-count').textContent = others.length ? `(${others.length})` : '';
+    if (!others.length) {
+        box.innerHTML = `<div class="pane-empty"><span class="pe-ico">\u{1F50D}</span>${
+            discoverTotal ? L('这个筛选下没有牌局', 'No games match this filter')
+                          : L('现在没有别人的牌局<br>让朋友开一局，或者自己在「约局」里创建',
+                              'Nobody else has a game going<br>Ask a friend to start one, or create your own under Play')}</div>`;
         return;
     }
-    box.innerHTML = rooms.map(r => {
+    box.innerHTML = roomCards(others);
+}
+
+function roomCards(rooms) {
+    return rooms.map(r => {
         const full    = r.playerCount >= r.maxPlayers;
         const running = r.status === 'running';
         // 我是本房成员 → 始终可「重新进入」（重连回桌）；否则进行中/已满则灰
@@ -734,3 +766,58 @@ function adjustMatchEnd(minutes) {
 
 // 切语言后房间列表卡片要重画（房型标签、盲注/报名费前缀都是 JS 拼的）
 onLangChange(() => { if (window._lastRooms) renderRoomList(window._lastRooms); });
+
+// ===== 大厅分页（2026-09-13）=====
+// 原来所有内容平铺在一页。拆成三页：
+//   约局 = 我和朋友的局（创建 / 输码加入 / 我参与的房间）
+//   发现 = 别人的局（将来公开桌、机器人练习房也放这里）
+//   我的 = 全部个人向入口（原来是顶栏上一排猜不出含义的 emoji）
+// ⚠️ 第一步【不动后端】：room_list 本来就下发 isMember，前端过滤即可。
+const LOBBY_TABS = ['play', 'discover', 'me'];
+let lobbyTab = 'play';
+try { const t = localStorage.getItem('lobbyTab'); if (LOBBY_TABS.includes(t)) lobbyTab = t; } catch {}
+
+function setLobbyTab(name) {
+    if (!LOBBY_TABS.includes(name)) name = 'play';
+    lobbyTab = name;
+    try { localStorage.setItem('lobbyTab', name); } catch {}
+    document.querySelectorAll('#lobby-nav .nav-item')
+        .forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    document.querySelectorAll('#lobby-view .lobby-pane')
+        .forEach(p => p.classList.toggle('active', p.id === 'pane-' + name));
+    if (name === 'me') renderMeHead();
+    // 切到某页时把它滚回顶部，否则从长列表切过去会停在半空
+    const view = document.getElementById('lobby-view');
+    if (view) view.scrollTop = 0;
+}
+
+// 「发现」页的筛选：全部 / 现金桌 / SNG
+let discoverFilter = 'all';
+function setDiscoverFilter(f) {
+    discoverFilter = f;
+    document.querySelectorAll('#disc-filters .disc-chip')
+        .forEach(b => b.classList.toggle('sel', b.dataset.df === f));
+    if (window._lastRooms) renderRoomList(window._lastRooms);
+}
+
+// 「我的」页头卡：头像 + 名字 + 金币（原来挤在顶栏里）
+function renderMeHead() {
+    const box = document.getElementById('me-head');
+    if (!box) return;
+    const name = myDisplayName || myUsername || '';
+    const ltr = escapeHtml((name.trim()[0] || '?').toUpperCase());
+    const av = myAvatar
+        ? `<img src="${escapeHtml(myAvatar)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'me-ltr',textContent:'${ltr}'}))">`
+        : `<span class="me-ltr">${ltr}</span>`;
+    box.innerHTML = `<div class="me-avatar">${av}</div>
+        <div class="me-id">
+            <div class="me-name">${escapeHtml(name)}</div>
+            <div class="me-gold">\u{1FA99} ${(myGold || 0).toLocaleString()}</div>
+        </div>`;
+}
+
+// 打开个人主页并直接落到某个 Tab（「我的」页把那三个 Tab 拆成了三个入口）
+function openProfileTab(t) { openProfile(); profileTab(t); }
+
+// 切语言后「我的」页头卡与房间列表要重画（登记制，别往 setLang 里加手写清单）
+onLangChange(() => { renderMeHead(); });

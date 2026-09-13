@@ -22,6 +22,22 @@ echo "🔎 部署前安全检查（防「用了没定义」导致上线后崩溃
 echo "✅ 安全检查通过"
 
 BUILD_ENV="production"
+# Step 1: Git 提交（如果提供了 commit message）
+if [ -n "$1" ]; then
+    echo "📝 提交并推送到 GitHub..."
+    cd "$SCRIPT_DIR"
+    git add .
+    git commit -m "$1"
+    git push
+    echo "✅ GitHub 已更新"
+else
+    echo "⏭️  跳过 git（未提供 commit message）"
+fi
+
+
+
+
+# ⚠️ BUILD_SHA 也必须在提交之后算，否则 /api/version 报的是上一个 commit。
 # Step 1.5: 打版本戳（2026-08-11 加）
 # 以前确认「这次部署到底生效没有」只能 SSH 上去 grep 某个新增关键字，又土又容易看走眼。
 # 现在把 版本号 + git 短 SHA + 构建时间 打进包里，最后一步 curl /api/version 直接核对。
@@ -36,26 +52,21 @@ echo "🏷️  版本 $APP_VERSION · $BUILD_SHA · $BUILD_AT"
 cat > "$SCRIPT_DIR/PokerServer/build-info.json" <<BUILDJSON
 { "commit": "$BUILD_SHA", "builtAt": "$BUILD_AT", "env": "$BUILD_ENV" }
 BUILDJSON
-# 前端构建号：把 00-state.js 里的占位替换成真实 SHA（打包用的临时副本，改完还原）
+
+# 🔴 构建号必须【在 git 提交之后】才盖：以前是反的，于是打包用的临时 SHA 被
+#    git add . 一起提交进了仓库（7ddcae6）。后果不是难看——下次部署 sed 匹配不到
+#    '__BUILD__' 会【静默不替换】，前端构建号从此冻死在旧 SHA，而它唯一的用途就是
+#    「判断玩家是不是缓存了旧前端」，冻住之后所有人都被永久标成「前端是旧的」。
+if ! grep -q "const CLIENT_BUILD = '__BUILD__'" "$SCRIPT_DIR/PokerServer/public/js/00-state.js"; then
+    echo "❌ 00-state.js 里找不到 __BUILD__ 占位符 —— 多半是上次部署把临时构建号提交进仓库了。"
+    echo "   先把它改回 const CLIENT_BUILD = '__BUILD__' 再发版。"
+    exit 1
+fi
+# 前端构建号：把占位替换成真实 SHA（打包用的临时副本，改完还原）
 cp "$SCRIPT_DIR/PokerServer/public/js/00-state.js" /tmp/00-state.orig.js
-# 只替换那个常量本身，别顺手把注释里提到的同名占位也改了
 sed -i "s/const CLIENT_BUILD = '__BUILD__'/const CLIENT_BUILD = '$BUILD_SHA'/" "$SCRIPT_DIR/PokerServer/public/js/00-state.js"
 restore_build_stamp() { cp /tmp/00-state.orig.js "$SCRIPT_DIR/PokerServer/public/js/00-state.js"; }
 trap restore_build_stamp EXIT
-
-
-
-# Step 1: Git 提交（如果提供了 commit message）
-if [ -n "$1" ]; then
-    echo "📝 提交并推送到 GitHub..."
-    cd "$SCRIPT_DIR"
-    git add .
-    git commit -m "$1"
-    git push
-    echo "✅ GitHub 已更新"
-else
-    echo "⏭️  跳过 git（未提供 commit message）"
-fi
 
 # Step 2: 打包源码（排除 node_modules）并上传到服务器
 echo ""
