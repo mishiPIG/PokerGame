@@ -260,3 +260,54 @@ test('🔴 「我的」页不许被收缩包裹成窄条', () => {
     assert.match(rule, /margin:\s*0 auto/);
     assert.match(rule, /width:\s*100%/, 'margin:0 auto 会关掉 flex stretch，必须显式给 width:100%');
 });
+
+// ===== 入场动效（2026-09-13，玩家反馈「只有约局有动画，其他很生硬」）=====
+
+test('🔴 入场动效必须是【三页通用】的，不能只给某一页', () => {
+    // 原来只有「约局」的 .lobby-entry 自带 leIn，发现/我的硬切。
+    // 同一个产品里一页有动效一页没有，比三页都没有更显廉价。
+    const nav = read('public/css/31-lobby-nav.css');
+    assert.match(nav, /\.lobby-pane\.active\s*>\s*\*\s*\{[^}]*animation:/,
+        '入场动效要做在页容器的直接子项上，这样三页自动都有、以后加内容也不用补');
+    // 旧的那套单页动效必须已经摘掉，否则「约局」会外层浮一次、内层再各浮一次
+    const lobby = read('public/css/30-lobby.css');
+    const entry = lobby.slice(lobby.indexOf('.lobby-entry {'), lobby.indexOf('}', lobby.indexOf('.lobby-entry {')));
+    assert.doesNotMatch(entry, /animation:/, '.lobby-entry 不该再自带入场动效（已统一）');
+});
+
+test('🔴 房间卡片不许加入场动效 —— room_list 是事件驱动的，会反复闪', () => {
+    // 有人进出【任何】房间都会重推 room_list → 整个列表 innerHTML 重建。
+    // 卡片级动画会让列表隔三差五整体闪一下；容器级只在切页时动，不受数据推送影响。
+    for (const f of ['public/css/30-lobby.css', 'public/css/31-lobby-nav.css']) {
+        const css = read(f);
+        for (const sel of ['.room-card', '.rc-main', '.rc-join']) {
+            const at = css.indexOf(sel + ' {');
+            if (at < 0) continue;
+            const rule = css.slice(at, css.indexOf('}', at));
+            assert.doesNotMatch(rule, /animation:/, `${f} 的 ${sel} 不该有 animation（列表会反复重渲染）`);
+        }
+    }
+});
+
+test('动效要尊重系统的「减少动态效果」设置', () => {
+    const nav = read('public/css/31-lobby-nav.css');
+    const at = nav.indexOf('prefers-reduced-motion');
+    assert.ok(at >= 0, '缺少 prefers-reduced-motion 降级');
+    assert.match(nav.slice(at, nav.indexOf('}', nav.indexOf('{', at))), /animation:\s*none/);
+});
+
+test('动效时长只能用 A3 定下的四档', () => {
+    // A3 那轮把 33 种随手时长收敛成 0.15 / 0.3 / 0.5 / 0.8s。
+    // 「说不上哪儿不对但不够精致」就是从 0.64s、0.44s 这种随手值来的。
+    // ⚠️ 只看【时长】，不看 animation-delay：逐块错开的步进（0.05/0.10/…）本来就是
+    //    细密的小数值，把它一起卡进四档会逼出「所有块同时浮现」这种更差的结果。
+    const LADDER = new Set(['0.15', '0.3', '0.5', '0.8']);
+    const nav = read('public/css/31-lobby-nav.css');
+    const bad = [];
+    for (const decl of nav.matchAll(/(?:animation|transition):([^;{}]*)/g)) {
+        for (const d of decl[1].matchAll(/(\d*\.?\d+)s/g)) {
+            if (!LADDER.has(d[1])) bad.push(d[1]);
+        }
+    }
+    assert.deepEqual([...new Set(bad)], [], '这些时长不在四档里（0.15 / 0.3 / 0.5 / 0.8）');
+});

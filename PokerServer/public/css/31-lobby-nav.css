@@ -66,6 +66,8 @@
             .nav-item.active { background: rgba(244,211,94,0.10); }
             .nav-item.active::before { top: 50%; left: 0; transform: translateY(-50%);
                 width: 3px; height: 20px; }
+            /* 宽屏是左侧竖条，入场改成纵向展开（横屏那套 scaleX 起手式在这儿方向不对）*/
+            .nav-item.active::before { animation: navMarkV 0.3s cubic-bezier(0.22,1,0.36,1) both; }
             .ni-badge, .ni-dot { position: static; margin-left: auto; }
         }
 
@@ -122,3 +124,38 @@
         .pane-empty { text-align: center; color: #9db9a9; font-size: 14px; line-height: 1.9;
             padding: 34px 18px; }
         .pane-empty .pe-ico { font-size: 40px; opacity: .45; display: block; margin-bottom: 10px; }
+
+        /* ===== 入场动效：切页时逐块浮现（2026-09-13，玩家反馈「只有约局有动画，其他很生硬」）=====
+           原来只有「约局」那两张卡自带入场（.lobby-entry 的 leIn），发现/我的都是硬切。
+           同一个产品里一页有动效、一页没有，比三页都没有更显廉价。
+
+           做在【页容器的直接子项】上，所以三页自动都有，以后往任何一页加内容也不用再补。
+           .lobby-pane.active 的 display 从 none→block 会重启 CSS 动画 → 每次切页都重播。
+           ⚠️ 刻意【不】做在房间卡片上：room_list 是事件驱动的（有人进出任何房间都会重推），
+              卡片级动画会隔三差五整列表闪一下。容器级只在切页时动，不受数据推送影响。 */
+        .lobby-pane.active > * { animation: paneIn 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+        .lobby-pane.active > *:nth-child(2) { animation-delay: 0.05s; }
+        .lobby-pane.active > *:nth-child(3) { animation-delay: 0.10s; }
+        .lobby-pane.active > *:nth-child(4) { animation-delay: 0.15s; }
+        .lobby-pane.active > *:nth-child(5) { animation-delay: 0.19s; }
+        .lobby-pane.active > *:nth-child(6) { animation-delay: 0.22s; }
+        .lobby-pane.active > *:nth-child(n+7) { animation-delay: 0.25s; }   /* 再往后不继续拉长，否则末尾等太久 */
+        @keyframes paneIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+        /* 导航：选中标记淡入 + 图标轻微上浮，切换不再是「啪」地跳过去 */
+        .nav-item.active::before { animation: navMark 0.3s cubic-bezier(0.22,1,0.36,1) both; }
+        @keyframes navMark { from { opacity: 0; transform: translateX(-50%) scaleX(0.3); } }
+        .nav-item:active .ni-ico { transform: scale(0.88); }
+        .ni-badge { animation: badgePop 0.3s cubic-bezier(0.34,1.56,0.64,1) both; }
+        @keyframes badgePop { from { transform: scale(0.4); opacity: 0; } }
+
+        /* 条目按压反馈：点下去有回应，不然像点在图片上 */
+        .me-row { transition: background 0.15s ease, transform 0.15s ease; }
+        .me-row:active { transform: scale(0.985); background: rgba(255,255,255,0.09); }
+        .disc-chip:active { transform: scale(0.94); }
+
+        /* 尊重系统的「减少动态效果」设置（登录页那套也是这么做的）*/
+        @media (prefers-reduced-motion: reduce) {
+            .lobby-pane.active > *, .nav-item.active::before, .ni-badge { animation: none; }
+        }
+        @keyframes navMarkV { from { opacity: 0; transform: translateY(-50%) scaleY(0.3); } }

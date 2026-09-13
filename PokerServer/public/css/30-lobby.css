@@ -98,10 +98,9 @@
             border: 1px solid rgba(120,190,210,0.28);
             box-shadow: 0 8px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
             transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-            animation: leIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
         }
-        .lobby-entry:nth-child(2) { animation-delay: 0.06s; }
-        @keyframes leIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+        /* 入场动效已统一到 31-lobby-nav.css 的 .lobby-pane.active > *（原来这里自带一套
+           leIn，只有「约局」页有、别的页硬切；两套并存还会双重浮现）。*/
         .lobby-entry.create {
             cursor: pointer;
             background: linear-gradient(160deg, rgba(244,211,94,0.18), rgba(184,150,40,0.08));
