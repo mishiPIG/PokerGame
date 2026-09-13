@@ -54,8 +54,29 @@
         .fr-btn.ok { background: rgba(6,214,160,0.18); border-color: rgba(6,214,160,0.5); color: #7ff0cf; }
         .fr-btn.danger { color: #ff8f8f; border-color: rgba(255,120,120,0.28); }
 
-        /* 点头像弹层里的牜友状态：已是牜友 / 申请中 只显示文字，
+        /* 点头像弹层里的牌友状态：已是牌友 / 申请中 只显示文字，
            不放一个点下去没反应的按钮。*/
         .ap-friend-tag { display: inline-block; padding: 5px 12px; border-radius: 999px;
             font-size: 12px; color: #9db9a9; background: rgba(255,255,255,0.06);
             border: 1px solid rgba(255,255,255,0.12); }
+
+        /* 备注弹窗（自家的，不用浏览器 prompt）*/
+        .note-box { max-width: 320px; width: 86%; }
+        .note-title { font-size: 15px; color: #eaf3ee; margin-bottom: 4px; }
+        .note-title b { color: #f4d35e; }
+        .note-hint { font-size: 12px; color: #9db9a9; margin-bottom: 12px; }
+        .note-input {
+            width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px;
+            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
+            color: #eaf3ee; font-size: 14px; outline: none;
+        }
+        .note-input:focus { border-color: rgba(6,214,160,0.6); }
+        .note-acts { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+
+        /* 应用内确认框（替掉浏览器 confirm）*/
+        .confirm-box { max-width: 340px; width: 88%; }
+        .confirm-text { font-size: 14px; color: #dfe9e2; line-height: 1.7; white-space: pre-wrap; }
+        .confirm-acts { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .confirm-acts .fr-btn { padding: 8px 16px; font-size: 13px; }
+        .fr-btn.danger.ok, #confirm-ok.danger {
+            background: rgba(255,120,120,0.18); border-color: rgba(255,120,120,0.5); color: #ff9f9f; }

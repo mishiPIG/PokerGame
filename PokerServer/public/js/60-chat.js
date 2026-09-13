@@ -96,8 +96,8 @@ function openAvatarPopup(userId) {
         apo.style.display = '';
         apo.innerHTML = `<button class="ap-owner-btn" onclick="forceStand('${userId}')">${L('🧍 移到观战席（腾出座位）', '🧍 Move to the rail (free the seat)')}</button>`;
     } else { apo.style.display = 'none'; apo.innerHTML = ''; }
-    // 牜友：打完一局当场加是最自然的入口，比回大厅再去「一起玩过」里翻得快。
-    // 已经是牜友 / 申请中 都不再显示按钮，而是直接告诉他当前状态——
+    // 牌友：打完一局当场加是最自然的入口，比回大厅再去「一起玩过」里翻得快。
+    // 已经是牌友 / 申请中 都不再显示按钮，而是直接告诉他当前状态——
     // 按钮点下去没反应比没有按钮更坏。
     const apf = document.getElementById('ap-friend');
     if (isMe) { apf.style.display = 'none'; apf.innerHTML = ''; }
@@ -106,10 +106,10 @@ function openAvatarPopup(userId) {
         const isFriend = friendData.friends.some(f => f.userId === userId);
         const sent = friendData.outgoing.some(f => f.userId === userId);
         const incoming = friendData.incoming.some(f => f.userId === userId);
-        if (isFriend) apf.innerHTML = `<span class="ap-friend-tag">${L('✓ 已是牜友', '✓ Friends')}</span>`;
+        if (isFriend) apf.innerHTML = `<span class="ap-friend-tag">${L('✓ 已是牌友', '✓ Friends')}</span>`;
         else if (sent) apf.innerHTML = `<span class="ap-friend-tag">${L('已发申请，等对方同意', 'Request sent')}</span>`;
-        else if (incoming) apf.innerHTML = `<button class="ap-owner-btn" onclick="respondFriend('${userId}',true);closeAvatarPopup()">${L('✅ 同意牜友申请', '✅ Accept friend request')}</button>`;
-        else apf.innerHTML = `<button class="ap-owner-btn" onclick="requestFriend('${userId}')">${L('👥 加为牜友', '👥 Add friend')}</button>`;
+        else if (incoming) apf.innerHTML = `<button class="ap-owner-btn" onclick="respondFriend('${userId}',true);closeAvatarPopup()">${L('✅ 同意牌友申请', '✅ Accept friend request')}</button>`;
+        else apf.innerHTML = `<button class="ap-owner-btn" onclick="requestFriend('${userId}')">${L('👥 加为牌友', '👥 Add friend')}</button>`;
     }
     document.getElementById('avatar-popup').style.display = 'flex';
     if (socket) socket.emit('req_player_stats', { targetUserId: userId });

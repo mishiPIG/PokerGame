@@ -17,14 +17,8 @@ document.addEventListener('visibilitychange', () => {
 document.addEventListener('click', (e) => {
     if (e.target.closest('button')) sndClick();
 }, true);
-// 点牌桌空白处自动收起临时小窗（战绩/牌谱/聊天/菜单），不必点 ✕
-document.addEventListener('click', (e) => {
-    if (e.target.closest('.side-panel, #chat-panel, #avatar-popup, #table-menu, #hand-detail, #replay-overlay, .modal-mask, #profile-overlay, #inbox-panel, .edge-arrow, .tc-btn')) return;
-    ['history-panel', 'stats-panel', 'chat-panel', 'table-menu'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el && el.style.display !== 'none') el.style.display = 'none';
-    });
-});
+// （原来这里还有一套「点牌桌空白收起战绩/牌谱/聊天/菜单」的独立实现，
+//   已并入下方的 DISMISSIBLE 统一机制 —— 两套并存迟早漂移成不一致。）
 
 // 检查本地 token，自动登录
 const savedToken = localStorage.getItem('token');
@@ -138,7 +132,10 @@ setTimeout(() => dismissBootSplash('timeout'), BOOT_MAX_MS);
 //   · 侧边抽屉型（.side-panel，左侧滑出、【没有】遮罩）——点页面其它任何地方关
 // 统一判据：点击落点不在这个面板的内容盒子里 → 关。
 const DISMISSIBLE = [
+    { id: 'chat-panel',       close: 'toggleChat' },
     { id: 'table-menu',       close: 'toggleTableMenu' },
+    { id: 'confirm-modal',    close: 'closeConfirm' },     // 点外面 = 取消（closeConfirm() 不传参就是 false）
+    { id: 'note-modal',       close: 'closeNoteModal' },
     { id: 'buyin-modal',      close: 'closeBuyin' },
     { id: 'match-modal',      close: 'closeMatchSettings' },
     { id: 'invite-modal',     close: 'closeInvite' },
@@ -154,7 +151,8 @@ const DISMISSIBLE = [
     { id: 'hand-detail',      close: 'closeHandDetail' },
     { id: 'replay-overlay',   close: 'closeReplay' },
 ];
-// ⚠️ 故意不含 #chat-panel：它是打牌时一直开着看的抽屉，点一下牌桌就收掉会很烦。
+// 聊天抽屉也在里面：原来那套独立实现本来就会在点牌桌时收起它，
+// 删掉旧机制后必须接上，否则等于悄悄改了既有行为。
 
 function panelIsOpen(el) { return !!el && el.style.display !== 'none' && el.getClientRects().length > 0; }
 
@@ -169,17 +167,28 @@ document.addEventListener('pointerdown', () => {
 }, true);
 
 document.addEventListener('click', (e) => {
+    // 这一下点在【任何】一个开着的浮层内容里 → 什么都不关。
+    // 否则「聊天开着、再开买入弹窗、在弹窗里点一下」会把后面的聊天一起收掉。
+    // （满屏遮罩型点到遮罩本身不算「在内容里」，所以仍会关。）
+    const inside = DISMISSIBLE.some(p => {
+        const el = document.getElementById(p.id);
+        return panelIsOpen(el) && el.contains(e.target) && e.target !== el;
+    });
+    if (inside) return;
+
+    let closed = false;
     for (const p of DISMISSIBLE) {
         if (!_openAtPress.has(p.id)) continue;          // 这一下点击之前它就没开着
         const el = document.getElementById(p.id);
         if (!panelIsOpen(el)) continue;                  // 期间已经被别的方式关了
-        if (el.contains(e.target)) {
-            // 满屏遮罩型：点到的正是遮罩本身（不是里面的内容盒）→ 也算点了空白
-            if (e.target !== el) continue;
-        }
-        try { window[p.close]?.(); } catch (err) { console.warn('[ui] 关闭面板失败', p.id, err); }
+        try { window[p.close]?.(); closed = true; } catch (err) { console.warn('[ui] 关闭面板失败', p.id, err); }
     }
-});
+    // 🔴 这一下点击的用途就是「把浮层关掉」，不能再穿透下去。
+    //    侧边抽屉只占屏幕左边一条，右边露出来的正是「我的」页那排条目 ——
+    //    不拦的话点一下会【关掉当前面板 + 顺手打开另一个】（玩家实拍）。
+    //    所以必须在【捕获阶段】处理：要赶在下面那个按钮自己的 onclick 之前。
+    if (closed) { e.stopPropagation(); e.preventDefault(); }
+}, true);
 
 // Esc 关掉最上面那个（浮层是按登记顺序由低到高的，所以倒着找）
 document.addEventListener('keydown', (e) => {

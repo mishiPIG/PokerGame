@@ -109,7 +109,7 @@ async function doCheckin() {
     try {
         const r = await fetch('/api/checkin', { method: 'POST', headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } });
         const data = await r.json();
-        if (!r.ok) { if (btn) { btn.disabled = false; } alert(apiErr(data, '签到失败', 'Check-in failed')); return; }
+        if (!r.ok) { if (btn) { btn.disabled = false; } toast(apiErr(data, '签到失败', 'Check-in failed')); return; }
         myGold = data.gold; updateUserBar();
         playSfx && playSfx('win');
         const body = document.getElementById('checkin-body');

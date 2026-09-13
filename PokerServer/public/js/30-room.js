@@ -446,15 +446,18 @@ function toggleEntryLock() {
 }
 function resetRoomInvite() {
     if (!socket || !roomInviteInfo) return;
-    if (!confirm(L('重置后，已经发出的旧链接和旧房间码会立即失效；已加入的朋友不受影响。确定重置？', 'Resetting immediately invalidates the old link and room code; friends already in are unaffected. Reset?'))) return;
-    socket.emit('reset_room_invite');
+    uiConfirm(L('重置后，已经发出的旧链接和旧房间码会立即失效；已加入的朋友不受影响。确定重置？', 'Resetting immediately invalidates the old link and room code; friends already in are unaffected. Reset?'))
+        .then(ok => { if (ok) socket.emit('reset_room_invite'); });
 }
 function leaveRoom() {
     if (!socket) return;
     const isCash = lastState && lastState.roomType === 'cash';
     const amSeated = lastState && lastState.players && lastState.players.some(p => p.userId === myUserId);
+    // ⚠️ uiConfirm 是异步的，所以要在这里 return，不能像原来用同步 confirm 那样往下走
     if (isCash && amSeated) {
-        if (!confirm(L('离开牌桌：座位与筹码【保留】，只在本局结束/解散时才统一结算金币；之后可随时「重新进入」接上原座位与盈亏（战绩不清零）。确定离开？', 'Leave the table: your seat and chips are KEPT and only settled to coins when the game ends/dissolves; you can "Re-enter" anytime to resume your seat and P/L. Leave?'))) return;
+        uiConfirm(L('离开牌桌：座位与筹码【保留】，只在本局结束/解散时才统一结算金币；之后可随时「重新进入」接上原座位与盈亏（战绩不清零）。确定离开？', 'Leave the table: your seat and chips are KEPT and only settled to coins when the game ends/dissolves; you can "Re-enter" anytime to resume your seat and P/L. Leave?'))
+            .then(ok => { if (ok) socket.emit('leave_room'); });
+        return;
     }
     socket.emit('leave_room');
 }
@@ -464,7 +467,7 @@ function dissolveRoom() {
     const msg = isCash
         ? L('确定解散牌桌？各家将按汇率把剩余筹码兑回金币、全部回到大厅。', 'Dissolve the table? Everyone\'s remaining chips convert back to coins and all return to the lobby.')
         : L('确定解散比赛？比赛将结束，奖池归当前筹码领先者。', 'Dissolve the game? It ends now and the pool goes to the current chip leader.');
-    if (confirm(msg)) socket.emit('dissolve_room');
+    uiConfirm(msg, { danger: true }).then(ok => { if (ok) socket.emit('dissolve_room'); });
 }
 function closeResult() {
     document.getElementById('result-overlay').style.display = 'none';
@@ -490,10 +493,11 @@ function toggleTableMenu() {
 }
 // 站起围观 / 留座离座 / 回到座位
 function standUp() {
-    if (socket && confirm(L('确定站起围观？将【离开座位】（座位空出、他人可坐），筹码保留至结束/解散时结算；可随时「回到座位」带原筹码回来。', 'Stand up to watch? You LEAVE your seat (it frees up for others); chips are kept until the game ends/dissolves. You can "Sit back" anytime with your chips.'))) socket.emit('stand_up');
+    if (!socket) return;
+    uiConfirm(L('确定站起围观？将【离开座位】（座位空出、他人可坐），筹码保留至结束/解散时结算；可随时「回到座位」带原筹码回来。', 'Stand up to watch? You LEAVE your seat (it frees up for others); chips are kept until the game ends/dissolves. You can "Sit back" anytime with your chips.')).then(ok => { if (ok) socket.emit('stand_up'); });
 }
 function reserveLeave() {
-    if (socket) { socket.emit('reserve_leave'); alert(L('已留座离座，2 分钟内回来保留座位（点座位「回到座位」即可）', 'Seat held — come back within 2 min to keep it (tap the seat "Sit back").')); }
+    if (socket) { socket.emit('reserve_leave'); toast(L('已留座离座，2 分钟内回来保留座位（点座位「回到座位」即可）', 'Seat held — come back within 2 min to keep it (tap the seat "Sit back").')); }
 }
 function sitBack() { if (socket) socket.emit('sit_back'); }
 
@@ -501,7 +505,7 @@ function sitBack() { if (socket) socket.emit('sit_back'); }
 function togglePauseDealing() {
     if (!socket) return;
     if (lastState && lastState.paused) socket.emit('resume_dealing');
-    else { socket.emit('pause_dealing'); alert(L('已暂停发牌：当前这手打完后暂停，随时可点「继续发牌」恢复。', 'Dealing paused: it stops after this hand — tap "Resume dealing" anytime.')); }
+    else { socket.emit('pause_dealing'); toast(L('已暂停发牌：当前这手打完后暂停，随时可点「继续发牌」恢复。', 'Dealing paused: it stops after this hand — tap "Resume dealing" anytime.')); }
 }
 // 房主：强制某玩家站起到观战席（腾出座位）
 function forceStand(targetUserId) {
@@ -509,10 +513,11 @@ function forceStand(targetUserId) {
     const st = lastState; if (!st) return;
     const tp = (st.players || []).find(p => p.userId === targetUserId);
     const nm = tp ? (tp.displayName || tp.username) : L('该玩家', 'that player');
-    if (confirm(L(`把「${nm}」移到观战席？其座位将空出（筹码保留至结束结算，TA 可自行「回到座位」）。`, `Move "${nm}" to the rail? Their seat frees up (chips kept until settlement; they can "Sit back").`))) {
+    uiConfirm(L(`把「${nm}」移到观战席？其座位将空出（筹码保留至结束结算，TA 可自行「回到座位」）。`, `Move "${nm}" to the rail? Their seat frees up (chips kept until settlement; they can "Sit back").`)).then(ok => {
+        if (!ok) return;
         socket.emit('force_stand', { targetUserId });
         closeAvatarPopup();
-    }
+    });
 }
 
 // ===== 坐下/补码 买入弹窗 (A2/A3) =====
@@ -539,7 +544,7 @@ let buyinValue = 0;   // 当前选定的带入/补码记分牌数
 function openRebuy() {
     const st = lastState; if (!st || st.roomType !== 'cash') return;
     const me = st.players.find(p => p.userId === myUserId);
-    if (!me) { alert(L('请先坐下入座', 'Sit down at a seat first')); return; }
+    if (!me) { toast(L('请先坐下入座', 'Sit down at a seat first')); return; }
     buyinMode = 'rebuy';
     const bb = st.bigBlind || 20;
     const cap = st.maxBuyIn > 0 ? (st.maxBuyIn - me.chips - (me.pendingRebuy || 0)) : Infinity;   // 受带入上限约束
@@ -745,9 +750,11 @@ function setUtgStraddle(enabled) {
 }
 function extendMatch(minutes) {
     if (!socket) return;
-    if (!confirm(L(`确定为本场比赛加时 +${minutes} 分钟？`, `Extend this game by +${minutes} minutes?`))) return;
-    socket.emit('extend_match', { minutes });
-    alert(L(`已加时 +${minutes} 分钟`, `Extended by +${minutes} min`));
+    uiConfirm(L(`确定为本场比赛加时 +${minutes} 分钟？`, `Extend this game by +${minutes} minutes?`)).then(ok => {
+        if (!ok) return;
+        socket.emit('extend_match', { minutes });
+        toast(L(`已加时 +${minutes} 分钟`, `Extended by +${minutes} min`));
+    });
 }
 function formatMatchEndTime(value) {
     return fmtTime(value);
@@ -759,8 +766,8 @@ function adjustMatchEnd(minutes) {
     const base = minutes > 0 ? Math.max(now, oldEndAt) : oldEndAt;
     const endAt = Math.max(now, base + minutes * 60000);
     const detail = L(`预计结束时间将从 ${formatMatchEndTime(oldEndAt)} 调整为 ${formatMatchEndTime(endAt)}。`, `End time will change from ${formatMatchEndTime(oldEndAt)} to ${formatMatchEndTime(endAt)}.`);
-    if (!confirm(`${detail}\n\n${L('确定调整吗？', 'Adjust it?')}`)) return;
-    socket.emit('adjust_match_end', { endAt });
+    uiConfirm(`${detail}\n\n${L('确定调整吗？', 'Adjust it?')}`)
+        .then(ok => { if (ok) socket.emit('adjust_match_end', { endAt }); });
 }
 
 // 切语言后房间列表卡片要重画（房型标签、盲注/报名费前缀都是 JS 拼的）

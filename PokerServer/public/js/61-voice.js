@@ -138,7 +138,7 @@ async function completeVoiceRecording() {
     if (!shouldSend || !chunks.length) { hideVoiceStatus(); return; }
 
     const blob = new Blob(chunks, { type: mime });
-    if (!blob.size || blob.size > 512 * 1024) { hideVoiceStatus(); alert(L('语音文件过大，请重试', 'Voice clip too large, try again')); return; }
+    if (!blob.size || blob.size > 512 * 1024) { hideVoiceStatus(); toast(L('语音文件过大，请重试', 'Voice clip too large, try again')); return; }
     voiceUploading = true; voiceStatus(L('正在发送语音…', 'Sending…'));
     try {
         const res = await fetch('/api/voice', {
@@ -156,7 +156,7 @@ async function completeVoiceRecording() {
             throw new Error(msg);
         }
     } catch (err) {
-        alert(err.message || L('语音发送失败', 'Could not send the voice clip'));
+        toast(err.message || L('语音发送失败', 'Could not send the voice clip'));
     } finally {
         voiceUploading = false; hideVoiceStatus();
     }
@@ -270,7 +270,7 @@ async function playVoice(id, button) {
         }
         if (playingVoice?.id === id) stopVoicePlayback();
         button.classList.remove('playing'); button.textContent = button.dataset.label || '🎤';
-        alert(err.message || L('无法播放语音', 'Cannot play that voice clip'));
+        toast(err.message || L('无法播放语音', 'Cannot play that voice clip'));
     } finally {
         if (voicePlayController === controller) voicePlayController = null;
     }

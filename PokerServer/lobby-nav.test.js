@@ -391,3 +391,45 @@ test('🔴 服务端的成功提示也要能弹出来', () => {
     assert.doesNotMatch(body, /startsWith\('⚠️'\)/, '不能只弹 ⚠️ 开头的');
     assert.match(body, /✅/, '成功提示（✅）也要弹');
 });
+
+// ===== 不许再用浏览器原生弹窗（2026-09-13，玩家反馈「太丑」）=====
+
+test('🔴 不许再出现 alert / confirm / prompt', () => {
+    // 原生弹窗顶着一行「10.76.x.x:3000 显示」，手机 WebView 里样式完全不受控、
+    // 观感像钓鱼；而且它是【阻塞】的，弹着的时候整个页面连重绘都停了。
+    // 信息类一律用 toast，需要抉择的用 uiConfirm，输入用自己的弹窗。
+    const jsDir = path.join(__dirname, 'public/js');
+    const bad = [];
+    for (const f of fs.readdirSync(jsDir).filter(x => x.endsWith('.js'))) {
+        if (f === '90-admin.js') continue;              // 管理面板不在这次范围内（用户定：不译也不改）
+        const src = fs.readFileSync(path.join(jsDir, f), 'utf8');
+        src.split('\n').forEach((ln, i) => {
+            const code = ln.split('//')[0];              // 注释里提到没关系
+            if (/\bwindow\.confirm\(/.test(code)) return;  // uiConfirm 的兜底分支
+            if (/(^|[^.\w])(alert|confirm|prompt)\s*\(/.test(code)) bad.push(`${f}:${i + 1}`);
+        });
+    }
+    assert.deepEqual(bad, [], '这些地方还在用浏览器原生弹窗');
+});
+
+test('🔴 uiConfirm 的返回值必须被接住', () => {
+    // 它是异步的。写成 `uiConfirm(x); 干活();` 会变成【不管点什么都执行】——
+    // 那比弹窗丑严重得多（点了取消照样解散房间）。
+    const jsDir = path.join(__dirname, 'public/js');
+    const bad = [];
+    for (const f of fs.readdirSync(jsDir).filter(x => x.endsWith('.js'))) {
+        if (f === '05-utils.js') continue;               // 定义处
+        const src = fs.readFileSync(path.join(jsDir, f), 'utf8');
+        let i = src.indexOf('uiConfirm(');
+        while (i >= 0) {
+            // 往后看一小段：必须出现 .then( 或 await
+            const after = src.slice(i, i + 600);
+            const before = src.slice(Math.max(0, i - 12), i);
+            if (!/\.then\s*\(/.test(after) && !/await\s*$/.test(before)) {
+                bad.push(`${f}@${src.slice(0, i).split('\n').length}`);
+            }
+            i = src.indexOf('uiConfirm(', i + 1);
+        }
+    }
+    assert.deepEqual(bad, [], '这些 uiConfirm 没有 .then / await，点取消也会照样执行');
+});

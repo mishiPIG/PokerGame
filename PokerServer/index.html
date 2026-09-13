@@ -502,6 +502,30 @@
 </div>
 
 <!-- 消息收件箱（放在 table-view 外，大厅也能开）-->
+<div id="confirm-modal" class="modal-mask" style="display:none">
+    <div class="modal-box confirm-box">
+        <div id="confirm-text" class="confirm-text"></div>
+        <div class="confirm-acts">
+            <button class="fr-btn" id="confirm-cancel" onclick="closeConfirm(false)">取消</button>
+            <button class="fr-btn ok" id="confirm-ok" onclick="closeConfirm(true)">确定</button>
+        </div>
+    </div>
+</div>
+
+<div id="note-modal" class="modal-mask" style="display:none">
+    <div class="modal-box note-box">
+        <div class="note-title"><span data-i18n="fr.noteFor">备注</span> <b id="note-who"></b></div>
+        <div class="note-hint" data-i18n="fr.notePrivate">只有你自己看得到</div>
+        <input id="note-input" class="note-input" type="text" maxlength="40"
+               data-i18n-ph="fr.notePh" placeholder="例如：爱诈唬 / 只玩大牌"
+               onkeydown="if(event.key==='Enter')saveFriendNote()">
+        <div class="note-acts">
+            <button class="fr-btn" onclick="closeNoteModal()" data-i18n="btn.cancel">取消</button>
+            <button class="fr-btn ok" onclick="saveFriendNote()" data-i18n="btn.save">保存</button>
+        </div>
+    </div>
+</div>
+
 <div id="friends-panel" class="side-panel" style="display:none">
     <div class="sp-head"><b data-i18n="fr.title">👥 牌友</b><button onclick="closeFriends()" data-i18n-title="a11y.close" title="关闭">✕</button></div>
     <div class="fr-tabs">

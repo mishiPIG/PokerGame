@@ -108,17 +108,30 @@ function requestFriend(userId) { socket?.emit('friend_request', { userId }); }
 function respondFriend(userId, accept) { socket?.emit('friend_respond', { userId, accept }); }
 function removeFriend(userId) {
     const f = friendData.friends.find(x => x.userId === userId);
-    if (f && !confirm(L(`确定删除牌友「${f.displayName}」？`, `Remove ${f.displayName} from your friends?`))) return;
-    socket?.emit('friend_remove', { userId });
+    // 没在好友列表里 = 取消一条自己发出的申请，不必再确认一次
+    if (!f) { socket?.emit('friend_remove', { userId }); return; }
+    uiConfirm(L(`确定删除牌友「${f.displayName}」？`, `Remove ${f.displayName} from your friends?`), { danger: true })
+        .then(ok => { if (ok) socket?.emit('friend_remove', { userId }); });
 }
+// 备注弹窗：不用浏览器 prompt()。
+// prompt 在手机 WebView 里会被限制甚至直接不弹，而且顶着一行「来自网页的提示」，
+// 观感上很像钓鱼弹窗 —— 自家应用里的输入不该长成那样。
+let _noteTarget = null;
 function editFriendNote(userId) {
     const f = friendData.friends.find(x => x.userId === userId);
     if (!f) return;
-    // 备注只有自己看得到，提示里说清楚——否则没人敢写真话
-    const note = prompt(L(`给「${f.displayName}」的备注（只有你自己看得到）`,
-                          `Your private note for ${f.displayName} (only you can see it)`), f.note || '');
-    if (note === null) return;
-    socket?.emit('friend_note', { userId, note });
+    _noteTarget = userId;
+    document.getElementById('note-who').textContent = f.displayName;
+    const input = document.getElementById('note-input');
+    input.value = f.note || '';
+    document.getElementById('note-modal').style.display = 'flex';
+    setTimeout(() => input.focus(), 50);
+}
+function closeNoteModal() { _noteTarget = null; document.getElementById('note-modal').style.display = 'none'; }
+function saveFriendNote() {
+    if (!_noteTarget) return;
+    socket?.emit('friend_note', { userId: _noteTarget, note: document.getElementById('note-input').value });
+    closeNoteModal();
 }
 
 // 牌友数（含待处理申请）挂到「我的」那一行和导航红点上，不然玩家不会想起来点开
