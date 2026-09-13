@@ -328,6 +328,13 @@ test('🔴 版本行必须真的贴在页底（这条破过两次了）', () => 
     assert.match(pane, /display:\s*flex/, '当前页必须是纵向 flex，否则 margin-top:auto 没有剩余空间可分配');
     assert.match(pane, /flex-direction:\s*column/);
     assert.match(pane, /flex:\s*1/, '当前页必须撑满可用高度，否则页面短时它只撑到内容高度');
+    // 🔴 但【只长不缩】：上一版写的 flex:1 1 auto，手机不全屏时可用高度不够，
+    //    整页连同里面的块一起被压矮，而 .me-group 带着 overflow:hidden → 直接把行裁掉
+    //    （实拍：「每日签到」切一半、「资料与头像」和「管理面板」整行消失）。
+    //    高度不够时正确的做法是让 #lobby-view 滚动，不是把内容振掉。
+    assert.match(pane, /flex:\s*1\s+0\s/, '当前页必须只长不缩（flex: 1 0 auto）');
+    assert.match(nav, /\.lobby-pane\.active\s*>\s*\*\s*\{[^}]*flex-shrink:\s*0/,
+        '页内的块也不能被压缩，否则 overflow:hidden 的卡片会裁掉行');
 
     // 版本行必须是那一页的【最后一个】子元素，否则 auto 外边距把它顶到中间去
     const html = read('index.html');

@@ -20,8 +20,15 @@
            我把版本行搬进「我的」页之后又破了，因为它现在的父级是一个 display:block 的 section。
            改元素归属时，顺手检查一下它原来是靠哪条规则定位的。*/
         #lobby-view .lobby-pane.active {
-            display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+            display: flex; flex-direction: column;
+            /* 🔴 flex: 1 【0】 auto —— 只长不缩。写成 1 1 auto 的话，页面比可用高度
+               高时它会被压矮，里面的块跟着一起缩 —— 而 .me-group 带着 overflow:hidden，
+               直接把行裁掉（实拍：「每日签到」切一半、「资料与头像」整行消失）。*/
+            flex: 1 0 auto; min-height: 0;
         }
+        /* 同理：页内的块也不允许被压缩（#lobby-view > * 那条只管到页这一层，
+           拆页之后实际内容又深了一层）。高度不够就让 #lobby-view 滚动，而不是把内容振掉。*/
+        #lobby-view .lobby-pane.active > * { flex-shrink: 0; }
 
         /* ---- 导航条 ---- */
         #lobby-nav {
