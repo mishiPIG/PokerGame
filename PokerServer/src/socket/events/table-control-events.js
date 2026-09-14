@@ -59,13 +59,16 @@ function registerTableControlEvents(context) {
         }
         const result = adjustTableEnd(roomId, requested);
         if (!result) return;
-        // ⚠️ 这里原来用 toLocaleTimeString('zh-CN') 在【服务端】拼好时间再发（待办 #13）：
-        //    迁到 AWS（系统时区 UTC）当场差了 8 小时，而且玩家也不都在中国时区。
-        //    现在只发时间戳，客户端用 {at|time} 按自己的时区+语言格式化。
+        // ⚠️ 这里原来用 toLocaleTimeString('zh-CN') 在【服务端】拼好一个钟点再发（待办 #13）：
+        //    迁到 AWS（系统时区 UTC）当场差了 8 小时。
+        //    现在发【剩余时长】而不是钟点 —— 这是一条广播，钟点在共享语境里不好使：
+        //    同桌两人不在一个时区就各看各的表，谁也没法拿那个数跟别人对话。
+        //    时长对全桌是同一个数。（想看绝对结束时间的，比赛设置面板里有，那是各看各的才对。）
         if (result.timeExpired) {
             io.in(roomId).emit('server_msg', { k: 'host.endNow' });
         } else {
-            io.in(roomId).emit('server_msg', { k: 'host.endAtChanged', p: { at: result.endAt } });
+            io.in(roomId).emit('server_msg',
+                { k: 'host.timeLeftChanged', p: { ms: Math.max(0, result.endAt - Date.now()) } });
         }
         broadcastState(roomId);
         const betweenHands = game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN;

@@ -204,7 +204,7 @@ const I18N = {
         'srv.host.endedEarly': '🛑 房主提前结束了比赛',
         'srv.host.extended': '⏱ 房主加时 {min} 分钟',
         'srv.host.endNow': '⏸️ 房主已将比赛调整为现在到时，暂停发新牌',
-        'srv.host.endAtChanged': '⏱ 房主将预计结束时间调整为 {at|time}',
+        'srv.host.timeLeftChanged': '⏱ 房主调整了训练时长，还剩 {ms|dur}',
         'srv.host.paused': '⏸️ 房主已暂停发牌（当前这手打完后暂停，可随时继续）',
         'srv.host.resumed': '▶️ 房主已继续发牌',
         'srv.host.straddleOn': '🔥 房主已开启 UTG Straddle（2BB），下一手起生效',
@@ -458,7 +458,7 @@ const I18N = {
         'srv.host.endedEarly': '🛑 The host ended the match early',
         'srv.host.extended': '⏱ The host added {min} min',
         'srv.host.endNow': '⏸️ The host set the match to end now - no new hands',
-        'srv.host.endAtChanged': '⏱ The host moved the expected end time to {at|time}',
+        'srv.host.timeLeftChanged': '⏱ The host adjusted the session — {ms|dur} left',
         'srv.host.paused': '⏸️ The host paused dealing (takes effect after this hand)',
         'srv.host.resumed': '▶️ The host resumed dealing',
         'srv.host.straddleOn': '🔥 The host enabled UTG straddle (2BB), from the next hand',
@@ -553,6 +553,18 @@ function fmtDateTime(ts, opts) {
 function fmtTime(ts) {
     return new Date(ts).toLocaleTimeString(langLocale(), { hour: '2-digit', minute: '2-digit' });
 }
+// 时长。**发给全桌的播报一律用它，别用绝对钟点** ——
+// 钟点在共享语境里不好使：同桌两人不在一个时区就各看各的表，语音里没法互相对话
+// （「打到21点半」对方屏幕上写着 16:30）。时长对全桌是同一个数，
+// 也不涉及时区 / 12 还是 24 小时制 / 语言。绝对钟点只留给「我自己规划」的地方。
+function fmtDuration(ms) {
+    const min = Math.max(0, Math.round(ms / 60000));
+    if (min < 1) return L('不到 1 分钟', 'under a minute');
+    const h = Math.floor(min / 60), m = min % 60;
+    if (!h) return L(`${m} 分钟`, `${m} min`);
+    if (!m) return L(`${h} 小时`, `${h}h`);
+    return L(`${h} 小时 ${m} 分`, `${h}h ${m}m`);
+}
 function L(zh, en) { return (lang === 'en' && en != null) ? en : zh; }
 // 牌型名（服务端发的是中文，固定 10 种）→ 英文映射
 const HAND_CAT_EN = { '皇家同花顺': 'Royal Flush', '同花顺': 'Straight Flush', '四条': 'Four of a Kind', '葫芦': 'Full House', '同花': 'Flush', '顺子': 'Straight', '三条': 'Three of a Kind', '两对': 'Two Pair', '一对': 'One Pair', '高牌': 'High Card' };
@@ -623,6 +635,7 @@ function renderServerMsg(m) {
     return s.replace(/\{(\w+)(?:\|(\w+))?\}/g, (_, name, filter) => {
         const v = m.p && m.p[name];
         if (v == null) return '';
+        if (filter === 'dur') return fmtDuration(v);
         if (filter === 'time') return fmtTime(v);
         if (filter === 'datetime') return fmtDateTime(v);
         return v;

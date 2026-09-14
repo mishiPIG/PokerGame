@@ -694,8 +694,9 @@ function renderMatchInfo(st) {
         rows.push([L('带入区间', 'Buy-in range'), `${(st.minBuyIn || 0).toLocaleString()} ~ ${st.maxBuyIn > 0 ? st.maxBuyIn.toLocaleString() : L('无限制', 'Unlimited')}`]);
         rows.push(['UTG Straddle', st.allowUtgStraddle ? L('🔥 已开启 · 2BB', '🔥 On · 2BB') : L('未开启', 'Off')]);
         if (st.tableEndAt) {
-            const rem = Math.max(0, Math.floor((st.tableEndAt - Date.now()) / 60000));
-            rows.push([L('剩余时长', 'Time left'), L(`约 ${rem} 分钟`, `~${rem} min`)]);
+            // 和播报走同一个 fmtDuration —— 否则面板说「约 80 分钟」、toast 说「1 小时 20 分」，
+            // 同一个数两种说法，正是那种「说不上哪儿不对」的来源。
+            rows.push([L('剩余时长', 'Time left'), fmtDuration(st.tableEndAt - Date.now())]);
             rows.push([L('预计结束', 'Ends at'), formatMatchEndTime(st.tableEndAt)]);
         }
         if (st.timeExpired) {
