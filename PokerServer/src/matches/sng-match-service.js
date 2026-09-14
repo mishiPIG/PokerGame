@@ -49,7 +49,7 @@ function dissolveSngRoom(roomId) {
         }
         sendMatchResult(roomId, `【${game.config.name}】房主提前结束`, buildRanking(game, leader && leader.userId, prize));
     }
-    io.in(roomId).emit('server_msg', `🛑 房主解散了房间`);
+    io.in(roomId).emit('server_msg', { k: 'host.dissolved' });
     finalizeSngRoom(roomId);
 }
 
@@ -79,7 +79,7 @@ function onLevelUp(roomId) {
     if (inHand) {
         // 牌局进行中：挂起涨盲，等本局结束再应用并重启倒计时（不在此重启计时）
         game.pendingLevelUp = true;
-        io.in(roomId).emit('server_msg', `⏫ 涨盲时间到，将于本局结束后升盲`);
+        io.in(roomId).emit('server_msg', { k: 'blind.pending' });
         broadcastState(roomId);
         return;
     }
@@ -93,7 +93,7 @@ function doLevelUp(roomId) {
     if (game.currentLevel < game.blindLevels.length - 1) {
         game.currentLevel++;
         const lvl = game.blindLevels[game.currentLevel];
-        io.in(roomId).emit('server_msg', `⏫ 升盲！级别 ${game.currentLevel + 1}：${lvl.sb}/${lvl.bb}`);
+        io.in(roomId).emit('server_msg', { k: 'blind.up', p: { level: game.currentLevel + 1, sb: lvl.sb, bb: lvl.bb } });
     }
     game.levelStartTime = Date.now();
 }
@@ -141,7 +141,7 @@ function maybeEndSNG(roomId) {
                     throw error;
                 }
             }
-            io.in(roomId).emit('server_msg', `🏆🏆 ${winner.displayName || winner.username} 夺冠！奖池 ${prize} 金币`);
+            io.in(roomId).emit('server_msg', { k: 'sng.champion', p: { name: winner.displayName || winner.username, prize } });
             io.in(roomId).emit('tournament_over', { winnerId: winner.userId, prize });
         }
         // 公布按名次排名（冠军→淘汰倒序）+ 给每位玩家（含已淘汰离开者）发消息

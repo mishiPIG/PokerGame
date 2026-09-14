@@ -26,18 +26,18 @@ function registerAdminRoomEvents(context, handleJoinRoom) {
         if (inHand) {
             if (game.pendingDissolve) { socket.emit('server_msg', { k: 'admin.dissolvePending', p: { room: roomId } }); return; }
             game.pendingDissolve = true;
-            io.in(roomId).emit('server_msg', '🛑 管理员已结束比赛，本手打完后解散');
+            io.in(roomId).emit('server_msg', { k: 'admin.endPending' });
             broadcastState(roomId);
-            socket.emit('server_msg', `已安排解散房间 ${roomId}（本手打完生效）`);
+            socket.emit('server_msg', { k: 'admin.dissolveScheduled', p: { room: roomId } });
             return;
         }
         if (game.roomType === 'cash') {
-            io.in(roomId).emit('server_msg', '🛑 管理员解散了本房');
+            io.in(roomId).emit('server_msg', { k: 'admin.dissolved' });
             endCashTable(roomId, '管理员解散');
         } else {
             dissolveSngRoom(roomId);
         }
-        socket.emit('server_msg', `✅ 已解散房间 ${roomId}`);
+        socket.emit('server_msg', { k: 'admin.dissolveDone', p: { room: roomId } });
     });
 }
 

@@ -40,23 +40,19 @@ function connectSocket(token) {
         setAuthError(err.message || L('连接失败，请重新登录', 'Connection failed — please sign in again'));
     });
 
-    // 只有这三类上桌面：⚠️ 拒绝 / ✅ 成功 / 👥 牌友。
-    // 其余 server_msg 是只进 console 的动作播报（也因此没翻译）。
-    const TOAST_PREFIXES = ['⚠️', '✅', '👥'];
     socket.on('server_msg', (msg) => {
         // 2026-09-09：拒绝类提示改为服务端发 { k, p }、客户端按当前语言渲染。
         // 普通动作播报（下注/跟注/弃牌…）仍是中文字符串，且本来就只进 console 不上桌面。
         const text = renderServerMsg(msg);
         console.log('[server]', text || msg);
-        // ⚠️ 开头的都是服务端对「我」的私发拒绝（非法操作/不是你的回合/筹码不足/无效加注…），
-        // 以前只进 console → 玩家点了没反应还以为按钮坏了。这类必须可见。
-        // ❌ 拒绝和 ✅ 成功都要弹。原来只弹 ⚠️，结果「✅ 申请已发出」这种
-        // 确认性反馈一条都看不到 —— 玩家点完没任何反应，只能以为功能坏了。
-        // 🔴 【不要用字符类】—— 上一版写的是 /^[⚠✅👥]/，而 👥 是代理对；
-        //    字符类在【没有 u 标志】时把它拆成两个码元，整条正则退化成
-        //    「以 \\uD83D 开头就匹配」—— 💺🔄🛑 这些【本来只写 console、从没翻译过】
-        //    的广播全被弹到了屏幕上（玩家实拍：英文界面冒一堆中文）。
-        if (text && TOAST_PREFIXES.some(p => text.startsWith(p))) toast(text, 3000);
+        // 🔴 【上不上屏幕由消息的形态决定，不看 emoji 前缀】
+        //    · 结构化 { k, p } = 服务端明确「这条要给玩家看」→ 一定弹，且必然有中英两份文案
+        //    · 裸字符串       = 只进 console 的动作播报（也因此从没翻译过）→ 一律不弹
+        //    前两版都栽在「按 emoji 前缀判」上：先是只认 ⚠️ 漏掉了 ✅ 确认，
+        //    后来写成字符类 /^[⚠✅👥]/，而 👥 是代理对、字符类没 u 标志时按码元拆，
+        //    整条退化成「以 \uD83D 开头就匹配」，把没翻译的广播全漏到了屏幕上。
+        //    改成看形态之后，裸中文【在结构上就不可能】漏到屏幕上。
+        if (text && typeof msg === 'object') toast(text, 3000);
     });
 
     socket.on('room_list', (rooms) => {

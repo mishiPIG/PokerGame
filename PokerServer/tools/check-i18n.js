@@ -182,10 +182,62 @@ function checkServer(dir) {
             if (/emit\(\s*'(table_notice|invite_error)'/.test(ln) && CJK.test(ln)) {
                 problems.push(`${name}:${line} 玩家可见事件写死了中文，应改发 { k, p }`);
             }
-            if (/emit\(\s*'server_msg'\s*,\s*['"`]⚠/.test(ln)) {
-                problems.push(`${name}:${line} ⚠️ 拒绝提示是私发给玩家的，必须发 { k, p }`);
-            }
         });
+        // server_msg 必须整条调用一起看，不能按行 —— 见 scanServerMsg 的注释
+        scanServerMsg(name, fs.readFileSync(file, 'utf8'));
+    }
+}
+
+
+// ---------- ③b server_msg：本该给玩家看的东西，不许写成裸字符串 ----------
+// 🔴 两个教训都刻在这里，别再退回去：
+//   ① 必须按【整个 emit 调用】取参数，不能按行。补码失败那两条是【跨行三元】：
+//        socket.emit('server_msg', cond
+//            ? `⚠️ 金币不足…`
+//            : `⚠️ 补码失败…`);
+//      按行匹配 `emit('server_msg', '⚠` 对它完全视而不见 —— 而那是玩家补码失败时
+//      必定看到的提示，英文界面上一直显示中文，没有任何东西报过警。
+//   ② 前缀清单【不在这里写第二份】。当初把客户端 toast 过滤从「只弹 ⚠️」扩到
+//      ⚠️/✅/👥 时忘了同步扩这条规则，`✅ 已解散房间` 就这么一直漏着。
+//      现在改成：先确认客户端仍然按【形态】判可见性（结构化才上屏幕），
+//      前缀只用来识别「作者本来就想让玩家看到」的意图。
+const VISIBLE_PREFIX = ['\u26a0', '\u2705', '\ud83d\udc65'];   // ⚠️ 拒绝 / ✅ 成功 / 👥 牌友
+
+function assertVisibilityContract() {
+    const src = fs.readFileSync(path.join(ROOT, 'public/js/20-socket.js'), 'utf8');
+    if (!/typeof msg === 'object'/.test(src)) {
+        problems.push('public/js/20-socket.js server_msg 的可见性判定不再是「结构化才上屏幕」'
+            + ' —— 按 emoji 前缀判已经漏过两次（只认 ⚠️ / 字符类拆代理对），别退回去');
+    }
+}
+
+// 取 emit('server_msg', <参数>) 的参数文本；括号配平，所以跨行三元也能整条拿到
+function emitArgs(src, from) {
+    const open = src.indexOf('(', from);
+    if (open < 0) return '';
+    let depth = 0;
+    for (let j = open; j < src.length && j < open + 4000; j++) {
+        if (src[j] === '(') depth++;
+        else if (src[j] === ')') { depth--; if (depth === 0) return src.slice(open + 1, j); }
+    }
+    return '';
+}
+
+function scanServerMsg(name, src) {
+    const re = /emit\(\s*'server_msg'/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+        const args = emitArgs(src, m.index);
+        if (/\{\s*k:/.test(args) || /i18n-ok/.test(args)) continue;      // 已结构化 / 明确放行
+        for (const lit of args.match(/(['"`])(?:\\.|(?!\1)[\s\S]){0,200}?\1/g) || []) {
+            const body = lit.slice(1, -1);
+            if (VISIBLE_PREFIX.some(px => body.startsWith(px)) && CJK.test(body)) {
+                const line = src.slice(0, m.index).split('\n').length;
+                problems.push(`${name}:${line} 这条本该给玩家看（${body.slice(0, 8)}…），`
+                    + '写成裸字符串就永远弹不出来，必须发 { k, p }');
+                break;
+            }
+        }
     }
 }
 
@@ -242,6 +294,7 @@ const jsFiles = fs.readdirSync(jsDir).filter(f => f.endsWith('.js') && !SKIP_JS.
 jsFiles.forEach(f => checkClientJs(path.join(jsDir, f)));
 const jsOwned = collectJsOwned();
 checkHtml(path.join(ROOT, 'index.html'), jsOwned);
+assertVisibilityContract();
 checkServer(path.join(ROOT, 'src'));
 checkJsOwned(jsOwned);
 

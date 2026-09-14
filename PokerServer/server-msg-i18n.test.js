@@ -53,15 +53,25 @@ test('🔴 缺 key / 老格式字符串都不能显示成乱码', () => {
     assert.equal(zh("renderServerMsg('⚠️ 老格式')"), '⚠️ 老格式');
 });
 
-test('🔴 服务端不得再有中文的 ⚠️ 提示字面量', () => {
-    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(d =>
-        d.isDirectory() ? walk(path.join(dir, d.name)) : (d.name.endsWith('.js') ? [path.join(dir, d.name)] : []));
-    const offenders = [];
-    for (const f of walk(path.join(__dirname, 'src'))) {
-        const t = fs.readFileSync(f, 'utf8');
-        if (/emit\(\s*'server_msg'\s*,\s*['"`]\u26a0/.test(t)) offenders.push(path.relative(__dirname, f));
-    }
-    assert.deepEqual(offenders, [], '这些文件还在直接 emit 中文提示，英文用户会看到中文：' + offenders.join(', '));
+test('🔴 上不上屏幕必须由【消息形态】决定，不许再按 emoji 前缀判', () => {
+    // 这条原来是「扫 src/ 里有没有 ⚠️ 开头的裸字符串」，用的正则是
+    //     /emit\('server_msg',\s*['"`]⚠/
+    // —— 和 check-i18n 里那条一模一样，也就继承了同一个盲区：它按【单行】匹配，
+    // 而补码失败那两条是跨行三元，于是【两道网都没拦住】，英文界面上一直显示中文。
+    //
+    // 按前缀判这条路已经栽了两次（先是只认 ⚠️ 漏掉 ✅，后来字符类拆代理对
+    // 把没翻译的广播全漏上屏幕）。所以现在守的是【契约】而不是字面量：
+    //   结构化 { k, p } = 服务端明确要给玩家看 → 弹，且必然有中英两份文案
+    //   裸字符串       = 只进 console → 在结构上就【不可能】漏到屏幕上
+    // 逐条字面量的扫描交给 tools/check-i18n.js（它按整个 emit 调用取参数）。
+    const socketSrc = fs.readFileSync(path.join(__dirname, 'public/js/20-socket.js'), 'utf8');
+    const handler = socketSrc.slice(socketSrc.indexOf("socket.on('server_msg'"));
+    const decide = handler.slice(0, handler.indexOf('});'));
+
+    assert.match(decide, /typeof msg === 'object'/,
+        'server_msg 的可见性必须按「是不是结构化」判');
+    assert.doesNotMatch(decide, /startsWith\(|\.test\(text\)/,
+        '不许再按 emoji 前缀 / 正则判可见性——那样写漏过两次');
 });
 
 test('🔴 服务端用到的每个 key 都必须在中英字典里都有', () => {
@@ -81,6 +91,70 @@ test('🔴 服务端用到的每个 key 都必须在中英字典里都有', () =
     const missEn = [...used].filter(k => !zh(`('srv.${k}' in I18N.en)`));
     assert.deepEqual(missZh, [], '中文字典缺这些 key');
     assert.deepEqual(missEn, [], '英文字典缺这些 key');
+});
+
+test('🔴 字典里的每个 {占位符}，服务端都必须真的发出来', () => {
+    // 2026-09-14 加。上一批把 19 条广播改成 { k, p } 时，服务端写 `p: { min: m }`、
+    // 字典写 `{minutes}` 这种事一犯就是【静默】的：renderServerMsg 找不到参数就代入
+    // 空串，玩家看到的是「⏱ 房主加时  分钟」—— 不报错、不乱码，只是少一截。
+    // 反过来（服务端多发了没用上的参数）无害，所以只单向检查。
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(d =>
+        d.isDirectory() ? walk(path.join(dir, d.name)) : (d.name.endsWith('.js') ? [path.join(dir, d.name)] : []));
+
+    // 取 `p: { ... }` 的顶层键名（支持简写 `{ chips, cost: f(x) }` 和嵌套调用）
+    const paramNames = (src, from) => {
+        const open = src.indexOf('{', from);
+        if (open < 0) return [];
+        let depth = 0, end = -1;
+        for (let i = open; i < src.length; i++) {
+            if (src[i] === '{') depth++;
+            else if (src[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+        }
+        if (end < 0) return [];
+        const body = src.slice(open + 1, end);
+        const names = [];
+        let d = 0, token = '';
+        for (const c of body) {
+            if ('{(['.includes(c)) d++;
+            else if ('})]'.includes(c)) d--;
+            if (d === 0 && (c === ',' || c === ':')) {
+                const t = token.trim();
+                if (/^[A-Za-z_$][\w$]*$/.test(t)) names.push(t);
+                if (c === ':') { token = ''; d = -1; }   // 跳到这个值的末尾
+                else token = '';
+                continue;
+            }
+            if (d === -1) { if (c === ',') { d = 0; token = ''; } continue; }
+            token += c;
+        }
+        const last = token.trim();
+        if (/^[A-Za-z_$][\w$]*$/.test(last)) names.push(last);
+        return names;
+    };
+
+    const sent = new Map();   // key -> Set(参数名)
+    for (const f of walk(path.join(__dirname, 'src'))) {
+        const src = fs.readFileSync(f, 'utf8');
+        for (const m of src.matchAll(/emit\(\s*'server_msg'\s*,\s*\{\s*k:\s*'([^']+)'\s*(,\s*p:\s*)?/g)) {
+            const key = m[1];
+            if (!sent.has(key)) sent.set(key, new Set());
+            if (m[2]) for (const n of paramNames(src, m.index + m[0].length)) sent.get(key).add(n);
+        }
+    }
+    assert.ok(sent.size >= 50, '只扫到 ' + sent.size + ' 个 key，抓取逻辑可能失效了');
+
+    const zh = loadI18n('zh');
+    const holes = [];
+    for (const [key, params] of sent) {
+        for (const dict of ['zh', 'en']) {
+            const tpl = zh(`I18N.${dict}['srv.${key}'] || ''`);
+            // {name} 和 {name|filter} 都要算
+            for (const ph of tpl.matchAll(/\{(\w+)(?:\|\w+)?\}/g)) {
+                if (!params.has(ph[1])) holes.push(`${dict} srv.${key} 用了 {${ph[1]}}，但服务端没发这个参数`);
+            }
+        }
+    }
+    assert.deepEqual(holes, [], '这些文案会渲染出一个空洞（没有任何报错）');
 });
 
 // ===== 切语言后的重渲染登记（2026-09-10）=====

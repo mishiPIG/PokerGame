@@ -53,7 +53,7 @@ function registerInviteEvents(context, handleJoinRoom) {
         game.invite.entryLocked = locked;
         persistence.commit(roomId, 'entry_lock_changed', user.id, { locked });
         emitRoomInviteInfo(socket, game);
-        io.in(roomId).emit('server_msg', locked ? '🔒 房主已锁定新玩家入场' : '🔓 房主已开放新玩家入场');
+        io.in(roomId).emit('server_msg', { k: locked ? 'host.entryLocked' : 'host.entryOpen' });
     });
 
     socket.on('reset_room_invite', () => {

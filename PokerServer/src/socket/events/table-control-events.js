@@ -19,12 +19,12 @@ function registerTableControlEvents(context) {
         if (inHand) {
             if (game.pendingDissolve) { socket.emit('server_msg', { k: 'room.dissolvePending' }); return; }
             game.pendingDissolve = true;
-            io.in(roomId).emit('server_msg', '🛑 房主已结束比赛，本手打完后解散');
+            io.in(roomId).emit('server_msg', { k: 'host.endPending' });
             broadcastState(roomId);
             return;
         }
         if (game.roomType === 'cash') {
-            io.in(roomId).emit('server_msg', `🛑 房主提前结束了比赛`);
+            io.in(roomId).emit('server_msg', { k: 'host.endedEarly' });
             endCashTable(roomId, '房主提前结束');   // 结算 + 排名 + 收件箱
             return;
         }
@@ -40,7 +40,7 @@ function registerTableControlEvents(context) {
         const m = clampInt(minutes, 0, 120, 0);
         if (m <= 0) return;
         extendTable(roomId, m * 60000);
-        io.in(roomId).emit('server_msg', `⏱ 房主加时 ${m} 分钟`);
+        io.in(roomId).emit('server_msg', { k: 'host.extended', p: { min: m } });
         broadcastState(roomId);
         const betweenHands = game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN;
         if (!game.paused && game.status === 'running' && betweenHands && liveCount(game) >= 2) startHand(roomId);
@@ -59,11 +59,13 @@ function registerTableControlEvents(context) {
         }
         const result = adjustTableEnd(roomId, requested);
         if (!result) return;
-        const format = value => new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        // ⚠️ 这里原来用 toLocaleTimeString('zh-CN') 在【服务端】拼好时间再发（待办 #13）：
+        //    迁到 AWS（系统时区 UTC）当场差了 8 小时，而且玩家也不都在中国时区。
+        //    现在只发时间戳，客户端用 {at|time} 按自己的时区+语言格式化。
         if (result.timeExpired) {
-            io.in(roomId).emit('server_msg', '⏸️ 房主已将比赛调整为现在到时，暂停发新牌');
+            io.in(roomId).emit('server_msg', { k: 'host.endNow' });
         } else {
-            io.in(roomId).emit('server_msg', `⏱ 房主将预计结束时间调整为 ${format(result.endAt)}`);
+            io.in(roomId).emit('server_msg', { k: 'host.endAtChanged', p: { at: result.endAt } });
         }
         broadcastState(roomId);
         const betweenHands = game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN;
@@ -89,8 +91,8 @@ function registerTableControlEvents(context) {
         const outcome = {};
         if (!chargeRebuy(game, p, chips, outcome)) {
             socket.emit('server_msg', outcome.reason === 'INSUFFICIENT_GOLD'
-                ? `⚠️ 金币不足，补 ${chips} 筹码需 ${Math.ceil(chips * BUYIN_RATE)} 金币`
-                : `⚠️ 补码失败（${outcome.reason || '未知原因'}），已回滚未扣款，请重试或联系管理员`);
+                ? { k: 'rebuy.lowGold', p: { chips, cost: Math.ceil(chips * BUYIN_RATE) } }
+                : { k: 'rebuy.failed', p: { reason: outcome.reason || 'UNKNOWN' } });
             return;
         }
         user.gold = db.getUserById(user.id).gold;

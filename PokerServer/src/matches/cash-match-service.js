@@ -28,7 +28,7 @@ function armTimeUpGrace(roomId, untilMs) {
         if (inHand) {
             // 极端情况下还在牌里（比如房主刚好又开了一手）：不打断，挂 pendingEnd 等本手打完
             g.pendingEnd = true;
-            io.in(roomId).emit('server_msg', '⏰ 到时后 5 分钟无人处理：本手结束后自动结算');
+            io.in(roomId).emit('server_msg', { k: 'table.graceNotice' });
             broadcastState(roomId);
             return;
         }
@@ -45,7 +45,7 @@ function onTableTimeUp(roomId, graceUntil) {
     game.timeExpired = true;
     game.pendingEnd = false; // 兼容旧快照；到时不再代表自动收桌
     armTimeUpGrace(roomId, graceUntil);
-    io.in(roomId).emit('server_msg', '⏰ 训练时长已到——本手结束后暂停发牌；房主 5 分钟内可加时，否则自动结算');
+    io.in(roomId).emit('server_msg', { k: 'table.durationUp' });
     io.in(roomId).emit('match_time_expired', { graceUntil: game.timeUpGraceAt });
     broadcastState(roomId);
 }
@@ -145,8 +145,8 @@ function scheduleNextHand(roomId) {
         if (g.pendingDissolve) { hooks.dissolveNow(roomId); return; }
         // 兜底已触发（到时后 5 分钟无人处理）：本手打完就结算，别再停在这儿
         if (g.pendingEnd) { endCashTable(roomId, '训练时长已到（5 分钟无人处理，自动结算）'); return; }
-        if (g.timeExpired) { io.in(roomId).emit('server_msg', '⏸️ 训练时间已到，等待房主加时或结束比赛'); broadcastState(roomId); return; }
-        if (g.paused) { io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（本手结束）'); broadcastState(roomId); return; }
+        if (g.timeExpired) { io.in(roomId).emit('server_msg', { k: 'table.waitHost' }); broadcastState(roomId); return; }
+        if (g.paused) { io.in(roomId).emit('server_msg', { k: 'table.pausedHand' }); broadcastState(roomId); return; }
         // 全员掉线（都 away）时不再空转发牌——否则会一直发牌+涨盲、僵尸局空耗。有人重连即续（见 membership 重连分支）。
         const connectedLive = g.players.filter(p => p.chips > 0 && !p.sittingOut && !p.away).length;
         if (liveCount(g) >= 2 && connectedLive >= 1) startHand(roomId);

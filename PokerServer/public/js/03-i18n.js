@@ -197,6 +197,35 @@ const I18N = {
         'srv.sys.restarting': '⚠️ 服务正在安全重启，请稍后重新连接',
         'srv.sys.actionFailed': '⚠️ 本次操作失败，牌桌已安全暂停，请稍后重试或重新连接',
 
+        // ===== C 组：房主 / 管理员 / 比赛节奏（2026-09-14 从「只进 console」提升为上屏幕）=====
+        // 挑这一组的标准：它们【改变全桌规则或直接终止比赛】，而牌桌上没有等价显示。
+        // 每手牌的动作播报（弃/跟/加注/翻牌…）刻意不放——牌桌本身就在演，再弹一遍是纯噪音。
+        'srv.host.endPending': '🛑 房主已结束比赛，本手打完后解散',
+        'srv.host.endedEarly': '🛑 房主提前结束了比赛',
+        'srv.host.extended': '⏱ 房主加时 {min} 分钟',
+        'srv.host.endNow': '⏸️ 房主已将比赛调整为现在到时，暂停发新牌',
+        'srv.host.endAtChanged': '⏱ 房主将预计结束时间调整为 {at|time}',
+        'srv.host.paused': '⏸️ 房主已暂停发牌（当前这手打完后暂停，可随时继续）',
+        'srv.host.resumed': '▶️ 房主已继续发牌',
+        'srv.host.straddleOn': '🔥 房主已开启 UTG Straddle（2BB），下一手起生效',
+        'srv.host.straddleOff': '房主已关闭 UTG Straddle',
+        'srv.host.entryLocked': '🔒 房主已锁定新玩家入场',
+        'srv.host.entryOpen': '🔓 房主已开放新玩家入场',
+        'srv.host.dissolved': '🛑 房主解散了房间',
+        'srv.blind.pending': '⏫ 涨盲时间到，将于本局结束后升盲',
+        'srv.blind.up': '⏫ 升盲！级别 {level}：{sb}/{bb}',
+        'srv.sng.champion': '🏆🏆 {name} 夺冠！奖池 {prize} 金币',
+        'srv.table.graceNotice': '⏰ 到时后 5 分钟无人处理：本手结束后自动结算',
+        'srv.table.durationUp': '⏰ 训练时长已到——本手结束后暂停发牌；房主 5 分钟内可加时，否则自动结算',
+        'srv.table.waitHost': '⏸️ 训练时间已到，等待房主加时或结束比赛',
+        'srv.table.pausedHand': '⏸️ 房主已暂停发牌（本手结束）',
+        'srv.admin.endPending': '🛑 管理员已结束比赛，本手打完后解散',
+        'srv.admin.dissolved': '🛑 管理员解散了本房',
+        'srv.admin.dissolveScheduled': '✅ 已安排解散房间 {room}（本手打完生效）',
+        'srv.admin.dissolveDone': '✅ 已解散房间 {room}',
+        'srv.rebuy.lowGold': '⚠️ 金币不足，补 {chips} 筹码需 {cost} 金币',
+        'srv.rebuy.failed': '⚠️ 补码失败（{reason}），已回滚未扣款，请重试或联系管理员',
+
         'a11y.close': '关闭',
         'settings.tab.look': '外观', 'settings.tab.table': '牌桌', 'settings.tab.action': '操作',
         'btn.fullscreen': '⛶ 全屏', 'btn.leaveRoom': '🚪 退出房间', 'btn.dissolve': '🛑 解散房间', 'btn.logout': '⎋ 退出登录',
@@ -424,6 +453,33 @@ const I18N = {
         'srv.sys.restarting': '⚠️ The server is restarting safely - please reconnect shortly',
         'srv.sys.actionFailed': '⚠️ That action failed. The table is paused safely - retry or reconnect',
 
+        // ===== C group: host / admin / match pacing (promoted to on-screen 2026-09-14) =====
+        'srv.host.endPending': '🛑 The host ended the match - the room closes after this hand',
+        'srv.host.endedEarly': '🛑 The host ended the match early',
+        'srv.host.extended': '⏱ The host added {min} min',
+        'srv.host.endNow': '⏸️ The host set the match to end now - no new hands',
+        'srv.host.endAtChanged': '⏱ The host moved the expected end time to {at|time}',
+        'srv.host.paused': '⏸️ The host paused dealing (takes effect after this hand)',
+        'srv.host.resumed': '▶️ The host resumed dealing',
+        'srv.host.straddleOn': '🔥 The host enabled UTG straddle (2BB), from the next hand',
+        'srv.host.straddleOff': 'The host disabled UTG straddle',
+        'srv.host.entryLocked': '🔒 The host locked entry for new players',
+        'srv.host.entryOpen': '🔓 The host opened entry for new players',
+        'srv.host.dissolved': '🛑 The host closed the room',
+        'srv.blind.pending': '⏫ Blinds are due - they go up after this hand',
+        'srv.blind.up': '⏫ Blinds up! Level {level}: {sb}/{bb}',
+        'srv.sng.champion': '🏆🏆 {name} wins! Prize pool {prize} gold',
+        'srv.table.graceNotice': '⏰ If nobody acts within 5 min of time-up, the table settles automatically',
+        'srv.table.durationUp': '⏰ Session time is up - dealing pauses after this hand; the host has 5 min to extend, otherwise it settles',
+        'srv.table.waitHost': '⏸️ Session time is up - waiting for the host to extend or end the match',
+        'srv.table.pausedHand': '⏸️ The host paused dealing (after this hand)',
+        'srv.admin.endPending': '🛑 An admin ended the match - the room closes after this hand',
+        'srv.admin.dissolved': '🛑 An admin closed this room',
+        'srv.admin.dissolveScheduled': '✅ Room {room} is scheduled to close after this hand',
+        'srv.admin.dissolveDone': '✅ Room {room} closed',
+        'srv.rebuy.lowGold': '⚠️ Not enough gold - {chips} chips costs {cost} gold',
+        'srv.rebuy.failed': '⚠️ Rebuy failed ({reason}); nothing was charged - retry or contact an admin',
+
         'a11y.close': 'Close',
         'settings.tab.look': 'Look', 'settings.tab.table': 'Table', 'settings.tab.action': 'Controls',
         'btn.fullscreen': '⛶ Fullscreen', 'btn.leaveRoom': '🚪 Leave room', 'btn.dissolve': '🛑 Dissolve room', 'btn.logout': '⎋ Log out',
@@ -562,5 +618,13 @@ function renderServerMsg(m) {
     // 查不到就什么都不显示——宁可不显示，也绝不能把 "srv.xxx" 弹给玩家（原因见 tOrNull）
     const s = tOrNull('srv.' + m.k);
     if (s == null) return '';
-    return s.replace(/\{(\w+)\}/g, (_, name) => (m.p && m.p[name] != null) ? m.p[name] : '');
+    // {name} 直接代入；{at|time} 走本地格式化 —— 时间绝不能由服务端拼好再发：
+    // 服务端时区一变（香港→AWS 是 UTC）显示就差 8 小时，而玩家也不都在同一个时区。
+    return s.replace(/\{(\w+)(?:\|(\w+))?\}/g, (_, name, filter) => {
+        const v = m.p && m.p[name];
+        if (v == null) return '';
+        if (filter === 'time') return fmtTime(v);
+        if (filter === 'datetime') return fmtDateTime(v);
+        return v;
+    });
 }

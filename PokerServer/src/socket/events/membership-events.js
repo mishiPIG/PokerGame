@@ -66,7 +66,7 @@ function registerMembershipEvents(context) {
         if (!game) return;
         if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyPause' }); return; }
         game.paused = true;
-        io.in(roomId).emit('server_msg', '⏸️ 房主已暂停发牌（当前这手打完后暂停，可随时继续）');
+        io.in(roomId).emit('server_msg', { k: 'host.paused' });
         broadcastState(roomId);
     });
 
@@ -95,9 +95,7 @@ function registerMembershipEvents(context) {
             && game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) {
             prepareNextStraddleDecision(roomId);
         }
-        io.in(roomId).emit('server_msg', next
-            ? '🔥 房主已开启 UTG Straddle（2BB），下一手起生效'
-            : '房主已关闭 UTG Straddle');
+        io.in(roomId).emit('server_msg', { k: next ? 'host.straddleOn' : 'host.straddleOff' });
         broadcastState(roomId);
         broadcastRoomList();
     });
@@ -135,7 +133,7 @@ function registerMembershipEvents(context) {
         if (game.timeExpired) { socket.emit('server_msg', { k: 'table.timeUp' }); return; }
         if (!game.paused) return;
         game.paused = false;
-        io.in(roomId).emit('server_msg', '▶️ 房主已继续发牌');
+        io.in(roomId).emit('server_msg', { k: 'host.resumed' });
         // 若当前在局间且满足开局条件，立即续上一局
         if (game.status === 'running' && (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) && liveCount(game) >= 2) {
             startHand(roomId);
