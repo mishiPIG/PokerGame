@@ -55,6 +55,19 @@ function connectSocket(token) {
         if (text && typeof msg === 'object') toast(text, 3000);
     });
 
+    // 被房主一键邀请。刻意复用 uiConfirm：它已经在 DISMISSIBLE 里登记过、
+    // 点空白/Esc 都能关（关掉 = 拒绝，会如实告诉房主），不用再造一个弹窗。
+    // ⚠️ 这个事件里【没有 joinCode】—— 被邀请者从头到尾不该知道房间码。
+    socket.on('friend_invite', (inv) => {
+        const kind = inv.roomType === 'cash' ? L('训练赛', 'Cash game') : 'SNG';
+        const blinds = inv.bb ? ` · ${inv.sb}/${inv.bb}` : '';
+        uiConfirm(
+            L(`${inv.fromName} 邀请你加入「${inv.roomName}」（${kind}${blinds}）`,
+              `${inv.fromName} invites you to "${inv.roomName}" (${kind}${blinds})`),
+            { ok: L('加入', 'Join'), cancel: L('拒绝', 'Decline') }
+        ).then(ok => socket.emit('invite_respond', { roomId: inv.roomId, accept: !!ok }));
+    });
+
     socket.on('room_list', (rooms) => {
         renderRoomList(rooms);
     });
@@ -87,6 +100,7 @@ function connectSocket(token) {
     socket.on('friend_list', (d) => {
         friendData = { friends: d.friends || [], incoming: d.incoming || [], outgoing: d.outgoing || [] };
         if (d.myCode) { myFriendCode = d.myCode; renderMeHead(); }   // 「我的」页头卡要显示牌友号
+        renderInviteFriends();          // 邀请弹窗开着的话，在线状态跟着刷新
         renderFriends();
         refreshFriendBadge();
     });

@@ -185,3 +185,27 @@ function doFriendSearch() {
 function copyMyCode() {
     copyText(myFriendCode, L('牌友号已复制', 'Friend code copied'));
 }
+
+// ===== 一键邀请（第 2 批）=====
+// 只列【在大厅】的牌友：正在别的牌桌的人服务端也会拒（不该把人从一手牌里拽走），
+// 与其让房主点了才知道，不如根本不显示。
+// ⚠️ 这个列表只在房主的邀请弹窗里出现，而真正的闸在服务端 invite_friend 的
+//    ownerUserId 校验 —— 客户端这层只是别让人看见按钮。
+function renderInviteFriends() {
+    const box = document.getElementById('invite-friends');
+    if (!box) return;
+    const list = friendData.friends.filter(f => f.online && !f.roomId);
+    if (!list.length) {
+        box.innerHTML = `<div class="pane-empty">${L('现在没有在大厅的牌友<br>已经在别的牌桌上的人不能被邀请',
+            'No friends in the lobby right now<br>Friends already at a table cannot be invited')}</div>`;
+        return;
+    }
+    box.innerHTML = list.map(f => `<div class="inv-fr">
+        <div class="fr-av">${friendAvatar(f)}</div>
+        <div class="fr-name">${escapeHtml(f.displayName)}</div>
+        <button class="fr-btn ok" onclick="inviteFriend('${f.userId}')">${L('邀请', 'Invite')}</button>
+    </div>`).join('');
+}
+// 结果一律由服务端的 server_msg 告诉他（已邀请 / 不是牌友 / 在别桌 / 入场锁着…），
+// 这里不预判 —— 客户端猜出来的结论和服务端不一致时，玩家只会更糊涂。
+function inviteFriend(userId) { socket?.emit('invite_friend', { userId }); }

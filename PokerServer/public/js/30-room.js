@@ -401,6 +401,9 @@ function openInvite(requestInfo = true) {
         document.getElementById('invite-content').style.display = 'none';
     }
     if (requestInfo && socket) socket.emit('get_room_invite');
+    // 在线状态可能是几分钟前推的，开弹窗时重新要一次，免得列出已经离线的人
+    socket?.emit('friend_list');
+    renderInviteFriends();
 }
 function closeInvite() { document.getElementById('invite-modal').style.display = 'none'; }
 function renderInviteInfo() {

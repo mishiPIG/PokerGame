@@ -197,6 +197,22 @@ const I18N = {
         'srv.sys.restarting': '⚠️ 服务正在安全重启，请稍后重新连接',
         'srv.sys.actionFailed': '⚠️ 本次操作失败，牌桌已安全暂停，请稍后重试或重新连接',
 
+        // ===== 一键邀请牌友（2026-09-14）=====
+        'srv.invite.onlyOwner': '⚠️ 只有房主可以邀请牌友',
+        'srv.invite.notFriend': '⚠️ 你们还不是牌友',
+        'srv.invite.offline': '⚠️ TA 现在不在线',
+        'srv.invite.busy': '⚠️ TA 正在别的牌桌，先让 TA 回大厅',
+        'srv.invite.alreadyHere': '⚠️ TA 已经在这张桌上了',
+        'srv.invite.locked': '⚠️ 你锁定了入场，先点「开放入场」再邀请',
+        'srv.invite.cantJoin': '⚠️ 现在进不来了（比赛已开始或人已满）',
+        'srv.invite.pending': '⚠️ 已经邀请过了，等 TA 回应',
+        'srv.invite.sent': '✅ 已邀请 {name}，等 TA 同意',
+        'srv.invite.accepted': '✅ {name} 接受了邀请',
+        'srv.invite.declined': '⚠️ {name} 拒绝了邀请',
+        'srv.invite.expired': '⚠️ 这条邀请已过期或已失效',
+        'srv.invite.gone': '⚠️ 那张牌桌已经不在了',
+        'srv.invite.reset': '✅ 邀请链接和房间码已重置',
+
         // ===== C 组：房主 / 管理员 / 比赛节奏（2026-09-14 从「只进 console」提升为上屏幕）=====
         // 挑这一组的标准：它们【改变全桌规则或直接终止比赛】，而牌桌上没有等价显示。
         // 每手牌的动作播报（弃/跟/加注/翻牌…）刻意不放——牌桌本身就在演，再弹一遍是纯噪音。
@@ -254,7 +270,7 @@ const I18N = {
         'prof.title': '👤 个人主页', 'prof.info': '资料', 'prof.stats': '生涯战绩', 'prof.hands': '牌谱', 'prof.avatar': '头像',
         'filter.all': '全部', 'filter.cash': '现金桌', 'filter.sng': 'SNG',
         'inv.title': '🔗 邀请朋友加入', 'inv.note': '复制后直接发送给朋友；可点链接加入，跨设备时也可输入房间码。', 'inv.loading': '正在获取邀请信息…',
-        'inv.label': '邀请信息', 'inv.copy': '一键复制', 'inv.open': '🔓 开放入场', 'inv.reset': '↻ 重置邀请', 'inv.close': '关闭',
+        'inv.label': '邀请信息', 'inv.friends': '👥 邀请在线牌友', 'inv.copy': '一键复制', 'inv.open': '🔓 开放入场', 'inv.reset': '↻ 重置邀请', 'inv.close': '关闭',
         'edge.stats': '战绩', 'edge.hands': '牌谱',
         'compliance': '绿色竞技 · 远离赌博 · 谨防诈骗 · 健康生活',
         'ms.title': '比赛设置', 'ms.close': '关闭', 'ms.end': '🛑 提前结束',
@@ -453,6 +469,22 @@ const I18N = {
         'srv.sys.restarting': '⚠️ The server is restarting safely - please reconnect shortly',
         'srv.sys.actionFailed': '⚠️ That action failed. The table is paused safely - retry or reconnect',
 
+        // ===== One-tap friend invite (2026-09-14) =====
+        'srv.invite.onlyOwner': '⚠️ Only the host can invite friends',
+        'srv.invite.notFriend': '⚠️ You are not poker friends yet',
+        'srv.invite.offline': '⚠️ They are offline right now',
+        'srv.invite.busy': '⚠️ They are at another table - ask them to return to the lobby first',
+        'srv.invite.alreadyHere': '⚠️ They are already at this table',
+        'srv.invite.locked': '⚠️ Entry is locked - tap "Open entry" before inviting',
+        'srv.invite.cantJoin': '⚠️ They cannot join now (the match started or the table is full)',
+        'srv.invite.pending': '⚠️ Already invited - waiting for their answer',
+        'srv.invite.sent': '✅ Invited {name} - waiting for them to accept',
+        'srv.invite.accepted': '✅ {name} accepted your invite',
+        'srv.invite.declined': '⚠️ {name} declined your invite',
+        'srv.invite.expired': '⚠️ That invite has expired or is no longer valid',
+        'srv.invite.gone': '⚠️ That table is gone',
+        'srv.invite.reset': '✅ Invite link and room code have been reset',
+
         // ===== C group: host / admin / match pacing (promoted to on-screen 2026-09-14) =====
         'srv.host.endPending': '🛑 The host ended the match - the room closes after this hand',
         'srv.host.endedEarly': '🛑 The host ended the match early',
@@ -508,7 +540,7 @@ const I18N = {
         'prof.title': '👤 Profile', 'prof.info': 'Info', 'prof.stats': 'Career', 'prof.hands': 'Hands', 'prof.avatar': 'Avatar',
         'filter.all': 'All', 'filter.cash': 'Cash', 'filter.sng': 'SNG',
         'inv.title': '🔗 Invite friends', 'inv.note': 'Copy and send to a friend; they can tap the link, or type the room code across devices.', 'inv.loading': 'Getting invite info…',
-        'inv.label': 'Invite', 'inv.copy': 'Copy', 'inv.open': '🔓 Open entry', 'inv.reset': '↻ Reset invite', 'inv.close': 'Close',
+        'inv.label': 'Invite', 'inv.friends': '👥 Invite friends online', 'inv.copy': 'Copy', 'inv.open': '🔓 Open entry', 'inv.reset': '↻ Reset invite', 'inv.close': 'Close',
         'edge.stats': 'Stats', 'edge.hands': 'Hands',
         'compliance': 'Play for fun · No gambling · Beware of scams · Stay healthy',
         'ms.title': 'Game settings', 'ms.close': 'Close', 'ms.end': '🛑 End early',
