@@ -191,10 +191,31 @@ function copyMyCode() {
 // 与其让房主点了才知道，不如根本不显示。
 // ⚠️ 这个列表只在房主的邀请弹窗里出现，而真正的闸在服务端 invite_friend 的
 //    ownerUserId 校验 —— 客户端这层只是别让人看见按钮。
+// 人多时才出现筛选框的门槛。低于它多一个输入框只是碍事。
+const INV_FILTER_AT = 8;
 function renderInviteFriends() {
     const box = document.getElementById('invite-friends');
     if (!box) return;
-    const list = friendData.friends.filter(f => f.online && !f.roomId);
+    const all = friendData.friends.filter(f => f.online && !f.roomId);
+
+    // ⚠️ 筛选框写在 index.html 里、【不在重渲染的那块 DOM 内】——
+    //    否则每敲一个字就把 input 重建一次，光标当场丢掉。
+    const fi = document.getElementById('inv-fr-filter');
+    if (fi) {
+        fi.style.display = all.length >= INV_FILTER_AT ? '' : 'none';
+        if (all.length < INV_FILTER_AT) fi.value = '';
+    }
+    const q = (fi?.value || '').trim().toLowerCase();
+    const list = q ? all.filter(f => String(f.displayName || '').toLowerCase().includes(q)) : all;
+
+    // 计数单独一个 span：外面那个标签挂着 data-i18n，JS 一写就会被 applyLang() 覆盖回去
+    const cnt = document.getElementById('inv-fr-count');
+    if (cnt) cnt.textContent = all.length ? (q ? ` ${list.length}/${all.length}` : ` (${all.length})`) : '';
+
+    if (q && !list.length) {
+        box.innerHTML = `<div class="pane-empty">${L('没有匹配的牌友', 'No friend matches that')}</div>`;
+        return;
+    }
     if (!list.length) {
         box.innerHTML = `<div class="pane-empty">${L('现在没有在大厅的牌友<br>已经在别的牌桌上的人不能被邀请',
             'No friends in the lobby right now<br>Friends already at a table cannot be invited')}</div>`;

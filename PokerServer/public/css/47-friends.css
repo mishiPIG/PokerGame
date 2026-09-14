@@ -97,7 +97,12 @@
         .me-code:active { color: #dfe9e2; }
 
         /* 邀请弹窗里的在线牌友列表 */
-        .inv-friends { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+        /* 写死 180px 在横屏手机（视口才 ~380px 高）上会吃掉半屏，
+           所以取「180px 和 30dvh 里更小的那个」。*/
+        .inv-friends { display: flex; flex-direction: column; gap: 6px;
+            max-height: min(180px, 30dvh); overflow-y: auto; }
+        .inv-count { color: #9db9a9; font-weight: normal; }
+        .inv-filter { width: 100%; box-sizing: border-box; margin-bottom: 6px; }
         .inv-fr { display: flex; align-items: center; gap: 8px;
             padding: 6px 8px; border-radius: 10px; background: rgba(255,255,255,0.05); }
         .inv-fr .fr-av { width: 28px; height: 28px; font-size: 13px; }

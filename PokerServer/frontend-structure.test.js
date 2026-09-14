@@ -233,6 +233,36 @@ test('🔴 前端构建号占位符不许被提交成固定 SHA', () => {
 });
 
 
+
+test('🔴 弹窗必须被视口限住并且能滚，长度不受控的列表必须自己封顶', () => {
+    // 玩家提的：「牌友多了会不会把这个弹窗撑坏」。会——但根子不在列表。
+    // .modal-mask 是 position:fixed + align-items:center：内容一旦超过视口，
+    // 弹窗【上下各溢出一截而且滚不到】，连「关闭」都点不着。
+    // 这条规则底下挂着买入 / 补码 / 备注 / 确认 / 邀请【所有】弹窗，
+    // 而「在线牌友」这种长度完全不受控的内容随时会把它顶破。
+    const css = f => fs.readFileSync(path.join(CSS_DIR, f), 'utf8');
+    const ruleBody = (src, sel) => {
+        const m = src.match(new RegExp(`\\${sel}\\s*\\{([^}]*)\\}`));
+        assert.ok(m, `CSS 里找不到 ${sel} —— 这条检查会变成永远为真`);
+        return m[1];
+    };
+
+    const box = ruleBody(css('43-modals.css'), '.modal-box');
+    assert.match(box, /max-height:/, '.modal-box 没有高度上限，内容一多就顶出视口');
+    // \b 不能用：`100dvh` 里 0 和 d 都是词字符，中间根本没有边界（第一版就这么挂的）
+    assert.match(box, /\d+dvh/,
+        '.modal-box 的高度上限要用 dvh —— vh 在手机上地址栏收起前后是错的');
+    assert.match(box, /overflow-y:\s*auto/, '.modal-box 不能滚 = 溢出的部分永远够不着');
+
+    // 长度不受控、由 JS 填内容的列表容器：自己也得封顶 + 可滚，
+    // 不能全指望外层弹窗（那样一打开就是满屏一条列表）。
+    for (const [file, sel] of [['47-friends.css', '.inv-friends']]) {
+        const body = ruleBody(css(file), sel);
+        assert.match(body, /max-height:/, `${sel} 没有高度上限`);
+        assert.match(body, /overflow-y:\s*auto/, `${sel} 不能滚`);
+    }
+});
+
 // ===== 下面三条都是 2026-09-14 那批验收 bug 留下的关卡 =====
 
 test('🔴 正则字符类里不许出现 emoji（除非带 u 标志）', () => {

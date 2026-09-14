@@ -5,10 +5,18 @@
            （买入/补码/邀请是最高频弹窗）。
            配色基准与大厅/结算面板一致：底 #22392e→#16261f、金边、主确认用 #06d6a0。 */
         .modal-mask { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.6);
-            display: flex; align-items: center; justify-content: center; padding: 20px; }
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+            overflow-y: auto; }
+        /* 🔴 max-height + overflow 不能删。
+           .modal-mask 是 position:fixed + align-items:center —— 内容一旦超过视口，
+           弹窗会【上下各溢出一截，而且滚不到】，连「关闭」按钮都点不着。
+           这不是某个弹窗的问题：买入/补码/备注/邀请都长在这条规则上，
+           而「牌友列表」这种长度不受控的内容随时会把它顶破。
+           用 dvh 不用 vh：手机浏览器地址栏收起前后 vh 是错的（全站都用 dvh）。*/
         .modal-box { background: linear-gradient(160deg, #22392e, #16261f); color: #eaf3ee;
             border: 1px solid rgba(244,211,94,0.18);
             border-radius: 18px; padding: 22px; width: 100%; max-width: 360px;
+            max-height: calc(100dvh - 40px); overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
         .modal-box h3 { margin: 0 0 14px; text-align: center; color: #eaf3ee; }
         .modal-actions { display: flex; gap: 12px; margin-top: 18px; }

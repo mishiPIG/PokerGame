@@ -491,7 +491,10 @@
                     </div>
                 </div>
                 <div class="invite-field">
-                    <span class="invite-label" data-i18n="inv.friends">👥 邀请在线牌友</span>
+                    <span class="invite-label"><span data-i18n="inv.friends">👥 邀请在线牌友</span><span id="inv-fr-count" class="inv-count"></span></span>
+                    <input id="inv-fr-filter" class="fr-search inv-filter" type="text" maxlength="24"
+                           style="display:none" data-i18n-ph="inv.filterPh" placeholder="输入名字筛选"
+                           oninput="renderInviteFriends()">
                     <div id="invite-friends" class="inv-friends"></div>
                 </div>
                 <div class="invite-manage">
