@@ -31,8 +31,10 @@
         .fr-main { flex: 1; min-width: 0; }
         .fr-name { font-size: 14px; font-weight: bold; color: #eaf3ee;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        /* 备注跟在名字后面、小一号灰色 —— 它是【只有我看得见】的私货，不该抢名字的位置 */
-        .fr-note { font-size: 12px; font-weight: normal; color: #9db9a9; margin-left: 6px; }
+        /* 备注单占一行：放在 .fr-name 里会跟名字一起被截断，两边都看不清。
+           它是【只有我看得见】的私货，所以颜色压得比名字低。*/
+        .fr-note { font-size: 12px; color: #9db9a9; margin-top: 2px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .fr-sub { font-size: 12px; color: #9db9a9; margin-top: 3px;
             display: flex; align-items: center; gap: 4px; }
 

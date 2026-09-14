@@ -40,3 +40,32 @@ function closeConfirm(result) {
     const r = _confirmResolve; _confirmResolve = null;
     if (r) r(!!result);
 }
+
+// 复制到剪贴板。【所有复制都走这一个】，别再自己写。
+// 🔴 navigator.clipboard 只在【安全上下文】（https / localhost）里存在。
+//    测试服是 http://10.76.x.x:3000 —— 在那里它直接是 undefined，
+//    所以 `navigator.clipboard?.writeText(...)` 会静默地什么都不做：
+//    没复制上、不报错、连一句提示都没有，玩家只能当成功能坏了
+//    （牌友号和版本号两个按钮都中过这一枪）。
+//    → 有安全上下文就用它，没有就退回 execCommand，而且【成败都给一句反馈】。
+async function copyText(text, successMessage) {
+    if (!text) return;
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const area = document.createElement('textarea');
+            area.value = text;
+            // 不能 display:none，那样选不中，execCommand 会失败
+            area.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+            document.body.appendChild(area);
+            area.select();
+            const ok = document.execCommand('copy');
+            area.remove();
+            if (!ok) throw new Error('copy failed');
+        }
+        toast(successMessage);
+    } catch {
+        toast(L('复制失败，请长按内容手动复制', 'Copy failed — long-press to copy manually'));
+    }
+}

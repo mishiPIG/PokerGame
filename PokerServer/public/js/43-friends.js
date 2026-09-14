@@ -40,11 +40,15 @@ function friendAvatar(f) {
 }
 
 function friendRow(f, actions) {
-    const note = f.note ? `<span class="fr-note">${escapeHtml(f.note)}</span>` : '';
+    // 备注单占一行。原来它跟在名字后面、包在同一个 .fr-name 里，
+    // 而 .fr-name 是【截断行】（nowrap + ellipsis）—— 备注稍长就把两者一起
+    // 截成「admin1 s⋯」，名字和备注都看不清（玩家实拍）。
+    const note = f.note ? `<div class="fr-note">${escapeHtml(f.note)}</div>` : '';
     return `<div class="fr-row">
         <div class="fr-av">${friendAvatar(f)}</div>
         <div class="fr-main">
-            <div class="fr-name">${escapeHtml(f.displayName)}${note}</div>
+            <div class="fr-name">${escapeHtml(f.displayName)}</div>
+            ${note}
             <div class="fr-sub">${actions.sub || ''}</div>
         </div>
         <div class="fr-acts">${actions.buttons || ''}</div>
@@ -179,7 +183,5 @@ function doFriendSearch() {
     socket?.emit('friend_search', { q });
 }
 function copyMyCode() {
-    if (!myFriendCode) return;
-    navigator.clipboard?.writeText(myFriendCode)
-        .then(() => toast(L('牌友号已复制', 'Code copied')), () => {});
+    copyText(myFriendCode, L('牌友号已复制', 'Friend code copied'));
 }

@@ -40,6 +40,9 @@ function connectSocket(token) {
         setAuthError(err.message || L('连接失败，请重新登录', 'Connection failed — please sign in again'));
     });
 
+    // 只有这三类上桌面：⚠️ 拒绝 / ✅ 成功 / 👥 牌友。
+    // 其余 server_msg 是只进 console 的动作播报（也因此没翻译）。
+    const TOAST_PREFIXES = ['⚠️', '✅', '👥'];
     socket.on('server_msg', (msg) => {
         // 2026-09-09：拒绝类提示改为服务端发 { k, p }、客户端按当前语言渲染。
         // 普通动作播报（下注/跟注/弃牌…）仍是中文字符串，且本来就只进 console 不上桌面。
@@ -49,7 +52,11 @@ function connectSocket(token) {
         // 以前只进 console → 玩家点了没反应还以为按钮坏了。这类必须可见。
         // ❌ 拒绝和 ✅ 成功都要弹。原来只弹 ⚠️，结果「✅ 申请已发出」这种
         // 确认性反馈一条都看不到 —— 玩家点完没任何反应，只能以为功能坏了。
-        if (text && /^[⚠✅👥]/.test(text)) toast(text, 3000);
+        // 🔴 【不要用字符类】—— 上一版写的是 /^[⚠✅👥]/，而 👥 是代理对；
+        //    字符类在【没有 u 标志】时把它拆成两个码元，整条正则退化成
+        //    「以 \\uD83D 开头就匹配」—— 💺🔄🛑 这些【本来只写 console、从没翻译过】
+        //    的广播全被弹到了屏幕上（玩家实拍：英文界面冒一堆中文）。
+        if (text && TOAST_PREFIXES.some(p => text.startsWith(p))) toast(text, 3000);
     });
 
     socket.on('room_list', (rooms) => {

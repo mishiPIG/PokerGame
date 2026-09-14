@@ -231,3 +231,84 @@ test('🔴 前端构建号占位符不许被提交成固定 SHA', () => {
         assert.ok(commit < stamp, `${f}: git commit 必须排在盖构建号之前，否则临时 SHA 会被提交进仓库`);
     }
 });
+
+
+// ===== 下面三条都是 2026-09-14 那批验收 bug 留下的关卡 =====
+
+test('🔴 正则字符类里不许出现 emoji（除非带 u 标志）', () => {
+    // 亲身踩的：`/^[⚠✅👥]/` 看着没问题，实际 👥 是【代理对】（两个码元）。
+    // 字符类在没有 u 标志时按【码元】拆，于是这条正则等价于 `[⚠✅\uD83D\uDC65]`
+    // —— 变成「只要以 \uD83D 开头就匹配」，把 💺🔄🛑 一大票【只写 console、从没翻译过】
+    // 的服务端广播全弹到了屏幕上（玩家实拍：英文界面冒一堆中文）。
+    // 这类错没有任何外在症状，只能靠机检。
+    //
+    // 注：想匹配一组 emoji 就别用字符类，用 startsWith / 显式数组；
+    //     真要用就加 u 标志（那时字符类按码点处理，才是对的）。
+    const RE_LITERAL =
+        /(^|[=(,:[!&|?{};+\-*%\n]|\breturn\b|\btypeof\b)\s*\/(?![*/])((?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\n])+)\/([a-z]*)/g;
+    const RE_CLASS = /\[(?:\\.|[^\]\\])*\]/g;
+    const ASTRAL = /[\uD800-\uDFFF]/;                 // 代理码元 = 这个字符类是按码元拆的
+    const bad = [];
+    for (const f of EXPECTED_SCRIPTS) {
+        const src = source(f);
+        for (const m of src.matchAll(RE_LITERAL)) {
+            const [, , body, flags] = m;
+            if (flags.includes('u') || flags.includes('v')) continue;
+            for (const cls of body.match(RE_CLASS) || []) {
+                if (ASTRAL.test(cls)) bad.push(`${f}: /${body}/${flags}`);
+            }
+        }
+    }
+    assert.deepEqual(bad, [],
+        '正则字符类里有 emoji 却没带 u 标志 —— 它会被拆成代理码元，匹配到一大堆你没想匹配的东西');
+});
+
+test('🔴 剪贴板只许走 copyText()（navigator.clipboard 在 http 下根本不存在）', () => {
+    // 测试服是 http://10.76.x.x:3000，不是安全上下文 → navigator.clipboard === undefined。
+    // 于是 `navigator.clipboard?.writeText(x)` 静默什么都不做：没复制上、不报错、没提示，
+    // 玩家点了毫无反应（牌友号、版本号两个按钮都这么坏过）。
+    // copyText() 里有 execCommand 降级，而且【成败都给一句 toast】。
+    const owners = EXPECTED_SCRIPTS.filter(f => source(f).includes('navigator.clipboard'));
+    assert.deepEqual(owners, ['05-utils.js'],
+        '除了 05-utils.js 里的 copyText()，别处不许直接碰 navigator.clipboard —— 用 copyText()');
+    assert.match(source('05-utils.js'), /execCommand\('copy'\)/,
+        'copyText() 必须保留非安全上下文的降级路径');
+});
+
+test('🔴 会截断的那一行里只许放一样东西', () => {
+    // 玩家实拍：牌友备注写长一点，整行变成「admin1 s⋯」—— 名字和备注都看不清。
+    // 原因是备注被塞进了 .fr-name 里，而 .fr-name 是 nowrap + ellipsis 的截断行：
+    // 【两个长度不受控的字符串共用一条截断行，必然互相吃掉对方】。
+    // 所以规则是结构性的：CSS 标成截断的类，JS 模板里不许再往里套带 class 的元素。
+    const truncating = new Set();
+    for (const f of EXPECTED_STYLES) {
+        const css = fs.readFileSync(path.join(CSS_DIR, f), 'utf8');
+        for (const m of css.matchAll(/\.([\w-]+)\s*\{([^}]*)\}/g)) {
+            const body = m[2];
+            if (/text-overflow:\s*ellipsis/.test(body) && /white-space:\s*nowrap/.test(body)) truncating.add(m[1]);
+        }
+    }
+    assert.ok(truncating.size >= 5, '没扫到截断类，说明 CSS 解析写错了（这条检查会变成永远为真）');
+
+    const bad = [];
+    for (const f of EXPECTED_SCRIPTS) {
+        const src = source(f);
+        for (const cls of truncating) {
+            for (const m of src.matchAll(new RegExp(`class="${cls}"[^>]*>`, 'g'))) {
+                // 取到这个元素的第一个闭合标签为止
+                const rest = src.slice(m.index + m[0].length);
+                const end = rest.search(/<\/(div|span)>/);
+                const inner = end < 0 ? rest.slice(0, 200) : rest.slice(0, end);
+                // 两种签名都算：套了带 class 的元素，或者塞了【不止一个】插值。
+                // ⚠️ 后者是重点 —— 出问题那次写的是 `${escapeHtml(f.displayName)}${note}`，
+                //    class= 藏在 note 变量里，只查字面 class= 的话【一个都抓不到】。
+                const slots = (inner.match(/\$\{/g) || []).length;
+                if (/class="/.test(inner) || slots > 1) {
+                    bad.push(`${f}: .${cls} 里放了 ${slots} 段内容 → ${inner.trim().slice(0, 60)}`);
+                }
+            }
+        }
+    }
+    assert.deepEqual(bad, [],
+        '截断行（nowrap + ellipsis）里只许放一段内容 —— 两段变长文本会互相截没');
+});

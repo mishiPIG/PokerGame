@@ -180,7 +180,8 @@ function renderReplayFrame() {
         return `<div class="${cls}" style="left:${pos.x}%;top:${pos.y}%">
             <div class="rp-cards">${cards}</div>
             <div class="rp-avatar" style="background:hsl(${hashHue(p.userId)},45%,42%)">${av}</div>
-            <div class="rp-name">${escapeHtml(p.name)}${p.pos ? `<span class="pos">${p.pos}</span>` : ''}</div>
+            <div class="rp-name"><span class="rp-nm">${escapeHtml(p.name)}</span>${
+                p.pos ? `<span class="pos">${p.pos}</span>` : ''}</div>
             <div class="rp-stack">${fmtChips(p.stack)}</div>
             ${p.bet > 0 ? `<div class="rp-bet">${fmtChips(p.bet)}</div>` : ''}
         </div>`;

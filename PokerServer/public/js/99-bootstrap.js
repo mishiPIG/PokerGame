@@ -74,8 +74,7 @@ function renderVersion() {
 //    （check-i18n.js 现在会拦这一类：JS 写的元素不许挂 data-i18n。）
 onLangChange(() => renderVersion());
 function copyVersion() {
-    if (!_verText) return;
-    navigator.clipboard?.writeText(_verText).then(() => toast(L('已复制版本信息', 'Version info copied')), () => {});
+    copyText(_verText, L('已复制版本信息', 'Version info copied'));
 }
 loadVersion();
 

@@ -412,26 +412,6 @@ function renderInviteInfo() {
     lock.textContent = roomInviteInfo.entryLocked ? L('🔒 已锁定入场', '🔒 Entry locked') : L('🔓 开放入场', '🔓 Open entry');
     lock.classList.toggle('locked', !!roomInviteInfo.entryLocked);
 }
-async function copyText(text, successMessage) {
-    if (!text) return;
-    try {
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(text);
-        } else {
-            const area = document.createElement('textarea');
-            area.value = text;
-            area.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
-            document.body.appendChild(area);
-            area.select();
-            const ok = document.execCommand('copy');
-            area.remove();
-            if (!ok) throw new Error('copy failed');
-        }
-        toast(successMessage);
-    } catch {
-        toast(L('复制失败，请长按内容手动复制', 'Copy failed — long-press to copy manually'));
-    }
-}
 function formatRoomInvite(invite) {
     if (!invite?.inviteUrl || !invite?.joinCode) return '';
     const roomName = invite.roomName ? `${L('房间名', 'Room')}：${invite.roomName}\n` : '';

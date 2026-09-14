@@ -1,4 +1,8 @@
 // ===== 消息收件箱 =====
+// 🔴 用数组 + startsWith，【不要写成 /^[🥇🥈🥉]/】—— 这三个都是代理对，
+//    字符类在没有 u 标志时按码元拆，那条正则实际等价于「以 \uD83E 开头就算称号行」，
+//    🤖🧠🩹… 一大票 emoji 都会被误认成称号（同款 bug 在 server_msg 的 toast 过滤上真炸过）。
+const AWARD_PREFIXES = ['🥇', '🥈', '🥉'];
 // 结算类消息是我们自己按固定格式发的（标题 / 你第X名 / —— 分节 —— / 排名行），
 // 这里按那套格式做轻量结构化渲染，比整段纯文本好读得多；不认识的行原样显示，格式变了也不会崩。
 function formatInboxText(text) {
@@ -14,7 +18,7 @@ function formatInboxText(text) {
             const cls = /盈亏 -/.test(line) ? 'lose' : 'win';
             html += `<div class="ib-mine ${cls}">${esc}</div>`; continue;
         }
-        if (/^[🥇🥈🥉]/.test(line)) { html += `<div class="ib-award">${esc}</div>`; continue; }
+        if (AWARD_PREFIXES.some(p => line.startsWith(p))) { html += `<div class="ib-award">${esc}</div>`; continue; }
         const rank = line.match(/^(\d+)\.\s*(.*)$/);     // 排名行：序号单独成块
         if (rank) {
             html += `<div class="ib-rank"><span class="ib-no">${rank[1]}</span><span>${escapeHtml(inboxTextL(rank[2]))}</span></div>`;

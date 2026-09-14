@@ -33,9 +33,13 @@ function fixture(overrides = {}) {
     return { game: roomGames.room1, roomGames, service, emitted, broadcasts: () => broadcasts };
 }
 
-test('cash table time-up pauses new hands without settling or deleting the room', () => {
+test('cash table time-up pauses new hands without settling or deleting the room', t => {
     const { game, service, emitted, broadcasts } = fixture();
     service.onTableTimeUp('room1');
+    // onTableTimeUp 会武装一个 5 分钟的兜底结算定时器。不清掉它，node --test
+    // 就会抱着这个 timer 干等 5 分钟才退出 —— 整个 npm test 一直被它拖着，
+    // 表现成「测试跑不完」，而不是任何一条断言失败。
+    t.after(() => clearTimeout(game.timeUpGraceTimer));
     assert.equal(game.timeExpired, true);
     assert.equal(game.tournamentOver, undefined);
     assert.equal(broadcasts(), 1);
