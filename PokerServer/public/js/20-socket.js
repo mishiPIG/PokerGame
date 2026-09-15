@@ -101,6 +101,7 @@ function connectSocket(token) {
         friendData = { friends: d.friends || [], incoming: d.incoming || [], outgoing: d.outgoing || [] };
         if (d.myCode) { myFriendCode = d.myCode; renderMeHead(); }   // 「我的」页头卡要显示牌友号
         renderInviteFriends();          // 邀请弹窗开着的话，在线状态跟着刷新
+        renderFriendsOnline();          // 大厅那行「N 位牌友在线」
         renderFriends();
         refreshFriendBadge();
     });

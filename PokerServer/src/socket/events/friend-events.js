@@ -17,9 +17,12 @@ function registerFriendEvents(context) {
     // 某人现在在哪：离线 / 在大厅 / 在某张牌桌。
     // 靠 io 里该用户的 socket 有没有 currentRoom —— 不另存一份在线表，
     // 免得断线/重连时两边对不上（那种不一致最后总会以「显示在线其实早走了」暴露出来）。
-    function presenceOf(userId) {
+    // exceptSocket：算「下线后的状态」时把正在断开的那条排除掉。
+    // socket.io 目前是先把 socket 从表里摘掉再 emit disconnect，所以多数情况下用不上；
+    // 但这是库的内部时序，压在上面不划算 —— 排除一下零成本，两种时序都对。
+    function presenceOf(userId, exceptSocket) {
         for (const s of io.sockets.sockets.values()) {
-            if (s.user?.id !== userId) continue;
+            if (s.user?.id !== userId || s.id === exceptSocket) continue;
             const roomId = s.currentRoom;
             if (roomId && roomGames[roomId]) return { online: true, roomId };
             return { online: true, roomId: null };
@@ -27,16 +30,16 @@ function registerFriendEvents(context) {
         return { online: false, roomId: null };
     }
 
-    function withPresence(list) {
-        return list.map(f => ({ ...f, ...presenceOf(f.userId) }));
+    function withPresence(list, exceptSocket) {
+        return list.map(f => ({ ...f, ...presenceOf(f.userId, exceptSocket) }));
     }
 
-    function sendList(target = socket) {
+    function sendList(target = socket, exceptSocket) {
         const uid = target.user?.id;
         if (!uid) return;
         target.emit('friend_list', {
             myCode: db.getUserById(uid)?.friendCode || '',
-            friends: withPresence(db.friends.listFriends(uid)),
+            friends: withPresence(db.friends.listFriends(uid), exceptSocket),
             incoming: db.friends.listIncoming(uid),
             outgoing: db.friends.listOutgoing(uid),
         });
@@ -56,10 +59,26 @@ function registerFriendEvents(context) {
         }
     }
 
+    // 我的在线状态变了 → 挨个告诉【在线的】牌友。
+    // 🔴 不做这一步，大厅那行「N 位牌友在线」就是一张过期快照：早走的人一直亮着、
+    //    刚上线的看不见。而「谁在线」是约局的第一步，它一旦不准，玩家就再也不会信它 ——
+    //    一个不可信的状态指示比没有更糟，因为它还在骗人。
+    function pushPresenceToFriends(exceptSocket) {
+        let friends;
+        try { friends = db.friends.listFriends(user.id); } catch { return; }
+        if (!friends.length) return;
+        const ids = new Set(friends.map(f => f.userId));
+        for (const s of io.sockets.sockets.values()) {
+            if (s.id !== exceptSocket && s.user && ids.has(s.user.id)) sendList(s, exceptSocket);
+        }
+    }
+
     socket.on('friend_list', () => sendList());
     // 连上就推一次：否则「待处理申请」的红点要等玩家主动打开面板才会亮，
     // 那就等于没有提醒（他可能整晚停在「约局」页）。
     sendList();
+    pushPresenceToFriends();
+    socket.on('disconnect', () => pushPresenceToFriends(socket.id));
 
     // 「上次一起玩的人」：零新数据，全从牌谱查（已排除掉已有关系的人）
     socket.on('friend_recent', () => {

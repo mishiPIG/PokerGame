@@ -174,7 +174,10 @@ function refreshFriendBadge() {
 
 // 打开时 display 是 ''（交给 CSS），所以只能判「不是 none」，
 // 写 === 'flex' 永远不成立（上一版就是这么错的）。
-onLangChange(() => { if (document.getElementById('friends-panel')?.style.display !== 'none') renderFriends(); });
+onLangChange(() => {
+    if (document.getElementById('friends-panel')?.style.display !== 'none') renderFriends();
+    renderFriendsOnline();
+});
 
 // 搜索加好友。只认精确匹配（牌友号或用户名），所以不做输入即搜，按回车/点按钮才发。
 function doFriendSearch() {
@@ -230,3 +233,20 @@ function renderInviteFriends() {
 // 结果一律由服务端的 server_msg 告诉他（已邀请 / 不是牌友 / 在别桌 / 入场锁着…），
 // 这里不预判 —— 客户端猜出来的结论和服务端不一致时，玩家只会更糊涂。
 function inviteFriend(userId) { socket?.emit('invite_friend', { userId }); }
+
+// 大厅「N 位牌友在线」。约局的第一步永远是「有没有人」——
+// 这条信息原来只藏在「我的」→ 牌友里，等于要先想起来找它。
+// 只在【真有人在线】时才显示：没人时挂一行「0 位在线」是纯噪音。
+const FO_MAX_AV = 6;
+function renderFriendsOnline() {
+    const box = document.getElementById('friends-online');
+    if (!box) return;
+    const on = friendData.friends.filter(f => f.online);
+    if (!on.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = '';
+    const avs = on.slice(0, FO_MAX_AV).map(f => `<span class="fo-av">${friendAvatar(f)}</span>`).join('');
+    const more = on.length > FO_MAX_AV ? `<span class="fo-more">+${on.length - FO_MAX_AV}</span>` : '';
+    box.innerHTML = `<span class="fo-dot"></span>`
+        + `<span class="fo-text">${L(`${on.length} 位牌友在线`, `${on.length} friend${on.length > 1 ? 's' : ''} online`)}</span>`
+        + `<span class="fo-avs">${avs}${more}</span><span class="fo-go">\u203a</span>`;
+}

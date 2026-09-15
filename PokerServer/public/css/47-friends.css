@@ -108,3 +108,23 @@
         .inv-fr .fr-av { width: 28px; height: 28px; font-size: 13px; }
         .inv-fr .fr-name { flex: 1; min-width: 0; }
         .inv-fr .fr-btn { flex-shrink: 0; }
+
+        /* 大厅「N 位牌友在线」：约局的第一步是「有没有人」，所以它要在最上面、一眼看到 */
+        .fr-online { display: flex; align-items: center; gap: 8px; cursor: pointer;
+            padding: 9px 12px; margin-bottom: 10px; border-radius: 12px;
+            background: linear-gradient(135deg, rgba(6,214,160,0.13), rgba(6,214,160,0.05));
+            border: 1px solid rgba(6,214,160,0.28); }
+        .fr-online:active { background: rgba(6,214,160,0.2); }
+        .fo-dot { width: 8px; height: 8px; border-radius: 999px; background: #06d6a0;
+            box-shadow: 0 0 6px rgba(6,214,160,0.8); flex-shrink: 0; }
+        .fo-text { font-size: 13px; font-weight: bold; color: #dfe9e2; flex-shrink: 0; }
+        .fo-avs { display: flex; align-items: center; margin-left: auto; }
+        /* 头像叠着放：横着排 6 个会把这一行撑爆，叠放既省地方又一眼看出「有一群人」 */
+        .fo-av { width: 24px; height: 24px; border-radius: 999px; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            background: #2f4a3e; border: 1.5px solid #1a2c24; margin-left: -7px;
+            font-size: 11px; font-weight: bold; color: #eaf3ee; flex-shrink: 0; }
+        .fo-av:first-child { margin-left: 0; }
+        .fo-av img { width: 100%; height: 100%; object-fit: cover; }
+        .fo-more { font-size: 11px; color: #9db9a9; margin-left: 5px; flex-shrink: 0; }
+        .fo-go { color: #6fe6c0; font-size: 18px; margin-left: 4px; flex-shrink: 0; }
