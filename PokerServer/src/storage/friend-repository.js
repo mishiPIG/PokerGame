@@ -136,6 +136,52 @@ function createFriendRepository(db) {
             return r.changes > 0;                               // 非好友改不了备注
         },
 
+        // ⭐ 对战战绩：我和每个对手【同桌过的那些手】里，双方各自净多少。
+        //
+        // 为什么是「双方各自的净」而不是「我从他身上赢了多少」：
+        //   6-9 人桌上我赢的钱大半来自别人，「我净 +78 万」并不代表从他身上拿了 78 万 ——
+        //   那个数【这张表算不出来】（要按池子逐笔归属）。而「同一批手里我 +55 万、
+        //   他 +62 万」是定义明确的，也正好是较劲想看的那个对比。
+        // 为什么不做单挑那一栏：实测生产数据，几千手同桌里单挑只有 0~5 手 —— 会是一列 0。
+        //
+        // 口径和 stats.js 的生涯净盈亏【完全一致】（都是 endChips - startChips）。
+        // 同一个 App 里两个「净盈亏」对不上，比不精确更糟。
+        // ⚠️ 少数「手中补码」的手不守恒（生产实测 182/26943 ≈ 0.7%），净值会偏高一点点；
+        //    生涯战绩本来就有同样的偏差，这里不另立口径。
+        //
+        // 只算现金桌：SNG 是锦标赛记分牌，和现金筹码不是一个东西，混在一起这个数就没意义了。
+        //
+        // 性能（2026-09-15 实测于生产备份：26,943 手 / 84,950 行 / 62 用户）：
+        //   最活跃的现金玩家 6,493 手、15 个对手 → 冷 88ms、热 85ms；47 人各跑一次共 737ms。
+        //   走的是 idx_hand_players_user(user_id, hand_id) 和 hand_players 的主键。
+        //   ⚠️ 代价随牌谱线性增长。手数到十万量级（约现在的 4 倍）就该考虑落一张聚合表，
+        //      别等它慢到有人抱怨 —— 那时它已经在每次打开面板时拖 0.5 秒了。
+        headToHead(userId) {
+            return db.prepare(`
+                SELECT hp2.user_id                                    AS other_id,
+                       u.username, u.display_name, u.avatar,
+                       COUNT(*)                                       AS hands_together,
+                       SUM(hp1.end_chips - hp1.start_chips)           AS my_net,
+                       SUM(hp2.end_chips - hp2.start_chips)           AS their_net,
+                       SUM(CASE WHEN hp1.won > 0 THEN 1 ELSE 0 END)   AS my_wins,
+                       MAX(h.completed_at_ms)                         AS last_played_ms
+                FROM hand_players hp1
+                JOIN hands h          ON h.id = hp1.hand_id AND h.mode = 'cash'
+                JOIN hand_players hp2 ON hp2.hand_id = hp1.hand_id AND hp2.user_id <> hp1.user_id
+                JOIN users u          ON u.id = hp2.user_id AND u.deleted_at_ms IS NULL
+                WHERE hp1.user_id = ?
+                GROUP BY hp2.user_id
+                ORDER BY hands_together DESC
+            `).all(userId).map(r => ({
+                userId: r.other_id,
+                handsTogether: r.hands_together,
+                myNet: r.my_net,
+                theirNet: r.their_net,
+                myWins: r.my_wins,
+                lastPlayedMs: r.last_played_ms,
+            }));
+        },
+
         // ⭐「上次一起玩的人」：零新数据，全从牌谱里查。
         //    hand_players(我) → hands → hand_players(其他人)，走现成的
         //    idx_hand_players_user(user_id, hand_id) 索引。

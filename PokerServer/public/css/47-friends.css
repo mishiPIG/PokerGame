@@ -128,3 +128,10 @@
         .fo-av img { width: 100%; height: 100%; object-fit: cover; }
         .fo-more { font-size: 11px; color: #9db9a9; margin-left: 5px; flex-shrink: 0; }
         .fo-go { color: #6fe6c0; font-size: 18px; margin-left: 4px; flex-shrink: 0; }
+
+        /* 对战战绩：跟在在线状态后面的一小行。数字本身用颜色分正负，
+           但【别用金色】—— 金只留给「钱/赢/我/奖励/品牌」，这里是中性对比。*/
+        .fr-h2h { color: #9db9a9; margin-left: 6px; }
+        .fr-h2h b { font-weight: bold; font-variant-numeric: tabular-nums; }
+        .h2h-up { color: #06d6a0; }
+        .h2h-down { color: #ef476f; }

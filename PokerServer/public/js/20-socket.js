@@ -114,6 +114,11 @@ function connectSocket(token) {
         refreshFriendBadge();
     });
     socket.on('friend_recent', (d) => { friendRecent = d.list || []; renderFriends(); });
+    socket.on('friend_h2h', (d) => {
+        friendH2H = {};
+        for (const r of d.list || []) friendH2H[r.userId] = r;
+        renderFriends();
+    });
     socket.on('friend_search', (d) => {
         friendSearch = d.found ? { found: d.found }
             : (d.self ? { self: true } : { notFound: (document.getElementById('fr-search')?.value || '').trim() });

@@ -20,6 +20,7 @@ function openFriends() {
     renderFriends();
     socket?.emit('friend_list');
     socket?.emit('friend_recent');
+    socket?.emit('friend_h2h');
 }
 function closeFriends() { document.getElementById('friends-panel').style.display = 'none'; }
 
@@ -103,7 +104,7 @@ function renderFriends() {
         } else if (list.length) {
             html += `<div class="fr-sec">${L('我的牌友', 'My friends')} (${list.length})</div>`;
             html += list.map(f => friendRow(f, {
-                sub: presenceHtml(f),
+                sub: presenceHtml(f) + h2hHtml(f.userId),
                 buttons: `<button class="fr-btn" onclick="editFriendNote('${f.userId}')">${L('备注', 'Note')}</button>`
                        + `<button class="fr-btn danger" onclick="removeFriend('${f.userId}')">${L('删除', 'Remove')}</button>`
                        + `<button class="fr-btn danger" title="${L('拉黑', 'Block')}" onclick="blockFriend('${f.userId}')">🚫</button>`,
@@ -271,3 +272,18 @@ function blockFriend(userId) {
         .then(ok => { if (ok) socket?.emit('friend_block', { userId }); });
 }
 function unblockFriend(userId) { socket?.emit('friend_unblock', { userId }); }
+
+// 对战战绩：我和 TA【同桌过的那些手】里，双方各自净多少。
+// ⚠️ 措辞不能写成「我赢了他多少」—— 多人桌上我赢的钱大半来自别人，
+//    那个数这张表根本算不出来。能说的是「同一批手里各自的成绩」，那也正是想比的东西。
+// 只算现金桌：SNG 是锦标赛记分牌，和现金筹码混在一起这个数就没意义了。
+function h2hHtml(userId) {
+    const h = friendH2H[userId];
+    if (!h || !h.handsTogether) return '';
+    const sign = n => (n > 0 ? '+' : '') + fmtChips(n);
+    const cls = n => (n > 0 ? 'h2h-up' : n < 0 ? 'h2h-down' : '');
+    return `<span class="fr-h2h">`
+        + `${L(`同桌 ${h.handsTogether} 手`, `${h.handsTogether} hands together`)} · `
+        + `${L('我', 'me')} <b class="${cls(h.myNet)}">${sign(h.myNet)}</b> · `
+        + `${L('TA', 'them')} <b class="${cls(h.theirNet)}">${sign(h.theirNet)}</b></span>`;
+}

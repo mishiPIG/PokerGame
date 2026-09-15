@@ -81,6 +81,18 @@ function registerFriendEvents(context) {
     pushPresenceToFriends();
     socket.on('disconnect', () => pushPresenceToFriends(socket.id));
 
+    // 对战战绩单独一条事件，【不并进 friend_list】——
+    // friend_list 现在是热路径（任何牌友上下线都会推一遍），而这条要扫牌谱（生产实测 ~85ms）。
+    // 把它挂上去等于每次有人上线全桌都做一次全表聚合。
+    socket.on('friend_h2h', () => {
+        try {
+            socket.emit('friend_h2h', { list: db.friends.headToHead(user.id) });
+        } catch (e) {
+            console.error('[friend] headToHead 失败', e);
+            socket.emit('friend_h2h', { list: [] });
+        }
+    });
+
     // 「上次一起玩的人」：零新数据，全从牌谱查（已排除掉已有关系的人）
     socket.on('friend_recent', () => {
         try {

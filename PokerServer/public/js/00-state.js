@@ -17,6 +17,7 @@ let myAvatar     = null;
 //    而且连 `typeof x !== 'undefined'` 都抦不住（typeof 对 TDZ 变量同样抛错）。
 let friendData   = { friends: [], incoming: [], outgoing: [], blocked: [] };
 let friendRecent = [];
+let friendH2H    = {};    // userId -> 对战战绩。单独拉，不跟 friend_list 走（那条是热路径）
 let friendTab    = 'friends';              // friends | recent
 let friendSearch = null;                   // { found } | { notFound } | { self }
 let myFriendCode = '';                     // 我自己的牌友号（服务端随列表下发）
