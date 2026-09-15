@@ -94,6 +94,10 @@ function clearUserCodeFailures(userId) {
 
 function canAuthorizeNewUser(game, userId) {
     if (!game || game.status === 'finished') return false;
+    // 🔴 被房主请出去的人，【任何】路径都别再放进来 —— 包括他手上那个还没过期的
+    //    四位码、邀请链接、以及别人给他发的牌友邀请。这条必须排在 authorized 之前：
+    //    他进来过，所以 authorized 里有他。
+    if (game.kicked?.has(userId)) return false;
     if (game.authorized?.has(userId)) return true;
     if (game.invite?.entryLocked) return false;
     if (game.roomType === 'sng') {
@@ -115,6 +119,7 @@ function roomSummary(roomId, userId) {
     return {
         roomId,
         roomType:   g.roomType,
+        visibility: g.config?.visibility === 'public' ? 'public' : 'private',   // 老房间没这个字段 → 按私密处理
         name:       g.config?.name || roomId,
         ownerName:  g.ownerName || '',
         maxPlayers: g.config?.maxPlayers || 2,

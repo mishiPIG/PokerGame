@@ -92,9 +92,15 @@ function openAvatarPopup(userId) {
     const apo = document.getElementById('ap-owner');
     const iAmOwner = lastState.ownerUserId === myUserId;
     const targetSeated = (lastState.players || []).some(x => x.userId === userId);
-    if (iAmOwner && !isMe && targetSeated && lastState.roomType === 'cash') {
+    // 「移到观战席」只腾座位，人还在房里；「请出房间」才是真的请走 + 本房不再放进来。
+    // 公开桌上房主必须有后面这个，否则遇到捣乱的唯一选择是解散重开。
+    if (iAmOwner && !isMe) {
         apo.style.display = '';
-        apo.innerHTML = `<button class="ap-owner-btn" onclick="forceStand('${userId}')">${L('🧍 移到观战席（腾出座位）', '🧍 Move to the rail (free the seat)')}</button>`;
+        const stand = (targetSeated && lastState.roomType === 'cash')
+            ? `<button class="ap-owner-btn" onclick="forceStand('${userId}')">${L('🧍 移到观战席（腾出座位）', '🧍 Move to the rail (free the seat)')}</button>`
+            : '';
+        apo.innerHTML = stand
+            + `<button class="ap-owner-btn danger" onclick="kickPlayer('${userId}')">${L('🚪 请出房间', '🚪 Remove from room')}</button>`;
     } else { apo.style.display = 'none'; apo.innerHTML = ''; }
     // 牌友：打完一局当场加是最自然的入口，比回大厅再去「一起玩过」里翻得快。
     // 已经是牌友 / 申请中 都不再显示按钮，而是直接告诉他当前状态——
@@ -181,3 +187,13 @@ function seatBubble(userId, html, big) {
 
 // 快捷聊天梗有中英两套，切语言换一套
 onLangChange(() => buildChatBars());
+
+// 房主请人出房间：二次确认（这是不可撤销的——他之后拿房间码也进不来了）
+function kickPlayer(userId) {
+    const name = (lastState.players || []).find(p => p.userId === userId)?.name
+        || (lastState.spectators || []).find(p => p.userId === userId)?.name || '';
+    uiConfirm(L(`把「${name}」请出房间？他之后用房间码也进不来了。`,
+                `Remove ${name} from the room? They will not be able to rejoin, even with the room code.`),
+        { ok: L('请出房间', 'Remove'), danger: true })
+        .then(ok => { if (ok) { socket?.emit('kick_player', { targetUserId: userId }); closeAvatarPopup(); } });
+}

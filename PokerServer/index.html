@@ -249,6 +249,19 @@
                 <div class="cfg-field"><span class="cfg-label" data-i18n="cfg.duration">训练时长（到点自动结束并结算排名）</span>
                     <div class="tier-row" id="ccDurRow"></div></div>
             </div>
+            <div class="cfg-field vis-field">
+                <span class="cfg-label" data-i18n="cfg.visibility">谁能进这张桌</span>
+                <div class="vis-row">
+                    <button type="button" class="vis-btn sel" id="visPrivate" onclick="setVisibility('private')">
+                        <span class="vis-t" data-i18n="cfg.visPrivT">🔒 只有拿到房间码的人</span>
+                        <span class="vis-s" data-i18n="cfg.visPrivS">别人在「发现」里只能观战</span>
+                    </button>
+                    <button type="button" class="vis-btn" id="visPublic" onclick="setVisibility('public')">
+                        <span class="vis-t" data-i18n="cfg.visPubT">🌐 谁都可以进</span>
+                        <span class="vis-s" data-i18n="cfg.visPubS">从「发现」点进来就能坐下</span>
+                    </button>
+                </div>
+            </div>
             <div class="create-actions">
                 <button class="confirm" onclick="submitCreate()" data-i18n="cfg.confirm">确定创建</button>
                 <button class="cancel" onclick="hideCreateForm()" data-i18n="cfg.cancel">取消</button>

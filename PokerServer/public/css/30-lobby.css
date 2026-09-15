@@ -291,3 +291,18 @@
         .result-btn:hover { filter: brightness(1.06); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(244,211,94,0.38); }
         .result-btn:active { transform: translateY(0); }
 
+
+        /* 谁能进：两张并排的大按钮，把后果写在按钮上而不是藏在问号里 */
+        .vis-field { margin-top: 10px; }
+        .vis-row { display: flex; gap: 8px; }
+        .vis-btn { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;
+            padding: 10px 9px; border-radius: 12px; cursor: pointer; text-align: left;
+            background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.14); color: #cbd9d0; }
+        .vis-btn.sel { background: rgba(6,214,160,0.15); border-color: rgba(6,214,160,0.55); color: #eaf3ee; }
+        .vis-t { font-size: 13px; font-weight: bold; }
+        .vis-s { font-size: 11px; color: #9db9a9; line-height: 1.35; }
+        .vis-btn.sel .vis-s { color: #8fd8bd; }
+        /* 房间卡上的公开/私密标记：进不进得去是点之前就该知道的事 */
+        .rc-tag.open { background: rgba(6,214,160,0.18); color: #6fe6c0; border-color: rgba(6,214,160,0.45); }
+        .rc-tag.priv { background: rgba(255,255,255,0.07); color: #9db9a9; }
+        .rc-join.open { background: #06d6a0; color: #0a1f1a; border-color: transparent; }

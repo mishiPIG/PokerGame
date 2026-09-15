@@ -31,6 +31,47 @@ function registerTableControlEvents(context) {
         dissolveSngRoom(roomId);   // SNG：奖池给筹码领先者 + 公布排名 + 清房（见 sng-match-service）
     });
 
+    // 房主把人请出房间（公开桌的前提）。
+    // 🔴 现有的 force_stand 只是把人移到观战席 —— 他还在房里、还能再坐下、还能说话。
+    //    私密桌里这够用（人都是房主叫来的）；公开桌不行，否则房主遇到捣乱的唯一选择
+    //    就是解散重开。
+    // ⚠️ 离座一律走 standUpPlayer：它已经处理了「本手进行中延后离座」和
+    //    「全押者绝不能改判弃牌」（线上凭空造筹码事故就是栽在后面这条上）。
+    //    绝不在这里自己 splice players。
+    socket.on('kick_player', ({ targetUserId } = {}) => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game) return;
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyKick' }); return; }
+        if (!targetUserId || typeof targetUserId !== 'string') return;
+        if (targetUserId === user.id) { socket.emit('server_msg', { k: 'host.notKickSelf' }); return; }
+
+        const idx = game.players.findIndex(p => p.userId === targetUserId);
+        const target = idx >= 0 ? game.players[idx] : null;
+        const name = nameOf(target || db.getUserById(targetUserId) || {});
+
+        // 先记名单再离座：离座会广播，广播里已经不该把他算成能回来的人
+        if (!game.kicked) game.kicked = new Set();
+        game.kicked.add(targetUserId);
+        game.authorized?.delete(targetUserId);
+
+        if (idx >= 0) standUpPlayer(roomId, idx, true);   // 筹码留到结束结算，和「站起围观」同一套
+
+        for (const s of io.sockets.sockets.values()) {
+            if (s.user?.id !== targetUserId || s.currentRoom !== roomId) continue;
+            s.leave(roomId);
+            s.currentRoom = null;
+            s.playRoom = null;
+            lobbySockets.add(s.id);
+            s.emit('kicked_out', { roomId });
+            s.emit('room_list', listRooms(targetUserId));
+        }
+        io.in(roomId).emit('server_msg', { k: 'host.kicked', p: { name } });
+        persistence.commit(roomId, 'player_kicked', user.id, { targetUserId });
+        broadcastState(roomId);
+        broadcastRoomList();
+    });
+
     // 比赛加时（现金桌房主）：延长训练时长
     socket.on('extend_match', ({ minutes }) => {
         const roomId = socket.currentRoom;

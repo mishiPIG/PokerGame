@@ -189,6 +189,33 @@ function checkServer(dir) {
 }
 
 
+
+// ---------- ⑤ 字典里不许有重复的 key ----------
+// 🔴 JS 的对象字面量【允许】重复键，后写的静默覆盖先写的 —— 不报错、不警告。
+//    所以一条翻译被改坏、或者同一个 key 插了两份不同的值，都看不出来，
+//    只会表现成「我明明改了文案，页面上还是旧的」。
+function checkDuplicateKeys() {
+    const src = fs.readFileSync(path.join(ROOT, 'public/js/03-i18n.js'), 'utf8');
+    // 两本字典分开数：zh 和 en 当然会有同名 key
+    const marks = [...src.matchAll(/^\s*(zh|en)\s*:\s*\{/gm)];
+    if (marks.length !== 2) {
+        problems.push('03-i18n.js: 没能定位 zh / en 两本字典（找到 ' + marks.length + ' 个）—— 这条检查会失效');
+        return;
+    }
+    for (let i = 0; i < marks.length; i++) {
+        const from = marks[i].index;
+        const to = i + 1 < marks.length ? marks[i + 1].index : src.length;
+        const seen = new Map();
+        for (const m of src.slice(from, to).matchAll(/^\s*'([\w.]+)'\s*:/gm)) {
+            const line = src.slice(0, from + m.index).split('\n').length;
+            if (seen.has(m[1])) {
+                problems.push(`03-i18n.js:${line} ${marks[i][1]} 字典里 '${m[1]}' 重复了`
+                    + `（第一次在第 ${seen.get(m[1])} 行）—— 后面那份会静默覆盖前面那份`);
+            } else seen.set(m[1], line);
+        }
+    }
+}
+
 // ---------- ③b server_msg：本该给玩家看的东西，不许写成裸字符串 ----------
 // 🔴 两个教训都刻在这里，别再退回去：
 //   ① 必须按【整个 emit 调用】取参数，不能按行。补码失败那两条是【跨行三元】：
@@ -295,6 +322,7 @@ jsFiles.forEach(f => checkClientJs(path.join(jsDir, f)));
 const jsOwned = collectJsOwned();
 checkHtml(path.join(ROOT, 'index.html'), jsOwned);
 assertVisibilityContract();
+checkDuplicateKeys();
 checkServer(path.join(ROOT, 'src'));
 checkJsOwned(jsOwned);
 

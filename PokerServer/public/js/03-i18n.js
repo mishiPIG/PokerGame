@@ -196,6 +196,10 @@ const I18N = {
         'srv.seat.notSeated': '⚠️ 你还未入座',
         'srv.sys.restarting': '⚠️ 服务正在安全重启，请稍后重新连接',
         'srv.sys.actionFailed': '⚠️ 本次操作失败，牌桌已安全暂停，请稍后重试或重新连接',
+        'srv.room.kickedOut': '🚪 房主已把你请出这张牌桌，无法再进入',
+        'srv.host.onlyKick': '⚠️ 只有房主可以请人出房间',
+        'srv.host.notKickSelf': '⚠️ 不能把自己请出去',
+        'srv.host.kicked': '🚪 房主把 {name} 请出了房间',
 
         // ===== 一键邀请牌友（2026-09-14）=====
         'srv.invite.onlyOwner': '⚠️ 只有房主可以邀请牌友',
@@ -251,7 +255,7 @@ const I18N = {
         'cfg.cashNote': '2–9 人，固定盲注。金币↔筹码买入：110 金币→1000 筹码，离场 1000 筹码→100 金币',
         'cfg.tableName': '牌桌名字', 'cfg.tableNamePh': '欢乐场', 'cfg.blinds': '基础分（盲注）：', 'cfg.ante': 'Ante 前注：',
         'cfg.straddle': '允许 UTG Straddle（固定 2BB）', 'cfg.maxSeats': '单桌最大人数：', 'cfg.minBuyin': '单次最小带入：',
-        'cfg.buyinCap': '带入上限：', 'cfg.duration': '训练时长（到点自动结束并结算排名）', 'cfg.confirm': '确定创建', 'cfg.cancel': '取消',
+        'cfg.buyinCap': '带入上限：', 'cfg.duration': '训练时长（到点自动结束并结算排名）', 'cfg.visibility': '谁能进这张桌', 'cfg.visPrivT': '🔒 只有拿到房间码的人', 'cfg.visPrivS': '别人在「发现」里只能观战', 'cfg.visPubT': '🌐 谁都可以进', 'cfg.visPubS': '从「发现」点进来就能坐下', 'cfg.visibility': 'Who can join', 'cfg.visPrivT': '🔒 Only people with the code', 'cfg.visPrivS': 'Others can only spectate from Discover', 'cfg.visPubT': '🌐 Anyone can join', 'cfg.visPubS': 'They can sit down straight from Discover', 'cfg.visibility': '谁能进这张桌', 'cfg.visPrivT': '🔒 只有拿到房间码的人', 'cfg.visPrivS': '别人在「发现」里只能观战', 'cfg.visPubT': '🌐 谁都可以进', 'cfg.visPubS': '从「发现」点进来就能坐下', 'cfg.confirm': '确定创建', 'cfg.cancel': '取消',
         'lobby.roomList': '房间列表', 'cfg.tabSng': '🏆 SNG 升盲', 'cfg.tabCash': '💵 现金桌',
         'voice.rec': '按住说话', 'voice.hold': '按住说话',
         'tm.settings': '🎨 桌面设置', 'tm.invite': '🔗 邀请朋友', 'tm.rebuy': '💵 补充记分牌', 'tm.reserve': '💺 留座离桌',
@@ -468,6 +472,10 @@ const I18N = {
         'srv.seat.notSeated': '⚠️ You are not seated yet',
         'srv.sys.restarting': '⚠️ The server is restarting safely - please reconnect shortly',
         'srv.sys.actionFailed': '⚠️ That action failed. The table is paused safely - retry or reconnect',
+        'srv.room.kickedOut': '🚪 The host removed you from this table - you cannot rejoin',
+        'srv.host.onlyKick': '⚠️ Only the host can remove players',
+        'srv.host.notKickSelf': '⚠️ You cannot remove yourself',
+        'srv.host.kicked': '🚪 The host removed {name} from the room',
 
         // ===== One-tap friend invite (2026-09-14) =====
         'srv.invite.onlyOwner': '⚠️ Only the host can invite friends',
@@ -521,7 +529,7 @@ const I18N = {
         'cfg.cashNote': '2–9 players, fixed blinds. Coins↔chips: 110 coins→1000 chips; cash out 1000 chips→100 coins',
         'cfg.tableName': 'Table name', 'cfg.tableNamePh': 'e.g. Fun Room', 'cfg.blinds': 'Blinds: ', 'cfg.ante': 'Ante: ',
         'cfg.straddle': 'Allow UTG straddle (2BB)', 'cfg.maxSeats': 'Max players: ', 'cfg.minBuyin': 'Min buy-in: ',
-        'cfg.buyinCap': 'Buy-in cap: ', 'cfg.duration': 'Session length (auto-ends & settles at time)', 'cfg.confirm': 'Create', 'cfg.cancel': 'Cancel',
+        'cfg.buyinCap': 'Buy-in cap: ', 'cfg.duration': 'Session length (auto-ends & settles at time)', 'cfg.visibility': 'Who can join', 'cfg.visPrivT': '🔒 Only people with the code', 'cfg.visPrivS': 'Others can only spectate from Discover', 'cfg.visPubT': '🌐 Anyone can join', 'cfg.visPubS': 'They can sit down straight from Discover', 'cfg.confirm': 'Create', 'cfg.cancel': 'Cancel',
         'lobby.roomList': 'Rooms', 'cfg.tabSng': '🏆 SNG', 'cfg.tabCash': '💵 Cash',
         'voice.rec': 'Hold to talk', 'voice.hold': 'Hold to talk',
         'tm.settings': '🎨 Settings', 'tm.invite': '🔗 Invite friends', 'tm.rebuy': '💵 Rebuy chips', 'tm.reserve': '💺 Reserve & leave',

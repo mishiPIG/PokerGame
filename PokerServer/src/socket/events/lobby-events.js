@@ -21,7 +21,13 @@ function registerLobbyEvents(context) {
             ownerUserId: user.id, ownerName: user.displayName || user.username,
             authorized: new Set([user.id]),
             invite: createRoomInvite(roomId),
+            kicked: new Set(),
             config: {
+            // 谁能进：private（默认）= 沿用「列表只观战、下场必须输四位码」；
+            //         public = 从发现页点进来就能坐下。
+            // 🔴 默认私密：默认值决定 90% 的结果。把「陌生人能坐进我的局」设成默认，
+            //    一旦出事就是信任事故 —— 而信任事故比冷启动难修得多。
+            visibility: cfg.visibility === 'public' ? 'public' : 'private',
                 name:        (cfg.name || '').toString().trim().slice(0, 20) || `${user.displayName || user.username}的比赛`,
                 maxPlayers:  clampInt(cfg.maxPlayers, 2, 9, 2),              // 2–9 人（引擎已支持多人）
                 startingStack: clampInt(cfg.startingStack, 5000, 30000, 10000),
@@ -57,7 +63,13 @@ function registerLobbyEvents(context) {
             ownerUserId: user.id, ownerName: user.displayName || user.username,
             authorized: new Set([user.id]),
             invite: createRoomInvite(roomId),
+            kicked: new Set(),
             config: {
+            // 谁能进：private（默认）= 沿用「列表只观战、下场必须输四位码」；
+            //         public = 从发现页点进来就能坐下。
+            // 🔴 默认私密：默认值决定 90% 的结果。把「陌生人能坐进我的局」设成默认，
+            //    一旦出事就是信任事故 —— 而信任事故比冷启动难修得多。
+            visibility: cfg.visibility === 'public' ? 'public' : 'private',
                 name:      (cfg.name || '').toString().trim().slice(0, 20) || `${user.displayName || user.username}的现金桌`,
                 maxPlayers: clampInt(cfg.maxPlayers, 2, 9, 6),
                 sb, bb, ante: clampInt(cfg.ante, 0, 80, 0), minBuyIn, maxBuyIn,

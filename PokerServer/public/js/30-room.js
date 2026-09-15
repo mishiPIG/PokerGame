@@ -320,6 +320,14 @@ function updateCashLabels() {
     const cap = +document.getElementById('ccCap').value;
     document.getElementById('ccCapVal').textContent = cap === 0 ? L('无限制', 'Unlimited') : cap.toLocaleString();
 }
+// 谁能进：默认私密。默认值决定 90% 的结果 —— 把「陌生人能坐进我的局」设成默认，
+// 一旦出事就是信任事故，而信任事故比冷清难修得多。
+let createVisibility = 'private';
+function setVisibility(v) {
+    createVisibility = v === 'public' ? 'public' : 'private';
+    document.getElementById('visPrivate')?.classList.toggle('sel', createVisibility === 'private');
+    document.getElementById('visPublic')?.classList.toggle('sel', createVisibility === 'public');
+}
 function submitCreate() {
     if (!socket) return;
     if (createTab === 'cash') {
@@ -332,7 +340,8 @@ function submitCreate() {
             maxPlayers: parseInt(document.getElementById('ccMax').value),
             minBuyIn: parseInt(document.getElementById('ccMin').value),
             maxBuyIn: parseInt(document.getElementById('ccCap').value),
-            durationH: ccDur
+            durationH: ccDur,
+            visibility: createVisibility
         });
     } else {
         socket.emit('create_room', {
@@ -340,7 +349,8 @@ function submitCreate() {
             startingStack: parseInt(document.getElementById('cfgStack').value),
             levelMinutes:  parseInt(document.getElementById('cfgLevel').value),
             maxPlayers:    parseInt(document.getElementById('cfgMax').value),
-            buyIn:         sngBuyin
+            buyIn:         sngBuyin,
+            visibility:    createVisibility
         });
     }
     hideCreateForm();
@@ -664,17 +674,23 @@ function roomCards(rooms) {
         const running = r.status === 'running';
         // 我是本房成员 → 始终可「重新进入」（重连回桌）；否则进行中/已满则灰
         let btnLabel, disabled, cls = '';
-        if (r.isMember) { btnLabel = L('重新进入', 'Re-enter'); disabled = false; cls = 'rejoin'; }
-        else            { btnLabel = L('👀 观战', '👀 Spectate');  disabled = false; }   // 非成员：只能观战（下场需验证邀请）
+        // 公开桌点进去就能坐下；私密桌【保持原样】只能观战，下场要回「约局」输四位码。
+        // 按钮上就把这件事说清楚 —— 点进去才发现坐不下，是最恼人的一种落空。
+        const isPublic = r.visibility === 'public';
+        if (r.isMember)     { btnLabel = L('重新进入', 'Re-enter'); disabled = false; cls = 'rejoin'; }
+        else if (isPublic)  { btnLabel = L('进入牌局', 'Join');     disabled = false; cls = 'open'; }
+        else                { btnLabel = L('👀 观战', '👀 Spectate'); disabled = false; }
         const isCash = r.roomType === 'cash';
         const tag  = isCash ? `<span class="rc-tag cash">${L('现金桌', 'Cash')}</span>` : `<span class="rc-tag">${L('SNG·升盲', 'SNG')}</span>`;
+        const vis  = isPublic ? `<span class="rc-tag open">${L('🌐 公开', '🌐 Open')}</span>`
+                              : `<span class="rc-tag priv">${L('🔒 房间码', '🔒 Code')}</span>`;
         const meta = isCash
             ? `👤 ${r.playerCount}/${r.maxPlayers} · ${L('盲注', 'Blinds')} ${r.sb}/${r.bb}${r.ante ? ' · ante '+r.ante : ''} · ${L('带入≥', 'Buy-in≥')}${(r.minBuyIn||0).toLocaleString()}`
             : `👤 ${r.playerCount}/${r.maxPlayers} · ⏱ ${r.levelMinutes}min · 🪙${L('报名', 'Buy-in')} ${r.buyIn}`;
         return `<div class="room-card">
             <div class="rc-main">
                 <div class="rc-name">${escapeHtml(r.name)}</div>
-                <div class="rc-meta"><span class="rc-owner">${escapeHtml(r.ownerName)}</span>${tag} ${meta}</div>
+                <div class="rc-meta"><span class="rc-owner">${escapeHtml(r.ownerName)}</span>${tag}${vis} ${meta}</div>
             </div>
             <button class="rc-join ${cls}" ${disabled ? 'disabled' : ''} onclick="joinRoomId('${r.roomId}')">${btnLabel}</button>
         </div>`;

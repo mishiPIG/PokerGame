@@ -68,6 +68,13 @@ function connectSocket(token) {
         ).then(ok => socket.emit('invite_respond', { roomId: inv.roomId, accept: !!ok }));
     });
 
+    // 被房主请出房间。不是掉线、不是解散 —— 得说清楚是哪一种，
+    // 否则玩家只会以为「又崩了」。
+    socket.on('kicked_out', () => {
+        showLobby();
+        toast(L('🚪 房主把你请出了这张牌桌', '🚪 The host removed you from this table'), 4500);
+    });
+
     socket.on('room_list', (rooms) => {
         renderRoomList(rooms);
     });
