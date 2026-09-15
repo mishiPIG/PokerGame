@@ -42,6 +42,7 @@ function registerFriendEvents(context) {
             friends: withPresence(db.friends.listFriends(uid), exceptSocket),
             incoming: db.friends.listIncoming(uid),
             outgoing: db.friends.listOutgoing(uid),
+            blocked: db.friends.listBlocked(uid),   // 没有「解除」的入口，拉黑就是个陷阱
         });
     }
 
@@ -116,7 +117,8 @@ function registerFriendEvents(context) {
         if (!db.getUserById(userId)) { socket.emit('server_msg', { k: 'friend.noUser' }); return; }
         const result = db.friends.request(user.id, userId);
         const msg = { self: 'friend.self', already: 'friend.already', pending: 'friend.pending',
-                      accepted: 'friend.accepted', requested: 'friend.requested' }[result];
+                      accepted: 'friend.accepted', requested: 'friend.requested',
+                      youBlocked: 'friend.youBlocked' }[result];
         if (msg) socket.emit('server_msg', { k: msg });
         sendList();
         pushTo(userId);
@@ -137,6 +139,25 @@ function registerFriendEvents(context) {
         }
         sendList();
         pushTo(userId);
+    });
+
+    // 拉黑：解除关系 + 他再也发不进来申请。
+    // 刻意【不】做的两件事（等真有人被骚扰了再说）：不阻止他坐同一张公开桌
+    // （那要在入座时查每个人的黑名单，链路长，还会产生「我明明能坐却坐不下」的困惑）、
+    // 不隐藏我的在线状态。
+    socket.on('friend_block', ({ userId } = {}) => {
+        if (!userId || typeof userId !== 'string' || userId === user.id) return;
+        if (!db.getUserById(userId)) { socket.emit('server_msg', { k: 'friend.noUser' }); return; }
+        db.friends.block(user.id, userId);
+        socket.emit('server_msg', { k: 'friend.blocked' });
+        sendList();
+        pushTo(userId);           // 他那边关系没了 —— 和被删好友看起来一模一样
+    });
+
+    socket.on('friend_unblock', ({ userId } = {}) => {
+        if (!userId || typeof userId !== 'string') return;
+        if (db.friends.unblock(user.id, userId)) socket.emit('server_msg', { k: 'friend.unblocked' });
+        sendList();
     });
 
     socket.on('friend_remove', ({ userId } = {}) => {

@@ -56,6 +56,15 @@ function createFriendRepository(db) {
         delEdge.run(me, other);
         delEdge.run(other, me);
     });
+    // 拉黑：先把关系【两边】都删干净，再只写我这一行 blocked。
+    // ⚠️ 只写我这一行是刻意的 —— 对方那边看到的就是「关系没了」，
+    //    和被删好友一模一样，他【无法分辨自己是不是被拉黑了】。
+    //    告诉他等于给冲突加一把火，而拉黑的全部意义就是让事情停下来。
+    const blockTx = db.transaction((me, other, now) => {
+        delEdge.run(me, other);
+        delEdge.run(other, me);
+        upsert.run({ user_id: me, friend_id: other, status: 'blocked', now });
+    });
 
     return {
         listFriends(userId) {
@@ -80,6 +89,14 @@ function createFriendRepository(db) {
         request(me, other) {
             if (me === other) return 'self';
             const mine = getEdge.get(me, other);
+            // 我拉黑了他 → 明确告诉我「先解除」。这一侧没必要瞒自己。
+            if (mine?.status === 'blocked') return 'youBlocked';
+            // 🔴 他拉黑了我 → 【什么都不写】，但回一个和成功一样的 'requested'。
+            //    这是有意的隐瞒：一旦让他看出「我被拉黑了」，要么换号再来、要么把事情闹大，
+            //    拉黑就白做了。他看到的是「申请发出去了、对方没理」——和真被忽略没有区别。
+            //    ⚠️ 不能改成「只写他那一行 pending」来把戏做全套：那会留下一条单边关系，
+            //    正是本文件开头那条铁律（成对写入）要杜绝的东西。宁可少写，不留半条。
+            if (getEdge.get(other, me)?.status === 'blocked') return 'requested';
             if (mine?.status === 'accepted') return 'already';
             if (mine?.status === 'pending') return 'pending';
             const now = Date.now();
@@ -97,6 +114,19 @@ function createFriendRepository(db) {
         remove(me, other) {
             removeTx(me, other);
             return true;
+        },
+        block(me, other) {
+            if (me === other) return false;
+            blockTx(me, other, Date.now());
+            return true;
+        },
+        unblock(me, other) {
+            if (getEdge.get(me, other)?.status !== 'blocked') return false;
+            delEdge.run(me, other);
+            return true;
+        },
+        listBlocked(userId) {
+            return listByStatus.all(userId, 'blocked').map(mapFriend);
         },
         // ⚠️ 备注是【私有】的：只写我这一行。对方查自己的列表时读的是他那一行，
         //    永远看不到我给他记了什么。这条有测试锁着。

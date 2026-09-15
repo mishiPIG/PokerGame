@@ -24,6 +24,9 @@ function world() {
     const db = {
         getUserById: id => ({ id, username: id, displayName: id, friendCode: '12345678' }),
         friends: {
+            // ⚠️ 这个桩必须跟真实仓储的接口走 —— 加 listBlocked 那次，
+            //    sendList 一调就 TypeError，这四条全红了。桩跟现实脱节和当年 sizeFor 同一类。
+            listBlocked: () => [],
             listFriends: uid => [...edges.entries()]
                 .filter(([k, v]) => k.startsWith(uid + ':') && v === 'accepted')
                 .map(([k]) => ({ userId: k.split(':')[1], displayName: k.split(':')[1] })),

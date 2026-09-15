@@ -15,7 +15,7 @@ let myAvatar     = null;
 //    但在声明它的文件执行之前处于 TDZ —— 比它早加载的文件（如 30-room.js 的
 //    renderMeHead、40-profile.js 的 refreshMeDot）一碰就报 ReferenceError，
 //    而且连 `typeof x !== 'undefined'` 都抦不住（typeof 对 TDZ 变量同样抛错）。
-let friendData   = { friends: [], incoming: [], outgoing: [] };
+let friendData   = { friends: [], incoming: [], outgoing: [], blocked: [] };
 let friendRecent = [];
 let friendTab    = 'friends';              // friends | recent
 let friendSearch = null;                   // { found } | { notFound } | { self }

@@ -105,7 +105,8 @@ function connectSocket(token) {
 
     // 牌友列表 / 一起玩过（服务端主动推，所以对方同意的那一刻我这边就会刷新）
     socket.on('friend_list', (d) => {
-        friendData = { friends: d.friends || [], incoming: d.incoming || [], outgoing: d.outgoing || [] };
+        friendData = { friends: d.friends || [], incoming: d.incoming || [],
+                       outgoing: d.outgoing || [], blocked: d.blocked || [] };
         if (d.myCode) { myFriendCode = d.myCode; renderMeHead(); }   // 「我的」页头卡要显示牌友号
         renderInviteFriends();          // 邀请弹窗开着的话，在线状态跟着刷新
         renderFriendsOnline();          // 大厅那行「N 位牌友在线」

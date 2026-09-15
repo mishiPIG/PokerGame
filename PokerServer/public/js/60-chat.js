@@ -116,6 +116,8 @@ function openAvatarPopup(userId) {
         else if (sent) apf.innerHTML = `<span class="ap-friend-tag">${L('已发申请，等对方同意', 'Request sent')}</span>`;
         else if (incoming) apf.innerHTML = `<button class="ap-owner-btn" onclick="respondFriend('${userId}',true);closeAvatarPopup()">${L('✅ 同意牌友申请', '✅ Accept friend request')}</button>`;
         else apf.innerHTML = `<button class="ap-owner-btn" onclick="requestFriend('${userId}')">${L('👥 加为牌友', '👥 Add friend')}</button>`;
+        // 牌桌上是最可能想拉黑一个人的时刻（他正在这儿烦你），别让人回大厅再去翻列表
+        if (!isFriend) apf.innerHTML += `<button class="ap-owner-btn danger" onclick="blockFromTable('${userId}')">${L('🚫 拉黑', '🚫 Block')}</button>`;
     }
     document.getElementById('avatar-popup').style.display = 'flex';
     if (socket) socket.emit('req_player_stats', { targetUserId: userId });
@@ -196,4 +198,12 @@ function kickPlayer(userId) {
                 `Remove ${name} from the room? They will not be able to rejoin, even with the room code.`),
         { ok: L('请出房间', 'Remove'), danger: true })
         .then(ok => { if (ok) { socket?.emit('kick_player', { targetUserId: userId }); closeAvatarPopup(); } });
+}
+
+function blockFromTable(userId) {
+    const name = (lastState.players || []).find(p => p.userId === userId)?.name || '';
+    uiConfirm(L(`拉黑「${name}」？他之后无法向你发送牌友申请。`,
+                `Block ${name}? They will not be able to send you friend requests.`),
+        { ok: L('拉黑', 'Block'), danger: true })
+        .then(ok => { if (ok) { socket?.emit('friend_block', { userId }); closeAvatarPopup(); } });
 }

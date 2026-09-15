@@ -105,7 +105,16 @@ function renderFriends() {
             html += list.map(f => friendRow(f, {
                 sub: presenceHtml(f),
                 buttons: `<button class="fr-btn" onclick="editFriendNote('${f.userId}')">${L('备注', 'Note')}</button>`
-                       + `<button class="fr-btn danger" onclick="removeFriend('${f.userId}')">${L('删除', 'Remove')}</button>`,
+                       + `<button class="fr-btn danger" onclick="removeFriend('${f.userId}')">${L('删除', 'Remove')}</button>`
+                       + `<button class="fr-btn danger" title="${L('拉黑', 'Block')}" onclick="blockFriend('${f.userId}')">🚫</button>`,
+            })).join('');
+        }
+        // 已拉黑单独一组、放在最后：没有「解除」的入口，拉黑就是个陷阱。
+        if (friendData.blocked?.length) {
+            html += `<div class="fr-sec">${L('已拉黑', 'Blocked')} (${friendData.blocked.length})</div>`;
+            html += friendData.blocked.map(f => friendRow(f, {
+                sub: L('无法向你发送牌友申请', 'Cannot send you friend requests'),
+                buttons: `<button class="fr-btn" onclick="unblockFriend('${f.userId}')">${L('解除', 'Unblock')}</button>`,
             })).join('');
         }
         if (friendData.outgoing.length) {
@@ -250,3 +259,15 @@ function renderFriendsOnline() {
         + `<span class="fo-text">${L(`${on.length} 位牌友在线`, `${on.length} friend${on.length > 1 ? 's' : ''} online`)}</span>`
         + `<span class="fo-avs">${avs}${more}</span><span class="fo-go">\u203a</span>`;
 }
+
+// 拉黑 / 解除。二次确认写清楚后果 —— 「拉黑」这个词在不同产品里含义差很多，
+// 别让玩家靠猜。
+function blockFriend(userId) {
+    const f = friendData.friends.find(x => x.userId === userId)
+        || friendData.blocked.find(x => x.userId === userId) || { displayName: '' };
+    uiConfirm(L(`拉黑「${f.displayName}」？会解除牌友关系，并且他之后无法再向你发送申请。`,
+                `Block ${f.displayName}? This removes them as a friend and stops them sending you requests.`),
+        { ok: L('拉黑', 'Block'), danger: true })
+        .then(ok => { if (ok) socket?.emit('friend_block', { userId }); });
+}
+function unblockFriend(userId) { socket?.emit('friend_unblock', { userId }); }
