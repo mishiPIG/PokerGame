@@ -50,16 +50,22 @@ Now every hand is committed to *before* it is dealt and revealed after, so you c
 1. **Before any card is dealt**, the server publishes `commit = SHA256(serverSeed)` to the whole table.
 2. The entire deck order is derived deterministically from `(serverSeed, clientSeed, nonce)`.
    There is no other source of randomness.
-3. **When the hand ends**, the server reveals `serverSeed` and records it, together with the full
-   deck order, in the hand history.
+3. **When the whole table ends**, the server publishes `serverSeed` together with the full deck
+   order, and you can pull it from your hand history.
+
+   Why the table and not each hand: revealing the seed reveals the *entire* deck — including cards
+   other players folded and never showed. Publishing that between hands would hand everyone at the
+   table a free HUD. Waiting until the table breaks up costs you nothing: the commitment was already
+   public before the deal, so it is just as verifiable later.
 
 Because the commitment is published *before* the deal, the server cannot change the deck after
 seeing anyone's cards — a different deck would no longer match the commitment everyone already holds.
 
 ### Verify a hand yourself
 
-1. In the app: **Hand history → open a hand → 🔒 Verify data**, which copies the full hand record
-   as JSON. Save it as `hand.json`.
+1. **After the table has ended**, in the app: **Hand history → open a hand → 🔒 Verify data**,
+   which copies the full hand record as JSON. Save it as `hand.json`.
+   (While a table is still running the seed is withheld, and the button tells you so.)
    (The current hand's commitment is visible any time under **table menu ☰ → 🔒 Fairness**.)
 2. Run:
 

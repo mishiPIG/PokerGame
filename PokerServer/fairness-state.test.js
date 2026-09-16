@@ -78,27 +78,36 @@ test('承诺本身要发出去 —— 不发的话玩家事后没法验证', () 
     assert.ok(!('serverSeed' in state.payload.fair), 'fair 里带上了 serverSeed');
 });
 
-test('上一手的揭示可以发（那手已经打完了，种子作废了）', () => {
+test('🔴 揭示绝不能进广播 —— 包括【上一手】的（2026-09-17 改）', () => {
+    // 这条的契约被【故意反转了】：原来每手结束就广播 lastReveal，
+    // 现在一条都不发。因为揭示种子 = 公开整副牌，
+    // 连【弃牌者从未亮过的底牌】一起公开 —— 同桌下一手就能拿它当 HUD。
+    // 改成整桌结束后由牌谱接口统一放（见 hand-visibility.js）。
     const oldSeed = newServerSeed();
     const curSeed = newServerSeed();
     const game = baseGame({
         serverSeed: curSeed, commit: commitOf(curSeed), clientSeed: 'c', nonce: 4, deckOrder: null,
-        lastReveal: {
+        lastReveal: {                     // 就算 game 上还挂着旧揭示（旧快照恢复出来的）
             commit: commitOf(oldSeed), serverSeed: oldSeed,
             clientSeed: 'c', nonce: 3, deckOrder: ['AS', 'KH'],
         },
     });
 
     const state = captureBroadcast(game).find(m => m.evt === 'game_state');
-    assert.ok(state.payload.lastReveal, '上一手的揭示没发出去，玩家就没东西可验');
-    assert.equal(state.payload.lastReveal.serverSeed, oldSeed);
-    // 但当前这手的种子仍然不许出现
-    assert.ok(!JSON.stringify(state.payload).includes(curSeed), '当前这手的种子泄漏了');
+    const blob = JSON.stringify(state.payload);
+    assert.ok(!blob.includes(oldSeed), '🔴 上一手的种子进了广播');
+    assert.ok(!blob.includes(curSeed), '🔴 当前这手的种子进了广播');
+    assert.ok(!blob.includes('deckOrder'), '🔴 牌序进了广播');
+    assert.equal(state.payload.lastReveal, undefined, 'lastReveal 字段应该已经没了');
+    assert.equal(state.payload.fairRevealAfterTable, true,
+        '要告诉客户端「本桌结束后才揭示」，否则面板不知道该怎么说');
+    // 承诺仍然要发 —— 它是发牌前就公开的那一半，不发就没有可验证性了
+    assert.equal(state.payload.fair.commit, commitOf(curSeed));
 });
 
 test('还没开始的房间（没有 fair）不许崩', () => {
     const game = baseGame(null);
     const state = captureBroadcast(game).find(m => m.evt === 'game_state');
     assert.equal(state.payload.fair, null);
-    assert.equal(state.payload.lastReveal, null);
+    assert.equal(state.payload.lastReveal, undefined, '不再有这个字段');
 });

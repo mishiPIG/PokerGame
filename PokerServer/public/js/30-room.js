@@ -837,7 +837,6 @@ onLangChange(() => { renderMeHead(); });
 function openFairPanel() {
     const st = lastState || {};
     const fair = st.fair;
-    const rev = st.lastReveal;
     const short = (x) => (x ? String(x).slice(0, 24) + '…' : '—');
 
     let html = '<div class="modal-box"><h3>' + L('🔒 公平性验证', '🔒 Provably fair') + '</h3>';
@@ -856,20 +855,23 @@ function openFairPanel() {
         html += '<div class="fair-row"><b>nonce</b><code>' + escapeHtml(String(fair.nonce ?? '—')) + '</code></div>';
     }
 
-    if (rev && rev.serverSeed) {
-        html += '<div class="fair-h">' + L('上一手（已揭示，现在就能验）', 'Previous hand (revealed — verifiable now)') + '</div>';
-        html += '<div class="fair-row"><b>' + L('承诺', 'commit') + '</b><code>' + escapeHtml(short(rev.commit)) + '</code></div>';
-        html += '<div class="fair-row"><b>' + L('种子', 'serverSeed') + '</b><code>' + escapeHtml(short(rev.serverSeed)) + '</code></div>';
-        html += '<button onclick="copyText(' + JSON.stringify(JSON.stringify(rev)).replace(/"/g, '&quot;') + ')">'
-            + L('📋 复制揭示数据', '📋 Copy revealed data') + '</button>';
-    } else {
-        html += '<div class="fair-note">' + L('还没有已揭示的牌——打完一手就会出现在这里。',
-            'No revealed hand yet — finish a hand and it will show up here.') + '</div>';
-    }
+    // 🔴 不再逐手揭示（2026-09-17）：揭示种子 = 公开整副牌，
+    //    连【弃牌者从未亮过的底牌】一起公开 —— 同桌下一手就能拿它当 HUD。
+    //    改成整桌结束后统一揭示，不损害可验证性，只是晚一会儿。
+    html += '<div class="fair-h">' + L('什么时候能验', 'When can I verify?') + '</div>';
+    html += '<div class="fair-note">'
+        + L('种子在【整桌结束后】统一公开，到时可以逐手验算。',
+            'Seeds are published once the whole table ends; you can then verify every hand.')
+        + '<br>'
+        + L('为什么不打完一手就公开：公开种子等于公开整副牌，'
+            + '连别人弃牌后【从没亮过的底牌】也一起公开了 —— 那就成了一个免费的 HUD。',
+            'Why not right after each hand: revealing the seed reveals the whole deck, '
+            + 'including cards other players folded and never showed. That would be a free HUD.')
+        + '</div>';
 
     html += '<div class="fair-note">'
-        + L('怎么验：在「牌谱回顾」里导出那一手，然后跑 <code>node tools/verify-hand.js 牌谱.json</code>。它不连服务器，只用标准 SHA-256。',
-            'How to verify: export the hand from "Hand history", then run <code>node tools/verify-hand.js hand.json</code>. It never contacts the server and uses only standard SHA-256.')
+        + L('怎么验：本桌结束后，在「牌谱回顾」里点开那一手 →「🔒 验证数据」导出，然后跑 <code>node tools/verify-hand.js 牌谱.json</code>。它不连服务器，只用标准 SHA-256。',
+            'How to verify: after this table ends, open the hand in "Hand history" → "🔒 Verify data", then run <code>node tools/verify-hand.js hand.json</code>. It never contacts the server and uses only standard SHA-256.')
         + '</div>';
     html += '<div class="modal-btns"><button onclick="closeFairPanel()">' + L('关闭', 'Close') + '</button></div></div>';
 

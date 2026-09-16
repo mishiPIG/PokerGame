@@ -51,7 +51,6 @@ function saveHandHistory(game, winShare) {
         // 这步让下一手的 commit 【在发牌之前就已经公布】，
         // 也就是说玩家能在看到承诺之后再改 clientSeed ——
         // 服务器因此没办法【碾种子】挑一个对自己有利的出来。
-        game.fair.lastReveal = { ...game.hand.fair };
         const nextSeed = newServerSeed();
         game.fair.serverSeed = nextSeed;
         game.fair.commit = commitOf(nextSeed);

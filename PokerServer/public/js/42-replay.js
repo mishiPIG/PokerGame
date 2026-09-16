@@ -240,5 +240,13 @@ function copyHandForVerify() {
             'This hand has no fairness data (hands before 2026-09-16 do not have it)'));
         return;
     }
+    // 桌子还没散：种子没下发（否则等于公开弃牌者从未亮过的底牌）。
+    // 导了也验不了，不如当场说清楚 —— 让人拿着残缺数据去跑工具更糟。
+    if (curDetailHand.fair.revealPending) {
+        toast(L('本桌还在进行中，种子要等整桌结束后才公开（否则等于公开别人弃掉的牌）。',
+            'This table is still running. Seeds are published after the table ends '
+            + '(otherwise it would expose cards other players folded).'));
+        return;
+    }
     copyText(JSON.stringify(curDetailHand, null, 2));
 }

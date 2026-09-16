@@ -69,7 +69,11 @@ function broadcastState(roomId) {
             clientSeed: game.fair.clientSeed,
             nonce: game.fair.nonce,
         } : null,
-        lastReveal: game.fair?.lastReveal || null,
+        // 🔴 不再逐手广播揭示（2026-09-17 改）。
+        //    揭示种子 = 公开整副牌 = 连【弃牌者从未亮过的底牌】一起公开，
+        //    同桌下一手就能拿它当 HUD 用。改成【整桌结束后】统一揭示，
+        //    玩家到牌谱里逐手验（见 hand-visibility.js）。不损害可验证性，只是晚一会儿。
+        fairRevealAfterTable: true,
         buttonUserId:   game.players[game.buttonIdx]?.userId || null,
         actionOnUserId: game.actionOnIdx >= 0 ? (game.players[game.actionOnIdx]?.userId || null) : null,
         communityCards: game.communityCards.map(c => ({ suit: c.suit, rank: c.rank })),
