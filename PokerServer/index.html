@@ -173,6 +173,12 @@
             </div>
             <textarea id="adm-mail-text" class="adm-mail-text" rows="4" placeholder="内容（如：今晚 02:00 维护，请提前结束牌局）"></textarea>
             <div class="adm-bar"><button onclick="sendAdminMail()">发送站内信</button><span class="adm-dim">会进入对方的 📬 收件箱</span></div>
+            <div class="adm-sep">📢 实时公告（当场弹在屏幕上，不进收件箱）</div>
+            <div class="adm-bar">
+                <input id="adm-notice-room" placeholder="房间号（留空 = 全服，含大厅）">
+            </div>
+            <textarea id="adm-notice-text" class="adm-mail-text" rows="2" placeholder="如：服务器 10 分钟后重启，本手打完请稍等"></textarea>
+            <div class="adm-bar"><button onclick="sendAdminNotice()">发送公告</button><span class="adm-dim">离线的人收不到，重要通知请连站内信一起发</span></div>
         </div>
         <div id="admin-msg"></div>
     </div>

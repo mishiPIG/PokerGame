@@ -8,7 +8,7 @@ const TX_LABEL = {
     legacy_import: '旧数据迁移', signup_bonus: '注册赠送'
 };
 
-function registerAdminRoutes({ app, db, requireAdmin, roomGames }) {
+function registerAdminRoutes({ app, db, requireAdmin, roomGames, io }) {
 // 获取所有用户列表
 app.get('/api/admin/users', requireAdmin, (req, res) => {
     res.json(db.getAllUsers());
@@ -177,6 +177,34 @@ app.post('/api/admin/broadcast', requireAdmin, (req, res) => {
     for (const t of targets) { try { db.addMessage(t.id, { type: 'admin', text: full }); sent++; } catch (e) { /* 单个失败不影响其余 */ } }
     console.log(`[admin] ${req.adminUser.username} 发送站内信给 ${username || '全体'}（${sent} 人）`);
     res.json({ ok: true, sent, target: username || '全体' });
+});
+
+
+// 实时公告：**当场弹在屏幕上**，不是站内信。
+// 🔴 为什么要有这条：/api/admin/broadcast 只写 📬 收件箱，正在打牌的人当场看不到。
+//    2026-08-10 要通知玩家重启时撞过一次（只能靠站内信 + 口头说），
+//    2026-09-16 又撞了一次 —— 想上生产，可三个人正在 preflop，
+//    只剩「干等」或「硬切掉他们」两个选择。这条给出第三条路：先说一声。
+// 公告内容是管理员自由输入的，**不翻译**（和房间名同理，属于用户自输内容）；
+// 客户端只负责把它显示出来。
+app.post('/api/admin/table-notice', requireAdmin, (req, res) => {
+    const { roomId, text } = req.body || {};
+    const body = String(text || '').trim().slice(0, 200);
+    if (!body) return res.status(400).json({ error: '内容不能为空' });
+    const payload = { text: body, from: req.adminUser.username, at: Date.now() };
+
+    if (roomId) {
+        const rid = String(roomId).trim();
+        if (!roomGames[rid]) return res.status(404).json({ error: `房间 ${rid} 不存在或已结束` });
+        io.in(rid).emit('admin_notice', payload);
+        console.log(`[admin] ${req.adminUser.username} 向房间 ${rid} 发公告: ${body}`);
+        return res.json({ ok: true, target: `房间 ${rid}` });
+    }
+    // 不指定房间 = 全服（含大厅里的人）。重启通知正是这一种：
+    // 只发给牌桌的话，在大厅等着开局的人完全不知道。
+    io.emit('admin_notice', payload);
+    console.log(`[admin] ${req.adminUser.username} 向全服发公告: ${body}`);
+    res.json({ ok: true, target: '全服' });
 });
 
 }

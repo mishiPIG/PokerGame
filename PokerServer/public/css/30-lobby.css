@@ -10,6 +10,9 @@
             border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
         .adm-tab.sel { background: rgba(6,214,160,0.2); border-color: rgba(6,214,160,0.5); color: #8ff0d0; font-weight: bold; }
         .adm-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+        /* 管理面板里的分隔小标题（管理面板不译，中文写死）*/
+        .adm-sep { margin: 14px 0 8px; padding-top: 10px; font-size: 12px; font-weight: bold;
+            color: #9db9a9; border-top: 1px solid rgba(255,255,255,0.1); }
         .adm-bar input { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: #fff;
             border-radius: 6px; padding: 5px 8px; font-size: 12px; min-width: 0; }
         .adm-bar button, .adm-adjust button { background: #3a86ff; color: #fff; border: none; border-radius: 6px;

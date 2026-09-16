@@ -211,6 +211,18 @@ function connectSocket(token) {
     socket.on('player_stats', ({ userId, stats }) => renderPlayerStats(userId, stats));
     socket.on('button_draw', ({ draws, winnerId }) => showButtonDraw(draws, winnerId));
     // 公共牌下方那行提示（谁想看转牌/河牌）。服务端现在发 { k, p }，老服务端/旧缓存发 { text }，两种都要能显示。
+    // 管理员实时公告。**用独立事件**，不复用 table_notice：
+    //   ① table_notice 只显示在公共牌下方那一行 —— 在大厅的人根本看不到，
+    //      而「服务器要重启了」恰恰最需要让大厅里的人也知道；
+    //   ② 公告是管理员自由输入的文本，没法走 { k, p } 结构化翻译（也不该翻——
+    //      和房间名同理，属于用户自输内容）。
+    socket.on('admin_notice', (m) => {
+        const text = String(m?.text || '').trim();
+        if (!text) return;
+        toast(`📢 ${text}`, 9000);                     // 停久一点：这类消息错过就没了
+        showTableNotice(`📢 ${text}`);                  // 在牌桌上的人另外留一行
+    });
+
     socket.on('table_notice', (m) => {
         const s = renderServerMsg(m && m.k ? m : (m && m.text) || '');
         if (s) showTableNotice(s);

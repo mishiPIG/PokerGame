@@ -226,3 +226,22 @@ async function adminSetGold(username, userId) {
     }
 }
 
+
+// —— 实时公告：当场弹在玩家屏幕上（不进收件箱）——
+// 留空房间号 = 全服，含还在大厅的人。重启通知就该这么发：
+// 只发牌桌的话，在大厅等开局的人完全不知道。
+async function sendAdminNotice() {
+    const roomId = document.getElementById('adm-notice-room').value.trim();
+    const text = document.getElementById('adm-notice-text').value.trim();
+    if (!text) { admMsg('内容不能为空', false); return; }
+    if (!confirm(`确认向 ${roomId ? '房间 ' + roomId : '【全服所有在线玩家】'} 发送？\n\n${text}`)) return;
+    const res = await fetch('/api/admin/table-notice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admToken()}` },
+        body: JSON.stringify({ roomId: roomId || undefined, text })
+    });
+    const d = await res.json();
+    if (!res.ok) { admMsg(d.error || '发送失败', false); return; }
+    admMsg(`公告已发送 → ${d.target}`);
+    document.getElementById('adm-notice-text').value = '';
+}
