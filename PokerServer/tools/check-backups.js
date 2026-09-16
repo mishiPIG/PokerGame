@@ -28,6 +28,14 @@ const flag = (name, def) => {
 };
 const MAX_AGE_H = flag('max-age-hours', 26);   // 日备份 + 2 小时余量：晚一点不告警，缺了才告警
 const MIN_KEEP = flag('min-keep', 3);
+// 异地副本阈值必须【跟实际拉取频率对得上】。现在是【每周】拉一次（本机计划任务），
+// 所以阈值取 8 天 = 一周 + 1 天余量（本机不是 24/7，计划任务开了「错过就补跑」，
+// 但补跑也得等开机）。
+// ⚠️ 阈值定得比拉取间隔短的话，它会【每周都报一次】——
+//    告警一旦变吵就会被忽略，那才是真正的危险。
+//    以后把拉取改成每天，记得把这个值一起改小（比如 48）。
+const OFFSITE_MAX_H = flag('offsite-max-age-hours', 192);
+const offsiteMarker = (() => { const i = args.indexOf('--offsite-marker'); return i >= 0 ? args[i + 1] : null; })();
 const WANT_MAIL = args.includes('--mail');
 
 if (!dir) {
@@ -53,6 +61,24 @@ function main() {
 
     if (files.length < MIN_KEEP) {
         problems.push(`只剩 ${files.length} 份每日备份（期望至少 ${MIN_KEEP} 份）——轮转或备份可能有问题`);
+    }
+
+    // ⓪ 异地副本还在不在拉。
+    //    🔴 服务器本机这 14 份，整机丢失（实例误删 / 区域故障 / 账号问题）会一起没。
+    //    异地副本是这条链路上最后的保险，而它跑在本机上、本机不会自己喊——
+    //    所以由这台 24/7 且能发信的服务器替它喊。
+    if (offsiteMarker) {
+        if (!fs.existsSync(offsiteMarker)) {
+            problems.push(`异地副本从来没拉过（找不到 ${offsiteMarker}）`);
+        } else {
+            const ts = Number(String(fs.readFileSync(offsiteMarker)).trim()) * 1000;
+            const h = (Date.now() - ts) / 3600000;
+            notes.push(`异地副本：${h.toFixed(1)} 小时前拉过`);
+            if (!ts || h > OFFSITE_MAX_H) {
+                problems.push(`异地副本已 ${h.toFixed(1)} 小时没拉（阈值 ${OFFSITE_MAX_H}h）`
+                    + ' —— 本机的定时拉取可能停了；现在所有备份都只在这一台机器上');
+            }
+        }
     }
 
     // ① 新鲜度：最容易出、也最致命的一种失败就是「它早就不跑了」
