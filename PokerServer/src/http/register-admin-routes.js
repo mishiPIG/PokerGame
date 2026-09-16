@@ -214,6 +214,32 @@ app.get('/api/admin/client-errors', requireAdmin, (req, res) => {
     res.json({ total: clientErrors ? clientErrors.size() : 0, list: clientErrors ? clientErrors.list() : [] });
 });
 
+// 运营指标：这个产品到底有没有人在用。
+// ROADMAP 的结论是核心风险已从「牌局出错」变成「做了没人用」，而我们一个能回答
+// 这件事的数字都没有 —— 只能靠「最近好像没人反馈」这种体感。
+// 口径与日界线（显式 UTC+8）全在 metrics-repository.js 里，那里也说明了为什么。
+app.get('/api/admin/metrics', requireAdmin, (req, res) => {
+    // 上限 180 天：这几条查询会扫全量 hand_players，别让一个手抖的 ?days=99999
+    // 把生产库拖住（管理员接口也一样要设上限）。
+    const days = Math.min(180, Math.max(1, Number(req.query.days) || 30));
+    try {
+        const t0 = Date.now();
+        const payload = {
+            days,
+            tzOffsetHours: db.metrics.TZ_OFFSET_HOURS,
+            generatedAt: Date.now(),
+            totals: db.metrics.totals(),
+            daily: db.metrics.daily({ days }),
+            retention: db.metrics.retention({ days }),
+        };
+        payload.queryMs = Date.now() - t0;
+        res.json(payload);
+    } catch (e) {
+        console.error('[admin] metrics 失败', e);
+        res.status(500).json({ error: '统计失败：' + e.message });
+    }
+});
+
 }
 
 module.exports = { registerAdminRoutes };

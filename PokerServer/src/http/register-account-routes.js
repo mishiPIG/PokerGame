@@ -1,8 +1,9 @@
 'use strict';
 
 const buildInfo = require('../build-info');
+const { findBlockingRoom } = require('../account/deletion-guards');
 
-function registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin }) {
+function registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin, bcrypt, roomGames }) {
 // 版本信息（公开，不需要登录）：部署脚本和玩家报 bug 都靠它对上是哪一版。
 // 客户端会把它和【打包进前端 JS 的构建号】一起显示 —— 两者不一致就说明玩家
 // 的浏览器/APK WebView 缓存了旧前端（薄壳架构下这是最常见的「我这边复现不了」）。
@@ -112,6 +113,62 @@ app.post('/api/feedback', requireAuth, (req, res) => {
 });
 app.get('/api/admin/feedback', requireAdmin, (req, res) => {
     res.json(db.getFeedback(Math.min(parseInt(req.query.limit) || 200, 500)));
+});
+
+// ===== 注销账号（2026-09-16）=====
+// 上架 Google Play / App Store 硬性要求 App 内能删除账号。
+// 策略（删什么、留什么、为什么）全部写在 storage/account-deletion-repository.js 的开头，
+// 动这块之前先读那段 —— 数据删了就回不来了。
+//
+// 删之前三道闸：① 不在牌局里（见 account/deletion-guards.js）② 重输密码 ③ 不是最后一个管理员
+
+app.post('/api/account/delete', requireAuth, async (req, res) => {
+    // requireAuth 已经把完整的 user 放在 req.authUser 上了（注意不是 req.user），
+    // 而且它查不到人就直接 401 —— 这正好顺带保证了【注销后旧 token 立刻作废】：
+    // JWT 本身没过期，但库里那行已经被 deleted_at_ms 滤掉了，换不到任何东西。
+    const user = req.authUser;
+
+    // ② 必须重新输一次密码。删号不可撤销，而一个被人捡到的已登录设备
+    //    不该能把整个账号抹掉 —— 这道闸挡的是「会话被盗用」，不是「忘了自己是谁」。
+    const password = String((req.body || {}).password || '');
+    if (!password) return res.status(400).json({ error: '请输入密码以确认注销', k: 'delNeedPwd' });
+    let ok = false;
+    try { ok = await bcrypt.compare(password, user.password_hash); } catch { ok = false; }
+    if (!ok) return res.status(403).json({ error: '密码不正确', k: 'delBadPwd' });
+
+    const room = findBlockingRoom(roomGames, user.id);
+    if (room) return res.status(409).json({
+        error: '你还在牌局 ' + room + ' 里，请先退出并结算后再注销', k: 'delInRoom' });
+
+    // ③ 最后一个管理员不许把自己删了 —— 删完就再也进不了管理面板，
+    //    只能 SSH 上服务器跑 create-admin.js 才能救回来。
+    if (user.isAdmin) {
+        const admins = db.getAllUsers().filter(u => u.isAdmin).length;
+        if (admins <= 1) return res.status(409).json({ error: '你是唯一的管理员，请先指定另一位管理员', k: 'delLastAdmin' });
+    }
+
+    const result = db.accountDeletion.anonymizeIdentity(user.id);
+    if (!result.ok) return res.status(409).json({ error: '注销失败：' + result.reason, k: 'delFailed' });
+    console.log('[account] 账号已注销 user=' + user.id + ' -> ' + result.handle);
+
+    // 身份已经销毁（登录立刻失效），剩下的牌谱擦除分批做。
+    // **每批之间让出事件循环** —— 上万手牌一口气擦会把服务卡住几百毫秒，
+    // 而本项目的底线是绝不能影响正在进行的牌局。
+    // 中途断了也不要紧：擦除是幂等的，启动时的清扫会接着擦完。
+    let scrubbed = 0;
+    try {
+        for (let i = 0; i < 400; i++) {
+            const n = db.accountDeletion.scrubHandBatch(user.id, result.handle);
+            scrubbed += n;
+            if (n === 0) break;
+            await new Promise(r => setImmediate(r));
+        }
+    } catch (e) {
+        console.error('[account] 牌谱擦除中断（启动清扫会接着做）', e.message);
+    }
+    const remaining = db.accountDeletion.pendingHandCount(user.id, result.handle);
+    console.log('[account] 牌谱匿名化 已擦 ' + scrubbed + ' 手，剩余 ' + remaining);
+    res.json({ ok: true, handle: result.handle, scrubbed, remaining });
 });
 
 }

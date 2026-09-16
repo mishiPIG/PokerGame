@@ -19,8 +19,10 @@ const { createDatabaseService } = require('./src/storage/database-service');
 let seq = 0;
 function freshDb() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pokerfriends-'));
-    // ⚠️ 路径要自己留着：db 服务对象上并没有暴露 databasePath，
-    //    第一版用 db.databasePath 取到 undefined，造牌谱的 INSERT 写到别处去了。
+    // ⚠️ 路径自己留一份：写这个测试时 db 服务对象还没暴露 databasePath，
+    //    取到 undefined，造牌谱的 INSERT 写到别处去了。
+    //    （2026-09-16 已经暴露了 db.databasePath，新代码直接用它就行；
+    //     这里保持原样是因为测试本来就该自己握着临时库的路径。）
     const dbPath = path.join(dir, `t${++seq}.sqlite`);
     const db = createDatabaseService({ databasePath: dbPath, allowCreate: true });
     const mk = (name) => db.createUser(name, 'x', false, `${name}@t.local`);

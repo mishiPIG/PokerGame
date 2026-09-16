@@ -84,3 +84,30 @@
         .ib-rank:nth-of-type(1) .ib-no { background: #f4d35e; color: #2a1c00; }
         .ib-line { font-size: 12.5px; color: #dfe9e2; line-height: 1.6; }
         .ib-gap { height: 4px; }
+
+/* ===== 危险区域：注销账号（2026-09-16） ===== */
+/* 刻意不做成显眼的红色大按钮：它不是一个鼓励点击的操作。
+   边框用红、按钮用描边式，点下去之前还有一层输密码的确认。 */
+.pi-danger {
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    background: rgba(248, 113, 113, 0.05);
+}
+.pi-danger-h { font-size: 13px; font-weight: 600; color: #f87171; margin-bottom: 6px; }
+.pi-danger-t { font-size: 11px; color: #9db9a9; line-height: 1.6; margin-bottom: 10px; }
+.pi-danger-btn {
+    background: transparent;
+    border: 1px solid #f87171;
+    color: #f87171;
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.pi-danger-btn:hover { background: #f87171; color: #12201a; }
+.pi-danger-btn:disabled { opacity: 0.5; cursor: default; }
+#del-pwd {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+}

@@ -171,6 +171,7 @@ function renderProfileInfo() {
         + `<div class="pi-handle">${L('账号', 'Account')}：${escapeHtml(myUsername || '')}</div>`
         + `<div class="pi-gold">🪙 ${(myGold || 0).toLocaleString()}</div>`;
     renderDisplayNameSection();
+    renderDangerZone();
     renderProfileAvatars();
     renderEmailSection();
 }
@@ -323,4 +324,94 @@ function refreshMeDot() {
     if (!dot) return;
     const pending = friendData.incoming ? friendData.incoming.length : 0;
     dot.style.display = (_inboxUnread > 0 || pending > 0) ? '' : 'none';
+}
+
+// ===== 危险区域：注销账号（2026-09-16）=====
+// 上架 Google Play / App Store 硬性要求 App 内能删除账号。
+//
+// 界面上只有一件事非做不可：把【会发生什么】说清楚，而且是在点下去之前。
+// 注销不可撤销、金币作废、牌谱会匹名保留 —— 这三件事里任何一件
+// 让人事后才知道，都是一次真正的事故。
+function renderDangerZone() {
+    const box = document.getElementById('pi-danger');
+    if (!box) return;
+    box.innerHTML = '<div class="pi-danger-h">' + L('注销账号', 'Delete account') + '</div>'
+        + '<div class="pi-danger-t">'
+        + L('注销后将永久删除你的邮箱、密码、显示名、头像、牌友号与好友关系，【金币余额作废且无法找回】。',
+            'This permanently deletes your email, password, display name, avatar, friend code and friendships. Your coin balance is forfeited and cannot be restored.')
+        + '<br>'
+        + L('已经打过的牌局会以匿名形式保留 —— 一手牌是同桌几个人共同的记录，删掉它会连带毁掉别人的牌谱。',
+            'Hands you have played are kept in anonymised form: a hand is a shared record of everyone at the table, so deleting it would destroy other players records too.')
+        + '</div>'
+        + '<button class="pi-danger-btn" onclick="openDeleteAccount()">'
+        + L('注销账号', 'Delete my account') + '</button>';
+}
+
+function openDeleteAccount() {
+    // 用自家 modal，不用 prompt()/confirm()：手机 WebView 里会被限制甚至直接不弹，
+    // 而且顶着一行「来自网页的提示」观感像钓鱼弹窗（牌友备注那次已经踩过）。
+    const html = '<div class="modal-box">'
+        + '<h3>' + L('确认注销账号？', 'Delete your account?') + '</h3>'
+        + '<div class="pi-danger-t" style="margin-bottom:10px">'
+        + L('这个操作【无法撤销】。请输入密码确认。',
+            'This cannot be undone. Enter your password to confirm.') + '</div>'
+        + '<input type="password" id="del-pwd" autocomplete="current-password" placeholder="'
+        + L('密码', 'Password') + '">'
+        + '<div id="del-msg" class="pi-danger-t"></div>'
+        + '<div class="modal-btns">'
+        + '<button onclick="closeDeleteAccount()">' + L('取消', 'Cancel') + '</button>'
+        + '<button class="pi-danger-btn" id="del-go" onclick="confirmDeleteAccount()">'
+        + L('永久注销', 'Delete forever') + '</button>'
+        + '</div></div>';
+    const mask = document.createElement('div');
+    mask.className = 'modal-mask';
+    mask.id = 'del-modal';
+    mask.innerHTML = html;
+    document.body.appendChild(mask);
+    const i = document.getElementById('del-pwd');
+    if (i) i.focus();
+}
+
+function closeDeleteAccount() {
+    const m = document.getElementById('del-modal');
+    if (m) m.remove();
+}
+
+async function confirmDeleteAccount() {
+    const pwd = (document.getElementById('del-pwd') || {}).value || '';
+    const msg = document.getElementById('del-msg');
+    const btn = document.getElementById('del-go');
+    if (!pwd) { if (msg) msg.textContent = L('请输入密码', 'Enter your password'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = L('处理中…', 'Working...'); }
+    let data = {};
+    try {
+        const res = await fetch('/api/account/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('token') },
+            body: JSON.stringify({ password: pwd }),
+        });
+        data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            if (msg) msg.textContent = apiErr(data, '注销失败', 'Deletion failed');
+            if (btn) { btn.disabled = false; btn.textContent = L('永久注销', 'Delete forever'); }
+            return;
+        }
+    } catch (e) {
+        if (msg) msg.textContent = L('网络错误，请重试', 'Network error, please retry');
+        if (btn) { btn.disabled = false; btn.textContent = L('永久注销', 'Delete forever'); }
+        return;
+    }
+    // 账号已经不存在了，手里那个 token 再也换不到任何东西 —— 先清干净。
+    try { localStorage.removeItem('token'); localStorage.removeItem('lastRoom'); } catch (e) { /* 无所谓 */ }
+    // 不用 alert()：本项目已经把 prompt/confirm 都换掉了（手机 WebView 里观感像钓鱼弹窗）。
+    // 改成把弹窗就地换成结果页，由玩家自己点一下再回登录页 ——
+    // 这是个不可撤销的结果，不该被一个自动刷新一闪而过。
+    const box = document.querySelector('#del-modal .modal-box');
+    if (!box) { location.reload(); return; }
+    box.innerHTML = '<h3>' + L('账号已注销', 'Account deleted') + '</h3>'
+        + '<div class="pi-danger-t">'
+        + L('你的个人信息已经删除，牌局记录已匿名化。感谢使用德扑道场。',
+            'Your personal data has been deleted and your hand records anonymised. Thanks for playing Poker Dojo.')
+        + '</div><div class="modal-btns"><button onclick="location.reload()">'
+        + L('返回登录页', 'Back to sign in') + '</button></div>';
 }

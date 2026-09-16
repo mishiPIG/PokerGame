@@ -309,3 +309,59 @@
         .rc-tag.open { background: rgba(6,214,160,0.18); color: #6fe6c0; border-color: rgba(6,214,160,0.45); }
         .rc-tag.priv { background: rgba(255,255,255,0.07); color: #9db9a9; }
         .rc-join.open { background: #06d6a0; color: #0a1f1a; border-color: transparent; }
+
+/* ===== 管理面板 · 运营指标（2026-09-16） ===== */
+/* 条形图是纯 div 宽度百分比画的，不引图表库：CSP 只放行几个 CDN，
+   而为了一排条形图拉一个库并不划算。 */
+.mt-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px;
+    margin: 8px 0 14px;
+}
+.mt-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 10px 8px;
+    text-align: center;
+}
+.mt-v { font-size: 20px; font-weight: 700; color: #f4d35e; line-height: 1.2; }
+.mt-l { font-size: 11px; color: #dfe9e2; margin-top: 2px; }
+.mt-h { font-size: 10px; color: #9db9a9; }
+.mt-rows { display: flex; flex-direction: column; gap: 2px; }
+.mt-row {
+    display: grid;
+    grid-template-columns: 42px 1fr 46px 1fr 52px 44px;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #dfe9e2;
+    padding: 2px 0;
+}
+/* 一整天没人的日子压暗但【仍然占一行】——
+   折线中间断掉会被看成「还行」，而那天其实一个人都没有。 */
+.mt-zero { opacity: 0.38; }
+.mt-d { color: #9db9a9; font-variant-numeric: tabular-nums; }
+.mt-n { text-align: right; font-variant-numeric: tabular-nums; }
+.mt-x { color: #06d6a0; font-size: 10px; text-align: right; }
+.mt-bar {
+    display: block;
+    height: 9px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.mt-bar > i { display: block; height: 100%; background: #3a86ff; border-radius: 999px; }
+.mt-bar2 > i { background: #f4d35e; }
+.mt-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+.mt-table th, .mt-table td { padding: 4px 6px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+.mt-table th { color: #9db9a9; font-weight: 600; }
+.mt-table td { color: #dfe9e2; font-variant-numeric: tabular-nums; }
+.mt-na { color: #6d8577; }
+.mt-note { font-size: 10px; color: #9db9a9; margin-top: 6px; line-height: 1.5; }
+@media (max-width: 560px) {
+    /* 窄屏把「手数」那对列去掉，只留人数——六列挤在 360px 里谁也读不出来 */
+    .mt-row { grid-template-columns: 40px 1fr 44px 40px; }
+    .mt-row .mt-bar2, .mt-row .mt-bar2 + .mt-n { display: none; }
+}

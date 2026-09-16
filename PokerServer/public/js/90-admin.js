@@ -15,12 +15,13 @@ function admMsg(text, ok = true) {
     if (el) el.textContent = (ok ? '✅ ' : '❌ ') + text;
 }
 function adminTab(name) {
-    ['users', 'rooms', 'wallet', 'hands', 'audit', 'mail'].forEach(t => {
+    ['users', 'metrics', 'rooms', 'wallet', 'hands', 'audit', 'mail'].forEach(t => {
         const pane = document.getElementById('adm-pane-' + t);
         if (pane) pane.style.display = t === name ? '' : 'none';
     });
     document.querySelectorAll('.adm-tab').forEach(b => b.classList.toggle('sel', b.dataset.at === name));
     if (name === 'rooms') loadAdminRooms();
+    if (name === 'metrics') loadAdminMetrics();
 }
 
 // —— 玩家牌谱：查任意玩家最近的牌局 ——
@@ -244,4 +245,83 @@ async function sendAdminNotice() {
     if (!res.ok) { admMsg(d.error || '发送失败', false); return; }
     admMsg(`公告已发送 → ${d.target}`);
     document.getElementById('adm-notice-text').value = '';
+}
+
+// —— 运营指标（2026-09-16）——
+// 管理面板不翻译（全库唯二不译之一），所以这里直接写中文。
+//
+// 显示上的两个刻意选择：
+// ① 留存给「几分之几」而不只给百分比 —— 现在就几十个用户，
+//    一个 2 人的 cohort 里多一个人就是 +50%，光看百分比会对着噪声做决定。
+// ② 未到期的 cohort 显示「—」而不是 0 —— 「还不知道」和「一个都没留下」完全不是一回事。
+async function loadAdminMetrics() {
+    const box = document.getElementById('adm-metrics');
+    if (!box) return;
+    const days = document.getElementById('adm-mt-days').value || 30;
+    box.innerHTML = '<div class="adm-empty">加载中…</div>';
+    const res = await admGet('/api/admin/metrics?days=' + days);
+    if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        box.innerHTML = '<div class="adm-empty">' + escapeHtml(e.error || '加载失败') + '</div>';
+        return;
+    }
+    const d = await res.json();
+    const sum = document.getElementById('adm-mt-sum');
+    if (sum) sum.textContent = '日界线 UTC+' + d.tzOffsetHours + ' · 查询 ' + d.queryMs + 'ms';
+
+    const t = d.totals;
+    const card = (label, value, hint) =>
+        '<div class="mt-card"><div class="mt-v">' + value + '</div>' +
+        '<div class="mt-l">' + label + '</div>' +
+        (hint ? '<div class="mt-h">' + hint + '</div>' : '') + '</div>';
+
+    const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) + '%' : '—');
+    let html = '<div class="mt-cards">'
+        + card('用户总数', t.users, t.deletedUsers ? ('已注销 ' + t.deletedUsers) : '')
+        + card('7 日活跃', t.active7d, pct(t.active7d, t.users) + ' 的用户')
+        + card('30 日活跃', t.active30d, pct(t.active30d, t.users) + ' 的用户')
+        + card('总手数', t.hands.toLocaleString(), t.matches + ' 场牙局')
+        + card('从没打过牌', t.neverPlayed, pct(t.neverPlayed, t.users) + ' 的注册用户')
+        + card('只玩过一天', t.onlyOneDay, '来了一次就没再回来')
+        + '</div>';
+
+    // 趋势：条形图直接用 div 宽度画，不引图表库
+    // （CSP 只允许几个 CDN，而且为了一排条形图拉一个库不值）。
+    const maxHands = Math.max(1, ...d.daily.map(r => r.hands));
+    const maxDau = Math.max(1, ...d.daily.map(r => r.dau));
+    html += '<div class="adm-wallet-h">每日趋势（最近 ' + d.days + ' 天）</div>';
+    html += '<div class="mt-rows">';
+    for (const r of [...d.daily].reverse()) {
+        const zero = (r.dau === 0 && r.hands === 0) ? ' mt-zero' : '';
+        html += '<div class="mt-row' + zero + '">'
+            + '<span class="mt-d">' + r.date.slice(5) + '</span>'
+            + '<span class="mt-bar"><i style="width:' + Math.round(r.dau / maxDau * 100) + '%"></i></span>'
+            + '<span class="mt-n">' + r.dau + ' 人</span>'
+            + '<span class="mt-bar mt-bar2"><i style="width:' + Math.round(r.hands / maxHands * 100) + '%"></i></span>'
+            + '<span class="mt-n">' + r.hands + ' 手</span>'
+            + '<span class="mt-x">' + (r.signups ? '+' + r.signups + ' 新' : '') + '</span>'
+            + '</div>';
+    }
+    html += '</div>';
+
+    // 留存
+    const rt = d.retention.filter(r => r.cohort > 0);
+    html += '<div class="adm-wallet-h">留存（按注册日）</div>';
+    if (!rt.length) {
+        html += '<div class="adm-empty">这段时间没有新注册</div>';
+    } else {
+        html += '<table class="mt-table"><thead><tr><th>注册日</th><th>人数</th>'
+            + '<th>次日回来</th><th>7 日回来</th></tr></thead><tbody>';
+        const cell = (n, total) => (n === null || n === undefined)
+            ? '<td class="mt-na" title="还没到日子，不是 0">—</td>'
+            : '<td>' + n + '/' + total + '<span class="mt-h"> ' + pct(n, total) + '</span></td>';
+        for (const r of [...rt].reverse()) {
+            html += '<tr><td>' + r.date.slice(5) + '</td><td>' + r.cohort + '</td>'
+                + cell(r.retained.d1, r.cohort) + cell(r.retained.d7, r.cohort) + '</tr>';
+        }
+        html += '</tbody></table>';
+        html += '<div class="mt-note">活跃 = 当天打过牌 或 签过到。'
+            + '「—」= cohort 还没满那么多天，不是 0。</div>';
+    }
+    box.innerHTML = html;
 }

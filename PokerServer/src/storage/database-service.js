@@ -8,6 +8,8 @@ const { createWalletRepository } = require('./wallet-repository');
 const { createContentRepository } = require('./content-repository');
 const { createMatchRepository } = require('./match-repository');
 const { createFriendRepository } = require('./friend-repository');
+const { createMetricsRepository } = require('./metrics-repository');
+const { createAccountDeletionRepository } = require('./account-deletion-repository');
 
 function defaultDatabasePath(baseDir) {
     return process.env.POKER_DB_PATH || path.join(baseDir, '.local', 'pokerdojo.sqlite');
@@ -30,6 +32,8 @@ function createDatabaseService({
     const content = createContentRepository(db);
     const matches = createMatchRepository(db);
     const friends = createFriendRepository(db);
+    const metrics = createMetricsRepository(db);
+    const accountDeletion = createAccountDeletionRepository(db);
     users.backfillFriendCodes();   // 存量用户补发牌友号（幂等，没的才发）
 
     const checkinTx = db.transaction((id, dateStr, streak, reward) => {
@@ -61,6 +65,8 @@ function createDatabaseService({
         wallet,
         matches,
         friends,
+        metrics,
+        accountDeletion,
         applyCheckin(id, dateStr, streak, reward) {
             try {
                 return checkinTx(id, dateStr, streak, reward);

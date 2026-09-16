@@ -11,7 +11,8 @@ const db = require('./database');
 const stats = require('./stats');
 const equity = require('./equity');
 const mailer = require('./mailer');
-const { crashFileFor, recordCrash, reportPendingCrash } = require('./src/ops/crash-report');
+const { crashFileFor, recordCrash } = require('./src/ops/crash-report');
+const { runStartupTasks } = require('./src/ops/startup-tasks');
 const buildInfo = require('./src/build-info');
 const { createClientErrorSink } = require('./src/ops/client-errors');
 const config = require('./src/config');
@@ -86,7 +87,7 @@ const { projectedPositions } = tableService;
 
 registerAdminRoutes({ app, db, requireAdmin, roomGames, io, clientErrors });
 const voiceModule = registerVoiceModule({ app, io, db, roomGames, requireAuth, express, crypto, fs, path, baseDir: __dirname });
-registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin });
+registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin, bcrypt, roomGames });
 registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth });
 
 auth.registerSocketAuth(io);
@@ -96,12 +97,7 @@ const PORT = process.env.PORT || 3000;
 const onListening = () => {
     const host = LOCAL_DEV ? '127.0.0.1' : '0.0.0.0';
     console.log(`🚀 扑克服务器已启动！${host}:${PORT}${LOCAL_DEV ? ' (本地开发模式)' : ''}`);
-    // 上一个进程是否崩溃退出的？是就现在报——
-    // 由【健康的】进程发，而不是濒死的那个（见 crash-report.js 的注释）。
-    // 不 await：告警发不出去不应该拖住服务启动。
-    reportPendingCrash(crashFileFor(db.databasePath), { mailer, label: buildInfo.label })
-        .then(r => { if (r.sent) console.error(`[crash] 已告警上次的 ${r.count} 次崩溃`); })
-        .catch(e => console.error('[crash] 上报失败', e.message));
+    runStartupTasks({ db, mailer, label: buildInfo.label });
 };
 if (require.main === module) {
     // 只有真正启动服务时才恢复牌局和计时器。测试或工具仅 require 本模块时不得产生后台定时器。
