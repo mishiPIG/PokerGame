@@ -227,3 +227,18 @@ function renderHistActions(h) {
         `<span class="ha">${streetName[a.street] || a.street}·${escapeHtml(nameOf[a.userId] || '?')} ${A[a.action] || a.action}${a.amount ? ' ' + a.amount : ''}</span>`
     ).join('') || `<span style="opacity:.5">${L('无动作', 'no action')}</span>`;
 }
+
+// 把这一手的完整牌谱复制出去，给 tools/verify-hand.js 离线验算用。
+// 🔴 必须是【整份牌谱】而不只是种子：验算器第三步要核对
+// 「重算出来的牌序能不能解释你当时真的看到的牌」，那需要 seats 和 community。
+// （先前公平性面板里写着「去牌谱回顾里导出」，可那个入口根本不存在 ——
+//  说明书叫人去做一件做不到的事，比没有说明书更糟。）
+function copyHandForVerify() {
+    if (!curDetailHand) return;
+    if (!curDetailHand.fair) {
+        toast(L('这手牌没有公平性数据（2026-09-16 之前的牌没有）',
+            'This hand has no fairness data (hands before 2026-09-16 do not have it)'));
+        return;
+    }
+    copyText(JSON.stringify(curDetailHand, null, 2));
+}

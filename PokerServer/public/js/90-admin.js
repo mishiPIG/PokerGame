@@ -15,13 +15,14 @@ function admMsg(text, ok = true) {
     if (el) el.textContent = (ok ? '✅ ' : '❌ ') + text;
 }
 function adminTab(name) {
-    ['users', 'metrics', 'rooms', 'wallet', 'hands', 'audit', 'mail'].forEach(t => {
+    ['users', 'metrics', 'rooms', 'wallet', 'hands', 'audit', 'errors', 'mail'].forEach(t => {
         const pane = document.getElementById('adm-pane-' + t);
         if (pane) pane.style.display = t === name ? '' : 'none';
     });
     document.querySelectorAll('.adm-tab').forEach(b => b.classList.toggle('sel', b.dataset.at === name));
     if (name === 'rooms') loadAdminRooms();
     if (name === 'metrics') loadAdminMetrics();
+    if (name === 'errors') loadAdminErrors();
 }
 
 // —— 玩家牌谱：查任意玩家最近的牌局 ——
@@ -324,4 +325,31 @@ async function loadAdminMetrics() {
             + '「—」= cohort 还没满那么多天，不是 0。</div>';
     }
     box.innerHTML = html;
+}
+
+// —— 客户端报错（2026-09-16）——
+// 前端 JS 报错原本只在玩家自己的 console 里，服务端一无所知。
+// 🔴 每条带【前端构建号】—— 一眼分得出「真 bug」还是「他缓存了旧 JS」，
+// 后者占了玩家报障里相当大的一部分。
+async function loadAdminErrors() {
+    const box = document.getElementById('adm-errors');
+    if (!box) return;
+    box.innerHTML = '<div class="adm-empty">加载中…</div>';
+    const res = await admGet('/api/admin/client-errors');
+    if (!res.ok) { box.innerHTML = '<div class="adm-empty">加载失败</div>'; return; }
+    const d = await res.json();
+    const sum = document.getElementById('adm-err-sum');
+    if (sum) sum.textContent = '内存环形缓冲，重启即清 · 当前 ' + d.total + ' 条';
+    if (!d.list || !d.list.length) { box.innerHTML = '<div class="adm-empty">没有客户端报错（这是好事）</div>'; return; }
+    box.innerHTML = d.list.map(e => {
+        const when = new Date(e.at).toLocaleString('zh-CN', { hour12: false });
+        return '<div class="adm-err">'
+            + '<div class="adm-err-h"><b>' + escapeHtml(e.message) + '</b>'
+            + (e.count > 1 ? '<span class="adm-err-n">×' + e.count + '</span>' : '') + '</div>'
+            + '<div class="adm-err-m">' + when + ' · ' + escapeHtml(e.username || '(未登录)')
+            + ' · 前端 ' + escapeHtml(e.build || '?')
+            + ' · ' + escapeHtml(e.source || '') + ':' + e.line + '</div>'
+            + (e.stack ? '<pre class="adm-err-s">' + escapeHtml(e.stack.split('\n').slice(0, 4).join('\n')) + '</pre>' : '')
+            + '</div>';
+    }).join('');
 }

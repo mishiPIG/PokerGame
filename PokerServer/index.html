@@ -131,6 +131,7 @@
             <button class="adm-tab" data-at="hands" onclick="adminTab('hands')">📜 牌谱</button>
             <button class="adm-tab" data-at="metrics" onclick="adminTab('metrics')">📈 运营</button>
             <button class="adm-tab" data-at="audit" onclick="adminTab('audit')">🛡️ 审计</button>
+            <button class="adm-tab" data-at="errors" onclick="adminTab('errors')">🐞 客户端报错</button>
             <button class="adm-tab" data-at="mail" onclick="adminTab('mail')">✉️ 站内信</button>
         </div>
         <div id="adm-pane-users">
@@ -150,6 +151,11 @@
                 <span id="adm-mt-sum"></span>
             </div>
             <div id="adm-metrics"></div>
+        </div>
+        <div id="adm-pane-errors" style="display:none">
+            <div class="adm-bar"><button onclick="loadAdminErrors()">🔄 刷新</button>
+                <span id="adm-err-sum"></span></div>
+            <div id="adm-errors"></div>
         </div>
         <div id="adm-pane-rooms" style="display:none">
             <div class="adm-bar"><button onclick="loadAdminRooms()">🔄 刷新</button><span id="adm-rooms-sum"></span></div>
@@ -673,6 +679,7 @@
             <b id="hd-title">牌谱详情</b>
             <div class="hd-head-btns">
                 <button class="hd-replay" onclick="replayCurrentDetail()" data-i18n="hd.replay">▶ 回放</button>
+                <button class="hd-replay" onclick="copyHandForVerify()" data-i18n="hd.verify">🔒 验证数据</button>
                 <button class="hd-close" onclick="closeHandDetail()" data-i18n-title="a11y.close" title="关闭" aria-label="关闭">✕</button>
             </div>
         </div>

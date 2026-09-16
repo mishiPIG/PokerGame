@@ -365,3 +365,24 @@
     .mt-row { grid-template-columns: 40px 1fr 44px 40px; }
     .mt-row .mt-bar2, .mt-row .mt-bar2 + .mt-n { display: none; }
 }
+
+/* ===== 管理面板 · 客户端报错（2026-09-16） ===== */
+.adm-err {
+    background: rgba(255, 255, 255, 0.04);
+    border-left: 2px solid #f87171;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+}
+.adm-err-h { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #eaf3ee; }
+.adm-err-n { font-size: 10px; color: #f4d35e; flex-shrink: 0; }
+.adm-err-m { font-size: 10px; color: #9db9a9; margin-top: 2px; }
+.adm-err-s {
+    font-size: 10px;
+    color: #6d8577;
+    margin: 4px 0 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 64px;
+    overflow-y: auto;
+}

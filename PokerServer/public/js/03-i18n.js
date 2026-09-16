@@ -289,7 +289,7 @@ const I18N = {
         'compliance': '绿色竞技 · 远离赌博 · 谨防诈骗 · 健康生活',
         'ms.title': '比赛设置', 'ms.close': '关闭', 'ms.end': '🛑 提前结束',
         'rp.title': '牌谱回放', 'rp.prev': '上一步', 'rp.play': '播放/暂停', 'rp.next': '下一步', 'rp.speed': '速度',
-        'hd.title': '牌谱详情', 'hd.replay': '▶ 回放', 'ap.sub': '本局数据', 'ap.emo': '发表情',
+        'hd.title': '牌谱详情', 'hd.replay': '▶ 回放', 'hd.verify': '🔒 验证数据', 'ap.sub': '本局数据', 'ap.emo': '发表情',
         'result.title': '比赛结束', 'result.back': '返回大厅',
     },
     en: {
@@ -573,7 +573,7 @@ const I18N = {
         'compliance': 'Play for fun · No gambling · Beware of scams · Stay healthy',
         'ms.title': 'Game settings', 'ms.close': 'Close', 'ms.end': '🛑 End early',
         'rp.title': 'Hand replay', 'rp.prev': 'Previous', 'rp.play': 'Play/Pause', 'rp.next': 'Next', 'rp.speed': 'Speed',
-        'hd.title': 'Hand detail', 'hd.replay': '▶ Replay', 'ap.sub': 'This hand', 'ap.emo': 'Emote',
+        'hd.title': 'Hand detail', 'hd.replay': '▶ Replay', 'hd.verify': '🔒 Verify data', 'ap.sub': 'This hand', 'ap.emo': 'Emote',
         'result.title': 'Game over', 'result.back': 'Back to lobby',
     },
 };
