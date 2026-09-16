@@ -59,6 +59,17 @@ function broadcastState(roomId) {
         actionTotalMs:  game.actionOnIdx >= 0 ? (game.actionTotalMs || ACTION_TIME) : null, // 本次行动总时长(环形进度)
         canAddTime:     game.actionOnIdx >= 0 && (game.extraAddedThisTurn || 0) < EXTRA_MAX
                         && (game.players[game.actionOnIdx]?.timeCards || 0) > 0, // 还能加时(未达2min上限且有时间卡)
+        // 可验证公平（2026-09-16）。
+        // 🔴🔴 这里只能放 **commit**，绝对不能放本手的 serverSeed——
+        //    放了就等于把整副牌提前告诉桌上所有人，比不做这个功能糟糕一万倍。
+        //    lastReveal 里确实有种子，但那是【上一手】的、已经打完了的。
+        //    有一条测试就守这一点（fairness-state.test.js）。
+        fair: game.fair ? {
+            commit: game.fair.commit,
+            clientSeed: game.fair.clientSeed,
+            nonce: game.fair.nonce,
+        } : null,
+        lastReveal: game.fair?.lastReveal || null,
         buttonUserId:   game.players[game.buttonIdx]?.userId || null,
         actionOnUserId: game.actionOnIdx >= 0 ? (game.players[game.actionOnIdx]?.userId || null) : null,
         communityCards: game.communityCards.map(c => ({ suit: c.suit, rank: c.rank })),

@@ -56,3 +56,19 @@
         .bm-info b { color: #ffa05c; }
         .bm-auto { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: #cbd9d0; }
         .bm-auto input { width: 16px; height: 16px; accent-color: #06d6a0; }
+
+/* ===== 公平性验证面板（2026-09-16） ===== */
+.fair-note { font-size: 11px; color: #9db9a9; line-height: 1.7; margin: 8px 0; }
+.fair-note code { background: rgba(255, 255, 255, 0.07); padding: 1px 5px; border-radius: 4px; }
+.fair-h { font-size: 12px; color: #f4d35e; margin: 12px 0 4px; font-weight: 600; }
+.fair-row { display: flex; align-items: center; gap: 8px; font-size: 11px; margin: 4px 0; }
+.fair-row b { color: #dfe9e2; flex-shrink: 0; min-width: 84px; }
+/* 承诺/种子是长十六进制串，必须允许断行，否则会把弹窗撑破 */
+.fair-row code {
+    color: #06d6a0;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    word-break: break-all;
+    min-width: 0;
+}

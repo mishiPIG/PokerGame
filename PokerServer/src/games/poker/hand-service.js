@@ -1,5 +1,6 @@
 'use strict';
 const { nameOf } = require('../../account/display-name');
+const { newServerSeed, commitOf, createSeededRng } = require('./provably-fair');
 
 function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config, rules, pots, presenter, straddle, runIt, showdown, history, hooks }) {
     const { PHASES, ACTION_TIME, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, STANDARD_BLIND_LEVELS, gameSB, gameBB, gameAnte, timeCardsFor } = config;
@@ -11,6 +12,14 @@ function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config,
     const { doShowdown } = showdown;
     const { recordAction, saveHandHistory, commitHandHistory } = history;
     const { applyPendingLevelUp, maybeEndSNG, scheduleNextHand, startLevelTimer, startTableTimer, broadcastRoomList } = hooks;
+    // 可验证公平：确保房间手里有一份【已公布过承诺】的种子。
+    // 第一手在这里懒创建；之后每手结束揭示后立刻换新的（见 hand-history-service）。
+    function ensureFairCommit(game) {
+        if (game.fair && game.fair.serverSeed && game.fair.commit) return game.fair;
+        const serverSeed = newServerSeed();
+        game.fair = { serverSeed, commit: commitOf(serverSeed), clientSeed: null, nonce: 0, deckOrder: null };
+        return game.fair;
+    }
 // ===== 行动计时器（服务器权威）=====
 
 function clearActionTimer(game) {
@@ -321,8 +330,18 @@ function startHand(roomId) {
     game.buttonIdx = game.players.findIndex(p => p.seat === bseat);
     game.handSeq = targetHandSeq;
 
-    game.deck.reset(); game.deck.shuffle();
-    console.log(`[deal] 房间 ${roomId} 新一手已重新洗牌（crypto） shuffleId=${game.deck.lastShuffleId}`);
+    // 可验证公平（2026-09-16）：这手牌的牌序完全由
+    // (serverSeed, clientSeed, handSeq) 决定性地算出来，没有别的随机源。
+    // 🔴 serverSeed 的承诺（commit）是【上一手结束时就已公布】的，
+    //    服务器在看到任何牌之前就被自己锁死了 —— 换牌就对不上 commit。
+    ensureFairCommit(game);
+    game.fair.nonce = game.handSeq;
+    game.fair.clientSeed = String(game.clientSeed || roomId);
+    const fairRng = createSeededRng(game.fair.serverSeed, game.fair.clientSeed, game.fair.nonce);
+    game.deck.reset(); game.deck.shuffle(fairRng);
+    // 整副牌序记下来，牌局结束后跟种子一起入牌谱 —— 玩家才能离线重算。
+    game.fair.deckOrder = game.deck.cards.map(c => `${c.rank}${c.suit[0]}`);
+    console.log(`[deal] 房间 ${roomId} 新一手已重新洗牌（可验证） commit=${game.fair.commit.slice(0, 12)}… nonce=${game.fair.nonce}`);
     game.holeCards = {}; game.communityCards = [];
     game.shownCards = {};   // 本局主动亮牌记录（userId -> Set(牌索引)）
     game.allinRevealed = false;   // 全押亮牌标志

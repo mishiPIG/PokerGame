@@ -1,5 +1,7 @@
 'use strict';
 const { bind } = require('./room-context');
+const { initialFair } = require('../../games/poker/provably-fair');
+
 function registerLobbyEvents(context) {
     const { socket, user, roomGames, lobbySockets, listRooms, genRoomId, Deck, PHASES, createRoomInvite, clampInt, SNG_BUYIN_TIERS, STANDARD_BLIND_LEVELS, authorize, seatPlayer, emitRoomInviteInfo, joinAsSpectator, persistence } = bind(context);
     // 进入大厅：订阅房间列表
@@ -15,6 +17,9 @@ function registerLobbyEvents(context) {
         const roomId = genRoomId();
         roomGames[roomId] = {
             deck: new Deck(), players: [], phase: PHASES.WAITING,
+            // 可验证公平：房间一建好就备好承诺，这样【第一手】的 commit 也是发牌之前就公开的。
+            // （放到 startHand 里才创建的话，第一手的承诺和发牌是同一瞬间，玩家根本来不及先看到它。）
+            fair: initialFair(),
             holeCards: {}, communityCards: [], pot: 0, currentBet: 0,
             buttonIdx: 0, buttonSeat: -1, actionOnIdx: -1,
             roomType: 'sng', status: 'waiting',
@@ -57,6 +62,9 @@ function registerLobbyEvents(context) {
         const maxBuyIn = clampInt(cfg.maxBuyIn, 0, 60000, 0);   // 0=无限制
         roomGames[roomId] = {
             deck: new Deck(), players: [], phase: PHASES.WAITING,
+            // 可验证公平：房间一建好就备好承诺，这样【第一手】的 commit 也是发牌之前就公开的。
+            // （放到 startHand 里才创建的话，第一手的承诺和发牌是同一瞬间，玩家根本来不及先看到它。）
+            fair: initialFair(),
             holeCards: {}, communityCards: [], pot: 0, currentBet: 0,
             buttonIdx: 0, buttonSeat: -1, actionOnIdx: -1,
             roomType: 'cash', status: 'waiting',

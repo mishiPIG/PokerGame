@@ -829,3 +829,58 @@ function openProfileTab(t) { openProfile(); profileTab(t); }
 
 // 切语言后「我的」页头卡与房间列表要重画（登记制，别往 setLang 里加手写清单）
 onLangChange(() => { renderMeHead(); });
+
+// ===== 公平性验证面板（2026-09-16）=====
+// 可验证公平光在服务器上做完是没意义的 —— 得让玩家看得到、取得走、自己能算。
+// 面板里只说三件事：本手的承诺（发牌前就公布了）、上一手的种子（现在可以验了）、
+// 以及怎么验。不吹「绝对公平」，只说它到底证明了什么。
+function openFairPanel() {
+    const st = lastState || {};
+    const fair = st.fair;
+    const rev = st.lastReveal;
+    const short = (x) => (x ? String(x).slice(0, 24) + '…' : '—');
+
+    let html = '<div class="modal-box"><h3>' + L('🔒 公平性验证', '🔒 Provably fair') + '</h3>';
+    html += '<div class="fair-note">'
+        + L('每一手的牌序都由一个随机种子决定，而种子的指纹在【发牌之前】就已经公布给全桌。',
+            'Every hand is dealt from a random seed whose fingerprint is published to the whole table BEFORE any card is dealt.')
+        + '<br>'
+        + L('这手牌结束后种子会公布，你可以自己重算一遍 —— 也就是说，服务器【没办法在看到牌之后再换牌】。',
+            'The seed is revealed when the hand ends, so you can recompute the deck yourself. The server cannot change the deck after seeing anyone cards.')
+        + '</div>';
+
+    html += '<div class="fair-row"><b>' + L('本手承诺', 'Current commitment') + '</b>'
+        + '<code>' + escapeHtml(short(fair && fair.commit)) + '</code></div>';
+    if (fair) {
+        html += '<div class="fair-row"><b>clientSeed</b><code>' + escapeHtml(String(fair.clientSeed || '—')) + '</code></div>';
+        html += '<div class="fair-row"><b>nonce</b><code>' + escapeHtml(String(fair.nonce ?? '—')) + '</code></div>';
+    }
+
+    if (rev && rev.serverSeed) {
+        html += '<div class="fair-h">' + L('上一手（已揭示，现在就能验）', 'Previous hand (revealed — verifiable now)') + '</div>';
+        html += '<div class="fair-row"><b>' + L('承诺', 'commit') + '</b><code>' + escapeHtml(short(rev.commit)) + '</code></div>';
+        html += '<div class="fair-row"><b>' + L('种子', 'serverSeed') + '</b><code>' + escapeHtml(short(rev.serverSeed)) + '</code></div>';
+        html += '<button onclick="copyText(' + JSON.stringify(JSON.stringify(rev)).replace(/"/g, '&quot;') + ')">'
+            + L('📋 复制揭示数据', '📋 Copy revealed data') + '</button>';
+    } else {
+        html += '<div class="fair-note">' + L('还没有已揭示的牌——打完一手就会出现在这里。',
+            'No revealed hand yet — finish a hand and it will show up here.') + '</div>';
+    }
+
+    html += '<div class="fair-note">'
+        + L('怎么验：在「牌谱回顾」里导出那一手，然后跑 <code>node tools/verify-hand.js 牌谱.json</code>。它不连服务器，只用标准 SHA-256。',
+            'How to verify: export the hand from "Hand history", then run <code>node tools/verify-hand.js hand.json</code>. It never contacts the server and uses only standard SHA-256.')
+        + '</div>';
+    html += '<div class="modal-btns"><button onclick="closeFairPanel()">' + L('关闭', 'Close') + '</button></div></div>';
+
+    const mask = document.createElement('div');
+    mask.className = 'modal-mask';
+    mask.id = 'fair-modal';
+    mask.innerHTML = html;
+    document.body.appendChild(mask);
+}
+
+function closeFairPanel() {
+    const m = document.getElementById('fair-modal');
+    if (m) m.remove();
+}

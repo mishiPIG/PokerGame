@@ -26,10 +26,18 @@ class Deck {
             }
         }
     }
-    // Fisher-Yates 无偏洗牌，随机源用 crypto（CSPRNG，不可预测）。crypto.randomInt 本身就是无模偏的均匀整数
-    shuffle() {
+    // Fisher-Yates 无偏洗牌。默认随机源是 crypto（CSPRNG，不可预测），
+    // crypto.randomInt 本身就是无模偏的均匀整数。
+    //
+    // 可传入 rng 把随机源换成【种子推出来的确定性流】（可验证公平，2026-09-16）。
+    // 接口故意做成和 crypto.randomInt 一样，所以**洗牌算法本身一个字都没改**：
+    // 换的只是那一行里的随机源。不传则行为与以前完全一致。
+    // ⚠️ rng 必须同样是无模偏的（见 provably-fair.js 的拒绝采样）——
+    //    随便给个 `字节 % n` 会让牌系统性地偏向前面几张，而且看不出任何异常。
+    shuffle(rng = null) {
+        const nextInt = rng ? (m) => rng.randomInt(m) : (m) => crypto.randomInt(m);
         for (let n = this.cards.length - 1; n > 0; n--) {
-            const k = crypto.randomInt(n + 1);   // [0, n] 均匀
+            const k = nextInt(n + 1);   // [0, n] 均匀
             const temp = this.cards[k];
             this.cards[k] = this.cards[n];
             this.cards[n] = temp;
