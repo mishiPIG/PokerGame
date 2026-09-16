@@ -192,18 +192,30 @@ onLangChange(() => buildChatBars());
 
 // 房主请人出房间：二次确认（这是不可撤销的——他之后拿房间码也进不来了）
 function kickPlayer(userId) {
-    const name = (lastState.players || []).find(p => p.userId === userId)?.name
-        || (lastState.spectators || []).find(p => p.userId === userId)?.name || '';
+    const name = popupName(userId);
+    // ⚠️ 先关头像弹层【再】弹确认框：#avatar-popup 的 z-index 是 205、
+    //    .modal-mask 是 200 —— 不先关的话确认框弹在它下面，玩家得先把弹层关掉
+    //    才看得见自己刚触发的确认（实拍）。
+    closeAvatarPopup();
     uiConfirm(L(`把「${name}」请出房间？他之后用房间码也进不来了。`,
                 `Remove ${name} from the room? They will not be able to rejoin, even with the room code.`),
         { ok: L('请出房间', 'Remove'), danger: true })
-        .then(ok => { if (ok) { socket?.emit('kick_player', { targetUserId: userId }); closeAvatarPopup(); } });
+        .then(ok => { if (ok) socket?.emit('kick_player', { targetUserId: userId }); });
 }
 
 function blockFromTable(userId) {
-    const name = (lastState.players || []).find(p => p.userId === userId)?.name || '';
+    const name = popupName(userId);
+    closeAvatarPopup();                       // 同上：不先关，确认框会被弹层盖住
     uiConfirm(L(`拉黑「${name}」？他之后无法向你发送牌友申请。`,
                 `Block ${name}? They will not be able to send you friend requests.`),
         { ok: L('拉黑', 'Block'), danger: true })
-        .then(ok => { if (ok) { socket?.emit('friend_block', { userId }); closeAvatarPopup(); } });
+        .then(ok => { if (ok) socket?.emit('friend_block', { userId }); });
+}
+// 🔴 state 下发的是 username / displayName，【没有 name 这个字段】。
+//    原来写的 `p.name` 恒为 undefined，确认框就成了「把「」请出房间？」（实拍）。
+//    和当年 sizeFor 一样：读一个服务端根本没发的字段，静默变成空，不报任何错。
+function popupName(userId) {
+    const hit = (lastState.players || []).concat(lastState.spectators || [])
+        .find(p => p.userId === userId);
+    return hit ? (hit.displayName || hit.username || '') : '';
 }

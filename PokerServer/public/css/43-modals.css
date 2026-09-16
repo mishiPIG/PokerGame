@@ -4,7 +4,10 @@
            从深绿突然跳到近白，晚上玩尤其刺眼。这是全站三套配色里最刺眼的一处
            （买入/补码/邀请是最高频弹窗）。
            配色基准与大厅/结算面板一致：底 #22392e→#16261f、金边、主确认用 #06d6a0。 */
-        .modal-mask { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.6);
+        /* 🔴 z-index 要【高过所有面板】：确认框是「你刚点的那一下」的直接回应，
+           被任何东西盖住都等于没弹。曾经 200 < #avatar-popup 的 205，
+           点「请出房间」后要先手动关掉头像弹层才看得见确认框（玩家实拍）。*/
+        .modal-mask { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.6);
             display: flex; align-items: center; justify-content: center; padding: 20px;
             overflow-y: auto; }
         /* 🔴 max-height + overflow 不能删。

@@ -17,7 +17,7 @@
         .fr-sec:first-child { margin-top: 6px; }
 
         .fr-row {
-            display: flex; align-items: center; gap: 10px; padding: 10px;
+            display: flex; flex-direction: column; gap: 6px; padding: 10px;
             border-radius: 12px; margin-bottom: 8px;
             background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
         }
@@ -28,6 +28,7 @@
         }
         .fr-av img { width: 100%; height: 100%; object-fit: cover; }
         .fr-av .fr-ltr { font-size: 17px; font-weight: bold; color: #eaf3ee; }
+        .fr-top { display: flex; align-items: center; gap: 10px; }
         .fr-main { flex: 1; min-width: 0; }
         .fr-name { font-size: 14px; font-weight: bold; color: #eaf3ee;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -44,7 +45,8 @@
         .fr-dot.on { background: #06d6a0; }
         .fr-dot.playing { background: #f4d35e; }
 
-        .fr-acts { display: flex; gap: 6px; flex-shrink: 0; }
+        /* 按钮单独一层、右对齐：和信息挤一行时，flex-shrink:0 的按钮会把名字压成「ad⋯」 */
+        .fr-acts { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
         .fr-btn {
             padding: 6px 11px; border-radius: 9px; cursor: pointer; font-size: 12px; font-weight: 600;
             background: rgba(255,255,255,0.07); color: #dfe9e2;
@@ -131,7 +133,11 @@
 
         /* 对战战绩：跟在在线状态后面的一小行。数字本身用颜色分正负，
            但【别用金色】—— 金只留给「钱/赢/我/奖励/品牌」，这里是中性对比。*/
-        .fr-h2h { color: #9db9a9; margin-left: 6px; }
+        /* 对战战绩整行独占一层，不跟按钮/状态抢横向。窄屏放不下就换行，不许溢出。*/
+        .fr-h2h { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline;
+            font-size: 12px; color: #9db9a9; padding-top: 6px;
+            border-top: 1px dashed rgba(255,255,255,0.08); }
+        .fr-h2h-n { color: #dfe9e2; }
         .fr-h2h b { font-weight: bold; font-variant-numeric: tabular-nums; }
         .h2h-up { color: #06d6a0; }
         .h2h-down { color: #ef476f; }

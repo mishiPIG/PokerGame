@@ -263,6 +263,53 @@ test('🔴 弹窗必须被视口限住并且能滚，长度不受控的列表必
     }
 });
 
+
+test('🔴 确认框必须盖在所有全屏浮层之上', () => {
+    // 玩家实拍：点「请出房间」后，要【先把头像弹层关掉】才看得见自己刚触发的确认框——
+    // 因为 #avatar-popup 是 z-index 205，而 .modal-mask 当时是 200。
+    // 确认框是「你刚点的那一下」的直接回应，被任何东西盖住都等于没弹。
+    // toast（9990）留在它上面是对的：那是反馈，不该被遮。
+    const rules = [];
+    for (const f of EXPECTED_STYLES) {
+        const css = fs.readFileSync(path.join(CSS_DIR, f), 'utf8');
+        for (const m of css.matchAll(/([#.][\w-]+)\s*\{([^}]*)\}/g)) {
+            const body = m[2];
+            if (!/position:\s*fixed/.test(body) || !/inset:\s*0/.test(body)) continue;   // 只看全屏浮层
+            const z = /z-index:\s*(\d+)/.exec(body);
+            if (z) rules.push({ sel: m[1], z: +z[1], file: f });
+        }
+    }
+    const mask = rules.find(r => r.sel === '.modal-mask');
+    assert.ok(mask, '找不到 .modal-mask 的 z-index —— 这条检查会失效');
+    const over = rules.filter(r => r.sel !== '.modal-mask' && r.z >= mask.z && r.z < 9000);
+    assert.deepEqual(over.map(r => `${r.file} ${r.sel}(${r.z})`), [],
+        `这些全屏浮层会盖住确认框（.modal-mask 是 ${mask.z}）`);
+});
+
+test('🔴 桌内确认框：名字要填得出来，且先关弹层再弹确认', () => {
+    // 两个真 bug 各一条：
+    //   ① 原来读 `p.name`，而 state 下发的是 username / displayName ——
+    //      恒为 undefined，确认框成了「把「」请出房间？」（实拍）。
+    //      和当年 sizeFor 一样：读一个服务端根本没发的字段，静默变成空，不报错。
+    //   ② 原来在 .then 里才 closeAvatarPopup()，确认框弹在弹层下面。
+    const src = source('60-chat.js');
+    for (const fn of ['kickPlayer', 'blockFromTable']) {
+        const body = src.slice(src.indexOf(`function ${fn}(`));
+        const end = body.indexOf('\n}');
+        const code = body.slice(0, end);
+        assert.doesNotMatch(code, /\.name\b/,
+            `${fn} 读了 p.name —— state 里没有这个字段，只会渲染成空`);
+        const close = code.indexOf('closeAvatarPopup');
+        const confirm = code.indexOf('uiConfirm');
+        assert.ok(close >= 0 && confirm >= 0, `${fn} 少了 closeAvatarPopup / uiConfirm`);
+        assert.ok(close < confirm,
+            `${fn} 必须【先】关头像弹层再弹确认，否则确认框被盖在下面`);
+    }
+    // 名字得从真实存在的字段取
+    assert.match(src, /displayName \|\| .*\.username/,
+        '取名字要走 displayName || username —— 这两个才是 state 真发的');
+});
+
 // ===== 下面三条都是 2026-09-14 那批验收 bug 留下的关卡 =====
 
 test('🔴 正则字符类里不许出现 emoji（除非带 u 标志）', () => {

@@ -40,19 +40,28 @@ function friendAvatar(f) {
         : `<span class="fr-ltr">${ltr}</span>`;
 }
 
+// 一行 = 三层，【横向谁都不跟谁抢】：
+//   上：头像 + 名字/备注/在线状态（独占整行宽度）
+//   中：对战战绩（整行）
+//   下：按钮（右对齐）
+// 🔴 为什么不再挤成一行：原来是「左头像 + 中信息 + 右按钮」，而 .fr-acts 是
+//    flex-shrink:0 的三个按钮 —— 名字被压成「ad⋯」，我又往 .fr-sub 里塞了一长串
+//    对战数据，文字直接从按钮底下穿过去（玩家两端实拍）。
+//    **这和「备注塞进截断的名字行」是同一类错：把长度不受控的内容，放进一个
+//    为短内容设计的位置。** 分层之后这类错在结构上就没地方发生了。
 function friendRow(f, actions) {
-    // 备注单占一行。原来它跟在名字后面、包在同一个 .fr-name 里，
-    // 而 .fr-name 是【截断行】（nowrap + ellipsis）—— 备注稍长就把两者一起
-    // 截成「admin1 s⋯」，名字和备注都看不清（玩家实拍）。
     const note = f.note ? `<div class="fr-note">${escapeHtml(f.note)}</div>` : '';
     return `<div class="fr-row">
-        <div class="fr-av">${friendAvatar(f)}</div>
-        <div class="fr-main">
-            <div class="fr-name">${escapeHtml(f.displayName)}</div>
-            ${note}
-            <div class="fr-sub">${actions.sub || ''}</div>
+        <div class="fr-top">
+            <div class="fr-av">${friendAvatar(f)}</div>
+            <div class="fr-main">
+                <div class="fr-name">${escapeHtml(f.displayName)}</div>
+                ${note}
+                <div class="fr-sub">${actions.sub || ''}</div>
+            </div>
         </div>
-        <div class="fr-acts">${actions.buttons || ''}</div>
+        ${actions.h2h || ''}
+        ${actions.buttons ? `<div class="fr-acts">${actions.buttons}</div>` : ''}
     </div>`;
 }
 
@@ -104,7 +113,8 @@ function renderFriends() {
         } else if (list.length) {
             html += `<div class="fr-sec">${L('我的牌友', 'My friends')} (${list.length})</div>`;
             html += list.map(f => friendRow(f, {
-                sub: presenceHtml(f) + h2hHtml(f.userId),
+                sub: presenceHtml(f),
+                h2h: h2hHtml(f.userId),
                 buttons: `<button class="fr-btn" onclick="editFriendNote('${f.userId}')">${L('备注', 'Note')}</button>`
                        + `<button class="fr-btn danger" onclick="removeFriend('${f.userId}')">${L('删除', 'Remove')}</button>`
                        + `<button class="fr-btn danger" title="${L('拉黑', 'Block')}" onclick="blockFriend('${f.userId}')">🚫</button>`,
@@ -282,8 +292,8 @@ function h2hHtml(userId) {
     if (!h || !h.handsTogether) return '';
     const sign = n => (n > 0 ? '+' : '') + fmtChips(n);
     const cls = n => (n > 0 ? 'h2h-up' : n < 0 ? 'h2h-down' : '');
-    return `<span class="fr-h2h">`
-        + `${L(`同桌 ${h.handsTogether} 手`, `${h.handsTogether} hands together`)} · `
-        + `${L('我', 'me')} <b class="${cls(h.myNet)}">${sign(h.myNet)}</b> · `
-        + `${L('TA', 'them')} <b class="${cls(h.theirNet)}">${sign(h.theirNet)}</b></span>`;
+    return `<div class="fr-h2h">`
+        + `<span class="fr-h2h-n">${L(`同桌 ${h.handsTogether} 手`, `${h.handsTogether} hands`)}</span>`
+        + `<span>${L('我', 'me')} <b class="${cls(h.myNet)}">${sign(h.myNet)}</b></span>`
+        + `<span>${L('TA', 'them')} <b class="${cls(h.theirNet)}">${sign(h.theirNet)}</b></span></div>`;
 }
