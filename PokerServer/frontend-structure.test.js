@@ -56,6 +56,30 @@ function source(file) {
     return fs.readFileSync(path.join(JS_DIR, file), 'utf8');
 }
 
+// 只看【代码】，不看注释。
+// 起因：99-bootstrap.js 有一段注释里写了 `navigator.clipboard`（正是在解释为什么不能用它），
+// 而剪贴板那条关卡是裸 includes() —— 于是【关卡对着自己的说明文档报了警】。
+// 假警报和漏报一样有害：它逼着人要么去改注释、要么干脆把关卡放宽，两条路都是在削弱它。
+// 只剥【整行】注释和块注释，绝不剥代码行的尾部 —— 宁可少剥（顶多留个假警报），
+// 也绝不能多剥（多剥会把真正的违规藏起来）。
+function codeOf(file) {
+    const out = [];
+    let inBlock = false;
+    for (let line of source(file).split('\n')) {
+        if (inBlock) {
+            const end = line.indexOf('*/');
+            if (end < 0) { out.push(''); continue; }
+            inBlock = false;
+            line = line.slice(end + 2);
+        }
+        const t = line.trim();
+        if (t.startsWith('//')) { out.push(''); continue; }
+        if (t.startsWith('/*') && !t.includes('*/')) { inBlock = true; out.push(''); continue; }
+        out.push(line);
+    }
+    return out.join('\n');
+}
+
 function frontendContext() {
     const context = { localStorage: { getItem() { return null; } } };
     vm.createContext(context);
@@ -345,7 +369,7 @@ test('🔴 剪贴板只许走 copyText()（navigator.clipboard 在 http 下根�
     // 于是 `navigator.clipboard?.writeText(x)` 静默什么都不做：没复制上、不报错、没提示，
     // 玩家点了毫无反应（牌友号、版本号两个按钮都这么坏过）。
     // copyText() 里有 execCommand 降级，而且【成败都给一句 toast】。
-    const owners = EXPECTED_SCRIPTS.filter(f => source(f).includes('navigator.clipboard'));
+    const owners = EXPECTED_SCRIPTS.filter(f => codeOf(f).includes('navigator.clipboard'));
     assert.deepEqual(owners, ['05-utils.js'],
         '除了 05-utils.js 里的 copyText()，别处不许直接碰 navigator.clipboard —— 用 copyText()');
     assert.match(source('05-utils.js'), /execCommand\('copy'\)/,

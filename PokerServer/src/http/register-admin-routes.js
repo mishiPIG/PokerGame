@@ -8,7 +8,7 @@ const TX_LABEL = {
     legacy_import: '旧数据迁移', signup_bonus: '注册赠送'
 };
 
-function registerAdminRoutes({ app, db, requireAdmin, roomGames, io }) {
+function registerAdminRoutes({ app, db, requireAdmin, roomGames, io, clientErrors }) {
 // 获取所有用户列表
 app.get('/api/admin/users', requireAdmin, (req, res) => {
     res.json(db.getAllUsers());
@@ -205,6 +205,13 @@ app.post('/api/admin/table-notice', requireAdmin, (req, res) => {
     io.emit('admin_notice', payload);
     console.log(`[admin] ${req.adminUser.username} 向全服发公告: ${body}`);
     res.json({ ok: true, target: '全服' });
+});
+
+// 最近的客户端报错（内存环形缓冲，重启即清）。
+// 每条带【前端构建号】—— 一眼分得出「真 bug」还是「他缓存了旧 JS」，
+// 后者占了玩家报障里相当大的一部分。
+app.get('/api/admin/client-errors', requireAdmin, (req, res) => {
+    res.json({ total: clientErrors ? clientErrors.size() : 0, list: clientErrors ? clientErrors.list() : [] });
 });
 
 }

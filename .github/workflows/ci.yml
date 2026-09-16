@@ -1,0 +1,66 @@
+name: CI
+
+# 🔴 为什么要有这条：153 条测试 + npm run check 那四道关卡，在 2026-09-16 之前
+#    【只在开发者本机跑过】。而这个仓库是 public、有朋友提 PR
+#    （dreamingwill 的 SQLite 重构、zrh 的提示音修复都合进来过），
+#    合并时全靠人肉记得去跑一遍——而合 PR 差点丢掉 CLAUDE.md 513 行的事真发生过。
+#
+# 跑两个 Node 版本：生产是 22.x、测试服是 20.20.2，两边都得过
+#    （better-sqlite3 ^12 支持 20/22/23/24；当初升到 13 直接在测试服段错误，
+#     就是因为它要求 Node>=22 而服务器是 20 —— 那次是先上测试服才没出事）。
+
+on:
+  push:
+    branches: [main]
+    paths: ['PokerServer/**', '.github/workflows/ci.yml']
+  pull_request:
+    paths: ['PokerServer/**', '.github/workflows/ci.yml']
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false          # 一个版本挂了也要看另一个，好判断是不是版本相关
+      matrix:
+        node: ['20.x', '22.x']
+    defaults:
+      run:
+        working-directory: PokerServer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: PokerServer/package-lock.json
+
+      # better-sqlite3 是原生模块，ubuntu runner 上有预编译包；没有就现场编译
+      - name: 安装依赖
+        run: npm ci
+
+      # 部署脚本跑的就是这一条（eslint no-undef + 解构核对 + CSS + 定时器 + 双语）
+      - name: npm run check（部署前关卡）
+        run: npm run check
+
+      - name: npm test
+        run: npm test
+
+      # 🔴 这一条防的是「构建号被提交进仓库」：deploy.sh 会把 __BUILD__ 换成真实 SHA，
+      #    如果那次替换后的文件被误提交，下次部署 sed 匹配不到占位符会【静默不替换】，
+      #    前端构建号从此冻死 —— 而它唯一的用途就是判断玩家是不是缓存了旧前端。
+      #    frontend-structure.test.js 里已有同名断言，这里再挡一道（改测试也绕不过）。
+      - name: 构建号必须还是占位符
+        run: |
+          grep -q "const CLIENT_BUILD = '__BUILD__';" public/js/00-state.js \
+            || { echo "::error::00-state.js 的 CLIENT_BUILD 不是占位符了"; exit 1; }
+
+      # .sh 必须是 LF：2026-09-08 CRLF 把 shebang 弄坏，香港备份静默失败 11 天。
+      # .gitattributes 已强制，这里验它真的生效了。
+      - name: shell 脚本不许有 CRLF
+        working-directory: .
+        run: |
+          bad=$(find . -name '*.sh' -not -path './node_modules/*' -exec file {} \; | grep -i crlf || true)
+          [ -z "$bad" ] || { echo "::error::这些 .sh 是 CRLF，Linux 上会 'required file not found'：$bad"; exit 1; }

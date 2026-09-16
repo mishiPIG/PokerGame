@@ -54,10 +54,17 @@ backups_offsite/
 *.local.md
 backup-hk.sh
 # 运维脚本目录（部署在服务器上，不随仓库分发）
-ops/
+# 🔴 必须带前导斜杠锚在仓库根：不带的话 `ops/` 会匹配【任意深度】的同名目录，
+#    2026-09-16 就这么把新写的 PokerServer/src/ops/（崩溃告警 + 客户端报错两个模块）
+#    整个吞掉了 —— git status 里根本不显示，本机跑得好好的，
+#    一提交就是 CI MODULE_NOT_FOUND、换台机器 clone 下来服务起不来。
+/ops/
 PokerServer/ops/
 
-PokerServer/.localPokerServer/data.json.localbak
+# ⚠️ 这行原本是两条规则被粘成了一行（丢了个换行），于是【两条都失效】：
+#    PokerServer/.local/ 另有一条兜着，但 data.json.localbak 就这么一直没被忽略着。
+#    它是用户库（账号/金币）的备份，而本仓库是 public —— 不能漏。
+PokerServer/data.json.localbak
 
 # 签名密钥（APK 固定签名，绝不入库；base64 副本贴进 GitHub Secrets）
 .secrets/

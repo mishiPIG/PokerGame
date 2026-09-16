@@ -18,7 +18,13 @@ function createDatabaseService({
     baseDir = path.resolve(__dirname, '../..'),
     allowCreate = process.env.NODE_ENV !== 'production' || process.env.POKER_ALLOW_CREATE_DB === '1'
 } = {}) {
-    const db = openSqlite(databasePath || defaultDatabasePath(baseDir), { allowCreate });
+    // 把解析后的实际路径向外暴露一份。
+    // 路径来自 POKER_DB_PATH，且【刻意在代码目录之外】（部署的 tar 不覆盖数据）——
+    // 所以凡是「要跟数据放在一起、不能被部署冲掉」的东西，都得问它要这个目录，
+    // 而不是自己再拼一遍（拼错了就写进代码目录，下次部署静默丢掉）。
+    // 现在的用处：崩溃现场标记 crash-report.json。
+    const resolvedPath = databasePath || defaultDatabasePath(baseDir);
+    const db = openSqlite(resolvedPath, { allowCreate });
     const users = createUserRepository(db);
     const wallet = createWalletRepository(db);
     const content = createContentRepository(db);
@@ -49,6 +55,7 @@ function createDatabaseService({
     });
 
     return {
+        databasePath: resolvedPath,
         ...users,
         ...content,
         wallet,

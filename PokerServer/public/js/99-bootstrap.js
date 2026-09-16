@@ -201,3 +201,49 @@ document.addEventListener('keydown', (e) => {
         return;                                          // 一次只关一层
     }
 });
+
+// ===== 客户端报错上报（2026-09-16）=====
+// 🔴 在这之前，前端 JS 报错【只在玩家自己的 console 里】，服务端一无所知。
+//    这个项目吃过好几次亏：sizeFor 拼错、#room-count 被删、http 下 navigator.clipboard
+//    是 undefined —— 全是【静默失效】，最后都靠玩家截图才发现。
+// ⚠️ 自己也要限流：一个渲染循环里的错误一秒能抛几百次，不挡就是自己 DDoS 自己。
+//    服务端那边还有一层（按 IP + 去重），这里是第一道。
+(function reportClientErrors() {
+    const MAX_PER_SESSION = 15;      // 一次会话最多报这些，够定位问题了
+    const MIN_GAP_MS = 2000;         // 两条之间至少隔 2 秒
+    let sent = 0, lastAt = 0;
+    const seen = new Set();          // 同一条只报一次
+
+    function post(kind, message, source, line, col, stack) {
+        if (sent >= MAX_PER_SESSION) return;
+        const now = Date.now();
+        if (now - lastAt < MIN_GAP_MS) return;
+        const fp = kind + '|' + message + '|' + source + ':' + line;
+        if (seen.has(fp)) return;
+        seen.add(fp); sent++; lastAt = now;
+        try {
+            // keepalive：页面正在跳转/关闭时也要能发出去（报错常常紧跟着白屏）
+            fetch('/api/client-error', {
+                method: 'POST', keepalive: true,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    kind, message, source, line, col, stack,
+                    build: (typeof CLIENT_BUILD === 'string' ? CLIENT_BUILD : ''),
+                    page: location.hash || location.pathname,
+                    ua: navigator.userAgent,
+                    username: (typeof myUsername === 'string' ? myUsername : null),
+                }),
+            }).catch(() => {});      // 上报失败就算了，绝不能因此再抛一个错
+        } catch { /* 同上 */ }
+    }
+
+    window.addEventListener('error', (e) => {
+        post('error', String(e.message || e.error?.message || 'unknown'),
+            String(e.filename || ''), e.lineno | 0, e.colno | 0, String(e.error?.stack || ''));
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+        const r = e.reason;
+        post('rejection', String(r?.message || r || 'unhandled rejection'),
+            '', 0, 0, String(r?.stack || ''));
+    });
+})();
