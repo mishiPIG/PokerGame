@@ -386,3 +386,26 @@
     max-height: 64px;
     overflow-y: auto;
 }
+
+/* 管理面板标题行：补一个关闭按钮（2026-09-16 验收提的——之前只能再点一次顶栏的 ⚙️ 才关得掉，
+   而面板一长、顶栏早就滚出视野了，等于没有出口）。 */
+.adm-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.adm-head h3 { margin: 0; }
+.adm-close {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #9db9a9;
+    border-radius: 999px;
+    width: 28px;
+    height: 28px;
+    line-height: 1;
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.adm-close:hover { background: rgba(255, 255, 255, 0.1); color: #eaf3ee; }

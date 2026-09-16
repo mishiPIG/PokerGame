@@ -123,7 +123,7 @@
     <!-- 管理员面板（仅 isAdmin 可见） -->
     <!-- i18n-ok: 管理面板不翻译（用户 2026-09-06 定）——只有管理员自己看 -->
     <div id="admin-panel" style="display:none">
-        <h3>⚙️ 管理员面板</h3>
+        <div class="adm-head"><h3>⚙️ 管理员面板</h3><button class="adm-close" onclick="toggleAdminPanel()" title="关闭" aria-label="关闭">✕</button></div>
         <div class="adm-tabs">
             <button class="adm-tab sel" data-at="users" onclick="adminTab('users')">👥 玩家</button>
             <button class="adm-tab" data-at="rooms" onclick="adminTab('rooms')">🎲 房间总览</button>

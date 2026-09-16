@@ -24,7 +24,7 @@ _Screenshots coming soon — see [`docs/screenshots/`](./docs/screenshots/)._
 ## ✨ Features
 
 - **Server-authoritative engine** — hole cards are private (`io.to(socketId)`), broadcasts carry only public info, every action is validated server-side. You cannot cheat by inspecting your own traffic.
-- **Provably fair shuffle** — fresh deck every hand, Fisher–Yates with a **CSPRNG** (`crypto.randomInt`), unbiased and unpredictable. A Monte-Carlo self-check matches theoretical hand-type frequencies.
+- **Provably fair dealing** — fresh deck every hand, Fisher–Yates, unbiased and unpredictable. Every hand is **committed to before the deal and revealed after**, so anyone can recompute the deck offline and check it was never changed mid-hand ([how to verify](#-provably-fair)).
 - **Two room types**
   - **SNG** (Sit-N-Go single-table tournament): increasing blinds, elimination, prize pool with rake.
   - **Cash / "Training" table** (2–9 players): fixed blinds, buy-in/cash-out at a gold↔chips rate, training duration + extensions.
@@ -36,6 +36,68 @@ _Screenshots coming soon — see [`docs/screenshots/`](./docs/screenshots/)._
 - **Social** — in-table chat + quick phrases, tap-avatar emotes, push-to-talk voice bubbles.
 - **Accounts & security** — username/email registration with email verification codes, JWT auth (per-server random signing key), TLS/WSS in production.
 - **Android** — a thin **Capacitor** shell points at the live site; the game updates by deploying the server, no re-release needed.
+
+---
+
+## 🔒 Provably fair
+
+The shuffle was always unbiased — a fresh deck every hand, Fisher–Yates, seeded from a CSPRNG.
+But you had no way to **check** that; you had to take our word for it.
+Now every hand is committed to *before* it is dealt and revealed after, so you can verify it yourself, offline.
+
+### How it works
+
+1. **Before any card is dealt**, the server publishes `commit = SHA256(serverSeed)` to the whole table.
+2. The entire deck order is derived deterministically from `(serverSeed, clientSeed, nonce)`.
+   There is no other source of randomness.
+3. **When the hand ends**, the server reveals `serverSeed` and records it, together with the full
+   deck order, in the hand history.
+
+Because the commitment is published *before* the deal, the server cannot change the deck after
+seeing anyone's cards — a different deck would no longer match the commitment everyone already holds.
+
+### Verify a hand yourself
+
+1. In the app: **Hand history → open a hand → 🔒 Verify data**, which copies the full hand record
+   as JSON. Save it as `hand.json`.
+   (The current hand's commitment is visible any time under **table menu ☰ → 🔒 Fairness**.)
+2. Run:
+
+```bash
+node PokerServer/tools/verify-hand.js hand.json
+
+# output is Chinese by default; add --en for English
+node PokerServer/tools/verify-hand.js hand.json --en
+```
+
+It checks three things:
+
+| # | Check | Why it matters |
+|---|---|---|
+| 1 | `SHA256(revealed seed)` equals the commitment published before the deal | the server was locked in before it saw a single card |
+| 2 | Re-shuffling with the revealed seed reproduces the recorded deck order | that order really did come from that seed |
+| 3 | That deck order explains the hole cards and board you actually saw | this is the deck that was dealt to **you** |
+
+The verifier never contacts the server and uses nothing but standard SHA-256. The whole scheme is a
+few dozen lines (`PokerServer/src/games/poker/provably-fair.js`) — reimplement it in any language
+and you should get the same answer.
+
+Want to confirm the checker isn't just rubber-stamping? Edit one card in `community` and run it
+again — it fails.
+
+### What this proves, and what it doesn't
+
+- ✅ **It proves** the server cannot alter the deck after seeing any player's cards.
+  That is the thing players actually worry about.
+- ⚠️ **It does not prove** that the server didn't grind many seeds *before* committing in order to
+  pick a favourable one. Defending against that requires the player to choose `clientSeed` **after**
+  seeing the commitment. The commitment is already published one hand in advance, so the hook is
+  there — but a player-supplied `clientSeed` is not built yet; today it is simply the room number.
+
+> One implementation note, since it is the easiest way to get this wrong: the seeded RNG uses
+> **rejection sampling**, not `byte % n`. Plain modulo would bias the deck toward the first few
+> cards. At 32 bits that bias is ~1e-8 — far too small for any statistical test to catch, which is
+> exactly why it has to be handled structurally rather than "tested for".
 
 ---
 
