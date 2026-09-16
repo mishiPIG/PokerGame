@@ -92,7 +92,13 @@ echo "🗄️ 停写、备份并校验数据库..."
 # 记下错误日志当前大小：Step 4 只读【这之后】新增的部分（比事后猜时间/过滤关键字都准）
 ssh "$SERVER_HOST" "PM2_APP='$PM2_APP' bash -s" <<'REMOTE_ERRMARK'
 ERRLOG=$(pm2 jlist 2>/dev/null | python3 -c "import sys,json;d=json.load(sys.stdin);print([x['pm2_env']['pm_err_log_path'] for x in d if x['name']=='$PM2_APP'][0])" 2>/dev/null)
-if [ -n "$ERRLOG" ] && [ -f "$ERRLOG" ]; then wc -c < "$ERRLOG" > "/tmp/poker_errsize_$PM2_APP"; else echo 0 > "/tmp/poker_errsize_$PM2_APP"; fi
+# pm2 里查不到（比如机器刚重启、进程还没拉起来）就退回约定路径
+[ -n "$ERRLOG" ] || ERRLOG="$HOME/.pm2/logs/${PM2_APP}-error.log"
+# 🔴 取不到基准时必须写 unknown，【绝不能写 0】——
+#    写 0 等于把「我不知道」偷偷变成「从头比」，于是自查会把整个历史日志当成新错误喷出来。
+#    2026-09-17 就这么误报过一次：测试服重启后进程没拉起来，取基准时 pm2 里查不到它。
+#    一个会喊狼来了的自查，和吵闹的告警是同一个毛病——很快就没人看了。
+if [ -f "$ERRLOG" ]; then wc -c < "$ERRLOG" > "/tmp/poker_errsize_$PM2_APP"; else echo unknown > "/tmp/poker_errsize_$PM2_APP"; fi
 REMOTE_ERRMARK
 
 ssh "$SERVER_HOST" "DB_PATH='$DB_PATH' BACKUP_PATH='$BACKUP_PATH' SERVER_PATH='$SERVER_PATH' PM2_APP='$PM2_APP' bash -s" <<'REMOTE_DB'
@@ -142,7 +148,11 @@ if [ -z "$ERRLOG" ] || [ ! -f "$ERRLOG" ]; then
   echo "   （找不到 $PM2_APP 的错误日志，跳过）"
   exit 0
 fi
-BEFORE=$(cat "/tmp/poker_errsize_$PM2_APP" 2>/dev/null || echo 0)
+BEFORE=$(cat "/tmp/poker_errsize_$PM2_APP" 2>/dev/null || echo unknown)
+if ! printf '%s' "$BEFORE" | grep -qE '^[0-9]+$'; then
+  echo "   （重启前没取到错误日志基准，这次跳过比对——不猜，免得把历史日志当成新错误）"
+  exit 0
+fi
 # 从重启前记下的字节位置往后读；再滤掉部署自己造成的 [shutdown] signal=（pm2 stop/restart 的正常输出）
 NEW=$(tail -c "+$((BEFORE + 1))" "$ERRLOG" 2>/dev/null | grep -v '^\[shutdown\] signal=' | grep -v '^[[:space:]]*$' | tail -30)
 if [ -z "$NEW" ]; then
