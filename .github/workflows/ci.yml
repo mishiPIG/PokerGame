@@ -43,10 +43,30 @@ jobs:
 
       # 部署脚本跑的就是这一条（eslint no-undef + 解构核对 + CSS + 定时器 + 双语）
       - name: npm run check（部署前关卡）
-        run: npm run check
+        run: |
+          set +e
+          npm run check 2>&1 | tee /tmp/check.log
+          code=${PIPESTATUS[0]}
+          if [ $code -ne 0 ]; then
+            tail -20 /tmp/check.log | while IFS= read -r l; do echo "::error::$l"; done
+          fi
+          exit $code
 
+      # 🔴 失败时把用例名写进 annotation。
+      #    原因很实在：**下载 CI 日志需要 admin 鉴权**（本仓库 2026-08 排 APK 签名时就踩过），
+      #    而 annotation 是公开可读的。读不到失败原因的关卡只算半道关卡 ——
+      #    第一次红的时候我就卡在「只知道 exit 1、不知道哪条挂了」上。
       - name: npm test
-        run: npm test
+        run: |
+          set +e
+          npm test 2>&1 | tee /tmp/test.log
+          code=${PIPESTATUS[0]}
+          if [ $code -ne 0 ]; then
+            echo "::error::Node ${{ matrix.node }} 测试失败"
+            grep -E '^not ok |AssertionError|Cannot find module|^Error: ' /tmp/test.log \
+              | head -25 | while IFS= read -r l; do echo "::error::$l"; done
+          fi
+          exit $code
 
       # 🔴 这一条防的是「构建号被提交进仓库」：deploy.sh 会把 __BUILD__ 换成真实 SHA，
       #    如果那次替换后的文件被误提交，下次部署 sed 匹配不到占位符会【静默不替换】，
