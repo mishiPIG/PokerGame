@@ -219,11 +219,13 @@ app.get('/api/admin/sources', requireAdmin, (req, res) => {
     const days = Math.min(365, Math.max(1, Number(req.query.days) || 90));
     try {
         const pending = db.loginEvents.unresolvedIps({ limit: 300 });
+        let geoUnavailable = false;
         if (pending.length) {
             try {
                 const r = require('child_process').spawnSync(process.execPath,
                     [require('path').join(__dirname, '../../tools/geo-lookup.js')],
                     { input: JSON.stringify(pending), encoding: 'utf8', timeout: 20000 });
+                if (r.status === 3) geoUnavailable = true;   // 地理库没装
                 if (r.stdout) db.loginEvents.saveGeo(JSON.parse(r.stdout));
             } catch (e) {
                 console.error('[admin] 地理解析失败（不影响列表）', e.message);
@@ -235,6 +237,9 @@ app.get('/api/admin/sources', requireAdmin, (req, res) => {
             // ⬇️ 叫 candidates 不叫 matches：同网段只是线索，不是结论。
             sameNetwork: db.loginEvents.sameNetworkCandidates({ minAccounts: 2, days }),
             pendingGeo: pending.length,
+            // 🔴 把「地理库没装」告诉前端。静默降级成一片「未知」
+            // 而不说原因，和「只写日志没人读的检查」是同一个毛病。
+            geoUnavailable,
         });
     } catch (e) {
         console.error('[admin] sources 失败', e);

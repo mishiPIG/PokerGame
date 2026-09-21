@@ -40,8 +40,13 @@ function main() {
     } catch (e) {
         // 没装也不要炸：返回全 null，调用方照常缓存，界面显示「未知」。
         // 比起让管理面板 500，显示「未知」诚实得多。
+        // 🔴 用【退出码 3】把「库没装」说出来。
+        // 不说的话就是一个静默失效：面板上全是「未知」，而没人知道为什么。
+        // （2026-09-21 就真碰上了：服务器上 npm 状态坏了导致没装上，
+        //   而 optional 依赖的失败 npm 自己也是静默的，查了很久。）
         console.error('[geo] geoip-lite 不可用：' + e.message);
         process.stdout.write(JSON.stringify(ips.map(ip => ({ ip, country: null, region: null, city: null }))));
+        process.exitCode = 3;
         return;
     }
 

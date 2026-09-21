@@ -370,10 +370,17 @@ async function loadAdminSources() {
     const d = await res.json();
     const sum = document.getElementById('adm-src-sum');
     if (sum) sum.textContent = d.pendingGeo ? ('本次新解析 ' + d.pendingGeo + ' 个 IP') : '';
+    // 🔴 地理库没装时要把原因说出来 —— 否则就是一片「未知」而没人知道为什么。
+    let banner = '';
+    if (d.geoUnavailable) {
+        banner = '<div class="mt-note" style="color:#f4d35e">⚠️ 服务器上没有地理库（geoip-lite），'
+            + '所以地区全显示为「未知」。在 PokerServer 目录下跑 <code>npm install</code> 即可。'
+            + '来源 IP 本身照常记录，不受影响。</div>';
+    }
 
     const dist = d.distribution || [];
     const total = dist.reduce((s2, x) => s2 + x.users, 0);
-    let html = '<div class="adm-wallet-h">地区分布（最近 ' + d.days + ' 天有过活动的独立账号）</div>';
+    let html = banner + '<div class="adm-wallet-h">地区分布（最近 ' + d.days + ' 天有过活动的独立账号）</div>';
     if (!dist.length) {
         html += '<div class="adm-empty">还没有数据 —— 从 2026-09-21 才开始记录，等大家下次登录就会出现。</div>';
     } else {
