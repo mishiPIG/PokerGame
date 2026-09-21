@@ -226,7 +226,16 @@ app.get('/api/admin/sources', requireAdmin, (req, res) => {
                     [require('path').join(__dirname, '../../tools/geo-lookup.js')],
                     { input: JSON.stringify(pending), encoding: 'utf8', timeout: 20000 });
                 if (r.status === 3) geoUnavailable = true;   // 地理库没装
-                if (r.stdout) db.loginEvents.saveGeo(JSON.parse(r.stdout));
+                // 🔴 库没装的时候【绝对不能把这批 null 写进缓存】。
+                //    unresolvedIps 的判据是「ip_geo 里没有这一行」，一旦写进去，
+                //    这些 IP 就永远不会再被重查 —— 于是只要管理员在装库之前点开过
+                //    一次这个页面，那批 IP 就被【永久钉死成「未知」】，以后装了库也没用。
+                //    null 在这里有两种含义，必须分开：
+                //      「查过了，查不到」→ 该缓存（否则每次都重复去查同一批）
+                //      「没法查（库没装）」→ 绝不能缓存
+                //    把后者当成前者，就是又一次「我不知道」被悄悄写成了一个确定答案
+                //    （同部署自查那次把取不到的基准 echo 成 0）。
+                if (r.stdout && !geoUnavailable) db.loginEvents.saveGeo(JSON.parse(r.stdout));
             } catch (e) {
                 console.error('[admin] 地理解析失败（不影响列表）', e.message);
             }

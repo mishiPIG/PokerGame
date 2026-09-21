@@ -147,3 +147,32 @@ test('🔴 账号注销：来源记录连根拔掉，不能只抹 user_id 留着
     assert.equal(rows.length, 1, '注销者的来源记录还在 —— 那条 IP 仍然指向一个真人');
     assert.equal(rows[0].user_id, b.id, 'bob 的记录被连累删掉了');
 });
+
+// ⬇️ 上面那条的另一半，也是它危险的地方：写进去的 null 是【永久】的。
+//    所以「查不到」和「没法查」必须分开对待 —— 见下面两条。
+test('🔴 缓存 null 等于永久放弃重查 —— 这正是「没法查」绝不能写缓存的原因', () => {
+    const f = fixture();
+    const u = f.mk('alice');
+    f.le.record({ userId: u.id, kind: 'login', ip: '10.1.2.3' });
+
+    f.le.saveGeo([{ ip: '10.1.2.3', country: null }]);
+    assert.deepEqual(f.le.unresolvedIps(), []);
+
+    // 后来地理库装上了，可这个 IP 再也不会被交给子进程去查 ——
+    // 因为判据是「ip_geo 里有没有这一行」，而不是「country 是不是空」。
+    f.le.record({ userId: u.id, kind: 'login', ip: '10.1.2.3' });
+    assert.deepEqual(f.le.unresolvedIps(), [],
+        '这条不是在要求这种行为，是在把它【钉住】：一旦写了 null 行就没有重查的机会了，'
+        + '所以调用方在「库没装」时必须自己拦住，别把 null 写进来');
+});
+
+test('🔴 地理库没装时，那批 null 不许写进缓存（否则会被永久钉成「未知」）', () => {
+    const src = fs.readFileSync(
+        path.join(__dirname, 'src/http/register-admin-routes.js'), 'utf8');
+    const call = /if\s*\(([^)]*)\)\s*db\.loginEvents\.saveGeo\(/.exec(src);
+    assert.ok(call, '找不到 saveGeo 的调用 —— 这条关卡要跟着改');
+    assert.match(call[1], /!\s*geoUnavailable/,
+        '🔴 saveGeo 必须被 !geoUnavailable 挡住。'
+        + '库没装时写进去的 null 是「没法查」，不是「查过了查不到」，'
+        + '而 unresolvedIps 分不出这两者 —— 写进去就再也查不回来了。');
+});
