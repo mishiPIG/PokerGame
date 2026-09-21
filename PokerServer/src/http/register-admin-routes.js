@@ -210,6 +210,38 @@ app.post('/api/admin/table-notice', requireAdmin, (req, res) => {
 // 最近的客户端报错（内存环形缓冲，重启即清）。
 // 每条带【前端构建号】—— 一眼分得出「真 bug」还是「他缓存了旧 JS」，
 // 后者占了玩家报障里相当大的一部分。
+// 用户来源：地区分布 + 同网段多账号【候选】（2026-09-21）。
+//
+// 🔴 地理解析走【一次性子进程】（tools/geo-lookup.js），因为 geoip-lite 一 require
+//    就吃 +108MB 常驻内存，而生产是 1GB 的 t3.micro。结果写进 ip_geo 缓存，
+//    每个 IP 只解析一次。解析失败不影响接口 —— 显示「未知」比让面板 500 诚实。
+app.get('/api/admin/sources', requireAdmin, (req, res) => {
+    const days = Math.min(365, Math.max(1, Number(req.query.days) || 90));
+    try {
+        const pending = db.loginEvents.unresolvedIps({ limit: 300 });
+        if (pending.length) {
+            try {
+                const r = require('child_process').spawnSync(process.execPath,
+                    [require('path').join(__dirname, '../../tools/geo-lookup.js')],
+                    { input: JSON.stringify(pending), encoding: 'utf8', timeout: 20000 });
+                if (r.stdout) db.loginEvents.saveGeo(JSON.parse(r.stdout));
+            } catch (e) {
+                console.error('[admin] 地理解析失败（不影响列表）', e.message);
+            }
+        }
+        res.json({
+            days,
+            distribution: db.loginEvents.distributionByCountry({ days }),
+            // ⬇️ 叫 candidates 不叫 matches：同网段只是线索，不是结论。
+            sameNetwork: db.loginEvents.sameNetworkCandidates({ minAccounts: 2, days }),
+            pendingGeo: pending.length,
+        });
+    } catch (e) {
+        console.error('[admin] sources 失败', e);
+        res.status(500).json({ error: '查询失败：' + e.message });
+    }
+});
+
 app.get('/api/admin/client-errors', requireAdmin, (req, res) => {
     res.json({ total: clientErrors ? clientErrors.size() : 0, list: clientErrors ? clientErrors.list() : [] });
 });

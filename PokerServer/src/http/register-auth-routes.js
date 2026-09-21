@@ -1,6 +1,17 @@
 'use strict';
 
+const { extractIp } = require('../ops/client-ip');
+
 function registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth }) {
+// 注册/登录来源埋点（2026-09-21）。两个用途：看用户分布在哪些地区、
+// 以及将来防同一人开多账号（尤其是做了「邀请注册送金币」之后）。
+// 🔴 **登录也要记**，不只是注册 —— 存量用户的注册 IP 已经永久丢了，
+//    只有靠他们下次登录才能把来源补齐。
+// ⚠️ 记录失败绝不能连累登录（record 内部已吞异常）。
+const noteSource = (req, userId, kind) => {
+    try { db.loginEvents.record({ userId, kind, ip: extractIp(req.headers, req.socket?.remoteAddress) }); }
+    catch (e) { console.error('[login-event] 埋点异常', e.message); }
+};
 const pendingRegs   = {};   // email(lc) -> { username, email, hash, code, expires, lastSent }
 const pendingResets = {};   // email(lc) -> { userId, code, expires, lastSent }
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -35,6 +46,7 @@ app.post('/api/register/verify', async (req, res) => {
     if (String(code).trim() !== p.code) return res.status(400).json({ error: '验证码错误', k: 'codeWrong' });
     try {
         const user = db.createUser(p.username, p.hash, false, p.email);
+        noteSource(req, user.id, 'signup');
         delete pendingRegs[email];
         res.json({ token: signToken(user), user: userPayload(user) });
     } catch (err) {
@@ -53,6 +65,7 @@ app.post('/api/login', async (req, res) => {
     if (!user) return res.status(401).json({ error: '账号或密码错误', k: 'badLogin' });
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: '账号或密码错误', k: 'badLogin' });
+    noteSource(req, user.id, 'login');
     res.json({ token: signToken(user), user: userPayload(user) });
 });
 

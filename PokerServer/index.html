@@ -132,6 +132,7 @@
             <button class="adm-tab" data-at="metrics" onclick="adminTab('metrics')">📈 运营</button>
             <button class="adm-tab" data-at="audit" onclick="adminTab('audit')">🛡️ 审计</button>
             <button class="adm-tab" data-at="errors" onclick="adminTab('errors')">🐞 客户端报错</button>
+            <button class="adm-tab" data-at="sources" onclick="adminTab('sources')">🌍 用户来源</button>
             <button class="adm-tab" data-at="mail" onclick="adminTab('mail')">✉️ 站内信</button>
         </div>
         <div id="adm-pane-users">
@@ -156,6 +157,15 @@
             <div class="adm-bar"><button onclick="loadAdminErrors()">🔄 刷新</button>
                 <span id="adm-err-sum"></span></div>
             <div id="adm-errors"></div>
+        </div>
+        <div id="adm-pane-sources" style="display:none">
+            <div class="adm-bar"><button onclick="loadAdminSources()">🔄 刷新</button>
+                <select id="adm-src-days" onchange="loadAdminSources()">
+                    <option value="30">最近 30 天</option>
+                    <option value="90" selected>最近 90 天</option>
+                    <option value="365">最近 1 年</option>
+                </select><span id="adm-src-sum"></span></div>
+            <div id="adm-sources"></div>
         </div>
         <div id="adm-pane-rooms" style="display:none">
             <div class="adm-bar"><button onclick="loadAdminRooms()">🔄 刷新</button><span id="adm-rooms-sum"></span></div>

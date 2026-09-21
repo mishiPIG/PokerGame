@@ -98,6 +98,11 @@ function createAccountDeletionRepository(db) {
         // 同样是关于这个人的个人数据，一并清掉。
         db.prepare('DELETE FROM friendships WHERE user_id = @id OR friend_id = @id').run({ id: userId });
 
+        // 🔴 登录/注册来源（IP）—— 连根拔掉。
+        // 不能只把 user_id 抹掉留着 IP：那条 IP 仍然指向一个真人，
+        // 而且跟时间戳一拼就能反推回去。
+        db.prepare('DELETE FROM login_events WHERE user_id = @id').run({ id: userId });
+
         // 站内信是发给他个人的（名次/盈亏/管理员通知），跟着人走
         db.prepare('DELETE FROM user_messages WHERE user_id = @id').run({ id: userId });
 

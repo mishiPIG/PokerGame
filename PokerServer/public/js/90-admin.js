@@ -15,7 +15,7 @@ function admMsg(text, ok = true) {
     if (el) el.textContent = (ok ? '✅ ' : '❌ ') + text;
 }
 function adminTab(name) {
-    ['users', 'metrics', 'rooms', 'wallet', 'hands', 'audit', 'errors', 'mail'].forEach(t => {
+    ['users', 'metrics', 'rooms', 'wallet', 'hands', 'audit', 'errors', 'sources', 'mail'].forEach(t => {
         const pane = document.getElementById('adm-pane-' + t);
         if (pane) pane.style.display = t === name ? '' : 'none';
     });
@@ -23,6 +23,7 @@ function adminTab(name) {
     if (name === 'rooms') loadAdminRooms();
     if (name === 'metrics') loadAdminMetrics();
     if (name === 'errors') loadAdminErrors();
+    if (name === 'sources') loadAdminSources();
 }
 
 // —— 玩家牌谱：查任意玩家最近的牌局 ——
@@ -352,4 +353,51 @@ async function loadAdminErrors() {
             + (e.stack ? '<pre class="adm-err-s">' + escapeHtml(e.stack.split('\n').slice(0, 4).join('\n')) + '</pre>' : '')
             + '</div>';
     }).join('');
+}
+
+// —— 用户来源：地区分布 + 同网段多账号【候选】（2026-09-21）——
+// 🔴 界面上必须把「这只是线索」写出来。
+//    同 IP 完全不等于同一个人：同宿舍/同公司/同一个家都共享出口 IP，
+//    手机运营商的 CGNAT 更是成千上万人共用一个。不写清楚的话，
+//    这份名单早晚会被当成「抓到了」拿去封号。
+async function loadAdminSources() {
+    const box = document.getElementById('adm-sources');
+    if (!box) return;
+    const days = document.getElementById('adm-src-days').value || 90;
+    box.innerHTML = '<div class="adm-empty">加载中…（首次会解析地理位置，稍慢）</div>';
+    const res = await admGet('/api/admin/sources?days=' + days);
+    if (!res.ok) { box.innerHTML = '<div class="adm-empty">加载失败</div>'; return; }
+    const d = await res.json();
+    const sum = document.getElementById('adm-src-sum');
+    if (sum) sum.textContent = d.pendingGeo ? ('本次新解析 ' + d.pendingGeo + ' 个 IP') : '';
+
+    const dist = d.distribution || [];
+    const total = dist.reduce((s2, x) => s2 + x.users, 0);
+    let html = '<div class="adm-wallet-h">地区分布（最近 ' + d.days + ' 天有过活动的独立账号）</div>';
+    if (!dist.length) {
+        html += '<div class="adm-empty">还没有数据 —— 从 2026-09-21 才开始记录，等大家下次登录就会出现。</div>';
+    } else {
+        const max = Math.max(1, ...dist.map(x => x.users));
+        html += '<div class="mt-rows">' + dist.map(x =>
+            '<div class="mt-row"><span class="mt-d">' + escapeHtml(x.country === '?' ? '未知' : x.country) + '</span>'
+            + '<span class="mt-bar"><i style="width:' + Math.round(x.users / max * 100) + '%"></i></span>'
+            + '<span class="mt-n">' + x.users + ' 人</span>'
+            + '<span class="mt-n">' + (total ? Math.round(x.users / total * 100) : 0) + '%</span>'
+            + '<span class="mt-x">' + x.events + ' 次</span></div>').join('') + '</div>';
+    }
+
+    const sn = d.sameNetwork || [];
+    html += '<div class="adm-wallet-h">同网段多账号（候选）</div>';
+    html += '<div class="mt-note">⚠️ <b>这只是线索，不是结论。</b>同宿舍、同公司、同一个家都会共享出口 IP；'
+        + '手机运营商的 CGNAT 更是成千上万人共用一个。<b>请人工复核，不要据此自动处置。</b></div>';
+    if (!sn.length) {
+        html += '<div class="adm-empty">没有同网段出现多个账号</div>';
+    } else {
+        html += '<table class="mt-table"><thead><tr><th>网段</th><th>账号数</th><th>账号</th></tr></thead><tbody>'
+            + sn.map(r => '<tr><td>' + escapeHtml(r.prefix) + '</td><td>' + r.accounts + '</td><td>'
+                + r.users.map(u => escapeHtml(u.display_name || u.username)
+                    + (u.deleted_at_ms ? '<span class="mt-h">（已注销）</span>' : '')).join('、')
+                + '</td></tr>').join('') + '</tbody></table>';
+    }
+    box.innerHTML = html;
 }
