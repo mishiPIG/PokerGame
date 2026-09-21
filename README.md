@@ -2,7 +2,7 @@
 
 # 🀄 Poker Dojo (德扑道场)
 
-> Open a private room, play Texas Hold'em with friends, grow together — and let every hand become training data for AI.
+> Open a private room, play Texas Hold'em with friends, and grow together.
 
 Poker Dojo is a **server-authoritative** online Texas Hold'em game built for playing with friends. All game logic (shuffling, dealing, hand evaluation, betting, settlement) runs on the server; clients only render and send actions. It ships with a lobby, SNG tournaments, cash "training" tables, a full multiplayer engine (real side pots, run-it-N-times), hand histories, career stats, chat/emote/voice, and a Capacitor Android shell.
 
@@ -30,7 +30,7 @@ _Screenshots coming soon — see [`docs/screenshots/`](./docs/screenshots/)._
   - **Cash / "Training" table** (2–9 players): fixed blinds, buy-in/cash-out at a gold↔chips rate, training duration + extensions.
 - **Full multiplayer engine** — proper action order (UTG first), button rotation, and **real side pots** (with adjacent-pot merging + uncalled-bet return).
 - **Run it N times** — when two players are all-in, the underdog picks how many times to run (1–5) and the leader agrees; the pot is split into N shares, each dealt street-by-street on the table.
-- **Hand histories = data asset** — every hand (per-street actions, think time, hole cards, board, result, timestamp) is archived per player and per game mode in SQLite, doubling as **AI training data**. Each hand also keeps its full original record verbatim, so nothing is lost to schema changes.
+- **Hand histories = data asset** — every hand (per-street actions, think time, hole cards, board, result, timestamp) is archived per player and per game mode in SQLite. Each hand also keeps its full original record verbatim, so nothing is lost to schema changes.
 - **Career stats** — VPIP / PFR / 3-bet / C-bet / AF / WTSD / net + profit curve, aggregated from hand histories.
 - **Table UX** — ring seating, avatars, breathing action timer + ring countdown, four-color deck, bet slider, pre-actions, all-in equity %, chip/pot animations, haptics.
 - **Social** — in-table chat + quick phrases, tap-avatar emotes, push-to-talk voice bubbles.
@@ -152,7 +152,7 @@ LOCAL_DEV=1 PORT=3000 node server.js
 
 Done: multiplayer engine + real side pots · SNG & cash tables · run-it-N-times · hand histories + replay · career stats · avatars/chat/emote/voice · CSPRNG shuffle · email accounts + TLS · Android build.
 
-Planned: AI opponents (trained on per-player hand histories) · richer admin tools · avatar upload · bankruptcy relief · card-face themes.
+Planned: richer admin tools · avatar upload · bankruptcy relief · card-face themes.
 
 See [`CHANGELOG.md`](./CHANGELOG.md) for release history and
 [`docs/archive/`](./docs/archive/) for the legacy development notes.

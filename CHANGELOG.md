@@ -339,7 +339,6 @@ All notable changes to Poker Dojo. This project loosely follows
 - 部署后自动核对线上版本，取代过去 grep 关键字的土办法。
 
 ## [Unreleased]
-- AI opponents (trained on per-player hand histories)
 - Avatar upload, richer admin tools
 - Per-action sound effects; flop dealt one card at a time
 - Host-initiated blind change (requires all seated players to agree)
