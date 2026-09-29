@@ -12,12 +12,13 @@ Poker Dojo is a **server-authoritative** online Texas Hold'em game built for pla
 
 ## 📸 Screenshots
 
-<!-- Drop images into docs/screenshots/ and uncomment:
-| Lobby | 9-max table | Run it N times |
-|---|---|---|
-| ![lobby](docs/screenshots/lobby.png) | ![table](docs/screenshots/table.png) | ![run-it](docs/screenshots/run-it.png) |
--->
-_Screenshots coming soon — see [`docs/screenshots/`](./docs/screenshots/)._
+| Lobby | At the table | Run it twice | Showdown |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/lobby.jpg" width="200" alt="Lobby: create a game or join with a 4-digit room code"> | <img src="docs/screenshots/table.jpg" width="200" alt="Facing a flop bet: chip stacks, pot, action buttons"> | <img src="docs/screenshots/run-it.jpg" width="200" alt="All-in run twice: two boards with live equity"> | <img src="docs/screenshots/showdown.jpg" width="200" alt="Showdown: winning hand highlighted, pot flying to the winner"> |
+
+<img src="docs/screenshots/desktop.jpg" alt="Desktop (landscape) layout">
+
+<sub>Captured from a local server with test accounts — all names are fictional. 中文界面截图见 [README.zh-CN.md](./README.zh-CN.md).</sub>
 
 ---
 
@@ -172,5 +173,9 @@ Found a security issue (auth, hole-card leakage, economy exploit)? Please follow
 This project is licensed under the **[PolyForm Noncommercial License 1.0.0](./LICENSE)**. The source is **public and open to contributions**, and you may use, self-host, and modify it **for any noncommercial purpose**. **Any commercial use requires the author's written permission** — please reach out to arrange a commercial license.
 
 The product name **"Poker Dojo / 德扑道场"** and its logo are **not** covered by the code license — please don't use the name or branding for your own product, even if your use of the code is permitted.
+
+**Third-party assets** (their own licenses, shipped alongside them):
+- Card-rank font: [Jost](https://github.com/indestructible-type/Jost) subset — SIL Open Font License 1.1 (`PokerServer/public/fonts/Jost-OFL.txt`)
+- Card and chip sounds: [Kenney — Casino Audio](https://kenney.nl/assets/casino-audio) — CC0 (`PokerServer/public/sfx/Kenney-Casino-Audio-License.txt`)
 
 © Poker Dojo. All rights reserved except as granted by the LICENSE.

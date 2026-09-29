@@ -12,12 +12,13 @@
 
 ## 📸 截图
 
-<!-- 把图片放到 docs/screenshots/ 再取消注释:
-| 大厅 | 9 人牌桌 | 多次发牌 |
-|---|---|---|
-| ![lobby](docs/screenshots/lobby.png) | ![table](docs/screenshots/table.png) | ![run-it](docs/screenshots/run-it.png) |
--->
-_截图待补 —— 见 [`docs/screenshots/`](./docs/screenshots/)。_
+| 大厅 | 牌桌 | 全押发两次 | 摊牌 |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/zh/lobby.jpg" width="200" alt="大厅：创建比赛，或输入四位房间码加入"> | <img src="docs/screenshots/zh/table.jpg" width="200" alt="翻牌圈面对下注：筹码、底池、行动按钮"> | <img src="docs/screenshots/zh/run-it.jpg" width="200" alt="全押发两次：两组公共牌与实时胜率"> | <img src="docs/screenshots/zh/showdown.jpg" width="200" alt="摊牌：赢家牌型高亮，底池飞向赢家"> |
+
+<img src="docs/screenshots/zh/desktop.jpg" alt="电脑横屏布局">
+
+<sub>截图来自本地服务器的测试账号，画面中的名字均为虚构。</sub>
 
 ---
 
@@ -161,5 +162,9 @@ LOCAL_DEV=1 PORT=3000 node server.js
 本项目采用 **[PolyForm Noncommercial License 1.0.0](./LICENSE)**。源码**公开且欢迎贡献**,你可以出于**任何非商业目的**使用、自建、修改本项目。**任何商业使用都需获得作者书面授权**——如需商业授权请联系作者。
 
 产品名 **"德扑道场 / Poker Dojo"** 及其图标**不在代码许可证范围内**——即便你对代码的使用被允许,也请勿使用该名称或品牌标识做自己的产品。
+
+**第三方素材**(各自许可随素材一起分发):
+- 牌面点数字体:[Jost](https://github.com/indestructible-type/Jost) 子集 —— SIL Open Font License 1.1(`PokerServer/public/fonts/Jost-OFL.txt`)
+- 牌与筹码音效:[Kenney — Casino Audio](https://kenney.nl/assets/casino-audio) —— CC0(`PokerServer/public/sfx/Kenney-Casino-Audio-License.txt`)
 
 © 德扑道场(Poker Dojo)。除 LICENSE 明示授予外,保留所有权利。

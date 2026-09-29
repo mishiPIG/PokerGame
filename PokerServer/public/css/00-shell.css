@@ -26,7 +26,12 @@
         /* 合规横幅 */
         /* T3 背景档（见 20-table.css 开头的层级契约）：必须在，但不该参与「往哪看」的竞争 */
         #compliance-banner { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); z-index: 3;
-            font-size: 10.5px; letter-spacing: 1px; color: #eaf3ee; opacity: var(--t3-op); white-space: nowrap;
+            font-size: 10.5px; letter-spacing: 1px; color: #eaf3ee; opacity: var(--t3-op);
+            /* 右上角有延迟指示（约 52px 宽）：两侧各让出一块，横幅只在中间那段里排，放不下就平衡地折成两行。
+               原来是 nowrap —— 中文一行放得下，英文版（Play for fun · No gambling · …）直接压在延迟指示上。
+               width:max-content 必须写：绝对定位 + left:50% 时，可用宽度只剩容器的一半，会提前折行。*/
+            width: max-content; max-width: calc(100% - 150px); white-space: normal;
+            text-align: center; text-wrap: balance; line-height: 1.3;
             pointer-events: none; }
         /* 环形座位层 + 中央牌面：全绝对定位，行动浮层不再推动布局
            ⚠️ 安全边距（别再删）：座位块以自身中心定位(translate -50%,-50%)，其【上方】还挂着

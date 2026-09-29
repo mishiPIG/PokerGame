@@ -709,7 +709,10 @@ function render(state) {
     // ── 预操作条：我在牌里、但还没轮到我时显示；轮到我则执行已勾选的预操作 ──
     const inHand = me && !me.folded && !me.allIn && myHoleCards.length === 2
         && ['preflop', 'flop', 'turn', 'river'].includes(state.phase) && state.status === 'running';
-    const showPre = inHand && !myTurn;
+    // 下注已经结束（对手全押、底牌已亮，只剩跑马）：没人还能行动，预操作毫无意义。
+    // 只判「我没全押」不够——我筹码比对手多时自己不是全押，可这手同样已经不能再下注了（截图实拍）。
+    const bettingOpen = !!state.actionOnUserId && !Object.keys(revealedCards || {}).length;
+    const showPre = inHand && !myTurn && bettingOpen;
     const preBar = document.getElementById('preaction-bar');
     preBar.style.display = showPre ? 'flex' : 'none';
     if (showPre) requestAnimationFrame(positionPreBar);

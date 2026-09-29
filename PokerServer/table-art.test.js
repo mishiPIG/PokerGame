@@ -96,3 +96,16 @@ test('系统「减少动效」被尊重：CSS 与 JS 两边都查', () => {
     assert.match(r, /function timelineFxOk\(\)[^}]*reducedMotion\(\)/, '发牌/亮牌时间线要查 reducedMotion');
     assert.match(read('public/js/50-audio-settings.js'), /function flyCoins[^\n]*\n[^\n]*reducedMotion\(\)/, '飞筹码要查 reducedMotion');
 });
+
+test('🔴 下注结束（对手全押、只剩跑马）时不显示预操作按钮', () => {
+    // 截图实拍：我筹码比对手多、自己不是全押，跑马时两侧还挂着「过/弃」「跟注」——
+    // 这时谁都不能再行动，按钮只会让人以为还能操作。只判「我没全押」是不够的。
+    const r = read('public/js/80-table-renderer.js');
+    const m = /const showPre = ([^;]+);/.exec(r);
+    assert.ok(m, '找不到 showPre');
+    assert.match(m[1], /bettingOpen/, 'showPre 必须带上「下注仍在进行」的条件');
+    const b = /const bettingOpen = ([^;]+);/.exec(r);
+    assert.ok(b, '找不到 bettingOpen');
+    assert.match(b[1], /actionOnUserId/, '没人在行动 = 下注已结束');
+    assert.match(b[1], /revealedCards/, '底牌已亮（全押亮牌）= 下注已结束');
+});
