@@ -108,6 +108,15 @@ function sizeForQuick(kind, v) {
     const potAfterCall = sizeCtx.totalPot + toCall;
     return clampSize(sizeCtx.currentBet + Math.round(v * potAfterCall));
 }
+// 下注信息条里的「占底池 %」—— 必须是上面 sizeForQuick 的【反函数】：
+// 点了「¾池」，下面就该正好显示 75%。
+// ⚠️ 原来算的是 下注额 ÷ (底池 + 本次投入)：把自己这注也算进了分母，结果永远到不了 100%，
+//    翻前 1.5BB 的池子全下 50BB 显示「占底池 98%」（玩家实拍，2026-09-29）。
+function potPctOf(val, ctx) {
+    if (!ctx) return 0;
+    const potAfterCall = (ctx.totalPot || 0) + Math.max(0, (ctx.currentBet || 0) - (ctx.myBet || 0));
+    return potAfterCall > 0 ? Math.round((val - (ctx.currentBet || 0)) / potAfterCall * 100) : 0;
+}
 // 快捷比例：一键直接下注/加注
 function quickBet(kind, v) {
     if (inputLocked() || !sizeCtx) return;
@@ -173,8 +182,7 @@ function updateBetInfo(val) {
     if (!me) { el.textContent = ''; return; }
     const addNow = Math.max(0, val - (sizeCtx.myBet || 0));      // 本次还要再投入多少
     const left = Math.max(0, me.chips - addNow);                  // 压完之后我还剩
-    const potAfter = (sizeCtx.totalPot || 0) + addNow;
-    const pct = potAfter > 0 ? Math.round(val / potAfter * 100) : 0;
+    const pct = potPctOf(val, sizeCtx);
     const toCallOpp = Math.max(0, val - (sizeCtx.currentBet || 0));  // 对手需要跟的增量
     const allIn = left === 0;
     el.innerHTML = allIn
