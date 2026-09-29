@@ -10,7 +10,8 @@
             background: radial-gradient(ellipse at center,#234 0%,#12201a 78%); border-radius: 14px; overflow: hidden; }
         #rp-ring { position: absolute; inset: 0; }
         #rp-board { position: absolute; left: 50%; top: 42%; transform: translate(-50%,-50%); text-align: center; }
-        #rp-pot { font-size: 14px; font-weight: bold; color: #f4d35e; margin-bottom: 5px; }
+        #rp-pot { font-size: 14px; font-weight: bold; color: #f4d35e; margin-bottom: 5px;
+            display: inline-flex; align-items: center; gap: 5px; }
         #rp-community { display: flex; gap: 3px; justify-content: center; }
         /* 🔴 必须设 --card-w/--card-h，不能直接写 width/height ——
            牌面的 rank/suit 字号是 calc(var(--card-w) * 0.62 / 0.6) 算出来的。

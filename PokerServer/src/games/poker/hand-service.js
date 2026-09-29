@@ -22,6 +22,7 @@ function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config,
     }
 // ===== 行动计时器（服务器权威）=====
 
+const LEFT_PLAYER_ACT_MS = 1500;   // 主动离开 SNG 的人：代打前稍等一下，让桌上看得清发生了什么
 function clearActionTimer(game) {
     if (game.actionTimer) { clearTimeout(game.actionTimer); game.actionTimer = null; }
 }
@@ -42,7 +43,10 @@ function startActionTimer(roomId) {
     }
     // 掉线/离桌者也给「正常行动时间」，不再 800ms 秒判——防网络波动瞬断被直接弃牌；
     // 到点由 onActionTimeout 处理：无注则自动过牌(留在局里)、面对下注才弃牌。重连后计时重置。
-    const ms = ACTION_TIME;
+    // ⚠️ 但【主动退出】的 SNG 玩家（点了退出房间，不是断网）不在此列：他人已经走了，
+    //    每手每街都让全桌等满 18 秒 —— 最终验收里一场 6 人 SNG 15 分钟只打了 30 手（2026-09-29）。
+    //    这种情况 1.5 秒就按超时规则代打（能过就过、要跟就弃），他回来（join_room）立刻恢复正常计时。
+    const ms = actor && actor.leftByChoice ? LEFT_PLAYER_ACT_MS : ACTION_TIME;
     game.actionDeadline = Date.now() + ms;
     game.actionTotalMs = ms;
     game.actionTimer = setTimeout(() => onActionTimeout(roomId), ms);

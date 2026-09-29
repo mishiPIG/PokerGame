@@ -230,7 +230,8 @@ function connectSocket(token) {
     socket.on('match_time_expired', () => {
         const isOwner = lastState && lastState.ownerUserId === myUserId;
         if (isOwner) {
-            toast(L('⏰ 训练时间已到！本手结束后暂停发牌，请调整时间或结束比赛', '⏰ Session time is up! Dealing pauses after this hand — adjust the time or end the game'), 6000);
+            // 只开比赛设置面板、不再同时弹 toast：面板里「当前状态」一行已经写明，
+            // 而 toast 正好压在面板底部「关闭 / 提前结束」两个按钮上 6 秒（2026-09-29 截图）
             openMatchSettings();
         } else {
             toast(L('⏰ 训练时间已到，本手结束后暂停，等待房主决定', '⏰ Session time is up — pausing after this hand, waiting for the host'), 5000);

@@ -109,3 +109,22 @@ test('🔴 下注结束（对手全押、只剩跑马）时不显示预操作按
     assert.match(b[1], /actionOnUserId/, '没人在行动 = 下注已结束');
     assert.match(b[1], /revealedCards/, '底牌已亮（全押亮牌）= 下注已结束');
 });
+
+test('🔴 不许用「#某容器 button { background }」这种一刀切的规则盖掉按钮自己的选中态', () => {
+    // 2026-09-29：#create-form button { background: #3a86ff } 的 id 权重压过 .ct-tab.active / .tier-btn.sel / .vis-btn.sel，
+    // 创建比赛表单里所有按钮都成了实心蓝 —— 页签分不出选中哪个、报名费「没选的亮、选中的反而暗」。
+    // 这类规则只允许出现在按钮本来就该长一个样的容器里（顶栏、管理面板）。
+    const ALLOW = new Set(['#user-bar', '#admin-panel']);
+    const bad = [];
+    for (const f of fs.readdirSync(path.join(PUB, 'css'))) {
+        const css = stripComments(fs.readFileSync(path.join(PUB, 'css', f), 'utf8'));
+        for (const m of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+            if (!/background/.test(m[2])) continue;
+            for (const sel of m[1].split(',').map(x => x.trim())) {
+                const hit = /^(#[\w-]+)\s+button$/.exec(sel);
+                if (hit && !ALLOW.has(hit[1])) bad.push(`${f}: ${sel}`);
+            }
+        }
+    }
+    assert.deepEqual(bad, []);
+});

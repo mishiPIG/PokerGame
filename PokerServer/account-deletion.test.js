@@ -248,10 +248,17 @@ test('钱包流水留下 —— 那是经济审计的证据链，而且只有 us
 
     deleteFully(f, alice.id);
 
-    // 注册本身就会记一笔赠币流水，加上这次买入一共两笔 —— 两笔都必须留下。
-    const types = f.raw.prepare(
-        'SELECT transaction_type t FROM wallet_transactions WHERE user_id = ? ORDER BY created_at_ms')
-        .all(alice.id).map(r => r.t);
-    assert.deepEqual(types, ['initial_balance', 'cash_buyin'],
+    // 注册本身就会记一笔赠币流水，加上这次买入一共两笔 —— 两笔都必须留下；
+    // 余额作废再记一笔 account_void（2026-09-29 起），让流水能解释「余额为什么变成 0」。
+    const rows = f.raw.prepare(
+        'SELECT transaction_type t, balance_before b, balance_after a, delta d FROM wallet_transactions WHERE user_id = ? ORDER BY created_at_ms, rowid')
+        .all(alice.id);
+    assert.deepEqual(rows.map(r => r.t), ['initial_balance', 'cash_buyin', 'account_void'],
         '流水被删了 —— 筹码守恒审计会从此对不上账');
+    // 首尾相接、最后落在 0：否则审计看到的就是「钱凭空消失」
+    rows.forEach((r, i) => {
+        assert.equal(r.a, r.b + r.d, '单笔流水内部要自洽');
+        if (i) assert.equal(r.b, rows[i - 1].a, '流水要首尾相接');
+    });
+    assert.equal(rows[rows.length - 1].a, 0, '作废后余额是 0，流水最后一笔也必须是 0');
 });

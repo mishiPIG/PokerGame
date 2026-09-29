@@ -45,7 +45,7 @@ setInterval(() => {
         const rem = Math.max(0, Math.floor((nextLevelAt - Date.now()) / 1000));
         const mm = String(Math.floor(rem / 60)).padStart(2, '0');
         const ss = String(rem % 60).padStart(2, '0');
-        nl.textContent = L(`· 距升盲 ${mm}:${ss}`, `· next level ${mm}:${ss}`);
+        nl.textContent = L(` · 距升盲 ${mm}:${ss}`, ` · next level ${mm}:${ss}`);   // 分隔符在这里带，模板不再写
     }
     // 现金桌训练剩余时长
     const tr = document.getElementById('table-remain');
@@ -53,7 +53,7 @@ setInterval(() => {
         const rem = Math.max(0, Math.floor((tableEndAt - Date.now()) / 1000));
         const hh = Math.floor(rem / 3600), mm = Math.floor((rem % 3600) / 60), ss = rem % 60;
         const clock = `${hh > 0 ? hh + 'h' : ''}${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-        tr.textContent = L(`· 剩 ${clock}`, `· ${clock} left`);
+        tr.textContent = L(` · 剩 ${clock}`, ` · ${clock} left`);   // 分隔符在这里带，模板不再写
     }
 }, 250);
 

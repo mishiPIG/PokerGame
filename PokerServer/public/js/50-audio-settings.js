@@ -310,12 +310,17 @@ function setAvatar(url) {
     if (lastState) render(lastState);
     renderProfileAvatars();
 }
+function syncLangButtons() {
+    document.querySelectorAll('.cs-opt[data-lang]').forEach(b => b.classList.toggle('sel', b.dataset.lang === lang));
+}
+onLangChange(syncLangButtons);   // 切完语言立刻换亮哪一个（登记制，别往 setLang 里手写）
 function buildSettingsPanel() {
     document.getElementById('theme-row').innerHTML = THEMES.map(t =>
         `<div class="theme-swatch ${settings.theme === t.id ? 'sel' : ''}" style="background:${t.css}" onclick="setTheme('${t.id}')"><span>${L(t.name, t.nameEn)}</span></div>`).join('');
     document.querySelectorAll('.cs-opt').forEach(b => b.classList.toggle('sel', b.dataset.cs === settings.cardStyle));
     // 布局按钮复用了 .cs-opt 样式，上一行会把它们的选中态一并清掉，这里按 data-lay 重新点亮
     document.querySelectorAll('.lay-opt').forEach(b => b.classList.toggle('sel', b.dataset.lay === settings.layout));
+    syncLangButtons();   // 语言按钮同样复用 .cs-opt —— 原来漏了这一句，中文/English 两个都不亮（2026-09-29 截图）
     document.getElementById('cs-preview').innerHTML = ['Spades', 'Hearts', 'Diamonds', 'Clubs'].map(s => formatCard({ suit: s, rank: 'A' })).join('');
     // 翻前（BB 倍数）：预设 + 已添加的自定义值
     const preAll = [...new Set([...PRE_CHOICES, ...settings.quickBetsPre])].sort((a, b) => a - b);

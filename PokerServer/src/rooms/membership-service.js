@@ -51,6 +51,7 @@ function createMembershipService({ io, runtime, tableService, config }) {
         if (existing) {
             existing.socketId = socket.id;
             existing.away = false;
+            existing.leftByChoice = false;   // 回来了：恢复正常行动时间
             // 人回来了 → 撤掉「全员离线自动解散」的待执行计时，避免还在玩的房残留待解散状态
             if (game.emptyCleanupTimer) { clearTimeout(game.emptyCleanupTimer); game.emptyCleanupTimer = null; }
             if (existing.reserveTimer) { clearTimeout(existing.reserveTimer); existing.reserveTimer = null; }

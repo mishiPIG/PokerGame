@@ -189,7 +189,7 @@ function runitAward(m) {
     (m.winners || []).forEach(w => { flyCoinsToWinner(w.userId); winPopup(w.userId, w.amount); if (w.userId === myUserId) vibrate([30, 40, 30]); });
 }
 // 轻量非阻塞提示（自动消失，不像 alert 会卡住交互）
-let _toastTimer = 0;
+let _toastTimer = 0, _toastPlaceTimer = 0;
 // —— 结算颁奖台（纯娱乐调侃）：🥇老板=亏最多(该请客了) 🥈MVP=赢最多 🥉力工=手数最多 ——
 // 排名行里的小称号标签
 function awardTags(awards, userId) {
@@ -241,9 +241,21 @@ function toast(msg, ms = 2600) {
         document.body.appendChild(el);
     }
     el.textContent = msg;
+    // 有弹窗开着时挪到顶部：弹窗的按钮都在底部，toast 默认也在底部，正好把按钮文字盖住
+    // （房主到时自动弹出的比赛设置 +「训练时间已到」播报，2026-09-29 截图）。
+    // 判「开着」用 getClientRects —— 弹窗是 position:fixed，offsetParent 恒为 null（快捷键那次踩过）。
+    // ⚠️ 不能只在弹出那一刻判一次：那次截图里正是【toast 先到、弹窗后开】，判的时候还没有弹窗。
+    //    所以显示期间每 300ms 复查一次（只在 toast 可见时跑，隐藏即停）。
+    const place = () => {
+        const modalOpen = [...document.querySelectorAll('.modal-mask')].some(m => m.getClientRects().length > 0);
+        el.style.top = modalOpen ? 'calc(env(safe-area-inset-top, 0px) + 14px)' : 'auto';
+        el.style.bottom = modalOpen ? 'auto' : '78px';
+    };
+    place();
     el.style.display = 'block';
-    clearTimeout(_toastTimer);
-    _toastTimer = setTimeout(() => { el.style.display = 'none'; }, ms);
+    clearTimeout(_toastTimer); clearInterval(_toastPlaceTimer);
+    _toastPlaceTimer = setInterval(place, 300);
+    _toastTimer = setTimeout(() => { el.style.display = 'none'; clearInterval(_toastPlaceTimer); }, ms);
 }
 function showLobby() {
     cancelVoiceRecording();
@@ -472,7 +484,12 @@ function dissolveRoom() {
 }
 function closeResult() {
     document.getElementById('result-overlay').style.display = 'none';
-    leaveRoom();
+    // 🔴 比赛已经结束（服务端已结算、房间已删）：直接回大厅。
+    //    原来走 leaveRoom() —— 现金桌会弹「座位与筹码【保留】…可随时重新进入」的确认，
+    //    这句话此时是错的；点「取消」还会被留在一张已经不存在的桌子上（2026-09-29 最终验收截图）。
+    //    leave_room 照发一次：服务端对已不存在的房间是空操作；SNG 结束后 25 秒自动解散前也能先走。
+    if (socket) socket.emit('leave_room');
+    showLobby();
 }
 
 // ===== 桌内菜单 (B7) =====
@@ -723,7 +740,8 @@ function renderMatchInfo(st) {
         if (st.tableEndAt) {
             // 和播报走同一个 fmtDuration —— 否则面板说「约 80 分钟」、toast 说「1 小时 20 分」，
             // 同一个数两种说法，正是那种「说不上哪儿不对」的来源。
-            rows.push([L('剩余时长', 'Time left'), fmtDuration(st.tableEndAt - Date.now())]);
+            // 已到时就明说「已到时」：原来显示「不到 1 分钟」，和下一行「已到时」自相矛盾（2026-09-29 截图）
+            rows.push([L('剩余时长', 'Time left'), st.timeExpired ? L('已到时', 'Time up') : fmtDuration(st.tableEndAt - Date.now())]);
             rows.push([L('预计结束', 'Ends at'), formatMatchEndTime(st.tableEndAt)]);
         }
         if (st.timeExpired) {
@@ -881,7 +899,7 @@ function openFairPanel() {
         + L('怎么验：本桌结束后，在「牌谱回顾」里点开那一手 →「🔒 验证数据」导出，然后跑 <code>node tools/verify-hand.js 牌谱.json</code>。它不连服务器，只用标准 SHA-256。',
             'How to verify: after this table ends, open the hand in "Hand history" → "🔒 Verify data", then run <code>node tools/verify-hand.js hand.json</code>. It never contacts the server and uses only standard SHA-256.')
         + '</div>';
-    html += '<div class="modal-btns"><button onclick="closeFairPanel()">' + L('关闭', 'Close') + '</button></div></div>';
+    html += '<div class="modal-actions"><button class="cancel" onclick="closeFairPanel()">' + L('关闭', 'Close') + '</button></div></div>';
 
     const mask = document.createElement('div');
     mask.className = 'modal-mask';

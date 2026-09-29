@@ -18,7 +18,8 @@ function buildRanking(game, winnerId, prize) {
         return p?.avatar || db.getUserById(userId)?.avatar || null;
     };
     if (game.roomType === 'cash') {
-        const cur = game.players.map(p => ({ userId: p.userId, username: p.username, displayName: p.displayName || p.username, net: (p.chips || 0) - (p.buyIn || 0), handsPlayed: p.handsPlayed || 0 }));
+        // buyIn 在补码扣款时就已加上，所以还挂着的补码也要算进资产，否则结算排名凭空少一截
+        const cur = game.players.map(p => ({ userId: p.userId, username: p.username, displayName: p.displayName || p.username, net: (p.chips || 0) + (p.pendingRebuy || 0) - (p.buyIn || 0), handsPlayed: p.handsPlayed || 0 }));
         const vac = (game.vacatedPlayers || []).map(v => ({ userId: v.userId, username: v.username, displayName: v.displayName || v.username, net: (v.chips || 0) - (v.buyIn || 0), handsPlayed: v.handsPlayed || 0 }));
         const covered = new Set([...cur, ...vac].map(r => r.userId));
         const hist = (game.statsHistory || []).filter(h => !covered.has(h.userId))

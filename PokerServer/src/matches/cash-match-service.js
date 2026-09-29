@@ -175,7 +175,10 @@ function restoreNextHandTimer(roomId) {
 // 现金桌兑出：剩余筹码按汇率兑回金币，返回兑出金币数
 function cashOut(p) {
     if (p.settledAt) return p.settlementGold || 0;
-    const payout = Math.max(0, Math.floor((p.chips || 0) * CASHOUT_RATE));
+    // 兜底：还挂着的补码（本手买、没来得及生效）也是他的筹码 —— 钱已经扣了，必须兑回去。
+    // 正常路径下局间就已生效，这里防的是将来任何一条漏掉生效的路径让钱悄悄蒸发。
+    const chips = (p.chips || 0) + (p.pendingRebuy || 0);
+    const payout = Math.max(0, Math.floor(chips * CASHOUT_RATE));
     const roomId = Object.keys(roomGames).find(id => {
         const game = roomGames[id];
         return game.players.includes(p) || (game.vacatedPlayers || []).includes(p);
@@ -192,7 +195,7 @@ function cashOut(p) {
                 type: 'cash_cashout',
                 matchId: game.matchId,
                 operationKey: `cash-cashout:${game.matchId}:${p.userId}`,
-                metadata: { chips: p.chips || 0 }
+                metadata: { chips }
             }], 'cash_cashout', p.userId, { payout });
             const balance = committed.wallets[0].balance;
             const s = io.sockets.sockets.get(p.socketId);

@@ -67,9 +67,19 @@ function createAccountDeletionRepository(db) {
     // 第一步：销毁身份。小事务，必须原子 —— 半抹的账号是最糟的结果
     // （既登不进去、又还挂着邮箱占着唯一索引）。
     const anonymizeTx = db.transaction((userId, handle, now) => {
-        const user = db.prepare('SELECT id, deleted_at_ms FROM users WHERE id = ?').get(userId);
+        const user = db.prepare('SELECT id, gold, deleted_at_ms FROM users WHERE id = ?').get(userId);
         if (!user) return { ok: false, reason: 'NOT_FOUND' };
         if (user.deleted_at_ms) return { ok: false, reason: 'ALREADY_DELETED' };
+
+        // 余额作废也要记一笔流水：原来直接把 gold 写成 0、不留痕，
+        // 钱包流水的最后一笔就对不上余额 —— 审计时看到的是「钱凭空消失」（2026-09-29 压测抓到）。
+        if (user.gold > 0) {
+            db.prepare(`
+                INSERT INTO wallet_transactions (id, user_id, delta, balance_before, balance_after, transaction_type,
+                    match_id, hand_id, operation_key, metadata_json, created_at_ms)
+                VALUES (@id, @uid, @delta, @before, 0, 'account_void', NULL, NULL, @key, '{}', @now)
+            `).run({ id: crypto.randomUUID(), uid: userId, delta: -user.gold, before: user.gold, key: `account-void:${userId}`, now });
+        }
 
         db.prepare(`
             UPDATE users SET

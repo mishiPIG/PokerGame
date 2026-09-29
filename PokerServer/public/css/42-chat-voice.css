@@ -1,6 +1,6 @@
         /* ===== 聊天 + 表情 ===== */
         #chat-panel { position: absolute; left: 6px; right: 6px; bottom: 46px; z-index: 70;
-            background: rgba(13,22,36,0.97); border: 1px solid rgba(255,255,255,0.14); border-radius: 14px;
+            background: linear-gradient(160deg, rgba(34,57,46,0.97), rgba(18,32,26,0.97)); border: 1px solid rgba(244,211,94,0.16); border-radius: 14px;   /* 原深蓝，A1 漏网 */
             display: flex; flex-direction: column; box-shadow: 0 8px 30px rgba(0,0,0,0.6); max-height: 56vh; }
         .chat-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;
             border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 14px; color: #eaf3ee; }

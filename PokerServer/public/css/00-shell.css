@@ -72,7 +72,7 @@
             display: flex; justify-content: center; align-items: center;
             gap: clamp(150px, 52vw, 250px); pointer-events: none; }
         .pa-btn { pointer-events: auto; padding: 8px 14px; border-radius: 12px; font-size: 13px; font-weight: bold;
-            background: rgba(13,22,36,0.92); border: 1.5px solid rgba(255,255,255,0.24); color: #dfe9e2; cursor: pointer;
+            background: rgba(18,32,26,0.92); border: 1.5px solid rgba(255,255,255,0.24); color: #dfe9e2; cursor: pointer;
             box-shadow: 0 2px 8px rgba(0,0,0,0.45); }
         .pa-btn.sel { background: #06d6a0; border-color: #06d6a0; color: #0a1f1a; box-shadow: 0 0 0 2px rgba(6,214,160,0.35); }
         /* 行动悬浮球：悬浮在「自己座位+手牌」的正上方（德扑之星式），不遮挡手牌 */
@@ -102,7 +102,7 @@
         /* 精调面板展开时给个底板，便于看清滑条
            注意：不要用 backdrop-filter:blur——拖动滑条会每帧重算模糊，手机上严重卡顿。
            背景已近乎不透明(0.98)，无需模糊。 */
-        #sizing-row { background: rgba(13,22,36,0.98) !important;
+        #sizing-row { background: rgba(18,32,26,0.98) !important;   /* 原深蓝 rgba(13,22,36)，A1 漏网 */
             border: 1px solid rgba(255,255,255,0.14); contain: layout paint; }
         /* 拖动加注条时：暂停座位呼吸光/火光/环形等持续 box-shadow 重绘（手机 GPU 每帧重算=卡）*/
         body.sizing-open .seat.acting .avatar-block,

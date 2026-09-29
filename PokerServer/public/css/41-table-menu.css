@@ -11,10 +11,11 @@
 
         /* ===== 桌内菜单 (B7) ===== */
         .tbl-pop { position: absolute; left: 6px; bottom: 88px; z-index: 60;
-            background: rgba(13,22,36,0.96); border: 1px solid rgba(255,255,255,0.14);
+            /* 道场绿（A1 统一配色时漏了这块，原来是深蓝 rgba(13,22,36)，2026-09-29 最终验收截图里发现）*/
+            background: linear-gradient(160deg, rgba(34,57,46,0.97), rgba(18,32,26,0.97)); border: 1px solid rgba(244,211,94,0.16);
             border-radius: 14px; padding: 10px; box-shadow: 0 8px 30px rgba(0,0,0,0.6); }
         .tm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .tm-grid button { background: rgba(255,255,255,0.08); color: #eaf0fb; border: 1px solid rgba(255,255,255,0.12);
+        .tm-grid button { background: rgba(255,255,255,0.08); color: #eaf3ee; border: 1px solid rgba(255,255,255,0.12);
             border-radius: 10px; padding: 11px 10px; font-size: 13px; font-weight: bold; cursor: pointer; white-space: nowrap; }
         .tm-grid button:hover { background: rgba(255,255,255,0.16); }
         .tm-grid button.danger { color: #ff8585; border-color: rgba(255,90,90,0.4); }

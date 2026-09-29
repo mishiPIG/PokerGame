@@ -36,9 +36,12 @@
             color: #eaf3ee; display: flex; flex-direction: column; }
         .hd-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px;
             border-bottom: 1px solid rgba(255,255,255,0.08); }
-        .hd-head b { font-size: 15px; }
-        .hd-head-btns { display: flex; gap: 8px; align-items: center; }
-        .hd-replay { background: #06d6a0; color: #0a1f1a; border: none; border-radius: 8px; padding: 7px 14px; font-weight: bold; font-size: 13px; cursor: pointer; }
+        /* 窄屏（~400px）时按钮文字被挤成两行（「回/放」「验证数/据」，2026-09-29 截图）：
+           按钮不折行、按钮组不收缩，让标题去折行 */
+        .hd-head { gap: 10px; }
+        .hd-head b { font-size: 15px; min-width: 0; }
+        .hd-head-btns { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+        .hd-replay { background: #06d6a0; color: #0a1f1a; border: none; border-radius: 8px; padding: 7px 11px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap; }
         .hd-close { background: none; border: none; color: #9db9a9; font-size: 22px; cursor: pointer; }
         #hd-board { text-align: center; padding: 12px; background: radial-gradient(ellipse at center,#1c3a34 0%,#12201a 80%); }
         .hd-pot { font-size: 13px; color: #f4d35e; margin-bottom: 8px; }
@@ -107,6 +110,7 @@
         .ap-owner-btn { width: 100%; padding: 10px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold;
             background: rgba(255,159,28,0.16); border: 1px solid rgba(255,159,28,0.5); color: #ffcf8a; }
         .ap-owner-btn:active { background: rgba(255,159,28,0.28); }
+        .ap-owner-btn + .ap-owner-btn { margin-top: 8px; }   /* 两个房主按钮上下贴在一起（2026-09-29 截图）*/
 
         /* 牌谱详情：每家的最终牌型名（仅在牌面可见时才渲染，见 42-replay.js 的隐私判断）*/
         .hd-cat { display: block; margin-top: 3px; font-size: 10.5px; font-weight: bold; color: #f4d35e;

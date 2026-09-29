@@ -53,8 +53,11 @@ function blankComments(src) {
     return out;
 }
 
-// 产出字符串字面量；模板串已剔除 ${...} 插值（插值里的 L(...) 会被单独扫到）
-function* literals(src) {
+// 产出字符串字面量；模板串已剔除 ${...} 插值，【插值里面的代码递归再扫一遍】。
+// ⚠️ 2026-09-29 之前这里只是「跳过」插值，注释却写着「插值里的会被单独扫到」—— 其实没有：
+//    外层循环直接从模板串结束处继续，插值里的字符串从来没被看过。
+//    于是 `${isMe ? '<span>你</span>' : ''}` 这种写法一直漏检（英文界面牌谱详情里的「你」「弃牌」）。
+function* literals(src, base = 0) {
     let i = 0;
     while (i < src.length) {
         const c = src[i];
@@ -65,25 +68,27 @@ function* literals(src) {
                 if (src[j] === '\n') break;
                 buf += src[j++];
             }
-            yield { at: i, text: buf }; i = j + 1; continue;
+            yield { at: base + i, text: buf }; i = j + 1; continue;
         }
         if (c === '`') {
             let j = i + 1, buf = '';
             while (j < src.length) {
                 if (src[j] === '\\') { j += 2; continue; }
-                if (src[j] === '$' && src[j + 1] === '{') {              // 跳过整段插值
+                if (src[j] === '$' && src[j + 1] === '{') {              // 插值：从模板正文里剔掉，但里面的代码要递归扫
                     let depth = 1; j += 2;
+                    const from = j;
                     while (j < src.length && depth) {
                         if (src[j] === '{') depth++;
                         else if (src[j] === '}') depth--;
                         j++;
                     }
+                    yield* literals(src.slice(from, j - 1), base + from);
                     continue;
                 }
                 if (src[j] === '`') break;
                 buf += src[j++];
             }
-            yield { at: i, text: buf }; i = j + 1; continue;
+            yield { at: base + i, text: buf }; i = j + 1; continue;
         }
         i++;
     }
@@ -315,6 +320,9 @@ function checkJsOwned(owned) {
         }
     }
 }
+
+// 被 require 时只交出扫描器本身（给测试做反向对照），不跑全库检查
+if (require.main !== module) { module.exports = { literals, blankComments }; return; }
 
 const jsDir = path.join(ROOT, 'public', 'js');
 const jsFiles = fs.readdirSync(jsDir).filter(f => f.endsWith('.js') && !SKIP_JS.has(f));

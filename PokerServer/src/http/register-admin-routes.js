@@ -5,7 +5,10 @@ const TX_LABEL = {
     cash_buyin: '现金桌买入', cash_rebuy: '现金桌补码', cash_cashout: '现金桌兑出',
     sng_buyin: 'SNG 报名', sng_refund: 'SNG 退报名费', sng_prize: 'SNG 奖金',
     checkin: '每日签到', admin_adjust: '管理员调整', admin_set_gold: '管理员设置',
-    legacy_import: '旧数据迁移', signup_bonus: '注册赠送'
+    legacy_import: '旧数据迁移', signup_bonus: '注册赠送',
+    // 代码里实际写入的类型名（上面 sng_buyin / checkin 是早期叫法，旧流水里还有，保留）。
+    // 原来这几个没配名字，管理面板钱包流水里直接显示英文代号。
+    sng_entry: 'SNG 报名', checkin_reward: '每日签到', account_void: '注销作废', initial_balance: '注册初始金币'
 };
 
 function registerAdminRoutes({ app, db, requireAdmin, roomGames, io, clientErrors }) {

@@ -13,7 +13,9 @@ function vacateSeat(game, idx) {
     if (p.reserveTimer) { clearTimeout(p.reserveTimer); p.reserveTimer = null; }
     game.vacatedPlayers.push({
         userId: p.userId, username: p.username, displayName: p.displayName || p.username, avatar: p.avatar || null,
-        chips: p.chips, buyIn: p.buyIn || 0, handsPlayed: p.handsPlayed || 0, socketId: p.socketId,
+        // 挂起的补码（本手买、下一手才生效）一并带走：钱已经扣了。原来只抄 chips，
+        // 「补码后同一手里站起」的人那笔筹码就此蒸发（2026-09-29 压测抓到，rebuy-vacate.test.js）。
+        chips: p.chips + (p.pendingRebuy || 0), buyIn: p.buyIn || 0, handsPlayed: p.handsPlayed || 0, socketId: p.socketId,
         timeCards: p.timeCards || 0
     });
     game.players.splice(idx, 1);
@@ -145,14 +147,15 @@ function removeBustedPlayers(game) {
     for (let i = game.players.length - 1; i >= 0; i--) {
         const p = game.players[i];
         if (game.roomType === 'cash') {
-            // 站起围观待腾位（本手结束）：移出座位到 vacatedPlayers，座位空出
-            if (p.vacateAfter) { vacateSeat(game, i); continue; }
-            // 自动补码：耗尽且开启 autoRebuy 且无挂起 → 自动按最小带入补一手
-            if (p.chips <= 0 && p.autoRebuy && !(p.pendingRebuy > 0) && !p.leaving) {
+            // 自动补码：耗尽且开启 autoRebuy 且无挂起 → 自动按最小带入补一手（要离座的人不补）
+            if (!p.vacateAfter && p.chips <= 0 && p.autoRebuy && !(p.pendingRebuy > 0) && !p.leaving) {
                 if (chargeRebuy(game, p, game.config.minBuyIn)) io.in(roomId).emit('server_msg', `🔁 ${nameOf(p)} 自动补码 ${game.config.minBuyIn}`);
             }
-            // 有挂起补码：下一手生效（加筹码，取消坐出）
+            // 有挂起补码：下一手生效（加筹码，取消坐出）。
+            // ⚠️ 必须排在下面「站起离座」之前：原来离座分支先 continue，挂起补码既没生效也没被带走。
             if (p.pendingRebuy > 0) { p.chips += p.pendingRebuy; p.pendingRebuy = 0; p.sittingOut = false; }
+            // 站起围观待腾位（本手结束）：移出座位到 vacatedPlayers，座位空出
+            if (p.vacateAfter) { vacateSeat(game, i); continue; }
             if (p.leaving) {
                 recordLeft(game, p);   // 战绩面板灰显 + 结束排名
                 const payout = cashOut(p);

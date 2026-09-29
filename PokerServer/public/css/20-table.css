@@ -136,8 +136,9 @@
         .status-bubble.wait { background: #3d5346; color: #dfe9e2; }
         .status-bubble.fold { background: #35453b; color: #9db9a9; }
         .status-bubble.allin { background: #e23b3b; color: #fff; }
-        .ready-badge { position: absolute; top: -12px; left: -8px; z-index: 7; font-size: 11px; font-weight: bold;
-            padding: 2px 8px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.4); }
+        /* nowrap：座位块只有 68px 宽，「✓ 已准备」会被折成「已准/备」两行（2026-09-29 截图）*/
+        .ready-badge { position: absolute; top: -12px; left: -8px; z-index: 7; font-size: 10.5px; font-weight: bold;
+            padding: 2px 8px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.4); white-space: nowrap; }
         .ready-badge.yes { background: #06d6a0; color: #0a1f1a; }
         .ready-badge.no  { background: rgba(255,255,255,0.12); color: #ccc; border: 1px solid rgba(255,255,255,0.2); }
         /* 对手亮牌：覆盖在头像上（省空间、不顶出屏幕）；牌型徽章压在牌下沿 */
@@ -374,6 +375,11 @@
         }
         /* 半圆弧环绕：池比例小球沿上半圆分布（位置由 JS 内联设置）(B6) */
         .size-quick-group { position: relative; margin: 0 auto 2px; }
+        /* 展开精调面板时收起快捷小球：#action-bar 贴底、内容往上长，面板一展开，
+           小球那一圈就被顶到公共牌和底池上面（横屏最明显，2026-09-29 截图）。
+           面板里已有滑条 + 确认按钮，一键快捷在这时是多余的。用 visibility 而不是 display：
+           占位保留，按钮区不会因此上下跳。*/
+        body.sizing-open #quick-bet-group { visibility: hidden; }
         .size-quick {
             position: absolute; width: 40px; height: 40px; border-radius: 50%;
             display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05;

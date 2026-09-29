@@ -134,7 +134,7 @@ function openHandDetail(h) {
             ? `<span class="hd-cat${folded ? ' dim' : ''}">${folded ? L('弃 · ', 'Fold · ') : ''}${escapeHtml(handCat(res.category))}</span>` : '';
         return `<div class="hd-row${folded ? ' folded' : ''}">
             <div class="hd-who"><div class="hd-av" style="background:hsl(${hashHue(s.userId)},45%,42%)">${av}</div>
-              <div class="hd-nm">${escapeHtml(s.username)}${isMe ? '<span class="hd-me">你</span>' : ''}${pos[s.userId] ? `<span class="hd-pos">${pos[s.userId]}</span>` : ''}${folded ? '<span class="hd-fold">弃牌</span>' : ''}</div></div>
+              <div class="hd-nm">${escapeHtml(s.username)}${isMe ? `<span class="hd-me">${L('你', 'You')}</span>` : ''}${pos[s.userId] ? `<span class="hd-pos">${pos[s.userId]}</span>` : ''}${folded ? `<span class="hd-fold">${L('弃牌', 'Fold')}</span>` : ''}</div></div>
             <div class="hd-hole">${holeHtml}${catHtml}</div>
             <div class="hd-acts">${actHtml}</div>
             <div class="hd-net ${netCls}">${net > 0 ? '+' : ''}${fmtChips(net)}</div>
@@ -189,7 +189,8 @@ function renderReplayFrame() {
     let cc = '';
     for (let i = 0; i < 5; i++) cc += (i < f.community && rpCommunity[i]) ? formatCard(rpCommunity[i]) : emptySlot();
     document.getElementById('rp-community').innerHTML = cc;
-    document.getElementById('rp-pot').textContent = L('💰 底池 ', '💰 Pot ') + fmtChips(f.pot);
+    // 与牌桌同一个筹码图标（原来是 💰 emoji，牌桌换成 CSS 筹码后回放没跟上）
+    document.getElementById('rp-pot').innerHTML = '<span class="chip gold"></span>' + L('底池 ', 'Pot ') + escapeHtml(String(fmtChips(f.pot)));
     document.getElementById('rp-caption').textContent = f.caption || '';
     document.getElementById('rp-progress').textContent = `${rpIdx + 1}/${rpFrames.length}`;
 }

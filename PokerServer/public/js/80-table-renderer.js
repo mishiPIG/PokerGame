@@ -532,13 +532,14 @@ function render(state) {
         nextLevelAt = state.nextLevelAt || 0;
         sng.innerHTML = `${escapeHtml(state.roomName)} · ${roomNoHtml()}<br>`
             + `${L('级别', 'Level')} ${lvl} · ${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}`
-            + (state.pendingLevelUp ? ` · <span style="color:#ff9f1c">${L('⏫本局后升盲', '⏫ Blinds up next hand')}</span>` : ` · <span id="next-level"></span>`);
+            // 分隔符「 · 」由倒计时自己带（见 70-actions.js）：模板里再写一个就成了「· ·」（2026-09-29 截图里看到的）
+            + (state.pendingLevelUp ? ` · <span style="color:#ff9f1c">${L('⏫本局后升盲', '⏫ Blinds up next hand')}</span>` : `<span id="next-level"></span>`);
     } else {
         nextLevelAt = 0; tableEndAt = state.tableEndAt || 0;
         sng.innerHTML = `${escapeHtml(state.roomName)} · ${roomNoHtml()}<br>`
             + `${L('现金桌', 'Cash')} · ${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
             + (state.allowUtgStraddle ? ' · STR 2BB' : '')
-            + (tableEndAt ? ` · <span id="table-remain"></span>` : '');
+            + (tableEndAt ? `<span id="table-remain"></span>` : '');   // 分隔符由倒计时自己带，同上
     }
     if (state.timeExpired) {
         // 带上兜底倒计时：让全桌都知道「不处理的话什么时候会自动结算」，而不是干等着

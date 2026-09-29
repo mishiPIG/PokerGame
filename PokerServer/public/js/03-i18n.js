@@ -639,7 +639,8 @@ const MATCH_REASON_EN = {
     '房主提前结束': 'Host ended early', '比赛结束': 'Game over', '管理员解散': 'Dissolved by admin',
     '房间空置已关闭': 'Closed (empty room)', '恢复未完成结算': 'Recovered settlement',
 };
-function matchTitleL(tt) { if (lang !== 'en' || !tt) return tt; let s = tt; for (const k in MATCH_REASON_EN) s = s.split(k).join(MATCH_REASON_EN[k]); return s; }
+// 房间名外面那对中文方括号【】在英文里换成 “名字 · 原因”（英文截图里是「【Warm-up】Host ended early」）
+function matchTitleL(tt) { if (lang !== 'en' || !tt) return tt; let s = tt; for (const k in MATCH_REASON_EN) s = s.split(k).join(MATCH_REASON_EN[k]); return s.replace(/^【([^】]*)】\s*/, '$1 · '); }
 // 收件箱结算消息（服务端固定模板拼的整段中文，含历史消息）→ 英文。按行调用，检测靠原文、显示用译文。
 function inboxTextL(line) {
     if (lang !== 'en' || !line) return line;

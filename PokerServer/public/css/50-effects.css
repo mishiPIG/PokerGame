@@ -111,5 +111,7 @@
         .hi-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
         .ha { background: rgba(255,255,255,0.07); border-radius: 8px; padding: 2px 7px; font-size: 11px; }
         .match-info { font-size: 14px; color: #dfe9e2; }
-        .mi-row { display: flex; justify-content: space-between; padding: 9px 2px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .mi-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .mi-row > span { white-space: nowrap; flex-shrink: 0; }   /* 标签不折行（「当前状/态」，2026-09-29 截图）；长的值去右边折行 */
+        .mi-row > b { text-align: right; }
         .mi-note { margin-top: 10px; color: #9db9a9; font-size: 12px; text-align: center; }

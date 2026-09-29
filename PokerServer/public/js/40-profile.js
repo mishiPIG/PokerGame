@@ -358,8 +358,8 @@ function openDeleteAccount() {
         + '<input type="password" id="del-pwd" autocomplete="current-password" placeholder="'
         + L('密码', 'Password') + '">'
         + '<div id="del-msg" class="pi-danger-t"></div>'
-        + '<div class="modal-btns">'
-        + '<button onclick="closeDeleteAccount()">' + L('取消', 'Cancel') + '</button>'
+        + '<div class="modal-actions">'
+        + '<button class="cancel" onclick="closeDeleteAccount()">' + L('取消', 'Cancel') + '</button>'
         + '<button class="pi-danger-btn" id="del-go" onclick="confirmDeleteAccount()">'
         + L('永久注销', 'Delete forever') + '</button>'
         + '</div></div>';
@@ -412,6 +412,6 @@ async function confirmDeleteAccount() {
         + '<div class="pi-danger-t">'
         + L('你的个人信息已经删除，牌局记录已匿名化。感谢使用德扑道场。',
             'Your personal data has been deleted and your hand records anonymised. Thanks for playing Poker Dojo.')
-        + '</div><div class="modal-btns"><button onclick="location.reload()">'
+        + '</div><div class="modal-actions"><button class="confirm" onclick="location.reload()">'
         + L('返回登录页', 'Back to sign in') + '</button></div>';
 }

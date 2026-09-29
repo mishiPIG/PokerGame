@@ -294,7 +294,8 @@ function registerMembershipEvents(context) {
                     } else broadcastState(roomId);
                 } else {
                     // SNG 开赛后退出：保留座位（离桌挂机），本局自动弃牌推进
-                    p.away = true;
+                    // leftByChoice：和「断网掉线」区分开 —— 主动走的人之后轮到他时快速代打（见 startActionTimer）
+                    p.away = true; p.leftByChoice = true;
                     socket.leave(roomId);
                     io.to(roomId).emit('server_msg', `🚪 ${nameOf(user)} 离桌（座位保留，盲注照扣，可重连）`);
                     if (midHand) {

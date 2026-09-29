@@ -128,7 +128,10 @@
             text-align: center; font-size: 26px; font-weight: 800; color: #fff; caret-color: #3a86ff;
             background: rgba(0,0,0,0.32); border: 2px solid rgba(255,255,255,0.22); border-radius: 10px; padding: 0; }
         .code-boxes .code-box:focus { outline: none; border-color: #3a86ff; box-shadow: 0 0 0 3px rgba(58,134,255,0.28); }
-        .le-join-row button, .rc-join, #create-form button {
+        /* ⚠️ 原来写的是 #create-form button —— id 选择器权重压过 .ct-tab / .tier-btn / .vis-btn，
+           表单里【所有】按钮都成了实心蓝：SNG/现金桌两个页签分不出哪个选中，
+           报名费档位「没选的实心蓝、选中的反而暗」（2026-09-29 最终验收截图）。只给底部确认/取消用。*/
+        .le-join-row button, .rc-join, #create-form .create-actions button {
             background: #3a86ff; color: #fff; border: none; border-radius: 6px;
             padding: 8px 16px; font-weight: bold; font-size: 14px; cursor: pointer;
         }
@@ -210,9 +213,10 @@
            就变成「深字配深底」看不见了——玩家反馈「UTG Straddle / 比赛加时」两行字看不清。
            教训：改容器底色时，JS 渲染出来的内容不在 index.html 里，静态扫描会漏掉。 */
         #match-modal .cfg-label { color: #dfe9e2; }
+        /* 原来是「近白弹窗」时代的浅蓝底深蓝字；弹窗改成道场绿后在深绿底上格外扎眼（2026-09-29 最终验收截图）*/
         .ext-btn { flex: 1; min-width: 58px; padding: 10px 6px; border-radius: 10px; cursor: pointer;
-            border: 1.5px solid #7ea3d8; background: #dbe8fb; color: #1d3a6b; font-weight: bold; font-size: 15px; }
-        .ext-btn:hover { background: #c6dbf7; }
+            border: 1.5px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.07); color: #eaf3ee; font-weight: bold; font-size: 15px; }
+        .ext-btn:hover { background: rgba(255,255,255,0.14); }
         .ext-btn:active { transform: scale(0.96); }
         .tier-btn small { font-size: 10px; font-weight: normal; opacity: 0.7; margin-top: 2px; }
         .tier-btn.sel { border-color: #06d6a0; background: linear-gradient(180deg,#0be6ad,#06d6a0);
@@ -252,7 +256,7 @@
         .rk-row:nth-child(1) .rk-no { background: #f4d35e; color: #2a1c00; }
         .rk-name { flex: 1; text-align: left; color: #eaf3ee; }
         .rk-hands { font-size: 11px; color: #9db9a9; flex-shrink: 0; }
-        .rk-net { font-weight: bold; }
+        .rk-net { font-weight: bold; white-space: nowrap; }   /* 英文「-6700 chips」会折成两行（2026-09-29 截图）*/
         .rk-tag { font-size: 10px; padding: 1px 5px; border-radius: 6px; margin-left: 5px; white-space: nowrap;
             background: rgba(244,211,94,0.18); color: #f4d35e; border: 1px solid rgba(244,211,94,0.35); }
         /* 颁奖台：🥇老板(亏最多·请客) 🥈MVP(赢最多) 🥉力工(手数最多)——纯娱乐调侃 */
