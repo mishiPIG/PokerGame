@@ -41,9 +41,10 @@ function holeOpts(userId, i) {
     if (!showdownInfo) return {};
     const isWinner = showdownInfo.winners.includes(userId);
     const best = (showdownInfo.bestByWinner || {})[userId];
-    if (isWinner && best && best.hole.includes(i)) return { hl: true, anim: revealJustHappened };
-    if (isWinner) return { anim: revealJustHappened };            // 赢家其余牌保持正常（不变灰）
-    return { dim: true, anim: revealJustHappened };               // 非赢家变灰
+    const anim = revealAnimActive();
+    if (isWinner && best && best.hole.includes(i)) return { hl: true, anim };
+    if (isWinner) return { anim };                                // 赢家其余牌保持正常（不变灰）
+    return { dim: true, anim };                                   // 非赢家变灰
 }
 function cardBack(opts = {}) {
     const cls = ['card', 'back'];
@@ -51,6 +52,134 @@ function cardBack(opts = {}) {
     if (opts.animate) cls.push('deal-in');
     const style = opts.animate && opts.delayMs ? ` style="animation-delay:${opts.delayMs}ms"` : '';
     return `<span class="${cls.join(' ')}"${style}></span>`;
+}
+// 下注徽章里的一小摞筹码：按下注额是几个大盲摞 1–3 枚，不读数字也能一眼看出量级
+function chipStackHtml(amount) {
+    const bb = curBB();
+    const n = amount >= bb * 10 ? 3 : amount >= bb * 3 ? 2 : 1;
+    return `<span class="chip-stack n${n}">`
+        + ['red', 'green', 'black'].slice(0, n).map(c => `<span class="chip ${c}"></span>`).join('') + '</span>';
+}
+// ===== 发牌 / 摊牌的时间线动效（2026-09-29）=====
+// 这两段动画都要跨越好几次重绘：renderSeats 每次都【整体重建】座位 DOM，
+// 而 my_hand / equity / game_state 随时会触发重绘。动画要是挂在某个 DOM 元素上「播一次就算」，
+// 一次重绘就把它掐断了（公共牌那边的 sameCards 判断防的就是这个）。
+// 所以只记「每张牌在哪一刻翻开」这个绝对时刻；每次重绘后按【当前时刻】重新挂动画，
+// 用负的 currentTime 从中途接着播 —— 看起来是一段连续的动画，不管中间重绘了几次。
+const DEAL_FLIGHT_MS = 320;   // 一张牌从牌堆飞到座位
+const FLIP_MS = 240;          // 落地翻开
+const REVEAL_STEP_MS = 260;   // 摊牌：一家一家翻，间隔
+let dealFx = null;            // { flips: [t0, t1] }：我两张牌各自翻开的时刻（performance.now 基准）
+let revealFx = null;          // { at: { userId: t }, hlAt, end }
+let allinSpot = false;        // 全押跑马：压暗牌桌、只留全押的几家亮着
+function reducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+function timelineFxOk() {
+    return typeof Element !== 'undefined' && !!Element.prototype.animate && !reducedMotion();
+}
+// 从「看不见 + 侧翻 90°」翻到元素本来的样子。只给起始帧：终点取它自己当前的样式，
+// ⚠️ 那一帧必须写 offset: 0 —— 只有一帧时规范默认把它当【终点】（offset 1），动画就整个反了：
+//    从正常翻到隐藏，而 fill:backwards 在开始前显示的是「正常」，牌一上来就是亮的（截图抓到过）。
+// 所以不会和 .hl 的上移放大、.dim 的压暗打架；用独立的 rotate 属性（不是 transform）也是同一个原因。
+function flipFrom(el, startAt, now, killCss) {
+    const t = now - startAt;
+    if (t >= FLIP_MS) return;
+    if (killCss) el.style.animation = 'none';   // 别再叠 CSS 那套从上方落下的 dealIn
+    let a;
+    try {
+        a = el.animate([{ opacity: 0, rotate: 'y 90deg', offset: 0 }], { duration: FLIP_MS, easing: 'ease-out', fill: 'backwards' });
+    } catch (e) {   // 老浏览器不认「只给起始帧」的写法
+        a = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FLIP_MS, easing: 'ease-out', fill: 'backwards' });
+    }
+    a.currentTime = t;   // t 为负 = 还没轮到它，fill:backwards 让它先保持隐藏
+}
+// 一张牌背从牌堆（桌心）飞向某个座位。对手的牌局中不显示，所以飞到头像上就收进去；
+// 我的那张落在自己的牌位上，由 flipFrom 接着翻开。
+function flyDealCard(from, target, delay, mine) {
+    const t = target.getBoundingClientRect();
+    const w = mine ? t.width : Math.min(t.width * 0.7, 30), h = w * 1.39;
+    const el = document.createElement('span');
+    el.className = 'card back fly-deal';
+    el.style.width = w + 'px'; el.style.height = h + 'px';
+    el.style.left = (from.x - w / 2) + 'px'; el.style.top = (from.y - h / 2) + 'px';
+    document.body.appendChild(el);
+    const dx = t.left + t.width / 2 - from.x, dy = t.top + t.height / 2 - from.y;
+    const end = mine ? { transform: `translate(${dx}px, ${dy}px)`, opacity: 1 }
+                     : { transform: `translate(${dx}px, ${dy}px) scale(0.55)`, opacity: 0 };
+    const a = el.animate([
+        { transform: 'translate(0px, 0px) scale(0.7) rotate(-14deg)', opacity: 0 },
+        { opacity: 1, offset: 0.15 },
+        end
+    ], { duration: DEAL_FLIGHT_MS, delay, easing: 'cubic-bezier(0.22,1,0.36,1)', fill: 'both' });
+    a.onfinish = () => el.remove();
+    setTimeout(() => el.remove(), delay + DEAL_FLIGHT_MS + 500);   // 兜底：切后台时 onfinish 可能迟迟不来
+}
+// 开一手：按真实发牌顺序 —— 从庄家左手边开始，一人一张，绕两圈。
+function startDealFx(state) {
+    const dealt = state.players.filter(p => !p.folded);   // 本手没发牌的人（坐出等）开局就是 folded
+    const deck = document.getElementById('community');
+    if (dealt.length < 2 || !deck) return false;
+    const r = deck.getBoundingClientRect();
+    const from = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const b = dealt.findIndex(p => p.userId === state.buttonUserId);
+    const order = dealt.slice(b + 1).concat(dealt.slice(0, b + 1));
+    const n = order.length * 2;
+    const step = Math.min(90, 760 / n);   // 人多时每张更快，整轮发完不超过约 0.8 秒
+    const now = performance.now();
+    const myCards = document.querySelectorAll(`.seat[data-uid="${myUserId}"] .self-cards .card`);
+    const flips = [];
+    for (let k = 0; k < n; k++) {
+        const p = order[k % order.length], round = Math.floor(k / order.length);
+        const mine = p.userId === myUserId;
+        const target = mine ? myCards[round] : document.querySelector(`.seat[data-uid="${p.userId}"] .avatar-block`);
+        if (!target) continue;
+        const delay = k * step;
+        flyDealCard(from, target, delay, mine);
+        sndDeal(0, delay / 1000);
+        if (mine) flips[round] = now + delay + DEAL_FLIGHT_MS;
+    }
+    dealFx = { flips };
+    return true;
+}
+// 亮牌（全押亮牌 / 摊牌）：一家一家翻，从庄家左手边（翻后第一个行动的人）开始。
+// 已经亮过的不再翻第二遍（全押时亮过，摊牌时就别再翻一次）。返回整段翻牌要多久，
+// 调用方据此把「底池飞向赢家」推迟到牌都翻完之后。
+function startRevealFx(reveals, prevReveals) {
+    revealFx = null;
+    if (!timelineFxOk() || !lastState || !reveals) return 0;
+    const ps = lastState.players;
+    const b = ps.findIndex(p => p.userId === lastState.buttonUserId);
+    const order = ps.slice(b + 1).concat(ps.slice(0, b + 1))
+        .filter(p => p.userId !== myUserId && reveals[p.userId] && !(prevReveals && prevReveals[p.userId]));
+    const now = performance.now();
+    const at = {};
+    order.forEach((p, i) => { at[p.userId] = now + i * REVEAL_STEP_MS; sndFlip(0, i * REVEAL_STEP_MS / 1000); });
+    const total = order.length ? (order.length - 1) * REVEAL_STEP_MS + FLIP_MS : 0;
+    revealFx = { at, hlAt: now + total, end: now + total + 700 };
+    return total;
+}
+function revealAnimActive() {
+    return revealJustHappened || !!(revealFx && performance.now() < revealFx.end);
+}
+// 每次 renderSeats 之后调用：按当前时刻把还没播完的翻牌重新挂到【新的】DOM 上
+function applyTimelineFx() {
+    const now = performance.now();
+    if (dealFx) {
+        const cards = document.querySelectorAll(`.seat[data-uid="${myUserId}"] .self-cards .card`);
+        dealFx.flips.forEach((t, i) => { if (t != null && cards[i]) flipFrom(cards[i], t, now, true); });
+        if (dealFx.flips.every(t => t == null || now - t >= FLIP_MS)) dealFx = null;
+    }
+    if (revealFx) {
+        Object.keys(revealFx.at).forEach(uid => {
+            document.querySelectorAll(`.seat[data-uid="${uid}"] .opp-cards .card`)
+                .forEach(el => flipFrom(el, revealFx.at[uid], now, false));
+        });
+        // 赢家牌型的「拉出高亮 / 其余压暗」等所有牌都翻完再开始；负延迟 = 重绘后从中途接着播
+        document.querySelectorAll('#table-area .card.reveal-anim')
+            .forEach(el => { el.style.animationDelay = Math.round(revealFx.hlAt - now) + 'ms'; });
+        if (now > revealFx.end) revealFx = null;
+    }
 }
 function emptySlot() {
     return `<span class="empty-slot"></span>`;
@@ -203,6 +332,7 @@ function renderSeats(state) {
     ring.classList.toggle('has-actor', !!state.actionOnUserId);
     // renderSeats 会整体替换座位 DOM；把尚在 10 秒展示期内的临时语音挂回原位。
     restoreVoiceBubbles();
+    applyTimelineFx();   // 同理：还没播完的发牌/亮牌翻转挂回新 DOM
 
     // 观战横幅
     const banner = document.getElementById('spectator-banner');
@@ -255,7 +385,8 @@ function buildSeat(p, state) {
     const isActing = p.userId === state.actionOnUserId;
     const isWinner = showdownInfo && showdownInfo.winners.includes(p.userId);
     const cls      = ['seat', isActing ? 'acting' : '', p.folded ? 'folded' : '', isWinner ? 'winner' : '',
-                      p.allIn ? 'allin' : '', p.away ? 'away-seat' : ''].filter(Boolean).join(' ');
+                      p.allIn ? 'allin' : '', p.away ? 'away-seat' : '',
+                      revealedCards[p.userId] ? 'revealed' : ''].filter(Boolean).join(' ');
 
     // 状态气泡：按需显示（弃牌/坐出/离桌…灰；All in 红），平时不占地方
     let stText = '', stCls = 'wait';
@@ -269,7 +400,7 @@ function buildSeat(p, state) {
     const statusBubble = stText ? `<div class="status-bubble ${stCls}">${stText}</div>` : '';
 
     // 手牌展示
-    const dealing = holeJustDealt;            // 发牌动画窗口
+    const dealing = holeJustDealt && !timelineFxOk();   // 发牌动画窗口（支持时改由 startDealFx 从桌心飞牌）
     const myDelay  = i => i * 2 * 130;        // 我的牌依次：0, 260ms
     const oppDelay = i => (i * 2 + 1) * 130;  // 对手牌依次：130, 390ms（交替发牌）
     let cardsHtml = '';
@@ -284,7 +415,7 @@ function buildSeat(p, state) {
         }).join('');
     } else if (!isMe && revealedCards[p.userId]) {
         cardsHtml = revealedCards[p.userId].map((c, i) => formatCard(c, false, 0,
-            showdownInfo ? holeOpts(p.userId, i) : { flip: revealJustHappened })).join('');
+            showdownInfo ? holeOpts(p.userId, i) : { flip: revealJustHappened && !revealFx })).join('');
     } else if (!isMe && shownCards[p.userId]) {
         // 对手主动亮的牌：只显示亮出的那张（未亮的不显示）
         const byIdx = {}; shownCards[p.userId].forEach(s => byIdx[s.index] = s);
@@ -310,7 +441,7 @@ function buildSeat(p, state) {
         || (state.straddle && state.straddle.userId === p.userId ? state.straddle : null);
     const isStraddler = !!myStraddle && state.phase === 'preflop' && p.currentBet === myStraddle.amount;
     const betBadge = p.currentBet > 0
-        ? `<div class="bet-badge"><span class="chip-dot"></span>${isStraddler ? 'STR ' : ''}${fmtChips(p.currentBet)}</div>` : '';
+        ? `<div class="bet-badge">${chipStackHtml(p.currentBet)}${isStraddler ? 'STR ' : ''}${fmtChips(p.currentBet)}</div>` : '';
     // 全押跑马实时胜率徽章（仅跑马中，摊牌前）
     const eqPct = equityMap[p.userId];
     const equityBadge = (eqPct != null && !p.folded && state.phase !== 'showdown' && state.phase !== 'waiting')
@@ -385,14 +516,14 @@ function render(state) {
     const hasRealSide = activeCount >= 3 && pots.length > 1 && pots.slice(1).some(p => p.eligibleCount >= 2);
     let above = '', below = '';
     if (hasRealSide) {
-        above = `<div class="pot-row main"><span class="pot-chip gold"></span>${L('主池', 'Main')} ${fmtChips(pots[0].amount)}</div>`;
+        above = `<div class="pot-row main"><span class="chip gold"></span>${L('主池', 'Main')} ${fmtChips(pots[0].amount)}</div>`;
         for (let i = 1; i < pots.length; i++)
-            below += `<div class="pot-row side"><span class="pot-chip green"></span>${L('边池', 'Side')}${i} ${fmtChips(pots[i].amount)}</div>`;
+            below += `<div class="pot-row side"><span class="chip green"></span>${L('边池', 'Side')}${i} ${fmtChips(pots[i].amount)}</div>`;
     } else if (collected > 0 && bets > 0) {
-        above = `<div class="pot-row prev"><span class="pot-chip"></span>${fmtChips(collected)}</div>`;
+        above = `<div class="pot-row prev"><span class="chip blue"></span>${fmtChips(collected)}</div>`;
     }
     document.getElementById('pot').innerHTML =
-        above + `<div class="pot-total">${L('底池', 'Pot')}: ${fmtChips(totalPot)}</div>` + below;
+        above + `<div class="pot-total"><span class="chip lg gold"></span>${L('底池', 'Pot')}: ${fmtChips(totalPot)}</div>` + below;
 
     // SNG 比赛信息：作为桌面中央淡色水印（不再占顶栏空间）
     const sng = document.getElementById('table-info');
@@ -445,7 +576,7 @@ function render(state) {
             const isNew = i >= animateFrom;
             const opts = commOpts(i);
             if (showdownInfo) {   // showdown：组成各赢家牌型的公共牌拉出高亮（分池取并集），其余变灰
-                opts.anim = revealJustHappened;
+                opts.anim = revealAnimActive();
                 commHtml += formatCard(comm[i], isNew, (i - animateFrom) * 140, opts);
             } else {
                 if (isNew) opts.commDeal = true;    // 新发的公共牌：落下+翻牌，逐张 stagger（flop 依次 1→2→3，转/河同理）
@@ -473,6 +604,12 @@ function render(state) {
 
     renderSeats(state);
     animateChipCounts(state);
+    if (holeJustDealt) {
+        // 从桌心逐张飞牌（声音跟着每张牌走）；不支持 / 系统要求减少动效时退回原来的原地落下 + 4 声
+        if (timelineFxOk() && startDealFx(state)) applyTimelineFx();
+        else { sndDeal(0); sndDeal(1); sndDeal(2); sndDeal(3); }
+    }
+    document.getElementById('table-area').classList.toggle('allin-spot', allinSpot && state.phase !== 'waiting');
 
     // 入场动画标志只生效一次，渲染完即消费，避免后续重绘重复闪动
     holeJustDealt = false;

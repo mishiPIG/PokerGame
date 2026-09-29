@@ -31,6 +31,8 @@
         }
     </style>
     <script src="/socket.io/socket.io.js"></script>
+    <!-- 牌面点数字体：preload 让它和样式表一起到，避免发牌时点数先用系统字体再跳一下 -->
+    <link rel="preload" href="/fonts/dojo-rank.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/00-shell.css">
     <link rel="stylesheet" href="/css/10-auth-user.css">
     <link rel="stylesheet" href="/css/20-table.css">

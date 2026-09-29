@@ -260,6 +260,8 @@ function showLobby() {
     myHoleCards = []; revealedCards = {}; lastState = null;
     hideRunitPanel(); clearRunit();
     prevCommunityCount = 0; holeJustDealt = false; revealJustHappened = false;
+    dealFx = null; revealFx = null; allinSpot = false;
+    document.querySelectorAll('.fly-deal, .fly-coin').forEach(e => e.remove());
     prevFoldedSet = new Set(); foldingNow = new Set();
     shownCards = {}; myShown = new Set(); showJustHappened = false;
     showdownInfo = null; myHand = null; mySeated = false; prevChipsShown = {}; roomInviteInfo = null;
@@ -272,8 +274,14 @@ function showLobby() {
     refreshCheckinDot();
 }
 function showTable() {
+    const tv = document.getElementById('table-view');
+    const entering = tv.style.display === 'none';   // 从大厅进来才播过场；断线重连时牌桌本来就在，不播
     document.getElementById('lobby-shell').style.display = 'none';
-    document.getElementById('table-view').style.display = '';
+    tv.style.display = '';
+    if (entering && !reducedMotion()) {
+        tv.classList.remove('table-enter'); void tv.offsetWidth; tv.classList.add('table-enter');
+        setTimeout(() => tv.classList.remove('table-enter'), 700);
+    }
     document.body.classList.add('in-room');
     // 刚从大厅切过来时牌桌尺寸还没定下来，此时算出的座位坐标不准（座位会挤在一起）。
     // 等浏览器完成一次布局后再重排一遍，坐标才是按真实尺寸算的。

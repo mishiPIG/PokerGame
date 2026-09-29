@@ -12,6 +12,14 @@
         #runit-panel .ri-btns button { min-width: 42px; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: bold;
             background: rgba(120,160,220,0.18); border: 1px solid rgba(120,160,220,0.5); color: #eaf3ee; }
         #runit-panel .ri-btns button:active { background: rgba(120,160,220,0.34); }
+        /* 系统设置里打开了「减少动态效果」（晕动症、前庭敏感的人会开）：
+           牌桌上一切动画瞬间完成、呼吸光不再循环 —— 状态照样显示，只是不动。
+           JS 那边（从桌心飞牌、摊牌逐家翻、飞筹码、进桌过场）也各自查了 reducedMotion()。*/
+        @media (prefers-reduced-motion: reduce) {
+            #table-view *, #table-view, .modal-mask, .modal-box, .side-panel, .bd-card {
+                animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;
+                animation-delay: 0ms !important; transition-duration: 0.001ms !important; }
+        }
         #runit-panel .ri-btns .ri-yes { background: rgba(46,204,113,0.28); border-color: rgba(46,204,113,0.75); color: #d7ffe8; font-size: 16px; padding: 12px 16px; }
         #runit-panel .ri-btns .ri-no { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18); color: #dfe9e2; }
         #runit-panel .ri-count { font-size: 12px; color: #ffcf5c; margin-top: 10px; }

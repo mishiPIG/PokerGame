@@ -1,4 +1,4 @@
-// ===== 音效（Web Audio，无需音频文件）=====
+// ===== 音效（Web Audio：牌与筹码用真实采样，提示音用合成）=====
 let soundOn = localStorage.getItem('soundOff') !== '1';
 let audioCtx = null;
 function ac() {
@@ -14,7 +14,51 @@ function resumeAudio(createIfNeeded = false) {
     }
     return ctx;
 }
-function unlockAudio() { return resumeAudio(true); }
+function unlockAudio() { const ctx = resumeAudio(true); loadSfx(); return ctx; }
+// ── 采样音效：Kenney「Casino Audio」（CC0，许可见 /sfx/Kenney-Casino-Audio-License.txt）──
+// 合成的「嘀嘀」像电子表；真牌、真筹码的声音才有「坐在牌桌边」的感觉。
+// 只换【牌和筹码】这两类有实物的声音；轮到你 / 只剩 5 秒 / 按钮反馈这些是提示音，
+// 本来就该是「电子的」，保持合成。
+// 懒加载：第一次用户手势解锁音频之后才拉取 + 解码，一共约 80KB，不拖慢首屏。
+// 转成 mp3（原包是 ogg）：Safari 对 ogg 的解码支持靠不住，mp3 各家都认。
+// 任何一步失败（离线 / 解码不支持）都退回原来的合成音 —— 声音绝不会因为采样而消失。
+const SFX_FILES = {
+    deal: ['card-slide-1', 'card-slide-2', 'card-slide-3', 'card-slide-4'],
+    flip: ['card-place-1', 'card-place-2', 'card-place-3'],
+    fold: ['card-shove-1', 'card-shove-2'],
+    show: ['card-fan-1'],
+    call: ['chip-lay-1', 'chip-lay-2', 'chip-lay-3'],
+    bet:  ['chips-stack-1', 'chips-stack-2', 'chips-stack-3'],
+    pot:  ['chips-collide-1', 'chips-collide-2'],
+    win:  ['chips-handle-1', 'chips-handle-2'],
+};
+const sfxBuffers = {};
+let sfxLoading = false;
+function loadSfx() {
+    const ctx = audioCtx;
+    if (sfxLoading || !ctx || typeof fetch !== 'function') return;
+    sfxLoading = true;
+    Object.keys(SFX_FILES).forEach(key => SFX_FILES[key].forEach(name =>
+        fetch('/sfx/' + name + '.mp3')
+            .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+            // 回调写法：老版 Safari 的 decodeAudioData 不返回 Promise
+            .then(buf => new Promise((res, rej) => ctx.decodeAudioData(buf, res, rej)))
+            .then(ab => { (sfxBuffers[key] = sfxBuffers[key] || []).push(ab); })
+            .catch(() => {})));
+}
+// 播一个采样；没加载好 / 上下文没跑起来就返回 false，调用方退回合成音
+function sample(key, delay = 0, gain = 0.8) {
+    const list = sfxBuffers[key];
+    if (!soundOn || !list || !list.length) return false;
+    const ctx = resumeAudio(); if (!ctx || ctx.state !== 'running') return false;
+    const src = ctx.createBufferSource(), g = ctx.createGain();
+    src.buffer = list[Math.floor(Math.random() * list.length)];
+    src.playbackRate.value = 0.95 + Math.random() * 0.1;   // 同一个声音连响几次略有差别，不像复读机
+    g.gain.value = gain;
+    src.connect(g); g.connect(ctx.destination);
+    src.start(ctx.currentTime + delay);
+    return true;
+}
 function beep(freq, durMs, type = 'sine', gain = 0.15, delay = 0) {
     if (!soundOn) return;
     const ctx = resumeAudio(); if (!ctx || ctx.state !== 'running') return;
@@ -27,33 +71,45 @@ function beep(freq, durMs, type = 'sine', gain = 0.15, delay = 0) {
     osc.connect(g); g.connect(ctx.destination);
     osc.start(t); osc.stop(t + durMs / 1000 + 0.02);
 }
-function sndDeal(i = 0) { beep(520, 55, 'square', 0.06, i * 0.12); }   // 发牌嗒
+function sndDeal(i = 0, at = 0) { const d = i * 0.12 + at; if (!sample('deal', d, 0.55)) beep(520, 55, 'square', 0.06, d); }   // 发牌
 function sndTurn()      { beep(880, 130, 'sine', 0.22); }               // 轮到你：叮
 function sndWarn()      { beep(440, 110, 'triangle', 0.22); beep(440, 110, 'triangle', 0.22, 0.16); } // 5s 警告
-function sndFlip(i = 0) { beep(600, 70, 'square', 0.09, i * 0.13); beep(900, 50, 'sine', 0.05, i * 0.13 + 0.02); } // 翻公共牌
-function sndFold()     { beep(300, 90, 'sawtooth', 0.12); beep(200, 130, 'sawtooth', 0.1, 0.06); }  // 弃牌嗖
-function sndShow()     { beep(700, 60, 'triangle', 0.12); beep(1050, 90, 'sine', 0.12, 0.05); }       // 亮牌叮
+function sndFlip(i = 0, at = 0) {   // 翻牌（公共牌 / 摊牌亮牌）
+    const d = i * 0.13 + at;
+    if (!sample('flip', d, 0.7)) { beep(600, 70, 'square', 0.09, d); beep(900, 50, 'sine', 0.05, d + 0.02); }
+}
+function sndFold()     { if (!sample('fold', 0, 0.7)) { beep(300, 90, 'sawtooth', 0.12); beep(200, 130, 'sawtooth', 0.1, 0.06); } }  // 弃牌
+function sndShow()     { if (!sample('show', 0, 0.7)) { beep(700, 60, 'triangle', 0.12); beep(1050, 90, 'sine', 0.12, 0.05); } }       // 亮牌
 function sndClick()    { beep(660, 30, 'sine', 0.05); }                                                // 按钮点击反馈
 function sndSit()      { beep(523, 90, 'sine', 0.16); beep(784, 130, 'sine', 0.16, 0.09); beep(1047, 160, 'sine', 0.13, 0.2); } // 坐下入座：上扬三音
-function sndBet()      { beep(420, 60, 'square', 0.1); beep(620, 70, 'square', 0.1, 0.06); }           // 下注：推两枚筹码
-function sndRaise()    { beep(500, 55, 'square', 0.1); beep(720, 60, 'square', 0.1, 0.06); beep(960, 85, 'square', 0.11, 0.13); } // 加注：三连上扬（比下注更进一步）
-function sndCall()     { beep(520, 70, 'square', 0.1); }                                                // 跟注
+function sndBet()      { if (!sample('bet', 0, 0.8)) { beep(420, 60, 'square', 0.1); beep(620, 70, 'square', 0.1, 0.06); } }           // 下注：推一摞筹码
+function sndRaise()    {   // 加注：两摞先后推出去（比下注多一下）
+    if (sample('bet', 0, 0.8)) { sample('bet', 0.11, 0.7); return; }
+    beep(500, 55, 'square', 0.1); beep(720, 60, 'square', 0.1, 0.06); beep(960, 85, 'square', 0.11, 0.13);
+}
+function sndCall()     { if (!sample('call', 0, 0.85)) beep(520, 70, 'square', 0.1); }                    // 跟注：放下几枚
 function sndCheck()    { beep(180, 70, 'sine', 0.14); beep(150, 90, 'sine', 0.12, 0.07); }             // 过牌：敲桌
-function sndAllin()    { beep(330, 120, 'sawtooth', 0.16); beep(495, 140, 'sawtooth', 0.16, 0.1); beep(660, 200, 'sawtooth', 0.16, 0.22); } // 全下：上扬
-function sndWin()      { [523, 659, 784, 1047].forEach((f, i) => beep(f, 180, 'triangle', 0.16, i * 0.1)); } // 获胜：上行琶音
-function sndPot()      { beep(700, 45, 'triangle', 0.09); beep(520, 55, 'triangle', 0.1, 0.05); beep(380, 85, 'triangle', 0.1, 0.11); } // 收池：筹码归拢（下行三音）
+function sndAllin()    {   // 全下：整堆推出去 + 原来那段上扬（全押是要让全桌抬头的时刻，保留提示音）
+    if (sample('bet', 0, 0.85)) { sample('bet', 0.08, 0.75); sample('pot', 0.18, 0.7); }
+    beep(330, 120, 'sawtooth', 0.12, 0.05); beep(495, 140, 'sawtooth', 0.12, 0.15); beep(660, 200, 'sawtooth', 0.12, 0.27);
+}
+function sndWin()      {   // 获胜：把筹码揽过来 + 上行琶音（琶音是「赢了」的奖励感，保留）
+    sample('win', 0, 0.8);
+    [523, 659, 784, 1047].forEach((f, i) => beep(f, 180, 'triangle', 0.13, 0.12 + i * 0.1));
+}
+function sndPot()      { if (!sample('pot', 0, 0.8)) { beep(700, 45, 'triangle', 0.09); beep(520, 55, 'triangle', 0.1, 0.05); beep(380, 85, 'triangle', 0.1, 0.11); } } // 收池：筹码归拢
 function playSfx(type) {
     ({ bet: sndBet, raise: sndRaise, call: sndCall, check: sndCheck, fold: sndFold, allin: sndAllin, win: sndWin, pot: sndPot }[type] || (() => {}))();
 }
-// 金币从 fromEl 飞到 toEl（弧线缩小淡出）
-function flyCoins(fromEl, toEl, count) {
-    if (!fromEl || !toEl) return;
+// 筹码从 fromEl 飞到 toEl（缩小淡出）。color：red=下注/收池，gold=底池拨给赢家
+function flyCoins(fromEl, toEl, count, color = 'gold') {
+    if (!fromEl || !toEl || reducedMotion()) return;   // 系统要求减少动效：不飞，数字照常变
     const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
     const ax = a.left + a.width / 2, ay = a.top + a.height / 2;
     const dx = (b.left + b.width / 2) - ax, dy = (b.top + b.height / 2) - ay;
     for (let i = 0; i < count; i++) {
         const coin = document.createElement('div');
-        coin.className = 'fly-coin'; coin.textContent = '🪙';
+        coin.className = 'fly-coin chip lg ' + color;
         coin.style.left = ax + 'px'; coin.style.top = ay + 'px';
         document.body.appendChild(coin);
         requestAnimationFrame(() => {
@@ -153,13 +209,13 @@ function winPopup(userId, amount) {
     setTimeout(() => el.remove(), 1600);
 }
 // 分池依次飞币 + 赢额弹字（主池先、边池后）
-function animatePotsToWinners(pots, fallbackId) {
+function animatePotsToWinners(pots, fallbackId, afterMs = 0) {
     let wonMine = false;
     if (!pots || !pots.length) {
-        if (fallbackId) setTimeout(() => flyCoinsToWinner(fallbackId), 500);
+        if (fallbackId) setTimeout(() => flyCoinsToWinner(fallbackId), 500 + afterMs);
         return;
     }
-    let delay = 500;
+    let delay = 500 + afterMs;   // afterMs：摊牌一家一家翻完之后再拨池
     pots.forEach(pot => {
         const ws = (pot.winners || []);
         ws.forEach(w => {
@@ -168,7 +224,7 @@ function animatePotsToWinners(pots, fallbackId) {
         });
         if (ws.length) delay += 700;
     });
-    if (wonMine) setTimeout(() => vibrate([30, 40, 30]), 550);   // 赢牌振动
+    if (wonMine) setTimeout(() => vibrate([30, 40, 30]), 550 + afterMs);   // 赢牌振动
 }
 function toggleSound() {
     soundOn = !soundOn;

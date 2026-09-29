@@ -116,6 +116,7 @@ function doLogout() {
     myHoleCards = []; revealedCards = {}; currentRoom = '';
     lastState = null; prevCommunityCount = 0;
     holeJustDealt = false; revealJustHappened = false;
+    dealFx = null; revealFx = null; allinSpot = false;
     localStorage.removeItem('currentRoom');
     document.getElementById('lobby-view').style.display = '';
     document.getElementById('table-view').style.display = 'none';

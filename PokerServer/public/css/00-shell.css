@@ -53,6 +53,10 @@
             background: rgba(0,0,0,0.45); color: #9db9a9; font-size: 13px;
             padding: 6px 16px; border-radius: 16px; white-space: nowrap; z-index: 5; }
         #user-bar { flex-shrink: 0; }
+        /* 全站按钮按下时轻轻一缩：点了有没有被接住，手指要立刻知道。
+           用独立的 scale 属性而不是 transform —— 不会覆盖各按钮自己的 transform（位移、居中）。
+           :where() 让它零权重，任何按钮自己写了按下效果都以它自己的为准。*/
+        :where(button):not(:disabled):active { scale: 0.96; }
         /* 管理员面板：它是 #game-section(100dvh 纵向 flex) 的直接子项。
            原来写死 flex-shrink:0 → 内容一多就顶出视口、又没有自己的滚动条，手机端直接看不全。
            改成可收缩 + 自带滚动，并限高，保证任何屏幕都能翻到底。*/

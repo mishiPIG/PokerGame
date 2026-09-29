@@ -16,18 +16,35 @@
               【瞬时状态】（轮到你 / 只剩 5 秒 / 全押 / 赢了 / 跑马胜率）。
               再往桌上加一个永远在闪的东西，测试会直接挡下来——
               常驻动效多一个，「轮到谁」就弱一分。 */
-        /* 桌面风格主题 */
-        body.theme-blue   #table-area { background: radial-gradient(ellipse at center,#1d5a7a 0%,#0d2f44 75%) !important; }
-        body.theme-green  #table-area { background: radial-gradient(ellipse at center,#2d6a4f 0%,#1b4332 75%) !important; }
-        body.theme-gray   #table-area { background: radial-gradient(ellipse at center,#3a3f44 0%,#1c1f22 75%) !important; }
-        body.theme-purple #table-area { background: radial-gradient(ellipse at center,#4a2d6a 0%,#2a1b43 75%) !important; }
-        /* 四色扑克默认常开：黑桃黑、红心红、方块蓝、梅花绿，一眼分清花色 */
+        /* 桌布 = 底色（桌面风格可换）+ 两层质感（不随风格变）：
+             --felt-grain  细噪点：纯色渐变在大屏上是一块「塑料」，加一层几乎看不见的颗粒才像呢绒；
+             --felt-mark   桌心一个极淡的鸟居（logo 的门）：公共牌和底池正好落在门下。
+           都是 T3 背景档：静止、极低对比。主题只改 --felt，所以换风格不会丢质感
+           （原来主题是用 background !important 整个盖掉的）。
+           边缘两道内阴影：外圈一道深色窄带当「桌沿」，里面一圈大范围压暗把视线往桌心收。*/
+        body.theme-blue   #table-area { --felt: radial-gradient(ellipse at center,#1d5a7a 0%,#0d2f44 75%); }
+        body.theme-green  #table-area { --felt: radial-gradient(ellipse at center,#2d6a4f 0%,#1b4332 75%); }
+        body.theme-gray   #table-area { --felt: radial-gradient(ellipse at center,#3a3f44 0%,#1c1f22 75%); }
+        body.theme-purple #table-area { --felt: radial-gradient(ellipse at center,#4a2d6a 0%,#2a1b43 75%); }
         #table-area {
-            background: radial-gradient(ellipse at center, #2d6a4f 0%, #1b4332 78%);
+            --felt: radial-gradient(ellipse at center, #2d6a4f 0%, #1b4332 78%);
+            --felt-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .16 0'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 160px 160px repeat;
+            --felt-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 60'%3E%3Cg fill='none' stroke='%23ece2c6' stroke-opacity='.035' stroke-linecap='round'%3E%3Cpath d='M6 12 Q50 21 94 12' stroke-width='5'/%3E%3Cpath d='M17 25 H83' stroke-width='3.4'/%3E%3Cpath d='M26 15.5 V58 M74 15.5 V58' stroke-width='4.4'/%3E%3Cpath d='M50 17.5 V25' stroke-width='2.6'/%3E%3C/g%3E%3C/svg%3E") 50% 44% / min(78%, 440px) auto no-repeat;
+            background: var(--felt-grain), var(--felt-mark), var(--felt);
             border: none; border-radius: 0; padding: 6px 8px;
-            box-shadow: inset 0 0 60px rgba(0,0,0,0.4);
-            margin: 0; position: relative;
+            box-shadow: inset 0 0 0 5px rgba(0,0,0,0.16), inset 0 0 70px rgba(0,0,0,0.42);
+            margin: 0; position: relative; transition: box-shadow 0.5s ease;
         }
+        /* 全押跑马：四周压暗成一束「聚光」，没参与这一池的座位退后。
+           静止的明暗变化，不是动效（T3 不许 infinite 的规矩不受影响）；新一手开始即撤。
+           .revealed = 底牌已经亮在桌上的那几家（全押的人）。*/
+        #table-area.allin-spot { box-shadow: inset 0 0 0 5px rgba(0,0,0,0.2), inset 0 0 170px 50px rgba(0,0,0,0.58); }
+        #table-area.allin-spot .ring-seat .seat:not(.revealed) { opacity: 0.38; transition: opacity 0.5s ease; }
+        /* 从大厅进桌：桌面轻轻浮现（断线重连不播，见 30-room.js showTable）*/
+        #table-view.table-enter #table-area { animation: tableEnter 0.5s cubic-bezier(0.22,1,0.36,1); }
+        #table-view.table-enter #ring-layer { animation: tableEnterSeats 0.5s 0.08s cubic-bezier(0.22,1,0.36,1) backwards; }
+        @keyframes tableEnter { from { opacity: 0; transform: scale(0.985); } }
+        @keyframes tableEnterSeats { from { opacity: 0; transform: scale(0.96); } }
         #phase-indicator {
             position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.5); padding: 4px 14px; border-radius: 12px;
@@ -64,8 +81,11 @@
             background: linear-gradient(135deg,#f4d35e,#ee9b00); color: #241a00;
             padding: 1px 7px; border-radius: 10px; font-weight: bold; font-size: 10.5px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.45); border: 1.5px solid #fff6da; }
-        .bet-badge .chip-dot { width: 8px; height: 8px; border-radius: 50%;
-            background: radial-gradient(circle at 35% 30%, #fff, #06d6a0 60%); border: 1px solid #0a8; }
+        /* 徽章里那一小摞：按下注额摞 1–3 枚（<3BB 一枚 / <10BB 两枚 / 更多三枚），不读数字也能看出量级 */
+        .chip-stack { position: relative; display: inline-block; width: 10px; height: 10px; flex-shrink: 0; }
+        .chip-stack.n2 { height: 12px; } .chip-stack.n3 { height: 14px; }
+        .chip-stack .chip { position: absolute; left: 0; bottom: 0; width: 10px; height: 10px; }
+        .chip-stack .chip:nth-child(2) { bottom: 2px; } .chip-stack .chip:nth-child(3) { bottom: 4px; }
         /* 全押胜率徽章（跑马时头像左上跳动）*/
         /* 位置：上移到「对手牌覆盖层」上方（.opp-cards 居中于头像、会向上探出约 7px+），
            并把 z-index 提到 12（原 8 与 .opp-cards 同层、DOM 靠后被牌盖住）*/
@@ -151,6 +171,12 @@
             100% { opacity: 0; transform: translate(-50%, -46px) scale(0.95); } }
 
         /* ===== Card（随屏幕尺寸连续缩放，取宽/高较小者）===== */
+        /* 点数字体：Jost 700（SIL OFL，许可见 /fonts/Jost-OFL.txt），只子集化了 0-9 A J Q K 共 14 个字形，1.5KB。
+           选它是因为和 logo 上那两张牌的几何无衬线是同一路；系统字体在各家手机上长得都不一样，
+           「牌面是这个品牌的」这件事就立不住。unicode-range 限死字形范围：别的字符不会落到它身上。 */
+        @font-face { font-family: 'DojoRank'; src: url('/fonts/dojo-rank.woff2') format('woff2');
+            font-weight: 700; font-style: normal; font-display: swap;
+            unicode-range: U+0030-0039, U+0041, U+004A, U+004B, U+0051; }
         :root { --card-w: clamp(22px, min(8.5vw, 5dvh), 40px); --card-h: calc(var(--card-w) * 1.39); }
         /* 三档权重的可调旋钮（含义见文件开头的层级契约）*/
         :root {
@@ -159,8 +185,11 @@
         }
         .card {
             display: inline-flex; flex-direction: column; justify-content: space-between;
-            width: var(--card-w); height: var(--card-h); border-radius: 6px; background: #fff;
-            border: 1px solid #ddd; padding: calc(var(--card-w) * 0.09) calc(var(--card-w) * 0.11);
+            width: var(--card-w); height: var(--card-h); border-radius: calc(var(--card-w) * 0.13);
+            /* 牌面取 logo 上那两张牌的奶白（纯白在深绿桌布上太「亮」，像一张贴纸）；
+               圆角按牌宽的比例走，大小牌看起来是同一张牌的缩放 */
+            background: linear-gradient(165deg, #fffdf7 0%, #f6efdf 100%);
+            border: 1px solid #d9ceb3; padding: calc(var(--card-w) * 0.09) calc(var(--card-w) * 0.11);
             box-shadow: 0 2px 5px rgba(0,0,0,0.35); font-weight: bold; user-select: none;
         }
         /* ── 牌面样式（设置里可选 4 种，body.cs-* 切换）──
@@ -188,18 +217,24 @@
         body.cs-big .card.suit-hearts   { color: #e01e1e; }
         body.cs-big .card.suit-diamonds { color: #1667e0; }
         body.cs-big .card.suit-clubs    { color: #109b46; }
-        .card.back {
-            background: repeating-linear-gradient(45deg,#1e3a5f 0,#1e3a5f 5px,#2c5aa0 5px,#2c5aa0 10px);
-            border-color: #1e3a5f;
+        /* 牌背：道场绿底 + 奶白双线框 + 鸟居线稿（取自 logo）。原来的蓝色斜纹是 A1 统一配色时的漏网之鱼。
+           选择器写成 body .card.back：要压过 body.cs-dark .card 的深灰底（同权重，靠排在后面赢），
+           否则切到「黑面」牌样式时牌背也跟着变成深灰。 */
+        body .card.back {
+            background:
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 70'%3E%3Crect x='3.5' y='3.5' width='43' height='63' rx='3.5' fill='none' stroke='%23ece2c6' stroke-opacity='.75'/%3E%3Crect x='6.5' y='6.5' width='37' height='57' rx='2' fill='none' stroke='%23ece2c6' stroke-opacity='.2'/%3E%3Cg fill='none' stroke='%23ece2c6' stroke-linecap='round'%3E%3Cpath d='M10 27 Q25 30.6 40 27' stroke-width='2.6'/%3E%3Cpath d='M14.5 33.6 H35.5' stroke-width='1.8'/%3E%3Cpath d='M18 28.8 V46 M32 28.8 V46' stroke-width='2.2'/%3E%3Cpath d='M25 29.6 V33.6' stroke-width='1.4'/%3E%3C/g%3E%3C/svg%3E") center / 100% 100% no-repeat,
+                radial-gradient(ellipse at 50% 42%, #37634f 0%, #24473a 62%, #1a362b 100%);
+            border-color: #12261d;
         }
         /* 数字+花色是唯一关键信息 → 尽量放大、居中、清晰，一眼即知无需细辨 */
         .card { align-items: center; }
-        .card .rank { font-size: calc(var(--card-w) * 0.62); line-height: 1; font-weight: 800; letter-spacing: -0.5px; }
+        .card .rank { font-size: calc(var(--card-w) * 0.62); line-height: 1; font-weight: 700; letter-spacing: -0.02em;
+            font-family: 'DojoRank', 'Segoe UI', system-ui, sans-serif; }
         .card .suit { font-size: calc(var(--card-w) * 0.6); align-self: center; line-height: 1; margin-top: calc(var(--card-w) * -0.02); }
         /* 未发出的公共牌位：只占位、不画框。
            虚线框是当初为「发牌时布局不跳动」加的，但玩家反馈那 5 个空框没必要显示（桌面更干净）。
            这里保留占位（宽高照旧），所以发牌时公共牌位置依旧不跳动，只是看不见空框。*/
-        .empty-slot { width: var(--card-w); height: var(--card-h); border-radius: 6px;
+        .empty-slot { width: var(--card-w); height: var(--card-h); border-radius: calc(var(--card-w) * 0.13);
                       border: 2px dashed transparent; }
         /* 发牌入场动画：从上方翻入 */
         .card.deal-in { animation: dealIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
@@ -222,7 +257,11 @@
         .card.showable { cursor: pointer; box-shadow: 0 0 0 2px rgba(255,255,255,0.55), 0 2px 5px rgba(0,0,0,0.35); }
         .card.showable:hover { transform: translateY(-4px); transition: transform 0.15s; }
         .card.showable.shown { box-shadow: 0 0 0 2px #06d6a0, 0 2px 5px rgba(0,0,0,0.35); cursor: default; }
-        .fly-coin { position: fixed; z-index: 50; font-size: 22px; pointer-events: none; will-change: transform, opacity; }
+        /* 发牌：从牌堆飞向座位的那张牌背（位置/尺寸/动画全由 startDealFx 用 JS 给）*/
+        .fly-deal { position: fixed; z-index: 55; margin: 0; padding: 0; pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.45); will-change: transform, opacity; }
+        /* 飞行中的筹码（下注抛出 / 收池 / 赢池）。left/top 由 JS 设在起点中心，这里用负边距把自身中心对上去 */
+        .fly-coin { position: fixed; z-index: 50; margin: -10px 0 0 -10px; pointer-events: none; will-change: transform, opacity; }
         .show-hint { font-size: 11px; color: #dfe9e2; margin: 2px 0; animation: hintPulse 1.2s ease-in-out infinite; }
         @keyframes hintPulse { 50% { opacity: 0.5; } }
         /* showdown 牌型高亮：组成最强牌的牌拉出+金光，其余变灰 */
@@ -258,15 +297,30 @@
         /* 底池竖排（商业级）：中间总底池、上主池/上一轮、下各边池 */
         #pot { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-bottom: 8px; }
         .pot-total { font-size: 19px; font-weight: bold; color: #f4d35e; text-shadow: 0 2px 6px rgba(0,0,0,0.7);
-            background: rgba(0,0,0,0.32); padding: 1px 12px; border-radius: 12px; }
+            background: rgba(0,0,0,0.32); padding: 1px 12px 1px 5px; border-radius: 12px;
+            display: inline-flex; align-items: center; gap: 6px; }
         .pot-row { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: bold;
             color: #eaf3ee; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
         .pot-row.prev { color: #9db9a9; }
-        /* 筹码堆小图标（顶部亮环 + 侧壁，像一叠筹码）*/
-        .pot-chip { display: inline-block; width: 13px; height: 15px; border-radius: 4px;
-            background: linear-gradient(#7fb4ff, #3a7bd5); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
-        .pot-chip.gold  { background: linear-gradient(#ffe08a, #e0a200); box-shadow: inset 0 3px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.5); }
-        .pot-chip.green { background: linear-gradient(#8fe6a8, #2fae5f); box-shadow: inset 0 3px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.5); }
+        /* ===== 筹码（道场筹码）=====
+           真实筹码的三个辨识点：圆的、边上一圈间隔色斑、中间一个内环。全部 CSS 画，零图片：
+             底层 repeating-conic-gradient 画出一圈 6 段奶白色斑；
+             上层 radial-gradient 盖住中心，只留外圈色斑露在边上，并描一道奶白内环；
+             .lg（大号：底池 / 飞行的筹码）再在正中叠一个 logo 的鸟居线稿 —— 小号上画了也看不清，就不画。
+           颜色只用来区分用途，不代表面额：金=底池/赢，绿=边池，蓝=上一轮已收，红=下注。*/
+        .chip { --chip: #c0392b; --chip-face:
+                radial-gradient(circle, var(--chip) 0 45%, #f1e7cc 45% 53%, transparent 54%),
+                repeating-conic-gradient(var(--chip) 0 38deg, #f1e7cc 38deg 60deg);
+            display: inline-block; flex-shrink: 0; width: 14px; height: 14px; border-radius: 50%;
+            background: var(--chip-face);
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.28), 0 1px 2px rgba(0,0,0,0.55); }
+        .chip.gold  { --chip: #cf9a12; }
+        .chip.green { --chip: #2e8b57; }
+        .chip.blue  { --chip: #2f6db5; }
+        .chip.red   { --chip: #c0392b; }
+        .chip.black { --chip: #2b2b2b; }
+        .chip.lg { width: 20px; height: 20px;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cg fill='none' stroke='%23f3ead2' stroke-linecap='round'%3E%3Cpath d='M4.2 7 Q10 8.6 15.8 7' stroke-width='1.7'/%3E%3Cpath d='M5.8 10.2 H14.2' stroke-width='1.1'/%3E%3Cpath d='M7.3 8 V15 M12.7 8 V15' stroke-width='1.35'/%3E%3C/g%3E%3C/svg%3E") center / 64% no-repeat, var(--chip-face); }
         /* 中央焦点：给「底池 + 公共牌」垫一层向外淡出的暗影，把桌心从满桌的绿里抠出来。
            ⚠️ 只能【压暗四周】不能提亮中心——桌布本身是亮绿，再加亮会糊成一片。
            ⚠️ 是 ::before + 绝对定位，不进布局，所以不影响 seatfit 那套几何断言；

@@ -3,7 +3,9 @@
         .side-panel { position: fixed; top: 0; left: 0; bottom: 0; width: 84%; max-width: 380px; z-index: 180;
             background: linear-gradient(160deg,#22392e,#12201a); color: #eaf3ee; padding: 16px;
             border-right: 1px solid rgba(244,211,94,0.14);
-            box-shadow: 6px 0 34px rgba(0,0,0,0.55); overflow-y: auto; }
+            box-shadow: 6px 0 34px rgba(0,0,0,0.55); overflow-y: auto;
+            animation: panelIn 0.3s cubic-bezier(0.22,1,0.36,1); }
+        @keyframes panelIn { from { opacity: 0; transform: translateX(-18px); } }
         .sp-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; font-size: 17px; }
         .sp-head button { background: none; border: none; color: #9db9a9; font-size: 20px; cursor: pointer; }
         .sp-table { width: 100%; border-collapse: collapse; font-size: 13px; }

@@ -185,9 +185,9 @@ function connectSocket(token) {
         hideStraddleOffer();  // 没点的 straddle 小标志：新一手开始就收掉（本手的机会已经过了）
         shownCards = {}; myShown = new Set();  // 清除上一局主动亮牌
         hideRunitPanel(); clearRunit();        // 新一局：清多次发牌协商面板 + 桌面 N 板残留（防公共牌被 runit-on 一直藏着）
-        holeJustDealt = true;  // 发牌动画在随后的 game_state(preflop) 渲染时统一播放（我的牌 + 对手牌背交替飞入）
-        // 发牌音效：依次发 4 张（双方各 2 张），节奏与视觉延迟对齐
-        sndDeal(0); sndDeal(1); sndDeal(2); sndDeal(3);
+        holeJustDealt = true;  // 发牌动画在随后的 game_state(preflop) 渲染时统一播放（从桌心逐张飞向各座位）
+        // 发牌音效跟着每一张牌走，在 render 里随发牌动画一起排（见 startDealFx）
+        dealFx = null; revealFx = null; allinSpot = false;
     });
 
     socket.on('my_hand', (info) => {
@@ -242,6 +242,8 @@ function connectSocket(token) {
     });
 
     socket.on('allin_reveal', ({ reveals }) => {
+        startRevealFx(reveals, revealedCards);   // 一家一家翻（在覆盖 revealedCards 之前：要知道谁已经亮过）
+        allinSpot = true;              // 压暗牌桌，只留全押的几家亮着
         revealedCards = reveals;       // 全押后双方底牌翻开
         revealJustHappened = true;
         if (lastState) render(lastState);
@@ -253,7 +255,10 @@ function connectSocket(token) {
     socket.on('runit_decided', (d) => { hideRunitPanel(); if (d && d.n > 1) toast(L(`🎲 本手发 ${d.n} 次`, `🎲 Running it ${d.n} times`), 2000); });
     socket.on('runit_begin', (m) => {
         hideRunitPanel();
-        if (m && m.reveals) { revealedCards = m.reveals; revealJustHappened = true; if (lastState) render(lastState); }
+        if (m && m.reveals) {
+            startRevealFx(m.reveals, revealedCards); allinSpot = true;
+            revealedCards = m.reveals; revealJustHappened = true; if (lastState) render(lastState);
+        }
         buildRunitBoards(m);   // 建 N 行（共享底只显示一次，剩余街分行/并列显示）
     });
     socket.on('runit_street', (m) => runitDealStreet(m));   // 逐街发牌到对应行
@@ -275,6 +280,7 @@ function connectSocket(token) {
 
     socket.on('showdown_reveal', (data) => {
         clearRunit();   // 普通摊牌（非多次发牌）→ 清掉上一手多次发牌的桌面残留，避免 runit-on 一直藏住公共牌
+        const prevRevealed = revealedCards;   // 全押时已经亮过的，摊牌时不再翻第二遍
         // 兼容旧结构（纯 reveals 对象）与新结构（含牌型高亮）
         if (data && data.reveals) {
             revealedCards = data.reveals;
@@ -286,11 +292,12 @@ function connectSocket(token) {
         } else {
             revealedCards = data; showdownInfo = null;
         }
+        const revealMs = startRevealFx(revealedCards, prevRevealed);   // 一家一家翻
         revealJustHappened = true;
         equityMap = {};   // 摊牌出结果，胜率清除
         if (lastState) render(lastState);  // 翻牌 + 牌型高亮动画
-        // 分池飞币：主池先飞向赢家，边池依次再飞（多人 all-in）
-        if (showdownInfo) animatePotsToWinners(data.pots, showdownInfo.winnerId);
+        // 分池飞币：主池先飞向赢家，边池依次再飞（多人 all-in）；等牌都翻完再飞
+        if (showdownInfo) animatePotsToWinners(data.pots, showdownInfo.winnerId, revealMs);
     });
 
     socket.on('gold_update', ({ gold }) => {
@@ -379,10 +386,10 @@ function connectSocket(token) {
             if (p.currentBet > prev && prev >= 0 && state.phase !== 'waiting') {
                 const seat = document.querySelector(`.seat[data-uid="${p.userId}"] .avatar-block`);
                 const badge = document.querySelector(`.seat[data-uid="${p.userId}"] .bet-badge`);
-                if (seat && badge) flyCoins(seat, badge, 1);
+                if (seat && badge) flyCoins(seat, badge, 1, 'red');
             }
             if (prev > 0 && p.currentBet === 0) {
-                flyCoins(document.querySelector(`.seat[data-uid="${p.userId}"]`), pot, 2);
+                flyCoins(document.querySelector(`.seat[data-uid="${p.userId}"]`), pot, 2, 'red');
                 potCollected = true;
             }
         });

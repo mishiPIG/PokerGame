@@ -22,6 +22,12 @@
             max-height: calc(100dvh - 40px); overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
         .modal-box h3 { margin: 0 0 14px; text-align: center; color: #eaf3ee; }
+        /* 入场：遮罩淡入，弹窗从略低处浮上来。弹窗都是 display:none ↔ flex 切换，
+           CSS 动画在每次重新显示时都会重播，所以不需要 JS 配合。*/
+        .modal-mask { animation: maskIn 0.15s ease-out; }
+        .modal-box  { animation: modalIn 0.3s cubic-bezier(0.22,1,0.36,1); }
+        @keyframes maskIn  { from { opacity: 0; } }
+        @keyframes modalIn { from { opacity: 0; transform: translateY(12px) scale(0.97); } }
         .modal-actions { display: flex; gap: 12px; margin-top: 18px; }
         .modal-actions button { flex: 1; padding: 12px; border: none; border-radius: 12px; font-size: 15px; font-weight: bold; cursor: pointer; }
         .modal-actions .cancel { background: rgba(255,255,255,0.1); color: #cbd9d0; border: 1px solid rgba(255,255,255,0.16); }
