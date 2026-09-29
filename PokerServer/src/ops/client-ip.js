@@ -5,9 +5,15 @@
 // 单拎出来是因为这里有三个**很容易悄悄搞错**的地方，而搞错了不会报错、只会让
 // 「同 IP 多账号」这类判断给出垃圾结论：
 //
-// 1) 🔴 **生产走 Caddy 反代，直连拿到的永远是 127.0.0.1。**
-//    真实地址在 `X-Forwarded-For` 里，而且是一条链：`客户端, 代理1, 代理2`。
-//    要取**最左边**那个（最靠近客户端的）。取错方向就全是代理自己的地址。
+// 1) 🔴 **`X-Forwarded-For` 只有在请求来自本机反代时才可信，而且要取【最右边】那个。**
+//    这个头**任何客户端都能自己填**。生产走 Caddy，Caddy 会把它看到的真实对端写进去；
+//    链条里 Caddy 写的是最右边那个，左边的全是客户端自己能编的。
+//    🔴 **3000 端口对公网开放**（存活探针要直连它来区分「应用挂了」还是「证书/反代挂了」），
+//    所以直连 3000 的请求**根本不经过 Caddy** —— 这种请求带来的 X-Forwarded-For
+//    一个字都不能信，只能用真实的连接地址。
+//    （2026-09-29 更正：本文件原先写的是「取最左边」+「外部到不了 3000 端口」，
+//     后一句是假的——从外网直连 3000 实测 200。照原写法，任何人直连 3000 自带一个
+//     假 XFF 头就能随意冒充来源 IP：登录来源统计会被污染，按 IP 的限流形同虚设。）
 //
 // 2) 🔴 **IPv6 的完整地址不能直接拿来比对。**
 //    地址按设备分配、还会随时间变（隐私扩展），同一个人每次登录看起来都是「新 IP」。
@@ -17,22 +23,23 @@
 // 3) `::ffff:1.2.3.4` 这种 IPv4-mapped IPv6 要还原成 IPv4，否则同一个人会被
 //    拆成两个不同的「IP」。
 //
-// ⚠️ X-Forwarded-For 是**客户端可伪造的头**。这里能信它，是因为
-//    Caddy 会覆盖/追加它，而应用只监听 localhost、外部到不了 3000 端口。
-//    哪天把端口直接暴露出去，这个假设就不成立了 —— 那时必须改成只信任代理链。
-
-// 从 socket / http 请求里取出客户端 IP。取不到就返回 null ——
-// **绝不编一个假的**（比如 '0.0.0.0'），否则一堆取不到的人会被聚成「同一个 IP」。
-function extractIp(headers, fallbackAddress) {
+// 从 http 请求里取出客户端 IP。peerAddress = 真实的 TCP 对端（req.socket.remoteAddress）。
+// 取不到就返回 null —— **绝不编一个假的**（比如 '0.0.0.0'），否则一堆取不到的人会被聚成「同一个 IP」。
+function extractIp(headers, peerAddress) {
+    const peer = normalizeIp(peerAddress);
+    if (!peer) return null;                           // 连对端都不知道，更没理由信一个客户端能写的头
+    if (!isLoopback(peer)) return peer;               // 直连（没经过本机反代）：XFF 一律不信
+    // 对端是本机 → 经由本机反代而来：取 Caddy 写进去的那个（最右边）
     const fwd = headers && (headers['x-forwarded-for'] || headers['X-Forwarded-For']);
-    const raw = fwd
-        ? String(fwd).split(',')[0]          // 最左边 = 最靠近客户端
-        : String(fallbackAddress || '');
-    const ip = normalizeIp(raw);
-    if (!ip) return null;
-    // 本机地址说明没穿过代理拿到真实来源，记下来没有意义
-    if (ip === '127.0.0.1' || ip === '::1') return null;
+    if (!fwd) return null;                            // 本机直接发起的请求，没有真实来源可记
+    const parts = String(fwd).split(',');
+    const ip = normalizeIp(parts[parts.length - 1]);
+    if (!ip || isLoopback(ip)) return null;
     return ip;
+}
+
+function isLoopback(ip) {
+    return ip === '::1' || /^127\./.test(ip);
 }
 
 function normalizeIp(raw) {
@@ -80,4 +87,4 @@ function expandIpv6(ip) {
 
 const pad = (g) => (g || '0').toLowerCase().replace(/^0+(?=.)/, '');
 
-module.exports = { extractIp, normalizeIp, prefixOf, isIpv4 };
+module.exports = { extractIp, normalizeIp, prefixOf, isIpv4, isLoopback };

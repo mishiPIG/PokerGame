@@ -2,8 +2,9 @@
 
 // 客户端 IP 取值与归一化（2026-09-21）。
 //
-// 这里错了不会报错，只会让「同 IP 多账号」给出垃圾结论 —— 而那种结论会被拿去判断人。
-// 所以三条都要钉死：代理链取最左、IPv6 按 /64 聚合、取不到就是 null（不许编）。
+// 这里错了不会报错，只会让「同 IP 多账号」给出垃圾结论 —— 而那种结论会被拿去判断人；
+// 更要命的是按 IP 的限流也靠它，取错了就是一扇谁都能推开的门。
+// 要钉死的：XFF 只在经由本机反代时才信、且取最右；IPv6 按 /64 聚合；取不到就是 null（不许编）。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -13,12 +14,26 @@ const { extractIp, normalizeIp, prefixOf } = require('./src/ops/client-ip');
 
 test('🔴 走 Caddy 反代时，真实地址在 X-Forwarded-For 里，直连地址永远是 127.0.0.1', () => {
     assert.equal(extractIp({ 'x-forwarded-for': '203.0.113.9' }, '127.0.0.1'), '203.0.113.9');
+    // Node 双栈监听时本机对端常报成 ::ffff:127.0.0.1，也得认作本机反代
+    assert.equal(extractIp({ 'x-forwarded-for': '203.0.113.9' }, '::ffff:127.0.0.1'), '203.0.113.9');
 });
 
-test('🔴 代理链要取【最左边】那个 —— 取错方向拿到的全是代理自己的地址', () => {
+test('🔴 代理链要取【最右边】那个 —— 左边的全是客户端自己能写的', () => {
+    // 客户端先自带一个假的「1.2.3.4」，Caddy 再把它看到的真实对端追加在最右
     assert.equal(
-        extractIp({ 'x-forwarded-for': '203.0.113.9, 70.41.3.18, 150.172.238.178' }, '127.0.0.1'),
+        extractIp({ 'x-forwarded-for': '1.2.3.4, 203.0.113.9' }, '127.0.0.1'),
         '203.0.113.9');
+});
+
+test('🔴 直连（没经过本机反代）时绝不信 X-Forwarded-For —— 3000 端口对公网开放', () => {
+    // 2026-09-29 实测：从外网直连生产 3000 端口 = 200。原写法下这一行能冒充任意来源 IP，
+    // 按 IP 的发码限流会被一个请求头绕过。
+    assert.equal(extractIp({ 'x-forwarded-for': '1.2.3.4' }, '198.51.100.7'), '198.51.100.7');
+    assert.equal(extractIp({ 'x-forwarded-for': '1.2.3.4' }, '::ffff:198.51.100.7'), '198.51.100.7');
+});
+
+test('🔴 对端地址未知时也不信 X-Forwarded-For', () => {
+    assert.equal(extractIp({ 'x-forwarded-for': '203.0.113.9' }, undefined), null);
 });
 
 test('没有代理头时退回直连地址', () => {

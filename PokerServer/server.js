@@ -15,6 +15,7 @@ const { crashFileFor, recordCrash } = require('./src/ops/crash-report');
 const { runStartupTasks } = require('./src/ops/startup-tasks');
 const buildInfo = require('./src/build-info');
 const { createClientErrorSink } = require('./src/ops/client-errors');
+const { extractIp } = require('./src/ops/client-ip');
 const config = require('./src/config');
 const { createRuntime } = require('./src/runtime');
 const { createAuth } = require('./src/auth');
@@ -62,8 +63,7 @@ app.post('/api/client-error', (req, res, next) => {
     // 而本模块存在的理由正是堵住这类灌日志的口子，别自己开一个。
     parseTinyJson(req, res, err => (err ? res.status(204).end() : next()));
 }, (req, res) => {
-    const fwd = req.headers['x-forwarded-for'];
-    const ip = String(fwd || req.socket?.remoteAddress || '?').split(',')[0].trim();
+    const ip = extractIp(req.headers, req.socket?.remoteAddress) || '?';   // 限流按它分桶，必须防伪造
     let username = null;
     try { username = req.body?.username ? String(req.body.username).slice(0, 40) : null; } catch { /* 无所谓 */ }
     clientErrors.record(req.body, { ip, username });

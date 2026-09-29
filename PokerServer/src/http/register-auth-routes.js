@@ -1,6 +1,7 @@
 'use strict';
 
 const { extractIp } = require('../ops/client-ip');
+const { createSendCodeLimiter } = require('../ops/send-code-limiter');
 
 function registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth }) {
 // 注册/登录来源埋点（2026-09-21）。两个用途：看用户分布在哪些地区、
@@ -11,6 +12,14 @@ function registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, r
 const noteSource = (req, userId, kind) => {
     try { db.loginEvents.record({ userId, kind, ip: extractIp(req.headers, req.socket?.remoteAddress) }); }
     catch (e) { console.error('[login-event] 埋点异常', e.message); }
+};
+// 三个发码接口共用一个按 IP 的限流：它们烧的是同一份发信额度。见 send-code-limiter.js。
+const sendLimiter = createSendCodeLimiter();
+const ipBlocked = (req, res) => {
+    const r = sendLimiter.check(extractIp(req.headers, req.socket?.remoteAddress));
+    if (r.ok) return false;
+    res.status(429).json({ error: '此网络请求验证码过于频繁，请稍后再试', k: 'sendTooOftenIp' });
+    return true;
 };
 const pendingRegs   = {};   // email(lc) -> { username, email, hash, code, expires, lastSent }
 const pendingResets = {};   // email(lc) -> { userId, code, expires, lastSent }
@@ -28,6 +37,7 @@ app.post('/api/register/send-code', async (req, res) => {
     if (db.getUserByEmail(email)) return res.status(409).json({ error: '该邮箱已注册，可直接登录或找回密码', k: 'emailTakenHint' });
     const prev = pendingRegs[email];
     if (prev && Date.now() - prev.lastSent < 60000) return res.status(429).json({ error: '发送太频繁，请 1 分钟后再试', k: 'sendTooOften' });
+    if (ipBlocked(req, res)) return;
     const code = gen6();
     const hash = await bcrypt.hash(password, 10);
     pendingRegs[email] = { username, email, hash, code, expires: Date.now() + 600000, lastSent: Date.now() };
@@ -74,6 +84,8 @@ app.post('/api/forgot/send-code', async (req, res) => {
     let { email } = req.body || {};
     email = (email || '').trim().toLowerCase();
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确', k: 'badEmail' });
+    // ⚠️ IP 闸必须在查邮箱【之前】：放在后面的话，「被限流 / 没被限流」本身就泄露了邮箱是否注册过
+    if (ipBlocked(req, res)) return;
     const user = db.getUserByEmail(email);
     // 不泄露邮箱是否存在：一律回 ok；仅存在时才真的发
     if (user) {
@@ -112,6 +124,7 @@ app.post('/api/bind-email/send-code', requireAuth, async (req, res) => {
     if (existing && existing.id !== req.authUser.id) return res.status(409).json({ error: '该邮箱已被其他账号绑定', k: 'emailOther' });
     const prev = pendingBinds[req.authUser.id];
     if (prev && Date.now() - prev.lastSent < 60000) return res.status(429).json({ error: '发送太频繁，请 1 分钟后再试', k: 'sendTooOften' });
+    if (ipBlocked(req, res)) return;
     const code = gen6();
     pendingBinds[req.authUser.id] = { email, code, expires: Date.now() + 600000, lastSent: Date.now() };
     try { await mailer.sendCode(email, code, 'bind'); }

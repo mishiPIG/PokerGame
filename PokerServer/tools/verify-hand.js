@@ -63,6 +63,19 @@ function verify(hand) {
     }
     const { commit, serverSeed, clientSeed, nonce, deckOrder } = fair;
 
+    // 🔴 种子还没公布（桌子没散）≠ 验证不通过。
+    //    原来会拿 undefined 去算哈希（SHA-256("undefined") = eb045d78…），然后报
+    //    「❌ 验证不通过，请反馈」—— 对玩家来说这句话的意思是「服务器作弊了」。
+    //    「还不能验」和「验了不对」必须是两个不同的结论、两个不同的退出码。
+    if (typeof serverSeed !== 'string' || !serverSeed || fair.revealPending) {
+        console.log(T('这手牌还不能验：种子要等整桌结束后才公开（否则等于公开别人弃掉的底牌）。',
+            'This hand cannot be verified yet: the seed is published after the table ends '
+            + '(otherwise it would expose cards other players folded).'));
+        console.log(T('承诺在发牌前就已公布：', 'The commitment was published before the deal: ') + (commit || '?'));
+        console.log(T('桌子结束后重新导出这手牌再验。', 'Export this hand again after the table ends, then verify.'));
+        process.exit(2);
+    }
+
     // ① 承诺：开局前公布的 commit 必须就是这个种子的 SHA-256。
     //    这一条成立，就说明服务器【在发牌之前】已经把整副牌定死了。
     const recomputed = commitOf(serverSeed);
