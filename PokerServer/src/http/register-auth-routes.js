@@ -2,6 +2,7 @@
 
 const { extractIp } = require('../ops/client-ip');
 const { createSendCodeLimiter } = require('../ops/send-code-limiter');
+const { createFailureLimiter } = require('../ops/failure-limiter');
 
 function registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth }) {
 // 注册/登录来源埋点（2026-09-21）。两个用途：看用户分布在哪些地区、
@@ -67,14 +68,39 @@ app.post('/api/register/verify', async (req, res) => {
 });
 
 // 登录：用户名或邮箱 + 密码
+// 🔴 限流（2026-09-30，防暴力试密码 / 撞库）。原来登录接口完全没有限流：可以对一个账号无限次试密码，
+//    而每次 bcrypt 比对都要吃几十毫秒 CPU —— 刷登录本身就能把 1GB 的小机器拖垮。只数【失败】：
+//    · 同一 IP：15 分钟 30 次（手机 CGNAT 一个出口很多人，不能太紧）
+//    · 同一 IP × 同一账号：15 分钟 8 次（真正拦住「对着一个号猜」）
+//    · 同一账号（不分 IP）：15 分钟 60 次（分布式慢慢猜也有上限；定得宽，免得别人故意输错把你锁在门外）
+//    账号维度用【输入的名字】做 key，不管这个号存不存在 —— 否则「会不会被限流」本身就泄露账号是否注册过。
+//    闸挡在 bcrypt 之前：被挡住的请求一点 CPU 都不花。成功登录清掉「这个 IP × 这个号」的计数。
+const WIN15 = 15 * 60 * 1000;
+const loginByIp = createFailureLimiter({ max: 30, windowMs: WIN15 });
+const loginByIpAcct = createFailureLimiter({ max: 8, windowMs: WIN15 });
+const loginByAcct = createFailureLimiter({ max: 60, windowMs: WIN15 });
+// 账号不存在时也做一次同样耗时的比对：否则「不存在 → 立刻返回」比「存在但密码错」快得多，
+// 量一下响应时间就能枚举出哪些用户名注册过。成本 10 与真实密码哈希一致。
+const DUMMY_HASH = bcrypt.hashSync('pokerdojo-timing-equalizer', 10);
 app.post('/api/login', async (req, res) => {
     let { username, password } = req.body || {};
     username = (username || '').trim();
     if (!username || !password) return res.status(400).json({ error: '请填写账号和密码', k: 'loginFields' });
+    const ip = extractIp(req.headers, req.socket?.remoteAddress) || '(unknown)';
+    const acct = username.toLowerCase().slice(0, 120);
+    const keys = [[loginByIp, ip], [loginByIpAcct, ip + '|' + acct], [loginByAcct, acct]];
+    const blocked = keys.map(([l, k]) => l.check(k)).find(r => !r.ok);
+    if (blocked) {
+        const minutes = Math.max(1, Math.ceil(blocked.retryAfterMs / 60000));
+        return res.status(429).json({ error: `尝试次数过多，请 ${minutes} 分钟后再试`, k: 'loginTooMany', p: { minutes } });
+    }
     const user = username.includes('@') ? db.getUserByEmail(username) : db.getUserByUsername(username);
-    if (!user) return res.status(401).json({ error: '账号或密码错误', k: 'badLogin' });
-    const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: '账号或密码错误', k: 'badLogin' });
+    const ok = await bcrypt.compare(String(password), user ? user.password_hash : DUMMY_HASH);
+    if (!user || !ok) {
+        keys.forEach(([l, k]) => l.fail(k));
+        return res.status(401).json({ error: '账号或密码错误', k: 'badLogin' });
+    }
+    loginByIpAcct.clear(ip + '|' + acct);
     noteSource(req, user.id, 'login');
     res.json({ token: signToken(user), user: userPayload(user) });
 });

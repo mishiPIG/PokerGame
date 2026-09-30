@@ -90,6 +90,7 @@ const I18N = {
         'err.emailTakenHint': '该邮箱已注册，可直接登录或找回密码',
         'err.sendTooOften': '发送太频繁，请 1 分钟后再试',
         'err.sendTooOftenIp': '此网络请求验证码过于频繁，请稍后再试',
+        'err.loginTooMany': '尝试次数过多，请 {minutes} 分钟后再试',
         'err.sendFailed': '验证码发送失败，请稍后重试',
         'err.needCode': '请先获取验证码',
         'err.codeExpiredNew': '验证码已过期，请重新获取',
@@ -377,6 +378,7 @@ const I18N = {
         'err.emailTakenHint': 'That email is already registered — sign in or reset your password',
         'err.sendTooOften': 'Too many requests — try again in a minute',
         'err.sendTooOftenIp': 'Too many code requests from this network — please try again later',
+        'err.loginTooMany': 'Too many attempts — please try again in {minutes} min',
         'err.sendFailed': 'Could not send the code, please try again later',
         'err.needCode': 'Request a verification code first',
         'err.codeExpiredNew': 'That code has expired — request a new one',
@@ -601,7 +603,9 @@ function tOrNull(key) {
 // 优先按 k 查当前语言 → 没 k / 字典里没这条就退回服务端原文 → 都没有才用调用处的兜底。
 // （服务端保留中文原文是故意的：老缓存客户端、curl、日志都还读得懂。）
 function apiErr(data, zh, en) {
-    const s = (data && data.k) ? tOrNull('err.' + data.k) : null;
+    let s = (data && data.k) ? tOrNull('err.' + data.k) : null;
+    // 带参数的错误（如「请 {minutes} 分钟后再试」）：服务端在 p 里给值，这里代入
+    if (s && data.p) s = s.replace(/\{(\w+)\}/g, (_, n) => (data.p[n] != null ? String(data.p[n]) : ''));
     return s || (data && data.error) || L(zh, en);
 }
 // 动态 JS 文案用这个：翻译直接写在调用处，省去为每条散字符串建 key。lang=en 时取第二个参数。

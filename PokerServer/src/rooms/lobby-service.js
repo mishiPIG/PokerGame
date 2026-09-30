@@ -1,4 +1,5 @@
 'use strict';
+const { extractIp } = require('../ops/client-ip');
 
 const crypto = require('node:crypto');
 
@@ -64,9 +65,12 @@ function emitRoomInviteInfo(socket, game, autoOpen = false) {
     });
 }
 
+// 🔴 2026-09-30：原来直接取 X-Forwarded-For 最左边 —— 那是客户端自己能写的。3000 端口对公网开放，
+//    直连时塞一个假头，就能每次换一个「IP」，把「每 IP 10 分钟 20 次」的猜房间码限流整个绕过去，
+//    再配几个小号轮流猜四位码，就能摸进别人的私密桌。和 1.10.0 修的 client-ip 是同一个洞，这处当时漏了。
+//    统一走 extractIp：只在经由本机反代时才信 XFF，且取最右边。
 function clientIp(socket) {
-    const forwarded = socket.handshake.headers['x-forwarded-for'];
-    return String(forwarded || socket.handshake.address || '').split(',')[0].trim();
+    return extractIp(socket.handshake.headers, socket.handshake.address) || '(unknown)';
 }
 
 function recentFailures(map, key, windowMs) {

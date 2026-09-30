@@ -19,6 +19,7 @@ const { extractIp } = require('./src/ops/client-ip');
 const config = require('./src/config');
 const { createRuntime } = require('./src/runtime');
 const { createAuth } = require('./src/auth');
+const { registerSocketGuard } = require('./src/ops/socket-guard');
 const { seedLocalDevUsers } = require('./src/dev-seed');
 const { createTableService } = require('./src/table/table-service');
 const { registerAdminRoutes } = require('./src/http/register-admin-routes');
@@ -29,7 +30,8 @@ const { registerSocketHandlers } = require('./src/socket/register-socket-handler
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
+// maxHttpBufferSize：单条消息上限（默认 1MB）。客户端最大的事件也就几百字节，语音走 HTTP 不经这里。
+const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] }, maxHttpBufferSize: 32 * 1024 });
 // 本地开发模式必须显式开启（npm run dev），生产/测试服默认永不开启。
 const { LOCAL_DEV, PHASES, DEFAULT_SMALL_BLIND, DEFAULT_BIG_BLIND,
     STANDARD_BLIND_LEVELS, INITIAL_BB, gameSB, gameBB, gameAnte, timeCardsFor,
@@ -90,6 +92,7 @@ const voiceModule = registerVoiceModule({ app, io, db, roomGames, requireAuth, e
 registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin, bcrypt, roomGames });
 registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth });
 
+registerSocketGuard(io);   // 每 IP 连接数 + 事件限频，挡在鉴权之前（见 src/ops/socket-guard.js）
 auth.registerSocketAuth(io);
 registerSocketHandlers({ io, db, stats, Deck, config, runtime, tableService, syncRecentVoices: voiceModule.syncRecentVoices });
 
