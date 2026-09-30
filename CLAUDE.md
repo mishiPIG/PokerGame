@@ -152,6 +152,7 @@ Android / iOS / PC
 - **许可证：PolyForm Noncommercial License 1.0.0**（`LICENSE`）——源码可见、允许非商业使用/自建/改/贡献，**商用须作者书面授权**（非 OSI「开源」而是「源码可见」，贴合"防商业窃取"诉求）。产品名/logo「德扑道场 / Poker Dojo」不在代码许可范围，另主张商标。
 - 贡献走 **DCO `Signed-off-by`**（`git commit -s`），保留将来双授权/单独商业授权的权利。
   - ⚠️ **2026-09-29 核实更正**：DCO 本身**只证明「这段代码我有权提交」，不转让、也不授予再许可权**。真正的再许可授权条款在 `CONTRIBUTING.md` 第 38–39 行（2026-07-24 才加）。而实际情况是：①dreamingwill 的 PR #1（07-17）/#3（07-23）**早于这条条款**；②所有非本人提交里 **Signed-off-by 一个都没有**。→ 将来若要单独商业授权，需先向主要贡献者**补一份书面确认或 CLA**（人少、关系好的时候最便宜）。
+- **随笔公开（2026-09-30）**：中英文定稿发在 `docs/essay.zh-CN.md` / `docs/essay.md`，两份 README 顶部各挂一行入口。私有原稿仍是 `ESSAY-final.local.md` / `ESSAY-en.local.md`（不入库）；**改文章改原稿后要同步这两份公开版**。公开版只动了格式（标题、链接列表、语言切换），英文版删掉了一处作者未填的占位括号。
 - README 刻意不含生产部署/服务器 IP/管理员引导等运维细节（那些在本 CLAUDE.md）；`data.json`/`hands.jsonl`/`secret.key`/`mail.json` 已确认未被 git 跟踪。
 - ~~⚠️ 建议（待办）：把运维细节挪到私有文档~~ **✅ 已做**：见 `OPS.local.md`（gitignore）。原记录：本 CLAUDE.md 含生产 IP、SSH 别名、部署与管理员引导等运维细节，随仓库公开——如介意可把这部分挪到私有 ops 文档，CLAUDE.md 只留架构。
 

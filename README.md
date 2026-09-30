@@ -8,6 +8,8 @@ Poker Dojo is a **server-authoritative** online Texas Hold'em game built for pla
 
 > **Responsible play:** This is a **play-money** game for friends to practice and have fun. It is **not gambling** — no real-money wagering, cash-out, or prizes. Green competition, stay away from gambling.
 
+> 📝 **Essay — [The Difference Is Knowing Why](docs/essay.md)** ([中文](docs/essay.zh-CN.md)): notes from years at the poker table — most of them not about poker — and why I built Poker Dojo.
+
 ---
 
 ## 📸 Screenshots
