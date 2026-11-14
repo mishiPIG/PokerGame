@@ -36,8 +36,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # GitHub 的 Ubuntu 镜像里本来就装好了 Android SDK（ANDROID_HOME），直接用。
+      # 原来用的 android-actions/setup-android@v3 只支持 Node 20，被强制跑在 Node 24 上之后这一步直接失败（2026-11-14）。
+      - name: Use preinstalled Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME" || { echo "::error::runner 上没有预装 Android SDK"; exit 1; }
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          SDKM=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          [ -n "$SDKM" ] && (yes | "$SDKM" --licenses > /dev/null || true)
+          ls "$ANDROID_HOME/build-tools" | tail -3
 
       - name: Install dependencies
         run: npm install
