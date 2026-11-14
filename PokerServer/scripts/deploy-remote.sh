@@ -72,7 +72,7 @@ restore_old() {
 trap restore_old ERR
 pm2 stop "$PM2_APP" >/dev/null 2>&1 || true
 STOPPED=1
-( cd "$STAGE" && POKER_DB_PATH="$DB_PATH" node scripts/migrate-sqlite.js )
+( cd "$STAGE" && POKER_DB_PATH="$DB_PATH" node scripts/migrate-sqlite.js --quick )   # 不在停机窗口里做整库检查（见 migrate-sqlite.js）
 mkdir -p "$SERVER_PATH"
 rsync -a --delete "${RSYNC_EXCLUDES[@]}" "$STAGE/" "$SERVER_PATH/"
 SYNCED=1
