@@ -96,6 +96,7 @@ Android / iOS / PC
 - **图标已启用**：`mobile/assets/logo.png`（1500×1500 鸟居+扑克，深绿）→ CI 用 `@capacitor/assets` 生成各密度图标/自适应/启动图（bg `#2f4a3e`）。
 - **发布到 Releases**：固定标签 `android-latest`，永久直链 `https://github.com/mishiPIG/PokerGame/releases/download/android-latest/pokerdojo.apk`（public 仓库免登录可下）。已成功出包 ✅（含图标约 6MB）。换图标/改壳只需替换 logo/config 后再触发一次构建。
 - 待办：App 图标/启动图、（可选）签名 release、iOS(需 $99 开发者账号 + TestFlight)。
+- 🩹 **2026-11-14 打包修复**：`android-actions/setup-android@v3` 只支持 Node 20，GitHub 强制改跑 Node 24 后「安装 Android SDK」一步直接失败（8 月之后没跑过，所以一直没暴露）。改用 runner 镜像**预装的 SDK**（`ANDROID_HOME`），两个 workflow 固定 `ubuntu-24.04`、checkout/setup-node/setup-java 升到 v5。重跑成功、固定签名校验通过、`android-latest` 已重新发布。
 
 ## 🐛 实战反馈修复批（2026-07-16，测试服+香港均已上）
 - **🔴 严重bug修复：断线被误判弃牌**——旧 `disconnect` 处理器只要牌局进行中就**无条件立即弃牌**，而 socket.io 网络抖动/传输切换会瞬断重连 → 表现为「突然弹回大厅再自动进来就成了弃牌」。改为**断线不再立即弃牌**，交给行动计时器兜底（`onActionTimeout`：无注自动过牌留在局里、有注才弃牌）；重连(join_room)恢复 away=false 且若轮到他则重启计时。客户端：重连**不再闪回大厅**（`everConnected` 区分首连/重连，重连直接回房 + 「重连中」提示条）。socket 自动化测试验证：掉线(非其回合)folded 保持 false、重连仍在局、整局走到摊牌 ✅。
