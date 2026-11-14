@@ -110,7 +110,8 @@ function createMatchRepository(db) {
     // 「state_committed」是每次广播的通用写入，事件本身没有任何内容（payload 恒为 {}）。
     // 全量排查时它占了 match_events 的 63%（12 万行），连同两个索引吃掉近 40MB，而没有任何代码读它。
     // 快照照常写（重启恢复靠它）；只是不再为它记一条空事件。有内容的事件（结算、补码、straddle…）照记。
-    const SILENT_EVENTS = new Set(['state_committed']);
+    // next_hand_scheduled 同理：只记了一个「下一手几点开」的时间戳，快照里本来就有。（存量由 tools/prune-match-events.js 清理）
+    const SILENT_EVENTS = new Set(['state_committed', 'next_hand_scheduled']);
 
     const commitTx = db.transaction(params => {
         const current = selectCurrentStmt.get(params.matchId);

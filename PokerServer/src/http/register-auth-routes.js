@@ -161,9 +161,27 @@ app.post('/api/forgot/reset', async (req, res) => {
 
 // 绑定/更换邮箱（已登录用户）：老账号补邮箱以启用找回密码
 const pendingBinds = {};   // userId -> { email, code, expires, lastSent }
+// 🔴 改绑邮箱必须输入当前密码（2026-11-14）。
+//    原来只要登录着就能改：偷到一个登录令牌（30 天有效）的人，先把邮箱改成自己的，
+//    再走「忘记密码」—— 账号就永久归他了，原主人连找回都找不回来。
+//    密码输错按账号计数：15 分钟内错 5 次就先停，免得这里变成一个猜密码的入口。
+const bindPwdFails = new Map();   // userId -> [时间戳]
+const BIND_PWD_MAX = 5, BIND_PWD_WINDOW = 15 * 60 * 1000;
 app.post('/api/bind-email/send-code', requireAuth, async (req, res) => {
-    let { email } = req.body || {};
+    let { email, password } = req.body || {};
     email = str(email).trim().toLowerCase();
+    password = str(password);
+    if (!password) return res.status(400).json({ error: '请输入当前密码', k: 'bindNeedPwd' });
+    const now = Date.now();
+    const fails = (bindPwdFails.get(req.authUser.id) || []).filter(t => now - t < BIND_PWD_WINDOW);
+    if (fails.length >= BIND_PWD_MAX) return res.status(429).json({ error: '密码错误次数过多，请 15 分钟后再试', k: 'bindPwdTooMany' });
+    let pwdOk = false;
+    try { pwdOk = await bcrypt.compare(password, req.authUser.password_hash || ''); } catch { pwdOk = false; }
+    if (!pwdOk) {
+        fails.push(now); bindPwdFails.set(req.authUser.id, fails);
+        return res.status(403).json({ error: '密码不正确', k: 'delBadPwd' });
+    }
+    bindPwdFails.delete(req.authUser.id);
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确', k: 'badEmail' });
     const existing = db.getUserByEmail(email);
     if (existing && existing.id !== req.authUser.id) return res.status(409).json({ error: '该邮箱已被其他账号绑定', k: 'emailOther' });

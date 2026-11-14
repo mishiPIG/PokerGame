@@ -75,6 +75,8 @@ const I18N = {
         // —— 注销账号（2026-09-16）
         'err.delNeedPwd': '请输入密码以确认注销',
         'err.delBadPwd': '密码不正确',
+        'err.bindNeedPwd': '请输入当前密码',
+        'err.bindPwdTooMany': '密码错误次数过多，请 15 分钟后再试',
         'err.delInRoom': '你还在牌局里，请先退出并结算后再注销',
         'err.delLastAdmin': '你是唯一的管理员，请先指定另一位管理员',
         'err.delFailed': '注销失败',
@@ -353,6 +355,8 @@ const I18N = {
         // -- account deletion (2026-09-16)
         'err.delNeedPwd': 'Enter your password to confirm deletion',
         'err.delBadPwd': 'Incorrect password',
+        'err.bindNeedPwd': 'Enter your current password',
+        'err.bindPwdTooMany': 'Too many wrong passwords — try again in 15 minutes',
         'err.delInRoom': 'You are still at a table. Please leave and cash out first.',
         'err.delLastAdmin': 'You are the only admin. Assign another admin first.',
         'err.delFailed': 'Deletion failed',

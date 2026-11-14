@@ -3,6 +3,17 @@
 All notable changes to Poker Dojo. This project loosely follows
 [Keep a Changelog](https://keepachangelog.com/). Dates are UTC+8.
 
+## [1.11.1] — 2026-11-14
+
+### 安全
+- 改绑邮箱必须输入当前密码（原来只要登录着就能改：偷到登录令牌的人能改绑邮箱再找回密码，永久接管账号）。
+  密码按账号计错，15 分钟内错 5 次先停。
+
+### 运维
+- 删除 `match_events` 里没有信息量的事件行（`state_committed` / `next_hand_scheduled`，共约 15.5 万行），两种都不再写入。
+  一次性清理脚本：`tools/prune-match-events.js`。
+- 部署时停机窗口里的迁移跳过整库检查（快照在启动后照常校验）：生产停机 29 秒 → 1.5 秒。
+
 ## [1.11.0] — 2026-11-14
 
 > 一封筹码守恒告警引出的全项目排查 + 安全加固。玩法上唯一的变化是短码大盲按正式规则算。

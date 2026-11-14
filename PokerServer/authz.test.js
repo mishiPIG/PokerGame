@@ -103,3 +103,13 @@ test('管理员补偿的 requestId 在表单打开时定好，双击不会补两
     assert.match(js, /requestId: \(btn && btn\.dataset\.req\)/);
     assert.doesNotMatch(js, /requestId: `\$\{Date\.now\(\)\}-\$\{Math\.random/);
 });
+
+test('🔴 改绑邮箱必须输入当前密码，且输错有次数上限', () => {
+    const src = codeOf(read('src/http/register-auth-routes.js'));
+    const at = src.indexOf("app.post('/api/bind-email/send-code'");
+    const body = src.slice(at, src.indexOf('pendingBinds[req.authUser.id] =', at));
+    assert.match(body, /bcrypt\.compare\(password, req\.authUser\.password_hash/, '要核对当前密码');
+    assert.match(body, /fails\.length >= BIND_PWD_MAX\) return res\.status\(429\)/, '输错要计数');
+    assert.ok(body.indexOf('bcrypt.compare') < body.indexOf('mailer.sendCode') || !body.includes('mailer.sendCode'), '先核对密码，再发验证码');
+    assert.match(codeOf(read('public/js/40-profile.js')), /authPostToken\('\/api\/bind-email\/send-code', \{ email, password \}\)/);
+});

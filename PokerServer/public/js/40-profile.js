@@ -223,7 +223,8 @@ function toggleEmailForm() {
     if (f.style.display !== 'none') { f.style.display = 'none'; return; }
     f.style.display = '';
     f.innerHTML =
-        `<input id="be-email" class="be-input" type="email" placeholder="${L('新邮箱', 'New email')}">
+        `<input id="be-pwd" class="be-input" type="password" autocomplete="current-password" placeholder="${L('当前密码', 'Current password')}">
+         <input id="be-email" class="be-input" type="email" placeholder="${L('新邮箱', 'New email')}">
          <button class="mini-btn" onclick="emailSendCode()">${L('发送验证码', 'Send code')}</button>
          <div id="be-step2" style="display:none;margin-top:6px">
             <input id="be-code" class="be-input" placeholder="${L('6 位验证码', '6-digit code')}" inputmode="numeric" maxlength="6">
@@ -233,10 +234,12 @@ function toggleEmailForm() {
 }
 function setBeMsg(m) { const el = document.getElementById('be-msg'); if (el) el.textContent = m; }
 async function emailSendCode() {
+    const password = document.getElementById('be-pwd').value;
     const email = document.getElementById('be-email').value.trim();
+    if (!password) return setBeMsg(L('请输入当前密码', 'Enter your current password'));
     if (!email) return setBeMsg(L('请输入邮箱', 'Enter an email'));
     setBeMsg(L('发送中…', 'Sending…'));
-    const { ok, data } = await authPostToken('/api/bind-email/send-code', { email });
+    const { ok, data } = await authPostToken('/api/bind-email/send-code', { email, password });
     if (!ok) return setBeMsg(apiErr(data, '发送失败', 'Failed to send'));
     document.getElementById('be-step2').style.display = '';
     setBeMsg(L('验证码已发送到 ' + email + '（含垃圾箱）', 'Code sent to ' + email + ' (check your spam folder)'));
