@@ -45,11 +45,6 @@
         #table-view.table-enter #ring-layer { animation: tableEnterSeats 0.5s 0.08s cubic-bezier(0.22,1,0.36,1) backwards; }
         @keyframes tableEnter { from { opacity: 0; transform: scale(0.985); } }
         @keyframes tableEnterSeats { from { opacity: 0; transform: scale(0.96); } }
-        #phase-indicator {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.5); padding: 4px 14px; border-radius: 12px;
-            font-size: 12px; color: #dfe9e2; letter-spacing: 1px;
-        }
 
         /* ===== Seat（德扑之星式：名上·头像·筹码下 三层；牌朝外；状态按需气泡）===== */
         .seat { display: flex; flex-direction: column; align-items: center; gap: 1px; position: relative; padding: 2px; }
@@ -123,7 +118,6 @@
         .avatar-secs.low { color: #ff6b6b; border-color: rgba(255,90,90,0.8); }
         /* All-in：火焰/橙光高亮 */
         .seat.allin .avatar-block { animation: allinFire 0.9s ease-in-out infinite; border-radius: 12px; }
-        .seat.allin .cards-zone .card { box-shadow: 0 0 10px 2px rgba(255,110,20,0.85); }
         @keyframes allinFire { 0%,100% { box-shadow: 0 0 0 2px rgba(255,120,20,0.7), 0 0 12px 2px rgba(255,90,10,0.6); }
             50% { box-shadow: 0 0 0 3px rgba(255,165,45,0.98), 0 0 26px 6px rgba(255,90,10,0.9); } }
         /* 赢家：金光 */
@@ -277,9 +271,6 @@
         .card.dim { filter: brightness(0.72); opacity: 0.6; }   /* 只压暗，保留四色，仍能看清点数花色 */
         .card.dim.reveal-anim { animation: dimOut 0.5s ease-out backwards; }
         @keyframes dimOut { from { filter: none; opacity: 1; } to { filter: brightness(0.72); opacity: 0.6; } }
-        .hand-type { font-size: 13px; font-weight: bold; color: #eaf3ee; margin: 2px 0;
-            text-shadow: 0 0 8px rgba(244,211,94,0.6); animation: dealIn 0.4s ease-out backwards; }
-        .my-hand-type { font-size: 12px; font-weight: bold; color: #06d6a0; margin: 2px 0; }
         /* 行牌中：我当前最强 5 张的高亮（绿环，区别于 showdown 金光拉出）*/
         .card.mine { box-shadow: 0 0 0 2px #06d6a0, 0 2px 6px rgba(0,0,0,0.4); }
 

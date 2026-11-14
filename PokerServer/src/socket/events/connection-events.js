@@ -1,4 +1,5 @@
 'use strict';
+const { safeAvatar } = require('../../account/avatar');
 
 const { displayNameChangeAllowed, displayNameChangeRemainingMs, normalizeDisplayName } = require('../../account/display-name');
 
@@ -11,8 +12,9 @@ function registerConnectionEvents(context) {
     socket.on('latency_ping', (t) => socket.emit('latency_pong', t));
 
     // 设置头像：持久化 + 更新在座玩家 + 重广播
-    socket.on('set_avatar', ({ avatar }) => {
-        if (avatar && typeof avatar !== 'string') return;
+    socket.on('set_avatar', ({ avatar } = {}) => {
+        // 只收内置头像的路径（或清空）。别的字符串一律拒绝 —— 见 account/avatar.js。
+        if (avatar && !safeAvatar(avatar)) return;
         db.setAvatar(user.id, avatar || null);
         user.avatar = avatar || null;
         const roomId = socket.currentRoom;

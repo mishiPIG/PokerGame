@@ -1,7 +1,7 @@
 // ===== 大厅 / 房间 =====
 function hideStraddleOffer() {
     straddleOffer = null;
-    clearInterval(straddleOfferTimer); straddleOfferTimer = null;
+    
     const el = document.getElementById('straddle-flag');
     if (el) el.style.display = 'none';
 }
@@ -13,7 +13,6 @@ function renderStraddleOffer() {
     document.getElementById('straddle-flag-n').textContent = '×' + ((straddleOffer.chainIndex || 0) + 1);
     el.style.display = '';
 }
-function positionStraddleOffer() { /* 贴在牌桌右边缘，纯 CSS 定位，无需跟随座位 */ }
 function answerStraddle(accept) {
     if (!straddleOffer || !socket) return;
     const targetHandSeq = straddleOffer.targetHandSeq, amount = straddleOffer.amount;
@@ -206,15 +205,17 @@ function renderPodium(awards) {
     if (!awards || (!awards.boss && !awards.mvp && !awards.worker)) { box.innerHTML = ''; return; }
     const cell = (a, cls, medal, title, valText) => {
         if (!a) return '';
-        const name = escapeHtml(a.displayName || a.username || '');
-        const initial = (a.displayName || a.username || '?').charAt(0).toUpperCase();
+        const nameHtml = escapeHtml(a.displayName || a.username || '');
+        // 首字母同样来自玩家的名字：转义后再用。头像加载失败时只隐藏图片 ——
+        // 原来是在 onerror 里拼一段带首字母的 HTML，那是一个 JS 字符串上下文，HTML 转义挡不住。
+        const initialHtml = escapeHtml((a.displayName || a.username || '?').charAt(0).toUpperCase());
         const face = a.avatar
-            ? `<img class="pd-avatar" src="${escapeHtml(a.avatar)}" alt="" onerror="this.outerHTML='<div class=\\'pd-avatar\\'>${initial}</div>'">`
-            : `<div class="pd-avatar">${initial}</div>`;
+            ? `<img class="pd-avatar" src="${escapeHtml(a.avatar)}" alt="" onerror="this.style.display='none'">`
+            : `<div class="pd-avatar">${initialHtml}</div>`;
         return `<div class="pd-item ${cls}">
             <div class="pd-medal">${medal}</div>${face}
             <div class="pd-title">${title}</div>
-            <div class="pd-name">${name}</div>
+            <div class="pd-name">${nameHtml}</div>
             <div class="pd-val">${valText}</div>
             <div class="pd-step"></div>
         </div>`;
@@ -275,6 +276,9 @@ function showLobby() {
     dealFx = null; revealFx = null; allinSpot = false;
     document.querySelectorAll('.fly-deal, .fly-coin').forEach(e => e.remove());
     prevFoldedSet = new Set(); foldingNow = new Set();
+    // 上一桌的「轮到谁 / 警告音响过没 / 全押胜率」不能带进下一桌：
+    // 否则换桌后第一次轮到我可能没有提示音，别人头上还挂着上一桌的胜率。
+    lastActionOnUserId = null; warnedThisTurn = false; equityMap = {};
     shownCards = {}; myShown = new Set(); showJustHappened = false;
     showdownInfo = null; myHand = null; mySeated = false; prevChipsShown = {}; roomInviteInfo = null;
     // 关闭所有桌内面板/弹窗
@@ -774,14 +778,6 @@ function setUtgStraddle(enabled) {
     if (!socket) return;
     socket.emit('set_utg_straddle', { enabled: enabled === true });
 }
-function extendMatch(minutes) {
-    if (!socket) return;
-    uiConfirm(L(`确定为本场比赛加时 +${minutes} 分钟？`, `Extend this game by +${minutes} minutes?`)).then(ok => {
-        if (!ok) return;
-        socket.emit('extend_match', { minutes });
-        toast(L(`已加时 +${minutes} 分钟`, `Extended by +${minutes} min`));
-    });
-}
 function formatMatchEndTime(value) {
     return fmtTime(value);
 }
@@ -839,7 +835,7 @@ function renderMeHead() {
     const name = myDisplayName || myUsername || '';
     const ltr = escapeHtml((name.trim()[0] || '?').toUpperCase());
     const av = myAvatar
-        ? `<img src="${escapeHtml(myAvatar)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'me-ltr',textContent:'${ltr}'}))">`
+        ? `<img src="${escapeHtml(myAvatar)}" alt="" data-ltr="${escapeHtml(ltr)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'me-ltr',textContent:this.dataset.ltr}))">`
         : `<span class="me-ltr">${ltr}</span>`;
     box.innerHTML = `<div class="me-avatar">${av}</div>
         <div class="me-id">

@@ -3,7 +3,7 @@
 const buildInfo = require('../build-info');
 const { findBlockingRoom } = require('../account/deletion-guards');
 
-function registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin, bcrypt, roomGames }) {
+function registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin, bcrypt, roomGames, io }) {
 // 版本信息（公开，不需要登录）：部署脚本和玩家报 bug 都靠它对上是哪一版。
 // 客户端会把它和【打包进前端 JS 的构建号】一起显示 —— 两者不一致就说明玩家
 // 的浏览器/APK WebView 缓存了旧前端（薄壳架构下这是最常见的「我这边复现不了」）。
@@ -88,8 +88,17 @@ app.post('/api/checkin', requireAuth, (req, res) => {
 });
 
 // ===== Bug / 建议反馈 =====
+// 每人每小时最多 5 条。每条都会给管理员发一封邮件，而主发信通道（免费 163）每天只有 50 封额度 ——
+// 没有这道限制，一个人连发 50 条就能把当天的额度烧光，之后备份 / 审计 / 崩溃告警全都发不出去。
+const feedbackHits = new Map();   // userId -> [时间戳]
+const FEEDBACK_PER_HOUR = 5;
+const asText = (v) => (typeof v === 'string' ? v : '');
 app.post('/api/feedback', requireAuth, (req, res) => {
-    const text = (req.body?.text || '').toString().trim();
+    const now = Date.now();
+    const recent = (feedbackHits.get(req.authUser.id) || []).filter(t => now - t < 3600000);
+    if (recent.length >= FEEDBACK_PER_HOUR) return res.status(429).json({ error: '反馈太频繁，请稍后再试', k: 'feedbackTooOften' });
+    recent.push(now); feedbackHits.set(req.authUser.id, recent);
+    const text = asText(req.body?.text).trim();
     if (!text) return res.status(400).json({ error: '请填写反馈内容', k: 'feedbackEmpty' });
     if (text.length > 2000) return res.status(400).json({ error: '内容过长（≤2000字）', k: 'feedbackLong' });
     const rec = {
@@ -97,13 +106,13 @@ app.post('/api/feedback', requireAuth, (req, res) => {
         userId: req.authUser.id,
         username: req.authUser.username,
         text: text.slice(0, 2000),
-        contact: (req.body?.contact || '').toString().slice(0, 120),
+        contact: asText(req.body?.contact).slice(0, 120),
         ua: (req.headers['user-agent'] || '').slice(0, 200),
         // 版本自动附带：指望玩家自己去设置面板翻出版本号复制过来，基本不会发生。
         // serverVersion = 收到反馈时线上跑的版本；clientBuild = 他浏览器里那份前端的构建号。
         // 两者不一致 = 他用的是缓存的旧前端，很多「复现不了」的反馈都是这个原因。
         serverVersion: buildInfo.label,
-        clientBuild: (req.body?.clientBuild || '').toString().slice(0, 40) || 'unknown'
+        clientBuild: asText(req.body?.clientBuild).slice(0, 40) || 'unknown'
     };
     db.appendFeedback(rec);
     console.log(`[feedback] ${req.authUser.username}: ${text.slice(0, 80)}`);
@@ -150,6 +159,8 @@ app.post('/api/account/delete', requireAuth, async (req, res) => {
     const result = db.accountDeletion.anonymizeIdentity(user.id);
     if (!result.ok) return res.status(409).json({ error: '注销失败：' + result.reason, k: 'delFailed' });
     console.log('[account] 账号已注销 user=' + user.id + ' -> ' + result.handle);
+    // 他手里还开着的连接一并断掉：socket 只在连接时鉴权一次，不断开的话注销后仍能聊天、建房
+    if (io) for (const s of io.sockets.sockets.values()) if (s.user?.id === user.id) s.disconnect(true);
 
     // 身份已经销毁（登录立刻失效），剩下的牌谱擦除分批做。
     // **每批之间让出事件循环** —— 上万手牌一口气擦会把服务卡住几百毫秒，

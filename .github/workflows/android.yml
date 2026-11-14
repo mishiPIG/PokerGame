@@ -4,6 +4,7 @@ name: Build Android APK
 # 触发：改动 mobile/ 目录后 push，或在 Actions 页手动 Run workflow。
 on:
   push:
+    branches: [main]     # 别的分支改了 mobile/ 不该覆盖公开的 android-latest
     paths:
       - 'mobile/**'
       - '.github/workflows/android.yml'

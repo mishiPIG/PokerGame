@@ -26,6 +26,7 @@ const { registerAdminRoutes } = require('./src/http/register-admin-routes');
 const { registerVoiceModule } = require('./src/voice/voice-module');
 const { registerAccountRoutes } = require('./src/http/register-account-routes');
 const { registerAuthRoutes } = require('./src/http/register-auth-routes');
+const { registerSecurityHeaders } = require('./src/http/security-headers');
 const { registerSocketHandlers } = require('./src/socket/register-socket-handlers');
 
 const app = express();
@@ -33,14 +34,10 @@ const server = http.createServer(app);
 // maxHttpBufferSize：单条消息上限（默认 1MB）。客户端最大的事件也就几百字节，语音走 HTTP 不经这里。
 const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] }, maxHttpBufferSize: 32 * 1024 });
 // 本地开发模式必须显式开启（npm run dev），生产/测试服默认永不开启。
-const { LOCAL_DEV, PHASES, DEFAULT_SMALL_BLIND, DEFAULT_BIG_BLIND,
-    STANDARD_BLIND_LEVELS, INITIAL_BB, gameSB, gameBB, gameAnte, timeCardsFor,
-    ACTION_TIME, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, RUNIT_MAX, RUNIT_DECIDE_MS,
-    STRADDLE_DECISION_MS, STRADDLE_INTERMISSION_MS, FIXED_BUYIN, SNG_BUYIN_TIERS,
-    BUYIN_RATE, CASHOUT_RATE, CONFIGURED_PUBLIC_ORIGIN, sngPrize } = config;
+const { LOCAL_DEV } = config;
 const JWT_SECRET = config.loadJwtSecret(__dirname);
 const runtime = createRuntime();
-const { roomGames, lobbySockets, inviteCodeFailuresByUser, inviteCodeFailuresByIp } = runtime;
+const { roomGames } = runtime;
 app.use((req, res, next) => {
     if (runtime.shuttingDown && req.method !== 'GET') {
         return res.status(503).json({ error: '服务正在安全重启，请稍后重试' });
@@ -57,6 +54,7 @@ const { signToken, userPayload, requireAdmin, requireAuth } = auth;
 //    全局是默认的 100kb，而这是全站唯一一个不鉴权的写入口，
 //    16kb 足够装下 message + stack，多出来的只可能是灌垃圾。
 const clientErrors = createClientErrorSink();
+registerSecurityHeaders({ app, express, clientErrors, extractIp });   // CSP + 违规上报（必须在静态资源之前）
 const parseTinyJson = express.json({ limit: '16kb' });
 app.post('/api/client-error', (req, res, next) => {
     // 解析失败（body 超限 / 根本不是 JSON）必须【自己吞掉】，不能交给 express 默认错误处理：
@@ -89,7 +87,7 @@ const { projectedPositions } = tableService;
 
 registerAdminRoutes({ app, db, requireAdmin, roomGames, io, clientErrors });
 const voiceModule = registerVoiceModule({ app, io, db, roomGames, requireAuth, express, crypto, fs, path, baseDir: __dirname });
-registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin, bcrypt, roomGames });
+registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin, bcrypt, roomGames, io });
 registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth });
 
 registerSocketGuard(io);   // 每 IP 连接数 + 事件限频，挡在鉴权之前（见 src/ops/socket-guard.js）

@@ -118,7 +118,7 @@ async function loadAdminRooms() {
             <div class="adm-players">${ps}</div>
             <div class="adm-room-act">
                 <button onclick="adminEnterRoom('${r.roomId}')">▶️ 免密进入</button>
-                <button class="danger" onclick="adminDissolveRoom('${r.roomId}','${encodeURIComponent(r.name)}')">🛑 解散</button>
+                <button class="danger" data-name="${escapeHtml(encodeURIComponent(r.name))}" onclick="adminDissolveRoom('${r.roomId}',this.dataset.name)">🛑 解散</button>
             </div>
         </div>`;
     }).join('');
@@ -150,10 +150,10 @@ async function loadAdminWallet(username) {
     const d = await res.json();
     const rows = d.transactions.map(t => {
         const when = new Date(t.at).toLocaleString('zh-CN', { hour12: false });
-        const reason = t.meta && t.meta.reason ? ` · ${escapeHtml(String(t.meta.reason))}` : '';
+        const reasonHtml = t.meta && t.meta.reason ? ` · ${escapeHtml(String(t.meta.reason))}` : '';
         return `<div class="adm-tx">
             <span class="adm-dim">${when}</span>
-            <span>${escapeHtml(t.typeLabel)}${reason}</span>
+            <span>${escapeHtml(t.typeLabel)}${reasonHtml}</span>
             <span style="color:${t.delta >= 0 ? '#4ade80' : '#f87171'};font-weight:bold">${t.delta >= 0 ? '+' : ''}${t.delta.toLocaleString()}</span>
             <span class="adm-dim">→ ${t.balanceAfter.toLocaleString()}</span>
         </div>`;
@@ -162,22 +162,25 @@ async function loadAdminWallet(username) {
         <div class="adm-adjust">
             <input id="adm-adj-delta" type="number" placeholder="增减额(如 -1651)">
             <input id="adm-adj-reason" placeholder="备注（必填，会留痕）">
-            <button onclick="adminAdjustGold('${escapeHtml(d.username)}')">提交调整</button>
+            <button data-user="${escapeHtml(d.username)}" data-req="${Date.now()}-${Math.random().toString(36).slice(2, 8)}" onclick="adminAdjustGold(this.dataset.user, this)">提交调整</button>
         </div>${rows}`;
 }
 
 // 带备注的补偿/扣款：走钱包流水留痕，而不是直接把金币改成某个数字
-async function adminAdjustGold(username) {
+// requestId 在表单打开时就定好（data-req），双击 / 重复提交都带同一个，服务端按它去重 ——
+// 原来每次点击都现生成一个，双击就补偿了两次。
+async function adminAdjustGold(username, btn) {
     const delta = parseInt(document.getElementById('adm-adj-delta').value, 10);
     const reason = document.getElementById('adm-adj-reason').value.trim();
     if (!Number.isInteger(delta) || delta === 0) { admMsg('增减额必须是非零整数', false); return; }
     if (!reason) { admMsg('必须填写备注（为什么调整）', false); return; }
     if (!confirm(`确认给 ${username} ${delta > 0 ? '补偿' : '扣除'} ${Math.abs(delta).toLocaleString()} 金币？\n备注：${reason}`)) return;
+    if (btn) btn.disabled = true;
     const res = await fetch('/api/admin/adjust-gold', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admToken()}` },
-        body: JSON.stringify({ username, delta, reason, requestId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` })
-    });
+        body: JSON.stringify({ username, delta, reason, requestId: (btn && btn.dataset.req) || `${Date.now()}` })
+    }).finally(() => { if (btn) btn.disabled = false; });
     const d = await res.json();
     if (!res.ok) { admMsg(d.error || '调整失败', false); return; }
     admMsg(`${username} ${delta > 0 ? '+' : ''}${delta}，当前 ${d.balance.toLocaleString()} 金币`);
@@ -194,13 +197,13 @@ async function loadAdminUsers() {
     const users = await res.json();
     const tbody = document.querySelector('#admin-users-table tbody');
     tbody.innerHTML = users.map(u => `
-        <tr>
-            <td>${u.username}${u.isAdmin ? ' 👑' : ''}</td>
+        <tr data-user="${escapeHtml(u.username)}">
+            <td>${escapeHtml(u.username)}${u.isAdmin ? ' 👑' : ''}</td>
             <td>${u.gold.toLocaleString()}</td>
             <td><input type="number" id="gold-${u.id}" value="${u.gold}" min="0"></td>
-            <td><button onclick="adminSetGold('${u.username}','${u.id}')">确认</button></td>
-            <td><button onclick="adminTab('wallet');loadAdminWallet('${u.username}')">💰 流水</button>
-                <button onclick="adminTab('hands');loadAdminHands('${u.username}')">📜 牌谱</button></td>
+            <td><button onclick="adminSetGold(this.closest('tr').dataset.user,'${u.id}')">确认</button></td>
+            <td><button onclick="adminTab('wallet');loadAdminWallet(this.closest('tr').dataset.user)">💰 流水</button>
+                <button onclick="adminTab('hands');loadAdminHands(this.closest('tr').dataset.user)">📜 牌谱</button></td>
         </tr>`).join('');
 }
 
@@ -221,7 +224,6 @@ async function adminSetGold(username, userId) {
         if (username.toLowerCase() === myUsername.toLowerCase()) {
             myGold = data.gold;
             updateUserBar();
-            if (socket) socket.emit('request_gold_sync');
         }
         loadAdminUsers();
     } else {

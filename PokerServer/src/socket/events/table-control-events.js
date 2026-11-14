@@ -50,6 +50,11 @@ function registerTableControlEvents(context) {
         const target = idx >= 0 ? game.players[idx] : null;
         const name = nameOf(target || db.getUserById(targetUserId) || {});
 
+        // 🔴 SNG 里不能请出已经报名入座的人：他被移到观战席后报名费既不退、也不再参与排名，
+        //    等于房主可以没收别人的报名费（现金桌没这个问题：筹码留到结束照常结算）。
+        //    想让他走：开赛前让他自己退出（会退报名费），开赛后只能打完。
+        if (game.roomType === 'sng' && target) { socket.emit('server_msg', { k: 'host.kickSngSeated' }); return; }
+
         // 先记名单再离座：离座会广播，广播里已经不该把他算成能回来的人
         if (!game.kicked) game.kicked = new Set();
         game.kicked.add(targetUserId);
@@ -84,7 +89,7 @@ function registerTableControlEvents(context) {
         io.in(roomId).emit('server_msg', { k: 'host.extended', p: { min: m } });
         broadcastState(roomId);
         const betweenHands = game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN;
-        if (!game.paused && game.status === 'running' && betweenHands && liveCount(game) >= 2) startHand(roomId);
+        if (!game.paused && game.status === 'running' && betweenHands && liveCount(game) >= 2) scheduleNextHand(roomId, { delayMs: 1500, keepExisting: true });
     });
 
     // 调整预计结束时间：可延长或缩短；到点只暂停发新牌，不自动结算。
@@ -113,7 +118,7 @@ function registerTableControlEvents(context) {
         }
         broadcastState(roomId);
         const betweenHands = game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN;
-        if (!game.timeExpired && !game.paused && game.status === 'running' && betweenHands && liveCount(game) >= 2) startHand(roomId);
+        if (!game.timeExpired && !game.paused && game.status === 'running' && betweenHands && liveCount(game) >= 2) scheduleNextHand(roomId, { delayMs: 1500, keepExisting: true });
     });
 
     // 现金桌补码：金币按汇率买入筹码，下一手生效（不能超过带入上限）；可设自动补码
@@ -149,7 +154,7 @@ function registerTableControlEvents(context) {
             p.chips += p.pendingRebuy; p.pendingRebuy = 0; p.sittingOut = false;
             io.in(roomId).emit('server_msg', `💵 ${nameOf(user)} 补码 ${chips} 筹码`);
             // 若比赛进行中且当前停摆，重新排下一手
-            if (game.status === 'running' && between && liveCount(game) >= 2) scheduleNextHand(roomId);
+            if (game.status === 'running' && between && liveCount(game) >= 2) scheduleNextHand(roomId, { keepExisting: true });
         }
         broadcastState(roomId);
     });
@@ -167,10 +172,12 @@ function registerTableControlEvents(context) {
 
     // 准备 / 取消准备：全员准备且 >=2 人时自动开局
     socket.on('toggle_ready', (roomId) => {
+        if (socket.currentRoom !== roomId) return;   // 房间号是客户端传的：只能对自己所在的桌
         const game = roomGames[roomId];
         if (!game) return;
-        // 仅开赛前需要准备；比赛开始后自动续局，无需重新准备
-        if (game.roomType === 'sng' && game.status === 'running') return;
+        // 仅开赛前需要准备；比赛开始后自动续局，无需重新准备。
+        // 原来只拦了 SNG：现金桌开赛后全员点准备会绕过局间收尾直接开新一手（离座的人照样被发牌、挂起的解散被跳过）。
+        if (game.status === 'running') return;
         if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN) {
             socket.emit('server_msg', { k: 'room.readyLocked' }); return;
         }

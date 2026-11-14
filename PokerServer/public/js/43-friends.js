@@ -50,13 +50,13 @@ function friendAvatar(f) {
 //    **这和「备注塞进截断的名字行」是同一类错：把长度不受控的内容，放进一个
 //    为短内容设计的位置。** 分层之后这类错在结构上就没地方发生了。
 function friendRow(f, actions) {
-    const note = f.note ? `<div class="fr-note">${escapeHtml(f.note)}</div>` : '';
+    const noteHtml = f.note ? `<div class="fr-note">${escapeHtml(f.note)}</div>` : '';
     return `<div class="fr-row">
         <div class="fr-top">
             <div class="fr-av">${friendAvatar(f)}</div>
             <div class="fr-main">
                 <div class="fr-name">${escapeHtml(f.displayName)}</div>
-                ${note}
+                ${noteHtml}
                 <div class="fr-sub">${actions.sub || ''}</div>
             </div>
         </div>

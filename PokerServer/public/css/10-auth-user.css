@@ -59,7 +59,6 @@
             background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
             border-radius: 10px; padding: 8px 14px; margin-bottom: 10px;
         }
-        #user-bar .uname { font-weight: bold; color: #f4d35e; }
         #user-bar .gold  { color: #ffd700; }
         #user-bar .bar-spacer { flex: 1; }
         #latency {

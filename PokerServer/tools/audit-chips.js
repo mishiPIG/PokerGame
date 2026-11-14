@@ -26,9 +26,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const HANDS = path.join(__dirname, '..', 'hands.jsonl');
-// SQLite 上线后牌谱写入数据库、hands.jsonl 不再更新——审计必须跟着换数据源，
-// 否则会一直读那个冻结的旧文件、永远报「干净」（比没有告警更危险：给出虚假的安心）。
+// 牌谱只有一个数据源：SQLite。2026-11-14 删掉了读旧 hands.jsonl 的兜底 ——
+// SQLite 已经稳定跑了三个月，而那条兜底存在的唯一后果，是配错路径时会安静地去读一个冻结的旧文件、永远报「干净」。
 function defaultDbPath() {
     return process.env.POKER_DB_PATH || path.join(__dirname, '..', '.local', 'pokerdojo.sqlite');
 }
@@ -36,7 +35,7 @@ function defaultDbPath() {
 const REBUY_TOLERANCE = 1000;
 
 function parseArgs(argv) {
-    const a = { room: null, days: null, yesterday: false, settle: false, mail: false, json: false, file: null, db: null };
+    const a = { room: null, days: null, yesterday: false, settle: false, mail: false, json: false, db: null };
     for (let i = 2; i < argv.length; i++) {
         const k = argv[i];
         if (k === '--room') a.room = String(argv[++i]);
@@ -45,7 +44,6 @@ function parseArgs(argv) {
         else if (k === '--settle') a.settle = true;
         else if (k === '--mail') a.mail = true;
         else if (k === '--json') a.json = true;
-        else if (k === '--file') a.file = argv[++i];     // 强制读旧 JSONL
         else if (k === '--db') a.db = argv[++i];         // 强制读指定 SQLite
     }
     return a;
@@ -61,14 +59,9 @@ function timeRange(opt) {
     return { lo: -Infinity, hi: Infinity };
 }
 
-// 数据源选择：显式 --file / --db 优先；否则 SQLite 存在就用 SQLite，退回 hands.jsonl。
+// 数据源：--db 优先，否则 POKER_DB_PATH / 本地开发库。找不到就报错退出，绝不退回别的数据源。
 function resolveSource(opt) {
-    if (opt.file) return { kind: 'jsonl', pathname: opt.file };
-    if (opt.db) return { kind: 'sqlite', pathname: opt.db };
-    const dbPath = defaultDbPath();
-    if (fs.existsSync(dbPath)) return { kind: 'sqlite', pathname: dbPath };
-    if (fs.existsSync(HANDS)) return { kind: 'jsonl', pathname: HANDS };
-    return { kind: 'none', pathname: dbPath };
+    return { kind: 'sqlite', pathname: opt.db || defaultDbPath() };
 }
 
 // SQLite 里 hands.payload_json 存的就是原始牌谱记录原文，
@@ -103,7 +96,6 @@ function loadFromSqlite(pathname, opt, range) {
 // ⚠️ 只覆盖 2026-08-09（SQLite 上线）之后的牌局；更早的牌谱没有 matchId 也没有流水，
 //    那部分仍然回退到启发式（见 matchRebuySubset）。
 function loadRebuyLedger(src) {
-    if (src.kind !== 'sqlite') return null;          // JSONL 模式没有账本可查 → 回退启发式
     let Database;
     try { Database = require('better-sqlite3'); } catch (e) { return null; }
     let db;
@@ -157,35 +149,13 @@ function matchRebuyLedger(delta, entries) {
     return null;
 }
 
-function loadFromJsonl(pathname, opt, range) {
-    const out = [];
-    for (const line of fs.readFileSync(pathname, 'utf8').split('\n')) {
-        if (!line.trim()) continue;
-        let h; try { h = JSON.parse(line); } catch (e) { continue; }
-        const room = String(h.roomId || h.room || '');
-        if (opt.room && room !== opt.room) continue;
-        if (h.ts < range.lo || h.ts >= range.hi) continue;
-        out.push(h);
-    }
-    return out;
-}
-
 // 数据源里最新一手的时间（不受 --days/--room 过滤影响）——用于判断数据源是否已冻结。
 function newestHandTs(src) {
     try {
-        if (src.kind === 'sqlite') {
-            const Database = require('better-sqlite3');
-            const db = new Database(src.pathname, { readonly: true, fileMustExist: true });
-            try { return db.prepare('SELECT MAX(started_at_ms) t FROM hands').get().t || 0; }
-            finally { db.close(); }
-        }
-        let max = 0;
-        for (const line of fs.readFileSync(src.pathname, 'utf8').split('\n')) {
-            if (!line.trim()) continue;
-            let h; try { h = JSON.parse(line); } catch (e) { continue; }
-            if (h.ts > max) max = h.ts;
-        }
-        return max;
+        const Database = require('better-sqlite3');
+        const db = new Database(src.pathname, { readonly: true, fileMustExist: true });
+        try { return db.prepare('SELECT MAX(started_at_ms) t FROM hands').get().t || 0; }
+        finally { db.close(); }
     } catch (e) { return 0; }
 }
 
@@ -193,21 +163,16 @@ const STALE_MS = 3 * 86400000;   // 超过 3 天没有新牌谱 → 数据源可
 
 function loadHands(opt) {
     const src = resolveSource(opt);
-    if (src.kind === 'none') { console.error(`找不到牌谱数据源（SQLite 与 hands.jsonl 都不存在）：${src.pathname}`); process.exit(2); }
-    if (!fs.existsSync(src.pathname)) { console.error(`找不到牌谱数据源：${src.pathname}`); process.exit(2); }
+    if (!fs.existsSync(src.pathname)) { console.error(`找不到牌谱数据库：${src.pathname}（请设置 POKER_DB_PATH 或加 --db）`); process.exit(2); }
     const range = timeRange(opt);
-    const out = src.kind === 'sqlite' ? loadFromSqlite(src.pathname, opt, range) : loadFromJsonl(src.pathname, opt, range);
+    const out = loadFromSqlite(src.pathname, opt, range);
     out.sort((x, y) => x.ts - y.ts);
     out.source = src;
-    // 数据源自检（防「读到冻结数据却报干净」这种虚假安心）：
-    // ① misconfigured＝确定性错误：SQLite 库明明存在，却还在读 JSONL → 必定漏审，按告警处理。
-    // ② stale＝仅提示：最新一手超过 3 天。低活跃的测试服本来就可能好几天没人玩，
-    //    单凭这一条就告警会变成噪音（告警一旦变吵就会被忽略，那才是真正的危险）。
+    // 数据源自检：stale＝仅提示，最新一手超过 3 天。低活跃的测试服本来就可能好几天没人玩，
+    // 单凭这一条就告警会变成噪音（告警一旦变吵就会被忽略，那才是真正的危险）。
     const newest = newestHandTs(src);
     out.newestTs = newest;
     out.stale = newest > 0 && (Date.now() - newest) > STALE_MS;
-    const dbPath = defaultDbPath();
-    out.misconfigured = src.kind === 'jsonl' && !opt.file && fs.existsSync(dbPath);
     return out;
 }
 
@@ -373,32 +338,37 @@ async function main() {
     // 把它打出来，免得以后误以为整份报告都是权威结论。
     const byLedger = findings.filter(f => f.verdictBy === 'ledger').length;
     const phantomTotal = alarms.reduce((s, f) => s + f.phantom, 0);
+    // 钱包账本核对（全库，不受 --days 影响；--room 只看一张桌时跳过）
+    const wallet = opt.room ? null : walletCheck(hands.source.pathname);
+    const walletBad = !!(wallet && wallet.problems.length);
+    const exitCode = (alarms.length || walletBad) ? 1 : 0;
 
     if (opt.json) {
-        console.log(JSON.stringify({ source: hands.source, scanned: hands.length, alarms, rebuys: rebuys.length, phantomTotal }, null, 2));
-        process.exit(alarms.length ? 1 : 0);
+        console.log(JSON.stringify({ source: hands.source, scanned: hands.length, alarms, rebuys: rebuys.length, phantomTotal, wallet }, null, 2));
+        process.exit(exitCode);
     }
 
     const scope = opt.room ? `房间 ${opt.room}` : (opt.yesterday ? '昨天' : (opt.days ? `最近 ${opt.days} 天` : '全部'));
     const src = hands.source || {};
     console.log(`\n🔍 筹码守恒审计 · ${scope} · 共扫描 ${hands.length} 手`);
-    console.log(`   数据源：${src.kind === 'sqlite' ? 'SQLite' : 'hands.jsonl'} ${src.pathname || ''}`);
+    console.log(`   数据源：SQLite ${src.pathname || ''}`);
     console.log(`   最新一手：${hands.newestTs ? when(hands.newestTs) : '（无）'}`);
     if (findings.length) {
         const pct = Math.round(byLedger * 100 / findings.length);
         console.log(`   补码判定：${byLedger}/${findings.length} 查钱包账本（权威）· 其余 ${findings.length - byLedger} 处无账本可查，回退启发式`
             + (pct < 100 ? '（2026-08-09 之前的牌谱没有 matchId/流水）' : ''));
     }
-    if (hands.misconfigured) {
-        console.log('');
-        console.log('🚨 数据源配置错误：SQLite 数据库已存在，审计却在读旧的 hands.jsonl。');
-        console.log('   SQLite 上线后牌谱写入数据库、hands.jsonl 不再更新 → 这样审计会永远报「干净」。');
-        console.log(`   请设置 POKER_DB_PATH（或加 --db <库路径>）后重跑。`);
-        console.log('');
-    } else if (hands.stale) {
+    if (hands.stale) {
         console.log('   ⚠️ 提示：最新一手距今已超过 3 天（低活跃期属正常；若期间确有人在玩，请检查数据源）。');
     }
-    if (!hands.length) { console.log('（无牌谱数据）\n'); process.exit(hands.misconfigured ? 1 : 0); }
+    if (wallet) {
+        if (!wallet.problems.length) console.log(`   钱包账本：${wallet.users} 个账户的流水全部首尾相接、等于当前余额 ✅`);
+        else {
+            console.log(`\n🔴 钱包账本对不上 ${wallet.problems.length} 处（有人在账本之外动过金币）：`);
+            wallet.problems.slice(0, 50).forEach(p => console.log(`   ${p.username}  ${p.detail}`));
+        }
+    }
+    if (!hands.length) { console.log('（无牌谱数据）\n'); process.exit(exitCode); }
 
     if (rebuys.length) {
         console.log(`\n✅ 合法的手中补码 ${rebuys.length} 处（chips 与带入同步增加，账是平的）：`);
@@ -438,8 +408,12 @@ async function main() {
         console.log(tf === 0 ? '\n✅ 修正后合计为 0，账平了。\n' : `\n⚠️ 修正后合计 ${fmt(tf)}（非 0，可能还有未识别的异常）\n`);
     }
 
-    if (opt.mail && (alarms.length || hands.misconfigured)) {
-        const body = `筹码守恒审计发现 ${alarms.length} 处异常（扫描范围：${scope}，共 ${hands.length} 手）\n`
+    if (opt.mail && (alarms.length || walletBad)) {
+        const walletPart = walletBad
+            ? `钱包账本对不上 ${wallet.problems.length} 处（有人在账本之外动过金币）：\n`
+              + wallet.problems.slice(0, 30).map(p => `  ${p.username}  ${p.detail}`).join('\n') + '\n\n'
+            : '';
+        const body = walletPart + `筹码守恒审计发现 ${alarms.length} 处异常（扫描范围：${scope}，共 ${hands.length} 手）\n`
             + `凭空合计：${fmt(phantomTotal)} 筹码\n\n`
             + alarms.map(f => `房间 ${f.roomId} seq ${f.handSeq} ${when(f.ts)}\n`
                 + `  差额 ${fmt(f.delta)}\n`
@@ -448,14 +422,26 @@ async function main() {
             + `\n\n排查建议：node tools/audit-chips.js --room <房间号> --settle`;
         // 必须 await：否则 process.exit 会在邮件发出前就把进程结束掉（告警就哑了）
         try {
-            const r = await require('../mailer.js').sendAlert('⚠️ 筹码守恒审计告警', body);
+            const r = await require('../mailer.js').sendAlert(walletBad ? '⚠️ 钱包账本 / 筹码守恒审计告警' : '⚠️ 筹码守恒审计告警', body);
             console.log(r.sent ? '📧 告警邮件已发送' : '📧 未配置发信，告警已打印到日志');
         } catch (e) {
             console.error('告警邮件发送失败：', e.message);
         }
     }
 
-    process.exit(alarms.length ? 1 : 0);
+    process.exit(exitCode);
+}
+
+function walletCheck(pathname) {
+    const Database = require('better-sqlite3');
+    const db = new Database(pathname, { readonly: true, fileMustExist: true });
+    try {
+        // 只拿到一份牌谱库（没有用户 / 钱包表，比如测试夹具）时跳过，不当成错误
+        const has = (t) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(t);
+        if (!has('users') || !has('wallet_transactions')) return null;
+        return require('./wallet-ledger').checkWalletLedger(db);
+    }
+    finally { db.close(); }
 }
 
 main().catch(e => { console.error('审计运行出错：', e); process.exit(2); });

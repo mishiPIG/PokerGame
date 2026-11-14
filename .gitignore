@@ -52,7 +52,6 @@ backups_offsite/
 # 本地私有文档与脚本（不入库，仅本地）
 # 仓库是 public：任何运维相关的内容一律用 *.local.md 命名，自动被忽略。
 *.local.md
-backup-hk.sh
 # 运维脚本目录（部署在服务器上，不随仓库分发）
 # 🔴 必须带前导斜杠锚在仓库根：不带的话 `ops/` 会匹配【任意深度】的同名目录，
 #    2026-09-16 就这么把新写的 PokerServer/src/ops/（崩溃告警 + 客户端报错两个模块）
@@ -65,6 +64,11 @@ PokerServer/ops/
 #    PokerServer/.local/ 另有一条兜着，但 data.json.localbak 就这么一直没被忽略着。
 #    它是用户库（账号/金币）的备份，而本仓库是 public —— 不能漏。
 PokerServer/data.json.localbak
+# 旧 JSON 时代的数据文件及其备份、崩溃记录、备份校验报告：都可能含玩家数据，一律不入库
+PokerServer/data.json*
+PokerServer/*.jsonl*
+PokerServer/crash-report.json
+*.verify.json
 
 # 签名密钥（APK 固定签名，绝不入库；base64 副本贴进 GitHub Secrets）
 .secrets/

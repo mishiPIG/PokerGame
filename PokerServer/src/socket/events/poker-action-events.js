@@ -7,6 +7,7 @@ function registerPokerActionEvents(context) {
     const { roomGames, lobbySockets } = runtime;
     const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, onActionTimeout, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction, persistence } = tableService;
     socket.on('player_action', ({ roomId, action, amount }) => {
+        if (socket.currentRoom !== roomId) return;   // 房间号是客户端传的：只能对自己所在的桌行动
         const game = roomGames[roomId];
         if (!game) return;
         if (game.actionOnIdx < 0 || game.players[game.actionOnIdx]?.userId !== user.id) {
@@ -125,7 +126,9 @@ function registerPokerActionEvents(context) {
         if (game.runIt.deciderId !== user.id) { socket.emit('server_msg', { k: 'runit.deciderOnly' }); return; }
         n = Math.max(1, Math.min(RUNIT_MAX, parseInt(n) || 1));
         if (n <= 1) { resolveRunIt(roomId, 1, 'single'); return; }
+        n = Math.min(n, game.runIt.maxRuns || n);   // 牌堆不够发那么多次时按上限来（resolveRunIt 也会夹，这里先夹住，免得领先方看到一个发不出来的数）
         game.runIt.n = n;
+        game.runIt.proposed = true;   // 断线重连时据此恢复到「等领先方同意」那一步
         // 为领先方重置一个完整的决策窗口（落后方选号已耗掉部分时间，否则领先方时间被压缩、
         // 容易错过同意 → 误退化成发 1 次。线上事故 room150331 就是这么丢的钱）
         const deadlineAt = Date.now() + RUNIT_DECIDE_MS;
@@ -146,8 +149,11 @@ function registerPokerActionEvents(context) {
     });
 
     // 加时：仅当前行动玩家可用；每次 +15s 消耗 1 张时间卡；单次行动累计仍上限 EXTRA_MAX(2min)
-    socket.on('add_time', (roomId) => {
-        const game = roomGames[roomId] || roomGames[socket.currentRoom];
+    socket.on('add_time', (rawRoomId) => {
+        // 房间号只解析一次：原来找牌局时会退回 currentRoom，重新上计时器却用客户端传来的原值 ——
+        // 传个不存在的房间号，计时器就被换成一个空操作，这手牌永远等着他。
+        const roomId = roomGames[rawRoomId] ? rawRoomId : socket.currentRoom;
+        const game = roomGames[roomId];
         if (!game || game.actionOnIdx < 0) return;
         const actor = game.players[game.actionOnIdx];
         if (!actor || actor.userId !== user.id) return;

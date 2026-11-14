@@ -453,7 +453,7 @@ function buildSeat(p, state) {
     const hue = hashHue(p.userId);
     const showRing = isActing && state.actionDeadline;
     const secs0 = showRing ? Math.max(0, Math.ceil((state.actionDeadline - Date.now()) / 1000)) : 0;
-    const avatarImg = p.avatar ? `<img class="avatar-img" src="${p.avatar}" onerror="this.style.display='none'">` : '';
+    const avatarImg = p.avatar ? `<img class="avatar-img" src="${escapeHtml(p.avatar)}" onerror="this.style.display='none'">` : '';
 
     // 准备徽标（仅开赛前）
     const canReady  = state.status === 'waiting' && (state.phase === 'waiting' || state.phase === 'showdown');
@@ -754,7 +754,7 @@ function positionPreBar() {
     const hr = hero.getBoundingClientRect(), vr = view.getBoundingClientRect();
     bar.style.bottom = (vr.bottom - (hr.top + hr.height / 2) - 16) + 'px';   // 人物中线
 }
-window.addEventListener('resize', () => { if (lastState) { positionActionBar(); positionPreBar(); positionStraddleOffer(); } });
+window.addEventListener('resize', () => { if (lastState) { positionActionBar(); positionPreBar(); } });
 
 // 牌桌区域尺寸一旦真正确定/变化，就整体重排一次。
 // 为什么需要：从大厅切进牌桌的那一帧，#table-area 还没拿到最终高度，

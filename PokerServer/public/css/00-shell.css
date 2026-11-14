@@ -137,9 +137,6 @@
         @media (max-width: 480px) {
             #user-bar { padding: 5px 10px; gap: 6px; font-size: 13px; margin-bottom: 6px; }
             #user-bar button { padding: 3px 8px; font-size: 11px; }
-            #table-topbar { padding: 5px 8px; gap: 6px; margin-bottom: 5px; }
-            #sng-info { font-size: 11px; }
-            #table-topbar .leave-btn, #table-topbar .sound-btn, #table-topbar .dissolve-btn,
             button.start { padding: 4px 8px; font-size: 12px; }
             #table-area { padding: 8px 6px; }
             .seat { padding: 4px 6px; }

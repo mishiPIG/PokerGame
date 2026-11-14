@@ -119,7 +119,8 @@ function registerFriendEvents(context) {
                 avatar: found.avatar || null,
                 friendCode: found.friendCode || '',
                 status: db.friends.edgeStatus(user.id, found.id),
-                ...presenceOf(found.id),
+                // 在不在线可以说；人在哪个房间只告诉已经是牌友的人 —— 否则搜个用户名就能跟进别人的牌桌
+                ...(st => (db.friends.edgeStatus(user.id, found.id) === 'accepted' ? st : { online: st.online, roomId: null }))(presenceOf(found.id)),
             },
         });
     });

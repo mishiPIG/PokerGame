@@ -3,10 +3,6 @@ let histMode = '';
 function openHistory() { document.getElementById('history-panel').style.display = ''; loadHistory('history-list', histMode, currentRoom); }
 function closeHistory() { document.getElementById('history-panel').style.display = 'none'; }
 
-function histFilter(btn, mode) {
-    btn.parentElement.querySelectorAll('.hf').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active'); histMode = mode; loadHistory('history-list', mode, currentRoom);
-}
 // 个人主页的牌谱 tab（独立 mode 与目标容器）
 let phistMode = '';
 function phistFilter(btn, mode) {

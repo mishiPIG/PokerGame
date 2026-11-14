@@ -58,7 +58,7 @@ function createClientErrorSink({ now = Date.now } = {}) {
                     build: clip(raw?.build, 40),        // 前端构建号：一眼看出是不是缓存了旧 JS
                     page: clip(raw?.page, 120),
                     ua: clip(raw?.ua, 200),
-                    kind: raw?.kind === 'rejection' ? 'rejection' : 'error',
+                    kind: ['rejection', 'csp'].includes(raw?.kind) ? raw.kind : 'error',   // csp = 浏览器安全策略拦下的违规
                     username: clip(username, 40) || null,
                     ip,
                 };

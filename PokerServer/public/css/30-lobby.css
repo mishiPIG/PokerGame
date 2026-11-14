@@ -178,30 +178,8 @@
         .rc-join { min-width: 72px; }
         .rc-join:disabled { opacity: 0.4; cursor: not-allowed; }
         .rc-join.rejoin { background: #06d6a0; color: #0a1f1a; }
-        .room-empty { color: rgba(255,255,255,0.3); text-align: center; padding: 30px; font-size: 14px; }
 
         /* ===== 牌桌顶栏 ===== */
-        #table-topbar {
-            display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
-            padding: 8px 12px; background: rgba(0,0,0,0.25); border-radius: 8px;
-        }
-        #table-topbar .leave-btn {
-            background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer;
-        }
-        #table-topbar .leave-btn:hover { background: rgba(214,40,40,0.4); }
-        #sng-info { flex: 1; font-size: 13px; color: #cde; }
-        #sng-info #next-level { color: #9db9a9; }
-        #sng-info .room-no { color: #dfe9e2; font-weight: bold; letter-spacing: 1px; }
-        #table-topbar .sound-btn {
-            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 6px; padding: 6px 10px; font-size: 14px; cursor: pointer;
-        }
-        #table-topbar .dissolve-btn {
-            background: rgba(214,40,40,0.25); color: #ff8a8a; border: 1px solid rgba(214,40,40,0.5);
-            border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer;
-        }
-        #table-topbar .dissolve-btn:hover { background: rgba(214,40,40,0.45); }
         .cfg-note { font-size: 12px; color: #9bb; margin-bottom: 12px;
             background: rgba(58,134,255,0.1); padding: 8px 10px; border-radius: 6px; }
         .tier-row { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }

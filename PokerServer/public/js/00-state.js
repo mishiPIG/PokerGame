@@ -33,7 +33,6 @@ let equityMap    = {};    // 全押跑马实时胜率 { userId: pct }
 let roomInviteInfo = null;
 let pendingInviteToken = '';
 let straddleOffer = null; // { targetHandSeq, amount, deadlineAt }，仅本次限时邀请
-let straddleOfferTimer = null;
 
 // 邀请链接使用 fragment，先暂存到当前标签页，再从地址栏清除；登录/注册完成后继续处理。
 function capturePendingInvite() {

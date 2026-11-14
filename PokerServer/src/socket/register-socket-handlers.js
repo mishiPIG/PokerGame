@@ -9,6 +9,8 @@ const { registerFriendEvents } = require('./events/friend-events');
 const { registerPokerActionEvents } = require('./events/poker-action-events');
 const { registerDisconnectEvents } = require('./events/disconnect-events');
 
+const { sanitize } = require('../ops/payload-sanitize');
+
 function registerSocketHandlers(deps) {
     const { io, db, runtime, tableService } = deps;
     io.on('connection', (socket) => {
@@ -23,7 +25,13 @@ function registerSocketHandlers(deps) {
                 console.error(`[socket-error] event=${event} userId=${user.id}`, error?.stack || error);
                 const roomId = socket.currentRoom;
                 const game = roomId && runtime.roomGames[roomId];
-                if (game) {
+                // 🔴 谁的错误才暂停牌桌：只有【这张桌上在座的人 / 房主 / 管理员】。
+                //    暂停的本意是「牌局状态可能被改了一半，先停下等人看」——
+                //    观战者、路人发的消息出错，牌局状态根本没被他动过，不该停。
+                //    原来任何人出错都暂停，于是任何一个观战者构造一条坏消息就能停掉任何一桌（大厅列表里谁都能进去观战）。
+                const mayHaveTouchedGame = game && (user.isAdmin || game.ownerUserId === user.id
+                    || game.players.some(p => p.userId === user.id));
+                if (mayHaveTouchedGame) {
                     game.paused = true;
                     game.recoveryError = {
                         event,
@@ -41,6 +49,11 @@ function registerSocketHandlers(deps) {
                 }
                 socket.emit('server_msg', { k: 'sys.actionFailed' });
             };
+            // 绝大多数处理器的第一个参数是 `({ a, b })` 这样解构的；客户端不带负载时会直接抛 TypeError，
+            // 而下面的 handleError 会把发送者所在的整张桌子【暂停发牌】——
+            // 也就是任何一个观战者发一条空消息就能停掉一桌。空负载一律补成 {}。
+            if (args[0] == null && event !== 'disconnect' && event !== 'latency_ping') args[0] = {};
+            if (event !== 'disconnect') args = args.map(a => sanitize(a));
             try {
                 const result = handler(...args);
                 if (result && typeof result.then === 'function') result.catch(handleError);

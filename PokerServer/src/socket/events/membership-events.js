@@ -16,7 +16,9 @@ function registerMembershipEvents(context) {
         gameBB, BUYIN_RATE, CASHOUT_RATE, clampInt, joinAsSpectator, startHand, listSpectators,
         scheduleEmptyCleanup } = bind(context);
     // 坐下入座（现金桌坐下式）：观众点空座位 → 带入筹码正式入座
-    socket.on('sit_down', ({ buyInChips, seat }) => {
+    socket.on('sit_down', ({ buyInChips, seat } = {}) => {
+        // 座位号必须是整数：字符串 "3" 能骗过 occupiedSeats.has(3)，两个人会坐进同一个座位
+        if (!Number.isInteger(seat)) seat = null;
         const roomId = socket.currentRoom;
         const game = roomId && roomGames[roomId];
         if (!game) return;
@@ -31,8 +33,10 @@ function registerMembershipEvents(context) {
         if (seatPlayer(roomId, socket, user, buyInChips, seat)) {
             // 带入额已在 seatPlayer 内记录（buyIn=chips），此处不再重复累加
             // 入座后若满足开局条件且现金桌进行中/可开，尝试开局
-            if (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) {
-                if (game.status === 'running') { if (liveCount(game) >= 2) startHand(roomId); }
+            // 局间坐下：已经排好下一手就不动它；人数刚补齐（桌子原本停着）就 1.5 秒后开。
+            if ((game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN)
+                && game.status === 'running' && liveCount(game) >= 2) {
+                scheduleNextHand(roomId, { delayMs: 1500, keepExisting: true });
             }
         }
     });
@@ -136,8 +140,9 @@ function registerMembershipEvents(context) {
         io.in(roomId).emit('server_msg', { k: 'host.resumed' });
         // 若当前在局间且满足开局条件，立即续上一局
         if (game.status === 'running' && (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) && liveCount(game) >= 2) {
-            startHand(roomId);
-        } else broadcastState(roomId);
+            scheduleNextHand(roomId, { delayMs: 800 });   // 走统一入口：先做本手收尾（离座/补码/挂起的解散）
+        }
+        broadcastState(roomId);
     });
 
     // 留座离座（现金桌）：保留座位、坐出本手，2 分钟内不回来自动站起兑出
@@ -188,7 +193,7 @@ function registerMembershipEvents(context) {
         io.in(roomId).emit('server_msg', `🪑 ${nameOf(user)} 回到座位`);
         if (game.roomType === 'cash' && game.status === 'running'
             && (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) && liveCount(game) >= 2)
-            scheduleNextHand(roomId);
+            scheduleNextHand(roomId, { keepExisting: true });   // 已经排好下一手就不重置（反复点「回座」不能把下一手无限往后推）
         broadcastState(roomId);
     });
 
@@ -220,16 +225,15 @@ function registerMembershipEvents(context) {
                     socket.emit('left_room');
                     io.to(roomId).emit('server_msg', `🚪 ${nameOf(user)} 离开牌桌（座位与筹码保留，结束时结算）`);
                     if (midHand) { p.folded = true; p.hasActed = true; }
-                    // 全员离桌(无人在座)且无观众 → 直接结算收尾，避免空房悬挂持有筹码
-                    const anyActive = game.players.some(pl => !pl.standing && !pl.away);
-                    if (!anyActive && listSpectators(roomId).length === 0) {
-                        scheduleEmptyCleanup(roomId);   // 全员离开：空房保留 3 分钟再结算关闭（退出≠立即解散）
-                    } else if (midHand) {
+                    // 🔴 弃了牌就一定要推进：原来「全员离桌」时只挂空房计时、不推进，
+                    //    剩下那个掉线的人到点又被按超时弃牌 —— 一个没弃牌的人都没有，底池就没人领了。
+                    if (midHand) {
                         if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
                         else if (isBettingRoundComplete(game)) advanceStage(roomId);
                         else broadcastState(roomId);
                         broadcastRoomList();
                     } else { broadcastState(roomId); broadcastRoomList(); }
+                    scheduleEmptyCleanup(roomId);   // 到点再确认房里是不是真没人了（有人就什么都不做）
                 } else if (game.status === 'waiting') {
                     // SNG 开赛前退出：退还报名费、移除座位（仅"从未开赛"才退，避免结束后离场被误退款）
                     const refund = game.config.buyIn || 0;
@@ -251,7 +255,8 @@ function registerMembershipEvents(context) {
                                 delta: refund,
                                 type: 'sng_refund',
                                 matchId: game.matchId,
-                                operationKey: `sng-refund:${game.matchId}:${user.id}`,
+                                // 带序号：同一场里退第二次时不能撞上第一次的键（否则第二次不会真退）
+                                operationKey: `sng-refund:${game.matchId}:${user.id}:${db.wallet.countOperations(`sng-refund:${game.matchId}:${user.id}`) + 1}`,
                                 metadata: { reason: 'left_before_start' }
                             }], 'sng_refund', user.id, { refund }, [{
                                 userId: p.userId,
@@ -304,16 +309,18 @@ function registerMembershipEvents(context) {
                         else if (isBettingRoundComplete(game)) advanceStage(roomId);
                         else broadcastState(roomId);
                     } else broadcastState(roomId);
+                    scheduleEmptyCleanup(roomId);
                 }
             } else {
                 // 观众离开（现金桌未入座）：退出 socket.io 房间并刷新观众列表
                 socket.leave(roomId);
                 // 仅当房间真的空了（无任何 socket，含未坐下的房主观众）才关房——
                 // 否则房主创建后未落座、被路人观战一下再走会误删房间。
-                const room = io.sockets.adapter.rooms.get(roomId);
-                const trulyEmpty = game.players.length === 0 && (!room || room.size === 0);
-                if (trulyEmpty) scheduleEmptyCleanup(roomId);   // 空房保留 3 分钟再关，可凭房号回来
-                else { broadcastState(roomId); broadcastRoomList(); }
+                // 原来只在「没人在座」时才挂计时：观众路过时清掉了计时器，
+                // 走的时候又因为还有（已掉线的）在座者而不重挂 → 房间永远不清理。
+                // 现在一律挂，到点再查房里还有没有连接。
+                scheduleEmptyCleanup(roomId);
+                broadcastState(roomId); broadcastRoomList();
             }
         }
         socket.currentRoom = null;

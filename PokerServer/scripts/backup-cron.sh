@@ -45,19 +45,16 @@ HANDS=$(grep -o '"hands": *[0-9]*' "$OUT.verify.json" | tail -1 | grep -o '[0-9]
 USERS=$(grep -o '"users": *[0-9]*' "$OUT.verify.json" | head -1 | grep -o '[0-9]*' || echo '?')
 echo "[backup] ✅ 校验通过 大小=$SIZE 用户=$USERS 牌谱=$HANDS"
 
-# 3) 迁移过渡期：旧 JSON/JSONL 已冻结不再写入，但作为切换前的回滚兜底，各留一份即可
-LEGACY="$DST/legacy"
-if [ -f "$SERVER_DIR/data.json" ] && [ ! -f "$LEGACY/data.json" ]; then
-  mkdir -p "$LEGACY"
-  for f in data.json hands.jsonl feedback.jsonl; do
-    [ -f "$SERVER_DIR/$f" ] && cp -p "$SERVER_DIR/$f" "$LEGACY/$f"
-  done
-  echo "[backup] 已保存切换前旧文件快照（仅首次）→ $LEGACY"
-fi
-
-# 4) 清理超出保留份数的旧备份（连同其校验报告）
-ls -1t "$DST"/pokerdojo-*.sqlite 2>/dev/null | tail -n +"$((KEEP + 1))" | while read -r old; do
+# 3) 清理超出保留份数的旧备份（连同其校验报告）
+# 🔴 只数【每日备份】（pokerdojo-<日期>_<时间>）。原来的 pokerdojo-*.sqlite 把
+#    pokerdojo-predeploy-* 也算了进去 —— 每部署一次就挤掉一份每日备份。
+#    （check-backups.js 本来就只认每日那种，两边口径现在一致。）
+ls -1t "$DST"/pokerdojo-[0-9]*_[0-9]*.sqlite 2>/dev/null | tail -n +"$((KEEP + 1))" | while read -r old; do
   rm -f "$old" "$old.verify.json"
+done
+# 部署前快照单独留最近 5 份（连同验证时留下的 -wal/-shm）
+ls -1t "$DST"/pokerdojo-predeploy-*.sqlite 2>/dev/null | tail -n +6 | while read -r old; do
+  rm -f "$old" "$old.verify.json" "$old-wal" "$old-shm"
 done
 
 echo "[backup] $ts done（保留最近 $KEEP 份）"

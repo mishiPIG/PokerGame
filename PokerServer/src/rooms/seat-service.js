@@ -3,7 +3,7 @@ const { nameOf } = require('../account/display-name');
 
 function createSeatService({ io, db, roomGames, lobbySockets, config, persistence, hooks }) {
     const { PHASES, BUYIN_RATE, CASHOUT_RATE, gameBB, timeCardsFor } = config;
-    const { clampInt, broadcastState, broadcastRoomList, clearActionTimer, afterAction, isBettingRoundComplete, advanceStage, scheduleNextHand, liveCount, cashOut, recordLeft } = hooks;
+    const { clampInt, broadcastState, broadcastRoomList, clearActionTimer, afterAction, isBettingRoundComplete, advanceStage, scheduleNextHand, liveCount, cashOut, recordLeft, scheduleEmptyCleanup } = hooks;
 // 站起围观：把玩家移出座位（座位腾空、可被他人坐下），转为观众；筹码存入 vacatedPlayers，
 // 结束/解散时统一结算（不立即兑出）。与「留座离桌」(reserved, 保留座位) 区分。
 function vacateSeat(game, idx) {
@@ -68,11 +68,12 @@ function restoreVacatedPlayer(roomId, socket, user, preferSeat) {
     const vi = game.vacatedPlayers.findIndex(v => v.userId === user.id);
     if (vi < 0) return false;
     let seat = preferSeat;
-    if (seat == null || seat < 0 || seat >= game.config.maxPlayers || occupiedSeats(game).has(seat)) seat = firstFreeSeat(game);
+    if (!Number.isInteger(seat) || seat < 0 || seat >= game.config.maxPlayers || occupiedSeats(game).has(seat)) seat = firstFreeSeat(game);
     if (seat < 0) { socket.emit('server_msg', { k: 'seat.noneToReturn' }); return true; }
     const vp = game.vacatedPlayers.splice(vi, 1)[0];
     const inHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
     lobbySockets.delete(socket.id);
+    leavePreviousRoom(socket, roomId);
     socket.join(roomId); socket.currentRoom = roomId;
     game.players.push({
         userId: user.id, socketId: socket.id, username: user.username, displayName: user.displayName, seat,
@@ -82,7 +83,7 @@ function restoreVacatedPlayer(roomId, socket, user, preferSeat) {
         folded: inHand, allIn: false, hasActed: false, ready: false, sittingOut: vp.chips <= 0
     });
     io.in(roomId).emit('server_msg', `🪑 ${nameOf(user)} 回到座位（${seat + 1} 号位，带回原筹码）`);
-    if (game.status === 'running' && !inHand && liveCount(game) >= 2) scheduleNextHand(roomId);
+    if (game.status === 'running' && !inHand && liveCount(game) >= 2) scheduleNextHand(roomId, { keepExisting: true });
     broadcastState(roomId); broadcastRoomList();
     return true;
 }
@@ -148,7 +149,7 @@ function removeBustedPlayers(game) {
         const p = game.players[i];
         if (game.roomType === 'cash') {
             // 自动补码：耗尽且开启 autoRebuy 且无挂起 → 自动按最小带入补一手（要离座的人不补）
-            if (!p.vacateAfter && p.chips <= 0 && p.autoRebuy && !(p.pendingRebuy > 0) && !p.leaving) {
+            if (!p.vacateAfter && p.chips <= 0 && p.autoRebuy && !(p.pendingRebuy > 0)) {
                 if (chargeRebuy(game, p, game.config.minBuyIn)) io.in(roomId).emit('server_msg', `🔁 ${nameOf(p)} 自动补码 ${game.config.minBuyIn}`);
             }
             // 有挂起补码：下一手生效（加筹码，取消坐出）。
@@ -156,15 +157,7 @@ function removeBustedPlayers(game) {
             if (p.pendingRebuy > 0) { p.chips += p.pendingRebuy; p.pendingRebuy = 0; p.sittingOut = false; }
             // 站起围观待腾位（本手结束）：移出座位到 vacatedPlayers，座位空出
             if (p.vacateAfter) { vacateSeat(game, i); continue; }
-            if (p.leaving) {
-                recordLeft(game, p);   // 战绩面板灰显 + 结束排名
-                const payout = cashOut(p);
-                io.in(roomId).emit('server_msg', `🚪 ${nameOf(p)} 离场，兑出 ${payout} 金币`);
-                const s = io.sockets.sockets.get(p.socketId);
-                if (s && s.currentRoom === roomId) { s.leave(roomId); s.currentRoom = null; lobbySockets.add(s.id); s.emit('busted_out'); }
-                game.players.splice(i, 1);
-                if (game.buttonIdx > i) game.buttonIdx--;
-            } else if (p.chips <= 0 && !p.sittingOut) {
+            if (p.chips <= 0 && !p.sittingOut) {
                 p.sittingOut = true;   // 坐出（保留座位），等补码
                 io.in(roomId).emit('server_msg', `💤 ${nameOf(p)} 记分牌耗尽，坐出（可补码回来）`);
             }
@@ -207,8 +200,26 @@ function restoreReserveTimers(roomId) {
 
 // 入座：SNG=扣报名费+固定起始筹码；现金桌=金币按汇率买入筹码
 // 以观众身份进桌（不入座、不带入）：用于现金桌「坐下式」入座
+// 换房间 / 回大厅时，先离开原来那个 socket.io 房间。
+// 🔴 2026-11-14 之前从来不离开：一条连接逛过几个房间，就同时收着几个房间的广播 ——
+//    被请出的人换个房间照样收原房间的聊天和牌桌状态；空房清理按「房里还有几条连接」判断，
+//    于是被这种连接逛过的房间永远不算空、永远不会被清理（SNG 的报名费就锁在里面）。
+function leavePreviousRoom(socket, nextRoomId = null) {
+    const old = socket.currentRoom;
+    if (!old || old === nextRoomId) return;
+    socket.leave(old);
+    socket.currentRoom = null;
+    const g = roomGames[old];
+    if (!g) return;
+    // 他要是还坐在原来那桌上：和掉线一样处理（座位保留，行动交给计时器兜底）
+    const p = g.players.find(pl => pl.userId === socket.user?.id && pl.socketId === socket.id);
+    if (p) { p.away = true; broadcastState(old); }
+    if (scheduleEmptyCleanup) scheduleEmptyCleanup(old);
+}
+
 function joinAsSpectator(roomId, socket) {
     lobbySockets.delete(socket.id);
+    leavePreviousRoom(socket, roomId);
     socket.join(roomId);
     socket.currentRoom = roomId;
     socket.emit('room_joined', { roomId, canPlay: socket.playRoom === roomId });
@@ -224,13 +235,21 @@ function firstFreeSeat(game) {
     return -1;
 }
 
+// 入座扣款的幂等键：按账本里已有几笔来编号（和补码同一个做法）。
+// 🔴 原来是固定的 `sng-entry:<场>:<人>`：开赛前「退出（退报名费）→ 再进来」会复用同一个键，
+//    钱包认为「这笔早处理过」不再扣钱，人却照样入座、报名费照样记进奖池 ——
+//    冠军奖金里就有一份没人付过的钱。
+function seatChargeKey(prefix) {
+    return `${prefix}:${db.wallet.countOperations(prefix) + 1}`;
+}
+
 // 入座：SNG=扣报名费+固定起始筹码；现金桌=金币按汇率买入筹码
 // seat=指定座位号（现金桌坐下式由客户端点选；不传则取首个空座）
 function seatPlayer(roomId, socket, user, buyInChips, seat) {
     const game = roomGames[roomId];
     const fresh = db.getUserById(user.id);
     // 座位分配（固定座位号；客户端按 seat 环形定位）
-    if (seat == null || seat < 0 || seat >= game.config.maxPlayers || occupiedSeats(game).has(seat)) {
+    if (!Number.isInteger(seat) || seat < 0 || seat >= game.config.maxPlayers || occupiedSeats(game).has(seat)) {
         seat = firstFreeSeat(game);
     }
     if (seat < 0) { socket.emit('server_msg', { k: 'seat.none' }); return false; }
@@ -244,16 +263,17 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
         cost = Math.ceil(chips * BUYIN_RATE);
         if (fresh.gold < cost) { socket.emit('server_msg', { k: 'gold.lowBuyin', p: { chips: chips, cost: cost, gold: fresh.gold } }); return false; }
         walletType = 'cash_buyin';
-        operationKey = `cash-buyin:${game.matchId}:${user.id}`;
+        operationKey = seatChargeKey(`cash-buyin:${game.matchId}:${user.id}`);
     } else {
         const fee = game.config.buyIn || 0;
         if (fresh.gold < fee) { socket.emit('server_msg', { k: 'gold.lowEntry', p: { fee: fee, gold: fresh.gold } }); return false; }
         cost = fee;
         walletType = 'sng_entry';
-        operationKey = `sng-entry:${game.matchId}:${user.id}`;
+        operationKey = seatChargeKey(`sng-entry:${game.matchId}:${user.id}`);
         chips = game.config.startingStack;
     }
     lobbySockets.delete(socket.id);
+    leavePreviousRoom(socket, roomId);
     socket.join(roomId);
     socket.currentRoom = roomId;
     const inHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
@@ -290,6 +310,10 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
         const committed = changes.length
             ? persistence.commitWithWallet(roomId, changes, walletType, user.id, { chips, cost })
             : { wallets: [], match: persistence.commit(roomId, 'player_seated', user.id, { chips }) };
+        // 入座是一次全新的付款。钱包若回「这个键早处理过」，只可能意味着这次没扣到钱 —— 当失败回滚。
+        if (changes.length && committed.wallets[0] && committed.wallets[0].applied === false) {
+            throw new Error('WALLET_NOT_APPLIED');
+        }
         if (changes.length) {
             user.gold = committed.wallets[0].balance;
             socket.emit('gold_update', { gold: user.gold });
@@ -310,7 +334,7 @@ function seatPlayer(roomId, socket, user, buyInChips, seat) {
     return true;
 }
 
-    return { vacateSeat, standUpPlayer, restoreVacatedPlayer, chargeRebuy, removeBustedPlayers, restoreReserveTimers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer };
+    return { leavePreviousRoom, vacateSeat, standUpPlayer, restoreVacatedPlayer, chargeRebuy, removeBustedPlayers, restoreReserveTimers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer };
 }
 
 module.exports = { createSeatService };

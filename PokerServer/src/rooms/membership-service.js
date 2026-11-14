@@ -9,7 +9,7 @@ function createMembershipService({ io, runtime, tableService, config }) {
     const {
         listRooms, authorize, broadcastState, emitStraddleOffer, broadcastRoomList,
         liveCount, scheduleNextHand, joinAsSpectator, seatPlayer, startActionTimer,
-        canAuthorizeNewUser
+        canAuthorizeNewUser, leavePreviousRoom
     } = tableService;
 
     function joinRoom(socket, user, roomId) {
@@ -25,6 +25,7 @@ function createMembershipService({ io, runtime, tableService, config }) {
             return;
         }
         clearTimeout(game.emptyCleanupTimer);
+        if (game.pendingDissolve === 'empty') game.pendingDissolve = false;   // 有人回来了：撤销「空房、本手后解散」
 
         // 🔴 被房主请出去的人不算「本房成员」。
         //    踢人走的是 standUpPlayer，他会落到 vacatedPlayers（筹码留着结算）——
@@ -50,6 +51,7 @@ function createMembershipService({ io, runtime, tableService, config }) {
         const existing = game.players.find(p => p.userId === user.id);
         if (existing) {
             existing.socketId = socket.id;
+            const wasAway = !!existing.away;
             existing.away = false;
             existing.leftByChoice = false;   // 回来了：恢复正常行动时间
             // 人回来了 → 撤掉「全员离线自动解散」的待执行计时，避免还在玩的房残留待解散状态
@@ -60,6 +62,7 @@ function createMembershipService({ io, runtime, tableService, config }) {
                 if (existing.chips > 0) existing.sittingOut = false;
             }
             lobbySockets.delete(socket.id);
+            leavePreviousRoom(socket, roomId);
             socket.join(roomId);
             socket.currentRoom = roomId;
             socket.emit('room_joined', { roomId, canPlay: socket.playRoom === roomId });
@@ -69,10 +72,12 @@ function createMembershipService({ io, runtime, tableService, config }) {
             }
             if (game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN
                 && game.actionOnIdx >= 0 && game.players[game.actionOnIdx]?.userId === user.id) {
-                startActionTimer(roomId);
+                // 只有【真的掉线回来】才给一个完整的新计时。一直在线的人重发 join_room
+                // 不能白拿一轮思考时间（否则每 15 秒发一次就是无限思考、不耗时间卡）。
+                if (wasAway || !game.actionTimer) startActionTimer(roomId);
             } else if ((game.roomType === 'cash' || game.roomType === 'sng') && game.status === 'running' && !existing.sittingOut
                 && (game.phase === PHASES.WAITING || game.phase === PHASES.SHOWDOWN) && liveCount(game) >= 2) {
-                scheduleNextHand(roomId);   // 续局（含：全员掉线暂停后，有人重连即恢复发牌；SNG 也适用）
+                scheduleNextHand(roomId, { keepExisting: true });   // 续局（已经排好了就不重置：否则在座的人反复发 join_room 能让下一手永远发不出来）（含：全员掉线暂停后，有人重连即恢复发牌；SNG 也适用）
             }
             broadcastState(roomId);
             emitStraddleOffer(game, socket);

@@ -67,7 +67,8 @@ test('seat service receives its buy-in clamp dependency explicitly', () => {
     const socket = { id: 'socket1', playRoom: 'room1', join() {}, emit(event, payload) { emitted.push([event, payload]); }, to() { return { emit() {} }; } };
     const db = {
         getUserById() { return { gold: 1000, avatar: null }; },
-        setGold() {}
+        setGold() {},
+        wallet: { countOperations() { return 0; } }
     };
     const seatService = createSeatService({
         io: { in() { return { emit() {} }; }, to() { return { emit() {} }; }, sockets: { sockets: new Map() } },

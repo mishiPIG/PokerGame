@@ -23,7 +23,7 @@ function createTableService({ io, db, stats, equity, Card, Deck, HandEvaluator, 
         dissolveNow: (roomId) => (roomGames[roomId]?.roomType === 'cash'
             ? cashMatchService.endCashTable(roomId, '房主提前结束')
             : sngMatchService.dissolveSngRoom(roomId)) } });
-    const seatHooks = { clampInt, broadcastState: (...args) => pokerService.broadcastState(...args), broadcastRoomList, clearActionTimer: (...args) => pokerService.clearActionTimer(...args), afterAction: (...args) => pokerService.afterAction(...args), isBettingRoundComplete: (...args) => pokerService.isBettingRoundComplete(...args), advanceStage: (...args) => pokerService.advanceStage(...args), scheduleNextHand: cashMatchService.scheduleNextHand, liveCount: (...args) => pokerService.liveCount(...args), cashOut: cashMatchService.cashOut, recordLeft };
+    const seatHooks = { clampInt, broadcastState: (...args) => pokerService.broadcastState(...args), broadcastRoomList, clearActionTimer: (...args) => pokerService.clearActionTimer(...args), afterAction: (...args) => pokerService.afterAction(...args), isBettingRoundComplete: (...args) => pokerService.isBettingRoundComplete(...args), advanceStage: (...args) => pokerService.advanceStage(...args), scheduleNextHand: cashMatchService.scheduleNextHand, liveCount: (...args) => pokerService.liveCount(...args), cashOut: cashMatchService.cashOut, recordLeft, scheduleEmptyCleanup: (...args) => cashMatchService.scheduleEmptyCleanup(...args) };
     seatService = createSeatService({ io, db, roomGames, lobbySockets, config, persistence, hooks: seatHooks });
     pokerService = createPokerService({ io, db, equity, Deck, HandEvaluator, config, runtime, persistence, hooks: { applyPendingLevelUp: sngMatchService.applyPendingLevelUp, maybeEndSNG: sngMatchService.maybeEndSNG, scheduleNextHand: cashMatchService.scheduleNextHand, startLevelTimer: sngMatchService.startLevelTimer, startTableTimer: cashMatchService.startTableTimer, broadcastRoomList } });
 
@@ -50,6 +50,8 @@ function createTableService({ io, db, stats, equity, Card, Deck, HandEvaluator, 
             cashMatchService.restoreNextHandTimer(roomId);
             if (game.roomType === 'cash') cashMatchService.restoreTableTimer(roomId);
             if (game.roomType === 'sng') sngMatchService.restoreLevelTimer(roomId);
+            // 重启后没人回来的房间也要能被清理：原来恢复时不挂计时，这种房会一直挂着、占着房间码
+            cashMatchService.scheduleEmptyCleanup(roomId);
         }
     }
 

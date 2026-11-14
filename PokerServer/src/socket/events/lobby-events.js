@@ -1,4 +1,17 @@
 'use strict';
+// 房间名是房主自己输入的，会出现在大厅列表、牌桌水印、管理面板、收件箱里。
+// 能拼出 HTML / 跳出 JS 字符串的字符直接去掉（客户端也会转义，这是第二道）。
+// 建房上限。没有它的话一个人可以开到房间码用完（4 位码 = 1 万个），之后谁都建不了房；
+// 而且每个房间都常驻内存，1G 的生产机经不起刷。
+const MAX_ROOMS_PER_OWNER = 3;
+const MAX_ROOMS_TOTAL = 300;
+function roomLimitReached(roomGames, userId) {
+    const live = Object.values(roomGames).filter(g => !g.tournamentOver);
+    if (live.length >= MAX_ROOMS_TOTAL) return 'room.serverFull';
+    if (live.filter(g => g.ownerUserId === userId).length >= MAX_ROOMS_PER_OWNER) return 'room.tooManyMine';
+    return null;
+}
+const cleanRoomName = (v) => (v == null ? '' : String(v)).replace(/[<>"'`&\\]/g, '').trim().slice(0, 20);
 const { bind } = require('./room-context');
 const { initialFair } = require('../../games/poker/provably-fair');
 
@@ -7,13 +20,15 @@ function registerLobbyEvents(context) {
     // 进入大厅：订阅房间列表
     socket.on('enter_lobby', () => {
         lobbySockets.add(socket.id);
-        socket.currentRoom = null;
+        context.tableService.leavePreviousRoom(socket);   // 真的离开原来的 socket.io 房间，不只是把 currentRoom 清空
         socket.emit('room_list', listRooms(user.id));
     });
 
     // 创建 SNG 房间（双人升盲），创建者自动入座
     socket.on('create_room', (cfg) => {
         cfg = cfg || {};
+        const limit = roomLimitReached(roomGames, user.id);
+        if (limit) { socket.emit('server_msg', { k: limit, p: { n: MAX_ROOMS_PER_OWNER } }); return; }
         const roomId = genRoomId();
         roomGames[roomId] = {
             deck: new Deck(), players: [], phase: PHASES.WAITING,
@@ -33,7 +48,7 @@ function registerLobbyEvents(context) {
             // 🔴 默认私密：默认值决定 90% 的结果。把「陌生人能坐进我的局」设成默认，
             //    一旦出事就是信任事故 —— 而信任事故比冷启动难修得多。
             visibility: cfg.visibility === 'public' ? 'public' : 'private',
-                name:        (cfg.name || '').toString().trim().slice(0, 20) || `${user.displayName || user.username}的比赛`,
+                name:        cleanRoomName(cfg.name) || `${user.displayName || user.username}的比赛`,
                 maxPlayers:  clampInt(cfg.maxPlayers, 2, 9, 2),              // 2–9 人（引擎已支持多人）
                 startingStack: clampInt(cfg.startingStack, 5000, 30000, 10000),
                 levelMinutes:  clampInt(cfg.levelMinutes, 3, 10, 3),
@@ -55,6 +70,8 @@ function registerLobbyEvents(context) {
     // 创建现金桌（2–9 人，固定盲注，金币↔筹码买入），创建者按 buyInChips 买入
     socket.on('create_cash_room', (cfg) => {
         cfg = cfg || {};
+        const limit = roomLimitReached(roomGames, user.id);
+        if (limit) { socket.emit('server_msg', { k: limit, p: { n: MAX_ROOMS_PER_OWNER } }); return; }
         const roomId = genRoomId();
         const bb = clampInt(cfg.bb, 20, 1000, 40);
         const sb = clampInt(cfg.sb, 10, bb, Math.floor(bb / 2));
@@ -78,7 +95,7 @@ function registerLobbyEvents(context) {
             // 🔴 默认私密：默认值决定 90% 的结果。把「陌生人能坐进我的局」设成默认，
             //    一旦出事就是信任事故 —— 而信任事故比冷启动难修得多。
             visibility: cfg.visibility === 'public' ? 'public' : 'private',
-                name:      (cfg.name || '').toString().trim().slice(0, 20) || `${user.displayName || user.username}的现金桌`,
+                name:      cleanRoomName(cfg.name) || `${user.displayName || user.username}的现金桌`,
                 maxPlayers: clampInt(cfg.maxPlayers, 2, 9, 6),
                 sb, bb, ante: clampInt(cfg.ante, 0, 80, 0), minBuyIn, maxBuyIn,
                 allowUtgStraddle: cfg.allowUtgStraddle === true,

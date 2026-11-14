@@ -10,8 +10,7 @@
         .chat-row .chat-name { color: #7ecfa8; font-weight: bold; margin-right: 6px; }
         .chat-row.mine .chat-name { color: #f4d35e; }
         .chat-row .chat-text { color: #dfe9e2; }
-        .chat-emotes, .chat-phrases { display: flex; flex-wrap: wrap; gap: 6px; padding: 7px 10px; justify-content: center; }
-        .chat-emotes { border-top: 1px solid rgba(255,255,255,0.08); }
+        .chat-phrases { display: flex; flex-wrap: wrap; gap: 6px; padding: 7px 10px; justify-content: center; }
         .emote-btn { flex: 0 0 auto; width: 38px; height: 38px; font-size: 20px; border-radius: 10px;
             background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); cursor: pointer; }
         .chat-phrases { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 4px; max-height: 56vh; overflow-y: auto; }   /* 单列竖排(nowrap 防多列横滑)，字体小一页显全 */

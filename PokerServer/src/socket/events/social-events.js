@@ -19,6 +19,8 @@ function registerSocialEvents(context) {
 
     // 表情/互动：在发送者座位上方冒一个大表情（可带目标=扔给某人）。限频
     socket.on('emote', ({ emote, targetUserId }) => {
+        // 目标 userId 原样转发给全桌：限定成短字符串（原来能塞 30KB、还能让客户端的选择器抛错）
+        if (typeof targetUserId !== 'string' || targetUserId.length > 64) targetUserId = null;
         const roomId = socket.currentRoom;
         if (!roomId || !roomGames[roomId]) return;
         if (typeof emote !== 'string' || emote.length > 8) return;
@@ -36,6 +38,7 @@ function registerSocialEvents(context) {
 
     // 点头像看「本局」数据（VPIP/PFR/3bet/ATS…）：按当前房间聚合，摊牌信息公开可见
     socket.on('req_player_stats', ({ targetUserId }) => {
+        if (typeof targetUserId !== 'string' || targetUserId.length > 64) targetUserId = null;
         const roomId = socket.currentRoom;
         if (!roomId || !roomGames[roomId]) return;
         const uid = targetUserId || user.id;

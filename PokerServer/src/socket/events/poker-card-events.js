@@ -8,6 +8,7 @@ function registerPokerCardEvents(context) {
     const { projectedPositions, clearStraddleDecision, emitStraddleOffer, showStraddleDecision, prepareNextStraddleDecision, cancelVisibleStraddleForTurn, maybeShowStraddleAfterAction, broadcastState, listRooms, broadcastRoomList, clampInt, genRoomId, createRoomInvite, findRoomByInviteToken, findRoomByJoinCode, emitRoomInviteInfo, canAuthorizeNewUser, authorize, activePlayers, canAct, isBettingRoundComplete, clearActionTimer, startActionTimer, afterAction, advanceStage, resolveRunIt, startHand, beginPlay, tryStartHand, liveCount, scheduleNextHand, endCashTable, extendTable, chargeRebuy, removeBustedPlayers, joinAsSpectator, occupiedSeats, firstFreeSeat, seatPlayer, standUpPlayer, restoreVacatedPlayer, doShowdown, dealCommunity, recordAction, persistence } = tableService;
     // 主动亮牌：摊牌阶段（含弃牌结束的局间）玩家可选择亮出自己某张/全部底牌
     socket.on('show_card', ({ roomId, index }) => {
+        if (socket.currentRoom !== roomId) return;
         const game = roomGames[roomId];
         if (!game || game.phase !== PHASES.SHOWDOWN) return;
         const hole = game.holeCards[user.id];
@@ -28,6 +29,7 @@ function registerPokerCardEvents(context) {
 
     // 看后续牌（rabbit hunt）：弃牌结束的局间，任一玩家可逐步发出剩余公共牌仅供观看
     socket.on('rabbit_deal', (roomId) => {
+        if (socket.currentRoom !== roomId) return;   // 只能对自己所在的桌发：房间号是客户端传的
         const game = roomGames[roomId];
         if (!game || game.phase !== PHASES.SHOWDOWN) return;
         const n = game.communityCards.length;

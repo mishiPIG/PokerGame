@@ -12,7 +12,7 @@ function sampleCurve(curve, maxPts) {
     return out;
 }
 
-function computeUserStats(userId, mode, room) {
+function computeUserStatsUncached(userId, mode, room) {
     const m = (mode === 'cash' || mode === 'sng') ? mode : null;
     const hands = db.getHandsForUser(userId, { limit: 200000, mode: m, room: room || null });
     const chrono = hands.slice().reverse();   // getHandsForUser 是倒序（新→旧），翻成时序
@@ -119,4 +119,29 @@ function computeUserStats(userId, mode, room) {
     };
 }
 
-module.exports = { computeUserStats };
+// ── 缓存 ──
+// 🔴 原来每次查询都把这个人的全部牌谱（上限 20 万手）从库里读出来、逐手 JSON 解析一遍，
+//    全在事件循环上同步做 —— 打得多的人点一次「生涯战绩」，全服所有牌桌都要等它算完；
+//    循环请求更是能直接把服务拖住。
+// 做法：按「这个人一共打过几手」做版本号。打了新的一手，版本号就变，缓存自然失效；
+//    没打新牌就直接返回上次的结果。查版本号走 hand_players(user_id) 索引，只数行数，很便宜。
+const CACHE_MAX = 500;
+const cache = new Map();   // key -> { version, value }（Map 保持插入顺序，满了从最旧的开始删）
+let countStmt = null;
+function handVersion(userId) {
+    if (!countStmt) countStmt = db.raw.prepare('SELECT COUNT(*) AS c FROM hand_players WHERE user_id = ?');
+    return countStmt.get(userId).c;
+}
+function computeUserStats(userId, mode, room) {
+    const key = `${userId}|${mode || ''}|${room || ''}`;
+    const version = handVersion(userId);
+    const hit = cache.get(key);
+    if (hit && hit.version === version) return hit.value;
+    const value = computeUserStatsUncached(userId, mode, room);
+    cache.delete(key);
+    cache.set(key, { version, value });
+    if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+    return value;
+}
+
+module.exports = { computeUserStats, _cache: cache };

@@ -36,17 +36,16 @@ function startActionTimer(roomId) {
     game.extraAddedThisTurn = 0;
     game.actionStartedAt = Date.now();   // 用于记录思考时间（牌谱）
     const actor = game.players[game.actionOnIdx];
-    if (actor && game.straddleDecision?.status === 'pending'
-        && game.straddleDecision.offeredAt
-        && actor.userId === game.straddleDecision.candidateUserId) {
-        cancelVisibleStraddleForTurn(roomId); // 当前手再次轮到他：当前决策优先，Straddle 默认取消
-    }
     // 掉线/离桌者也给「正常行动时间」，不再 800ms 秒判——防网络波动瞬断被直接弃牌；
     // 到点由 onActionTimeout 处理：无注则自动过牌(留在局里)、面对下注才弃牌。重连后计时重置。
     // ⚠️ 但【主动退出】的 SNG 玩家（点了退出房间，不是断网）不在此列：他人已经走了，
     //    每手每街都让全桌等满 18 秒 —— 最终验收里一场 6 人 SNG 15 分钟只打了 30 手（2026-09-29）。
     //    这种情况 1.5 秒就按超时规则代打（能过就过、要跟就弃），他回来（join_room）立刻恢复正常计时。
-    const ms = actor && actor.leftByChoice ? LEFT_PLAYER_ACT_MS : ACTION_TIME;
+    // 房里一个连接都没有（全员掉线）也快速代打：否则空房清理挂了「本手打完再解散」，
+    // 这手却要每人每街等满 18 秒才打得完。
+    const room = io.sockets.adapter.rooms.get(roomId);
+    const nobodyHere = !room || room.size === 0;
+    const ms = actor && (actor.leftByChoice || nobodyHere) ? LEFT_PLAYER_ACT_MS : ACTION_TIME;
     game.actionDeadline = Date.now() + ms;
     game.actionTotalMs = ms;
     game.actionTimer = setTimeout(() => onActionTimeout(roomId), ms);
@@ -80,6 +79,8 @@ function onActionTimeout(roomId) {
     // 兜底：全押/已弃牌者不应被超时处理（否则会把已全押玩家误判为弃牌，剥夺其应得的池权）→ 直接推进
     if (!canAct(player)) { afterAction(roomId); return; }
     const toCall = game.currentBet - player.currentBet;
+    // 他已经是最后一个没弃牌的人：这手本该已经结束，绝不能再把他弃掉（否则底池没人领、凭空消失）
+    if (activePlayers(game).length <= 1) { player.hasActed = true; afterAction(roomId); return; }
     if (toCall <= 0) {
         player.hasActed = true;
         recordAction(game, player, 'check', player.currentBet);
@@ -165,6 +166,9 @@ function advanceStage(roomId) {
         const active = activePlayers(game);
         if (active.length <= 1) {
             collectBetsToPot(game);
+            // 弃牌者投入比赢家还多的那部分没人有资格赢（赢家是短码全押时才会出现）→ 退给投入最多的那位，
+            // 与摊牌路径同一口径。平常「下注没人跟」的情形结果不变：先退回再赢走剩下的，总数一样。
+            returnUncalledBets(roomId);
             let completedHand;
             if (active.length === 1) {
                 const winner = active[0];
@@ -173,7 +177,12 @@ function advanceStage(roomId) {
                 io.in(roomId).emit('sfx', 'win');
                 completedHand = saveHandHistory(game, { [winner.userId]: game.pot });
             } else {
-                completedHand = saveHandHistory(game, {});
+                // 一个没弃牌的人都没有：底池没人有资格赢。按各自投入原数退回，并大声记一笔 ——
+                // 这条路径本不该走到（上面几处都已经堵了），走到了就是又有新的漏洞。
+                const refunds = {};
+                game.players.forEach(p => { if (p.committed > 0) { p.chips += p.committed; refunds[p.userId] = p.committed; } });
+                console.error(`[pot] 房间 ${roomId} 第 ${game.handSeq} 手：全员弃牌，底池 ${game.pot} 按投入退回`, refunds);
+                completedHand = saveHandHistory(game, refunds);
             }
             game.pot = 0;
             game.players.forEach(p => p.committed = 0);
@@ -298,10 +307,6 @@ function startHand(roomId) {
 
     const BB = gameBB(game), SB = gameSB(game);
     const targetHandSeq = (game.handSeq || 0) + 1;
-    const acceptedStraddle = game.straddleDecision
-        && game.straddleDecision.status === 'accepted'
-        && game.straddleDecision.targetHandSeq === targetHandSeq
-        ? game.straddleDecision : null;
     // 至少 2 名可参与玩家（有筹码、未坐出）才能开局
     if (liveCount(game) < 2) {
         io.in(roomId).emit('server_msg', `⏳ 在座可玩玩家不足 2 人，等待补码 / 入座`);
@@ -387,7 +392,14 @@ function startHand(roomId) {
     bb.chips -= bbAmt; bb.currentBet = bbAmt;
     if (sb.chips === 0) sb.allIn = true;
     if (bb.chips === 0) bb.allIn = true;
-    game.currentBet = bbAmt;
+    // 🔴 桌面当前注：
+    //    · 还有两个以上的人能行动 → 按正式规则是【完整的一个大盲】，即使大盲本人短码全押、只贴了一部分。
+    //      其他人要跟满一个大盲，小盲也要补齐；短码大盲只争他贴进去的那部分（多出的成为边池）。
+    //    · 只剩一个人能行动（其余都因盲注全押了）→ 没人可以跟他比，取两个盲注里实际贴出的较大者。
+    //    原来写的是 bbAmt：大盲贴得比小盲还少时，小盲的下注【高于】桌面当前注、永远「没跟平」，
+    //    过牌之后行动又回到他自己，整手卡死（2026-11-13 房间 210983 第 23 手：连过 27 次后只能弃牌）。
+    const canStillAct = game.players.filter(p => !p.folded && !p.allIn).length;
+    game.currentBet = canStillAct >= 2 ? Math.max(BB, sbAmt, bbAmt) : Math.max(sbAmt, bbAmt);
 
     // 链式 straddle：按接受顺序（UTG → UTG+1 → …，每档翻倍）依次贴出。
     // 开手时按最终阵容逐个重新校验：位置没变、筹码够、金额是这一档应有的值；
@@ -481,6 +493,9 @@ function startHand(roomId) {
     let firstIdx = headsUp ? sbIdx : findNextActionIdx(game, lastStraddlerIdx >= 0 ? lastStraddlerIdx : bbIdx);
     if (headsUp && !needsToAct(game.players[sbIdx], game)) firstIdx = findNextActionIdx(game, sbIdx);
     game.actionOnIdx = firstIdx;
+    // 只剩一个人还能行动、且他已经不欠注（其余人都因盲注/前注全押了）→ 没有任何决定可做，
+    // 不必让他点一次毫无意义的「过牌」，直接进全押亮牌（多出来的部分会在那里退还）。
+    if (isBettingRoundComplete(game)) game.actionOnIdx = -1;
     // 无人可行动（所有参与者已因盲注/前注全押）→ 没有玩家能下注，直接进入全押跑马，否则本手会永久卡住
     if (game.actionOnIdx < 0) {
         broadcastState(roomId);

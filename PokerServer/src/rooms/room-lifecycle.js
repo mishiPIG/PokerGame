@@ -17,6 +17,12 @@ function createRoomLifecycle({ io, roomGames, hooks }) {
             if (!g || g.tournamentOver) return;
             const room = io.sockets.adapter.rooms.get(roomId);
             if (room && room.size > 0) return;
+            // 🔴 还在一手牌里：不能当场结算 —— 结算只按 chips 兑出，已经下进池里的筹码会凭空消失。
+            //    挂上「本手打完再解散」，交给局间那唯一的入口去做（cash-match-service.runNextHand）。
+            //    房里没人时行动计时器会快速代打（见 hand-service.startActionTimer），这手很快就能打完。
+            const inHand = g.phase && g.phase !== 'waiting' && g.phase !== 'showdown';
+            // 记成 'empty' 而不是 true：有人回来时要能撤销（房主点的「本手后解散」不能被撤销）
+            if (inHand) { g.pendingDissolve = g.pendingDissolve || 'empty'; return; }
             const hasChips = (g.vacatedPlayers || []).some(v => (v.chips || 0) > 0) || g.players.some(p => (p.chips || 0) > 0);
             if (hasChips) {
                 // SNG 不能走现金结算：奖池要给筹码领先者 + 公布排名（dissolveNow 按房型路由）

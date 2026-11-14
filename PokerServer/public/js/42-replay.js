@@ -25,7 +25,7 @@ function buildReplayFrames(h) {
         players[btnI].pos = 'BTN';
         players[sbI].pos = (players[sbI].pos ? players[sbI].pos + '/' : '') + 'SB';
         players[bbI].pos = players[bbI].pos ? players[bbI].pos + '/BB' : 'BB';
-        if (n >= 3) players[(bbI + 1) % n].pos = 'UTG';
+        if (n >= 4) players[(bbI + 1) % n].pos = 'UTG';   // 三人局里大盲下一位就是按钮，别把 BTN 盖掉
     }
     let pot = 0, community = 0, street = 'preflop';
     const frames = [];
@@ -35,12 +35,17 @@ function buildReplayFrames(h) {
     const bbP = players.find(p => (p.pos || '').includes('BB'));
     if (sbP) { const v = Math.min(h.sb, sbP.stack); sbP.stack -= v; sbP.bet = v; }
     if (bbP) { const v = Math.min(h.bb, bbP.stack); bbP.stack -= v; bbP.bet = v; }
-    if (h.straddle && byId[h.straddle.userId]) {
-        const sp = byId[h.straddle.userId];
-        sp.stack -= h.straddle.amount; sp.bet = h.straddle.amount;
+    // 链式 straddle 每一档都记成了一条 'straddle' 行动（UTG 2BB → 下一位 4BB → …）。
+    // 原来只扣了 h.straddle（最后一档），前面几档的人筹码没少、桌上也没注，
+    // 他们之后一弃牌，回放里的底池就一直少一截。老牌谱没有逐档记录时退回只用最后一档。
+    const straddleActs = (h.actions || []).filter(a => a.action === 'straddle');
+    const tiers = straddleActs.length ? straddleActs : (h.straddle ? [h.straddle] : []);
+    for (const st of tiers) {
+        const sp = byId[st.userId]; if (!sp) continue;
+        sp.stack -= (st.amount - sp.bet); sp.bet = st.amount;
     }
     snap(`${L('发牌 · 盲注', 'Deal · blinds')} ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''}`
-        + (h.straddle ? ` · UTG Straddle ${h.straddle.amount}` : ''), null);
+        + (tiers.length ? ` · Straddle ${tiers.map(st => st.amount).join(' → ')}` : ''), null);
     const stName = { preflop: L('翻前', 'Preflop'), flop: L('翻牌', 'Flop'), turn: L('转牌', 'Turn'), river: L('河牌', 'River') };
     for (const a of (h.actions || [])) {
         if (a.action === 'straddle') continue;
@@ -126,7 +131,7 @@ function openHandDetail(h) {
         const res = resById[s.userId] || {};
         const net = (res.endChips ?? s.startChips ?? 0) - (s.startChips || 0);
         const netCls = net > 0 ? 'win' : (net < 0 ? 'lose' : '');
-        const av = s.avatar ? `<img src="${s.avatar}" onerror="this.style.display='none'">` : escapeHtml((s.username || '?')[0].toUpperCase());
+        const av = s.avatar ? `<img src="${escapeHtml(s.avatar)}" onerror="this.style.display='none'">` : escapeHtml((s.username || '?')[0].toUpperCase());
         // 牌型名（服务端已随牌谱存下）。⚠️ 只在牌面本来就可见时才显示：
         // 否则会泄露「弃牌者从未亮过的底牌是什么牌型」——那是本手中谁都不该知道的信息。
         // 自己弃牌的那手可以看（是自己的牌），标注「弃」表示只是假设。
@@ -176,7 +181,7 @@ function renderReplayFrame() {
         const cards = p.hole.map(c => showFace ? formatCard(c) : cardBack()).join('');
         const cls = 'rp-seat' + (p.folded ? ' folded' : '') + (p.userId === f.actingId ? ' acting' : '');
         const initial = (p.name || '?').charAt(0).toUpperCase();
-        const av = p.avatar ? `<img src="${p.avatar}" onerror="this.style.display='none'">` : escapeHtml(initial);
+        const av = p.avatar ? `<img src="${escapeHtml(p.avatar)}" onerror="this.style.display='none'">` : escapeHtml(initial);
         return `<div class="${cls}" style="left:${pos.x}%;top:${pos.y}%">
             <div class="rp-cards">${cards}</div>
             <div class="rp-avatar" style="background:hsl(${hashHue(p.userId)},45%,42%)">${av}</div>
@@ -214,20 +219,6 @@ function rpSpeed() {
     rpSpeedIdx = (rpSpeedIdx + 1) % RP_SPEEDS.length;
     document.getElementById('rp-speed').textContent = RP_SPEEDS[rpSpeedIdx] + '×';
 }
-function renderHistActions(h) {
-    const nameOf = {}; (h.seats || []).forEach(s => nameOf[s.userId] = s.username);
-    /* i18n-ok: 中英两套，按 lang 取 */
-    const streetName = lang === 'en'
-        ? { preflop: 'Preflop', flop: 'Flop', turn: 'Turn', river: 'River' }
-        : { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌' };
-    /* i18n-ok: 中英两套，按 lang 取 */
-    const A = lang === 'en'
-        ? { fold: 'F', check: 'X', call: 'C', bet: 'Bet', raise: 'Raise', allin: 'All-in', straddle: 'Straddle' }
-        : { fold: '弃', check: '过', call: '跟', bet: '下注', raise: '加注', allin: '全下', straddle: 'Straddle' };
-    return (h.actions || []).map(a =>
-        `<span class="ha">${streetName[a.street] || a.street}·${escapeHtml(nameOf[a.userId] || '?')} ${A[a.action] || a.action}${a.amount ? ' ' + a.amount : ''}</span>`
-    ).join('') || `<span style="opacity:.5">${L('无动作', 'no action')}</span>`;
-}
 
 // 把这一手的完整牌谱复制出去，给 tools/verify-hand.js 离线验算用。
 // 🔴 必须是【整份牌谱】而不只是种子：验算器第三步要核对
@@ -249,5 +240,5 @@ function copyHandForVerify() {
             + '(otherwise it would expose cards other players folded).'));
         return;
     }
-    copyText(JSON.stringify(curDetailHand, null, 2));
+    copyText(JSON.stringify(curDetailHand, null, 2), L('已复制验证数据', 'Verification data copied'));
 }

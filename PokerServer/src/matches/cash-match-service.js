@@ -127,31 +127,43 @@ const { scheduleEmptyCleanup } = createRoomLifecycle({
 
 // 一局结束后自动开下一局（SNG/现金桌进行中，无需重新准备）
 // 注意：总是排一次定时清理（标记坐出/兑出/生效补码），即使人数不足也要让坐出状态落地
-function scheduleNextHand(roomId) {
+// 局间开下一手的【唯一入口】。
+// 🔴 2026-11-14 之前有四处（坐下 / 继续发牌 / 加时 / 调整结束时间）在局间直接调 startHand，
+//    跳过了这里的整段收尾：本手中途站起的人没被移出座位（下一手照样被发牌、扣盲注）、
+//    「本手打完再解散 / 到点结算」被往后拖了一手、摊牌画面被提前切掉。
+//    现在它们都改走 scheduleNextHand，只是等待时间短一些。
+//    重启恢复用的也是同一个函数（原来是一份少了 pendingEnd 分支的拷贝）。
+function runNextHand(roomId) {
+    const g = roomGames[roomId];
+    if (!g || g.tournamentOver) return;
+    if (g.phase !== PHASES.SHOWDOWN && g.phase !== PHASES.WAITING) return;   // 还在一手牌里：不开新的
+    removeBustedPlayers(g);   // 结算后：SNG 淘汰 / 现金桌兑出离场者移除、坐出者保留、挂起补码生效
+    // 房主在牌局进行中点了解散 → 等到本手打完才真正解散（不打断正在进行的牌）
+    if (g.pendingDissolve) { hooks.dissolveNow(roomId); return; }
+    // 兜底已触发（到时后 5 分钟无人处理）：本手打完就结算，别再停在这儿
+    if (g.pendingEnd) { endCashTable(roomId, '训练时长已到（5 分钟无人处理，自动结算）'); return; }
+    if (g.timeExpired) { io.in(roomId).emit('server_msg', { k: 'table.waitHost' }); broadcastState(roomId); return; }
+    if (g.paused) { io.in(roomId).emit('server_msg', { k: 'table.pausedHand' }); broadcastState(roomId); return; }
+    // 全员掉线（都 away）时不再空转发牌——否则会一直发牌+涨盲、僵尸局空耗。有人重连即续（见 membership 重连分支）。
+    const connectedLive = g.players.filter(p => p.chips > 0 && !p.sittingOut && !p.away).length;
+    if (liveCount(g) >= 2 && connectedLive >= 1) startHand(roomId);
+    else broadcastState(roomId);   // 人不够 / 全员掉线：停摆，等补码/坐下/重连
+}
+
+// delayMs：正常一手打完给 5 秒看牌；房主点「继续发牌」、有人坐下补齐人数时短一些。
+// keepExisting：已经排好了下一手就不重置（否则局间每坐下一个人都把倒计时往后推）。
+function scheduleNextHand(roomId, { delayMs = 5000, keepExisting = false } = {}) {
     const game = roomGames[roomId];
     if (!game || game.tournamentOver) return;
     if (game.roomType !== 'sng' && game.roomType !== 'cash') return;
+    if (keepExisting && game.nextHandTimer && game.nextHandAt > Date.now()) return;
     // 若当前手始终没有安全展示时机，利用已有 5 秒局间做最后兜底；不延迟下一手。
     if (game.straddleDecision?.status === 'pending') {
         showStraddleDecision(roomId, STRADDLE_INTERMISSION_MS);
     }
     clearTimeout(game.nextHandTimer);
-    game.nextHandAt = Date.now() + 5000;
-    game.nextHandTimer = setTimeout(() => {
-        const g = roomGames[roomId];
-        if (!g || g.tournamentOver || g.phase !== PHASES.SHOWDOWN) return;
-        removeBustedPlayers(g);   // 结算后：SNG 淘汰 / 现金桌兑出离场者移除、坐出者保留、挂起补码生效
-        // 房主在牌局进行中点了解散 → 等到本手打完才真正解散（不打断正在进行的牌）
-        if (g.pendingDissolve) { hooks.dissolveNow(roomId); return; }
-        // 兜底已触发（到时后 5 分钟无人处理）：本手打完就结算，别再停在这儿
-        if (g.pendingEnd) { endCashTable(roomId, '训练时长已到（5 分钟无人处理，自动结算）'); return; }
-        if (g.timeExpired) { io.in(roomId).emit('server_msg', { k: 'table.waitHost' }); broadcastState(roomId); return; }
-        if (g.paused) { io.in(roomId).emit('server_msg', { k: 'table.pausedHand' }); broadcastState(roomId); return; }
-        // 全员掉线（都 away）时不再空转发牌——否则会一直发牌+涨盲、僵尸局空耗。有人重连即续（见 membership 重连分支）。
-        const connectedLive = g.players.filter(p => p.chips > 0 && !p.sittingOut && !p.away).length;
-        if (liveCount(g) >= 2 && connectedLive >= 1) startHand(roomId);
-        else broadcastState(roomId);   // 人不够 / 全员掉线：停摆，等补码/坐下/重连
-    }, 5000);
+    game.nextHandAt = Date.now() + delayMs;
+    game.nextHandTimer = setTimeout(() => runNextHand(roomId), delayMs);
     persistence.commit(roomId, 'next_hand_scheduled', null, { nextHandAt: game.nextHandAt });
 }
 
@@ -159,17 +171,7 @@ function restoreNextHandTimer(roomId) {
     const game = roomGames[roomId];
     if (!game?.nextHandAt || game.tournamentOver) return;
     clearTimeout(game.nextHandTimer);
-    game.nextHandTimer = setTimeout(() => {
-        const g = roomGames[roomId];
-        if (!g || g.tournamentOver || g.phase !== PHASES.SHOWDOWN) return;
-        removeBustedPlayers(g);
-        if (g.pendingDissolve) { hooks.dissolveNow(roomId); return; }
-        if (g.timeExpired) { broadcastState(roomId); return; }
-        if (g.paused) { broadcastState(roomId); return; }
-        const connectedLive = g.players.filter(p => p.chips > 0 && !p.sittingOut && !p.away).length;
-        if (liveCount(g) >= 2 && connectedLive >= 1) startHand(roomId);
-        else broadcastState(roomId);   // 全员掉线不空转（重启恢复同理）
-    }, Math.max(0, game.nextHandAt - Date.now()));
+    game.nextHandTimer = setTimeout(() => runNextHand(roomId), Math.max(0, game.nextHandAt - Date.now()));
 }
 
 // 现金桌兑出：剩余筹码按汇率兑回金币，返回兑出金币数

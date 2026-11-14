@@ -52,9 +52,12 @@ function createFriendRepository(db) {
         upsert.run({ user_id: other, friend_id: me, status: 'accepted', now });
     });
     // 拒绝 / 删除：两行一起删（留下单边关系比没有关系更糟）
+    // 🔴 例外：对方那一行如果是「我被他拉黑」，不能替他删掉。
+    //    原来两行无条件一起删 —— 被拉黑的人自己点一下「删除」就把对方的黑名单清了，转头又能发申请。
+    const delEdgeUnlessBlocked = db.prepare("DELETE FROM friendships WHERE user_id = ? AND friend_id = ? AND status <> 'blocked'");
     const removeTx = db.transaction((me, other) => {
         delEdge.run(me, other);
-        delEdge.run(other, me);
+        delEdgeUnlessBlocked.run(other, me);
     });
     // 拉黑：先把关系【两边】都删干净，再只写我这一行 blocked。
     // ⚠️ 只写我这一行是刻意的 —— 对方那边看到的就是「关系没了」，

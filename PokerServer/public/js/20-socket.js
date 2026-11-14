@@ -34,6 +34,11 @@ function connectSocket(token) {
     });
 
     socket.on('connect_error', (err) => {
+        // connect_error 在【每次重连尝试失败】时也会触发（信号断了几秒、服务器正在重启）。
+        // 那不是登录失效：socket.active 为真表示它还会自己接着重连 —— 只显示「重连中」，
+        // 绝不能清掉令牌把人扔回登录页（牌局打到一半被踢出去、下次打开还得重新登录）。
+        // 只有服务端鉴权拒绝时 active 才是 false。
+        if (socket.active) { if (!sessionKicked) showReconnecting(); return; }
         localStorage.removeItem('token');
         document.getElementById('auth-overlay').style.display = 'flex';
         document.getElementById('game-section').style.display = 'none';
@@ -137,10 +142,6 @@ function connectSocket(token) {
 
     socket.on('room_dissolved', () => {
         showLobby();
-    });
-
-    socket.on('busted_out', () => {
-        setTimeout(() => { toast(L('你已离开牌桌', 'You left the table')); showLobby(); }, 300);
     });
 
     // SNG 被淘汰：不再踢回大厅，留在桌上继续观战（想走点「退出房间」即可）
@@ -324,7 +325,7 @@ function connectSocket(token) {
             deadlineAt: offer.deadlineAt
         };
         // 小标志是静态的（不再有倒计时），画一次即可；下一手开始时由 hole_cards 收掉。
-        clearInterval(straddleOfferTimer); straddleOfferTimer = null;
+        
         renderStraddleOffer();
     });
     socket.on('straddle_decision_result', (result) => {
@@ -365,7 +366,9 @@ function connectSocket(token) {
         }
         // 断线重连若正处协商中：恢复面板（否则错过 offer 事件会看不到）
         if (state.runIt && (!document.getElementById('runit-panel') || document.getElementById('runit-panel').style.display === 'none')) {
-            showRunitOffer(state.runIt);
+            // 落后方已经选了次数 → 恢复到「领先方同意 / 拒绝」那一步，否则恢复到「落后方选次数」
+            if (state.runIt.proposed) showRunitProposal(state.runIt);
+            else showRunitOffer(state.runIt);
         }
         const prevBets = {};
         if (lastState) lastState.players.forEach(p => prevBets[p.userId] = p.currentBet);

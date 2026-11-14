@@ -18,8 +18,8 @@ const TRANSIENT_KEYS = new Set([
 // JSON.stringify 会直接抛 "Converting circular structure to JSON" —— 整个快照写不进去，
 // 表现是启动恢复时刷一片报错（timeUpGraceTimer 就这么中过一次，靠发版后错误日志自查抓到）。
 
-function serializeGame(game, stateVersion = game.stateVersion || 0) {
-    const encoded = JSON.stringify(game, (key, value) => {
+function encodeGame(game) {
+    return JSON.stringify(game, (key, value) => {
         if (TRANSIENT_KEYS.has(key)) return undefined;
         if (key === 'socketId') return null;
         if (value instanceof Set) return { __pokerType: 'Set', values: [...value] };
@@ -35,10 +35,22 @@ function serializeGame(game, stateVersion = game.stateVersion || 0) {
         }
         return value;
     });
-    const snapshot = JSON.parse(encoded);
+}
+
+function serializeGame(game, stateVersion = game.stateVersion || 0) {
+    const snapshot = JSON.parse(encodeGame(game));
     snapshot.formatVersion = 1;
     snapshot.stateVersion = stateVersion;
     return snapshot;
+}
+
+// 直接给出要落库的 JSON 字符串。
+// 每次广播都会写一次快照：原来是 stringify → parse → 改两个字段 → 入库时再 stringify 一遍，
+// 9 人桌上每次广播白做两遍整局序列化。这里只序列化一次，把两个字段拼在末尾
+// （JSON 里同名键以最后一个为准，game 自身带的 stateVersion 会被覆盖，结果与 serializeGame 完全一致）。
+function serializeGameJson(game, stateVersion = game.stateVersion || 0) {
+    const encoded = encodeGame(game);
+    return `${encoded.slice(0, -1)}${encoded.length > 2 ? ',' : ''}"formatVersion":1,"stateVersion":${Number(stateVersion) || 0}}`;
 }
 
 function playerStatus(player, vacated = false) {
@@ -76,4 +88,4 @@ function economicParticipants(game) {
     return rows;
 }
 
-module.exports = { serializeGame, economicParticipants, TRANSIENT_KEYS };
+module.exports = { serializeGame, serializeGameJson, economicParticipants, TRANSIENT_KEYS };

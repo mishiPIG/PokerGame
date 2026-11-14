@@ -31,7 +31,16 @@ function buildRanking(game, winnerId, prize) {
     const order = [];
     const w = game.players.find(p => p.userId === winnerId);
     if (w) order.push({ userId: w.userId, username: w.username, displayName: w.displayName || w.username, net: (prize || 0) - fee, handsPlayed: w.handsPlayed || 0 });
-    (game.statsHistory || []).slice().reverse().forEach(h => order.push({ userId: h.userId, username: h.username, displayName: h.displayName || h.username, net: -fee, handsPlayed: h.handsPlayed || 0 }));
+    // 🔴 还坐在桌上的其他人（最后一手被淘汰的亚军、解散时还没出局的人）原来一个都不进排名：
+    //    statsHistory 只在「局间移除出局者」时才记，而比赛在那之前就结束了 ——
+    //    单挑 SNG 的排名只有冠军一行，亚军既收不到收件箱，也评不了颁奖台。按筹码多少排在冠军后面。
+    const placed = new Set(order.map(r => r.userId));
+    game.players.filter(p => !placed.has(p.userId)).sort((a, b) => (b.chips || 0) - (a.chips || 0)).forEach(p => {
+        placed.add(p.userId);
+        order.push({ userId: p.userId, username: p.username, displayName: p.displayName || p.username, net: -fee, handsPlayed: p.handsPlayed || 0 });
+    });
+    (game.statsHistory || []).slice().reverse().filter(h => !placed.has(h.userId))
+        .forEach(h => order.push({ userId: h.userId, username: h.username, displayName: h.displayName || h.username, net: -fee, handsPlayed: h.handsPlayed || 0 }));
     return order.map((r, i) => ({ rank: i + 1, userId: r.userId, username: r.username, displayName: r.displayName, net: r.net, handsPlayed: r.handsPlayed, avatar: avatarOf(r.userId), unit: '金币' }));
 }
 

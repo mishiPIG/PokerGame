@@ -1,7 +1,7 @@
 #!/bin/bash
 # 测试部署脚本：本地代码 → 实验室 5090 测试服务器（沙特，内网 10.76.106.91）
 #
-# 用途：日常开发测试。深圳服务器（deploy.sh）留作正式产品发布。
+# 用途：日常开发测试。正式发布走 deploy.sh（AWS 生产）。
 #
 # 用法：
 #   bash deploy-test.sh        # 同步代码 + 重启（不走 git）
@@ -29,6 +29,9 @@ BUILD_ENV="test"
 #    测试服部署不涨号 —— 否则号涨得毫无意义。判定按玩家视角：
 #      主=大改版 / 次=新功能 / 修订=修 bug。
 BUILD_SHA="$(git -C "$SCRIPT_DIR" rev-parse --short HEAD)"
+# 打包的是【工作区文件】而不是某个 commit：工作区有没提交的改动时，
+# 光写 HEAD 的 SHA 等于谎报「线上跑的就是这个 commit」。带上 -dirty，事后才追得清。
+if [ -n "$(git -C "$SCRIPT_DIR" status --porcelain -- PokerServer)" ]; then BUILD_SHA="$BUILD_SHA-dirty"; fi
 BUILD_AT="$(date '+%Y-%m-%d %H:%M:%S')"
 # 先 cd 再用相对路径 require：Git Bash 下把 $SCRIPT_DIR 直接塞进 require() 会因 POSIX 路径解析失败
 APP_VERSION="$(cd "$SCRIPT_DIR/PokerServer" && node -p "require('./package.json').version")"
@@ -36,65 +39,43 @@ echo "🏷️  版本 $APP_VERSION · $BUILD_SHA · $BUILD_AT"
 cat > "$SCRIPT_DIR/PokerServer/build-info.json" <<BUILDJSON
 { "commit": "$BUILD_SHA", "builtAt": "$BUILD_AT", "env": "$BUILD_ENV" }
 BUILDJSON
+# 占位符不在的话下面的 sed 会【静默不替换】，前端构建号就冻死在旧值（deploy.sh 同一道检查）
+if ! grep -q "const CLIENT_BUILD = '__BUILD__'" "$SCRIPT_DIR/PokerServer/public/js/00-state.js"; then
+    echo "❌ 00-state.js 里找不到 __BUILD__ 占位符，先改回 const CLIENT_BUILD = '__BUILD__' 再部署。"
+    exit 1
+fi
 # 前端构建号：把 00-state.js 里的占位替换成真实 SHA（打包用的临时副本，改完还原）
-cp "$SCRIPT_DIR/PokerServer/public/js/00-state.js" /tmp/00-state.orig.js
+STATE_BAK="$(mktemp -t poker_state.XXXXXX)"
+cp "$SCRIPT_DIR/PokerServer/public/js/00-state.js" "$STATE_BAK"
 # 只替换那个常量本身，别顺手把注释里提到的同名占位也改了
 sed -i "s/const CLIENT_BUILD = '__BUILD__'/const CLIENT_BUILD = '$BUILD_SHA'/" "$SCRIPT_DIR/PokerServer/public/js/00-state.js"
-restore_build_stamp() { cp /tmp/00-state.orig.js "$SCRIPT_DIR/PokerServer/public/js/00-state.js"; }
+restore_build_stamp() { cp "$STATE_BAK" "$SCRIPT_DIR/PokerServer/public/js/00-state.js"; rm -f "$STATE_BAK"; }
 trap restore_build_stamp EXIT
 
 
 
-# Step 1: 打包源码（排除 node_modules 和 data.json，避免覆盖服务器测试数据）
-echo "🚀 同步代码到测试服务器（5090）..."
-DEPLOY_TMP="/tmp/poker_test_$$.tar.gz"
+# Step 2: 打包 —— 只打 git 里有的源码（含还没提交的新文件），不打测试和运行时数据
+# 原来是「目录里的文件全打、再排除几个数据文件」：41 个测试文件跟着上了生产，
+# 以后谁在 PokerServer/ 根目录随手放个文件也会被带上去。
+echo ""
+echo "🚀 打包并上传..."
+DEPLOY_TMP="$(mktemp -t poker_deploy.XXXXXX).tar.gz"
+LIST_TMP="$(mktemp -t poker_files.XXXXXX)"
 cd "$SCRIPT_DIR/PokerServer"
-tar czf "$DEPLOY_TMP" $(find . -maxdepth 1 -type f ! -name 'data.json*' ! -name 'hands.jsonl' ! -name 'secret.key' ! -name 'mail.json' ! -name 'feedback.jsonl') avatars scripts src public tools
-scp "$DEPLOY_TMP" "$SERVER_HOST:/tmp/poker_test.tar.gz"
-ssh "$SERVER_HOST" "cd $SERVER_PATH && tar xzf /tmp/poker_test.tar.gz && rm /tmp/poker_test.tar.gz"
-rm -f "$DEPLOY_TMP"
+git ls-files --cached --others --exclude-standard -- . \
+    | grep -v '\.test\.js$' | grep -v '^\.eslintrc' \
+    | while read -r f; do [ -e "$f" ] && echo "$f"; done > "$LIST_TMP"
+echo "build-info.json" >> "$LIST_TMP"
+tar czf "$DEPLOY_TMP" -T "$LIST_TMP"
+echo "   $(wc -l < "$LIST_TMP") 个文件"
+scp -q "$DEPLOY_TMP" "$SERVER_HOST:/tmp/poker_deploy_$PM2_APP.tar.gz"
+rm -f "$DEPLOY_TMP" "$LIST_TMP"
 cd "$SCRIPT_DIR"
 
-# Step 2: 安装依赖
-echo ""
-echo "📦 测试服务器安装依赖..."
-ssh "$SERVER_HOST" "cd $SERVER_PATH && npm install --omit=dev"
-
-echo ""
-echo "🗄️ 停写、备份并校验数据库..."
-# 记下错误日志当前大小：Step 4 只读【这之后】新增的部分（比事后猜时间/过滤关键字都准）
-ssh "$SERVER_HOST" "PM2_APP='$PM2_APP' bash -s" <<'REMOTE_ERRMARK'
-ERRLOG=$(pm2 jlist 2>/dev/null | python3 -c "import sys,json;d=json.load(sys.stdin);print([x['pm2_env']['pm_err_log_path'] for x in d if x['name']=='$PM2_APP'][0])" 2>/dev/null)
-# pm2 里查不到（比如机器刚重启、进程还没拉起来）就退回约定路径
-[ -n "$ERRLOG" ] || ERRLOG="$HOME/.pm2/logs/${PM2_APP}-error.log"
-# 🔴 取不到基准时必须写 unknown，【绝不能写 0】——
-#    写 0 等于把「我不知道」偷偷变成「从头比」，于是自查会把整个历史日志当成新错误喷出来。
-#    2026-09-17 就这么误报过一次：测试服重启后进程没拉起来，取基准时 pm2 里查不到它。
-#    一个会喊狼来了的自查，和吵闹的告警是同一个毛病——很快就没人看了。
-if [ -f "$ERRLOG" ]; then wc -c < "$ERRLOG" > "/tmp/poker_errsize_$PM2_APP"; else echo unknown > "/tmp/poker_errsize_$PM2_APP"; fi
-REMOTE_ERRMARK
-
-ssh "$SERVER_HOST" "DB_PATH='$DB_PATH' BACKUP_PATH='$BACKUP_PATH' SERVER_PATH='$SERVER_PATH' PM2_APP='$PM2_APP' bash -s" <<'REMOTE_DB'
-set -e
-mkdir -p "$(dirname "$DB_PATH")" "$BACKUP_PATH"
-pm2 stop "$PM2_APP" >/dev/null 2>&1 || true
-cd "$SERVER_PATH"
-if [ -f "$DB_PATH" ]; then
-  SNAPSHOT="$BACKUP_PATH/pokerdojo-predeploy-$(date +%Y%m%d-%H%M%S).sqlite"
-  node scripts/backup-sqlite.js "$DB_PATH" "$SNAPSHOT"
-  POKER_DB_PATH="$DB_PATH" node scripts/migrate-sqlite.js
-else
-  test -f data.json || { echo '❌ 首次切换缺少 data.json，拒绝创建空数据库'; exit 1; }
-  IMPORT_DB="$DB_PATH.importing-$(date +%Y%m%d-%H%M%S)-$$"
-  node scripts/migrate-json-to-sqlite.js --database "$IMPORT_DB" --data data.json --hands hands.jsonl --feedback feedback.jsonl
-  node scripts/verify-sqlite.js "$IMPORT_DB"
-  mv "$IMPORT_DB" "$DB_PATH"
-fi
-node scripts/verify-sqlite.js "$DB_PATH"
-POKER_DB_PATH="$DB_PATH" NODE_ENV=production pm2 restart "$PM2_APP" --update-env ||
-  POKER_DB_PATH="$DB_PATH" NODE_ENV=production pm2 start server.js --name "$PM2_APP"
-pm2 save
-REMOTE_DB
+# Step 3: 服务器端：临时目录里装好依赖 → 在线备份 → 停机几秒切换 → 校验快照
+# 具体步骤见 PokerServer/scripts/deploy-remote.sh（两个部署脚本共用）
+ssh "$SERVER_HOST" "set -e; STAGE=\$(mktemp -d /tmp/poker_stage.XXXXXX); tar xzf /tmp/poker_deploy_$PM2_APP.tar.gz -C \$STAGE; rm -f /tmp/poker_deploy_$PM2_APP.tar.gz; \
+    SERVER_PATH='$SERVER_PATH' DB_PATH='$DB_PATH' BACKUP_PATH='$BACKUP_PATH' PM2_APP='$PM2_APP' bash \$STAGE/scripts/deploy-remote.sh \$STAGE"
 
 # Step 4: 发版后自查错误日志（2026-08-10 加）
 # 连着三个经济漏洞（边池分钱、straddle 少扣、补码白拿）里，有两个是【部署后翻 error.log】
@@ -104,7 +85,8 @@ REMOTE_DB
 # 版本核对：不再靠 grep 关键字猜，直接问服务器它是哪一版
 echo ""
 echo "🏷️  线上版本核对..."
-LIVE=$(ssh "$SERVER_HOST" "curl -s http://127.0.0.1:3000/api/version")
+# 刚 pm2 restart 完进程可能还没开始监听：重试几次，别把「还没起来」误报成「版本对不上」
+LIVE=$(ssh "$SERVER_HOST" "curl -s --retry 6 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/api/version")
 LIVE_SHA=$(node -p "try{JSON.parse(process.argv[1]).commit}catch(e){''}" "$LIVE" 2>/dev/null)
 if [ "$LIVE_SHA" = "$BUILD_SHA" ]; then
   echo "   ✅ 线上已是本次构建：$(node -p "JSON.parse(process.argv[1]).label" "$LIVE" 2>/dev/null)"

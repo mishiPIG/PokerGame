@@ -7,7 +7,6 @@ const os = require('os');
 const path = require('path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const { createDatabaseService } = require('./src/storage/database-service');
-const { importLegacy } = require('./src/storage/legacy-import');
 
 const root = __dirname;
 
@@ -27,12 +26,10 @@ test('production refuses to create a missing database implicitly', () => {
     }
 });
 
-test('online backup is consistent and legacy export can be imported again', () => {
+test('online backup is consistent', () => {
     const dir = temporaryDirectory();
     const source = path.join(dir, 'source.sqlite');
     const backup = path.join(dir, 'backups', 'snapshot.sqlite');
-    const exported = path.join(dir, 'exported');
-    const reimported = path.join(dir, 'reimported.sqlite');
     let db;
     try {
         db = createDatabaseService({ databasePath: source, allowCreate: true });
@@ -46,9 +43,6 @@ test('online backup is consistent and legacy export can be imported again', () =
         db.appendFeedback({ id: 'f1', ts: 30, userId: user.id, username: user.username, text: '测试反馈' });
 
         execFileSync(process.execPath, ['scripts/backup-sqlite.js', source, backup], { cwd: root });
-        execFileSync(process.execPath, [
-            'scripts/export-sqlite-to-legacy.js', '--database', backup, '--output', exported
-        ], { cwd: root });
 
         const backupDb = createDatabaseService({ databasePath: backup, allowCreate: false });
         try {
@@ -56,21 +50,6 @@ test('online backup is consistent and legacy export can be imported again', () =
             assert.equal(backupDb.getUserById(user.id).username, 'OpsUser');
         } finally {
             backupDb.close();
-        }
-
-        const importedDb = createDatabaseService({ databasePath: reimported, allowCreate: true });
-        try {
-            importLegacy(importedDb, {
-                data: path.join(exported, 'data.json'),
-                hands: path.join(exported, 'hands.jsonl'),
-                feedback: path.join(exported, 'feedback.jsonl')
-            });
-            assert.equal(importedDb.getUserById(user.id).email, 'ops@example.test');
-            assert.equal(importedDb.getMessages(user.id)[0].text, '测试消息');
-            assert.equal(importedDb.getHandsForUser(user.id, {}).length, 1);
-            assert.equal(importedDb.getFeedback(10)[0].text, '测试反馈');
-        } finally {
-            importedDb.close();
         }
 
         const verify = spawnSync(process.execPath, ['scripts/verify-sqlite.js', backup], {

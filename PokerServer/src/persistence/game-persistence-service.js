@@ -1,6 +1,6 @@
 'use strict';
 
-const { serializeGame, economicParticipants } = require('./game-serializer');
+const { serializeGame, serializeGameJson, economicParticipants } = require('./game-serializer');
 const { hydrateGame } = require('./game-hydrator');
 
 function createGamePersistenceService({ db, runtime, Deck, Card }) {
@@ -35,7 +35,7 @@ function createGamePersistenceService({ db, runtime, Deck, Card }) {
         if (!game.matchId) createMatch(roomId, game);
         const expectedVersion = game.stateVersion || 1;
         const nextVersion = expectedVersion + 1;
-        const snapshot = serializeGame(game, nextVersion);
+        const snapshotJson = serializeGameJson(game, nextVersion);
         const result = db.matches.commitState({
             matchId: game.matchId,
             expectedVersion,
@@ -47,7 +47,7 @@ function createGamePersistenceService({ db, runtime, Deck, Card }) {
             endedAt: game.tournamentOver ? Date.now() : null,
             handSeq: game.handSeq || 0,
             phase: game.phase || 'waiting',
-            snapshot,
+            snapshotJson,
             players: economicParticipants(game),
             eventType,
             userId,

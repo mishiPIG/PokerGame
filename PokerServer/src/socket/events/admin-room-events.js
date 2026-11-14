@@ -6,10 +6,12 @@ const { bind } = require('./room-context');
 function registerAdminRoomEvents(context, handleJoinRoom) {
     const { socket, user, io, roomGames, PHASES, authorize, endCashTable, broadcastState } = bind(context);
     const dissolveSngRoom = context.tableService.dissolveSngRoom;
+    // 每次都回库里查：socket.user 是连接那一刻的快照，管理员被撤销后这条连接不该还留着管理权限
+    const stillAdmin = () => !!context.db.getUserById(user.id)?.isAdmin;
 
     // 不用房间码直接进入任意房间（授予下场资格，绕过 entryLocked/容量等校验）。
     socket.on('admin_join_room', ({ roomId } = {}) => {
-        if (!user.isAdmin) { socket.emit('server_msg', { k: 'admin.denied' }); return; }
+        if (!stillAdmin()) { socket.emit('server_msg', { k: 'admin.denied' }); return; }
         const game = roomId && roomGames[roomId];
         if (!game) { socket.emit('invite_error', { source: 'code', k: 'invite.noRoom' }); return; }
         authorize(roomId, user.id);
@@ -19,7 +21,7 @@ function registerAdminRoomEvents(context, handleJoinRoom) {
 
     // 强制解散任意房间：复用房主解散逻辑——进行中则等本手打完；现金桌结算筹码+排名，SNG 发奖+排名。
     socket.on('admin_dissolve_room', ({ roomId } = {}) => {
-        if (!user.isAdmin) { socket.emit('server_msg', { k: 'admin.denied' }); return; }
+        if (!stillAdmin()) { socket.emit('server_msg', { k: 'admin.denied' }); return; }
         const game = roomId && roomGames[roomId];
         if (!game) { socket.emit('server_msg', { k: 'admin.roomGone' }); return; }
         const inHand = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;

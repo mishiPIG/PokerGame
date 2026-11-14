@@ -69,7 +69,6 @@ function sendChat() {
     socket.emit('chat_msg', { text }); inp.value = '';
 }
 function sendPhrase(text) { if (socket) socket.emit('chat_msg', { text }); closeChat(); }
-function sendEmote(e) { if (socket) socket.emit('emote', { emote: e }); closeChat(); }   // 聊天面板=广播
 function closeChat() { document.getElementById('chat-panel').style.display = 'none'; }
 
 // ===== 点头像弹层：本局数据 + 发表情 =====
@@ -81,7 +80,7 @@ function openAvatarPopup(userId) {
         || (lastState.spectators || []).find(x => x.userId === userId) || { username: L('玩家', 'Player'), avatar: null };
     const name = p.displayName || p.username || L('玩家', 'Player');
     const isMe = userId === myUserId;
-    const av = p.avatar ? `<img src="${p.avatar}" onerror="this.style.display='none'">` : escapeHtml((name || '?')[0].toUpperCase());
+    const av = p.avatar ? `<img src="${escapeHtml(p.avatar)}" onerror="this.style.display='none'">` : escapeHtml((name || '?')[0].toUpperCase());
     const avEl = document.getElementById('ap-av');
     avEl.style.background = `hsl(${hashHue(p.userId || name)},45%,42%)`; avEl.innerHTML = av;
     document.getElementById('ap-name').textContent = name + (isMe ? L('（你）', ' (you)') : '');
@@ -182,7 +181,7 @@ function seatBubble(userId, html, big) {
     if (!seat) return;
     const b = document.createElement('div');
     b.className = 'seat-bubble' + (big ? ' big' : '');
-    b.innerHTML = html;
+    b.textContent = html;   // 只放文本：表情串来自别的玩家，不能当 HTML 解析
     seat.appendChild(b);
     setTimeout(() => b.remove(), big ? 2200 : 3500);
 }

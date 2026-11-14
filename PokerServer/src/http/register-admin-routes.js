@@ -218,16 +218,30 @@ app.post('/api/admin/table-notice', requireAdmin, (req, res) => {
 // 🔴 地理解析走【一次性子进程】（tools/geo-lookup.js），因为 geoip-lite 一 require
 //    就吃 +108MB 常驻内存，而生产是 1GB 的 t3.micro。结果写进 ip_geo 缓存，
 //    每个 IP 只解析一次。解析失败不影响接口 —— 显示「未知」比让面板 500 诚实。
-app.get('/api/admin/sources', requireAdmin, (req, res) => {
+// 🔴 2026-11-14 之前这里用的是 spawnSync（最长等 20 秒）：子进程加载地理库的那段时间
+//    整个服务都停着 —— 所有牌桌的行动计时、广播、别人的请求全部卡住。改成异步子进程。
+function lookupGeo(pending) {
+    return new Promise((resolve) => {
+        const { spawn } = require('child_process');
+        const child = spawn(process.execPath, [require('path').join(__dirname, '../../tools/geo-lookup.js')], { timeout: 20000 });
+        let out = '';
+        child.stdout.on('data', d => { out += d; });
+        child.stderr.on('data', () => {});
+        child.on('error', e => resolve({ error: e }));
+        child.on('close', code => resolve({ status: code, stdout: out }));
+        child.stdin.end(JSON.stringify(pending));
+    });
+}
+
+app.get('/api/admin/sources', requireAdmin, async (req, res) => {
     const days = Math.min(365, Math.max(1, Number(req.query.days) || 90));
     try {
         const pending = db.loginEvents.unresolvedIps({ limit: 300 });
         let geoUnavailable = false;
         if (pending.length) {
             try {
-                const r = require('child_process').spawnSync(process.execPath,
-                    [require('path').join(__dirname, '../../tools/geo-lookup.js')],
-                    { input: JSON.stringify(pending), encoding: 'utf8', timeout: 20000 });
+                const r = await lookupGeo(pending);
+                if (r.error) throw r.error;
                 if (r.status === 3) geoUnavailable = true;   // 地理库没装
                 // 🔴 库没装的时候【绝对不能把这批 null 写进缓存】。
                 //    unresolvedIps 的判据是「ip_geo 里没有这一行」，一旦写进去，
@@ -238,7 +252,7 @@ app.get('/api/admin/sources', requireAdmin, (req, res) => {
                 //      「没法查（库没装）」→ 绝不能缓存
                 //    把后者当成前者，就是又一次「我不知道」被悄悄写成了一个确定答案
                 //    （同部署自查那次把取不到的基准 echo 成 0）。
-                if (r.stdout && !geoUnavailable) db.loginEvents.saveGeo(JSON.parse(r.stdout));
+                if (r.stdout && r.status === 0 && !geoUnavailable) db.loginEvents.saveGeo(JSON.parse(r.stdout));
             } catch (e) {
                 console.error('[admin] 地理解析失败（不影响列表）', e.message);
             }

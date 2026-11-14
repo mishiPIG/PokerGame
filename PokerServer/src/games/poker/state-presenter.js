@@ -46,7 +46,11 @@ function broadcastState(roomId) {
         pendingDissolve: !!game.pendingDissolve,     // 房主已点结束，本手打完后解散
         paused:      !!game.paused,                  // 房主暂停发牌（本手结束后不开新局，等继续）
         runIt:       game.runItPending && game.runIt   // 多次发牌协商中（落后方选/领先方同意）
-                     ? { deciderId: game.runIt.deciderId, leaderId: game.runIt.leaderId, n: game.runIt.n, equities: game.runIt.equities }
+                     // 重连恢复要用到的全都带上：走到哪一步（proposed）、截止时间、牌堆允许的最多次数。
+                     // 原来只有前四项 —— 领先方断线重连后只能看到「等对方选」、没有「同意」按钮，
+                     // 45 秒后静默退回发 1 次（和 room150331 那次丢钱是同一个结局）。
+                     ? { deciderId: game.runIt.deciderId, leaderId: game.runIt.leaderId, n: game.runIt.n, equities: game.runIt.equities,
+                         max: game.runIt.maxRuns || null, deadlineAt: game.runIt.deadlineAt || null, proposed: !!game.runIt.proposed }
                      : null,
         ownerUserId:    game.ownerUserId || null,
         status:         game.status || 'waiting',

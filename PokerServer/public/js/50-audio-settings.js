@@ -268,7 +268,6 @@ function applySettings() {
     // 牌面样式：四选一（four 四色 / standard 传统两色 / dark 黑面 / big 大字）
     document.body.classList.remove('cs-four', 'cs-standard', 'cs-dark', 'cs-big');
     document.body.classList.add('cs-' + settings.cardStyle);
-    document.body.classList.toggle('four-color', settings.cardStyle === 'four');   // 兼容旧规则
     applyLayoutMode();
     renderQuickBets();
 }
@@ -315,7 +314,7 @@ function syncLangButtons() {
 }
 onLangChange(syncLangButtons);   // 切完语言立刻换亮哪一个（登记制，别往 setLang 里手写）
 function buildSettingsPanel() {
-    document.getElementById('theme-row').innerHTML = THEMES.map(t =>
+    document.getElementById('theme-row').innerHTML = THEMES.map(t =>   // escape-ok: THEMES 是写死的常量表
         `<div class="theme-swatch ${settings.theme === t.id ? 'sel' : ''}" style="background:${t.css}" onclick="setTheme('${t.id}')"><span>${L(t.name, t.nameEn)}</span></div>`).join('');
     document.querySelectorAll('.cs-opt').forEach(b => b.classList.toggle('sel', b.dataset.cs === settings.cardStyle));
     // 布局按钮复用了 .cs-opt 样式，上一行会把它们的选中态一并清掉，这里按 data-lay 重新点亮

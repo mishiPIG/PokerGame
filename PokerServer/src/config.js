@@ -16,7 +16,6 @@ const RUNIT_MAX = 5;
 const RUNIT_DECIDE_MS = 45000;   // 多次发牌决策窗口（25s→45s，给足反应时间；落后方选号后会为领先方重置一次）
 const STRADDLE_DECISION_MS = 15000;
 const STRADDLE_INTERMISSION_MS = 4500;
-const FIXED_BUYIN = 50;
 const SNG_BUYIN_TIERS = [110, 220, 550, 1100];
 const BUYIN_RATE = 0.11;
 const CASHOUT_RATE = 0.10;
@@ -28,7 +27,6 @@ const STANDARD_BLIND_LEVELS = [
     { sb: 600, bb: 1200 }, { sb: 800, bb: 1600 }, { sb: 1000, bb: 2000 },
     { sb: 1500, bb: 3000 }, { sb: 2000, bb: 4000 }, { sb: 3000, bb: 6000 }
 ];
-const INITIAL_BB = STANDARD_BLIND_LEVELS[0].bb;
 
 function loadJwtSecret(baseDir) {
     if (process.env.JWT_SECRET && process.env.JWT_SECRET.length >= 16) return process.env.JWT_SECRET;
@@ -65,7 +63,7 @@ function sngPrize(pool) { return Math.floor((pool || 0) * 10 / 11); }
 module.exports = {
     LOCAL_DEV: process.env.LOCAL_DEV === '1', PHASES, DEFAULT_SMALL_BLIND, DEFAULT_BIG_BLIND,
     ACTION_TIME, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, RUNIT_MAX, RUNIT_DECIDE_MS,
-    STRADDLE_DECISION_MS, STRADDLE_INTERMISSION_MS, FIXED_BUYIN, SNG_BUYIN_TIERS,
-    BUYIN_RATE, CASHOUT_RATE, CONFIGURED_PUBLIC_ORIGIN, STANDARD_BLIND_LEVELS, INITIAL_BB,
+    STRADDLE_DECISION_MS, STRADDLE_INTERMISSION_MS, SNG_BUYIN_TIERS,
+    BUYIN_RATE, CASHOUT_RATE, CONFIGURED_PUBLIC_ORIGIN, STANDARD_BLIND_LEVELS,
     loadJwtSecret, gameSB, gameBB, gameAnte, timeCardsFor, sngPrize
 };

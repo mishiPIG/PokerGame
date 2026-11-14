@@ -1,4 +1,5 @@
 'use strict';
+const { safeAvatar } = require('../account/avatar');
 
 const crypto = require('crypto');
 
@@ -19,7 +20,7 @@ function mapUser(row) {
         password_hash: row.password_hash,
         gold: row.gold,
         isAdmin: !!row.is_admin,
-        avatar: row.avatar,
+        avatar: safeAvatar(row.avatar),   // 读出时也过白名单：库里的脏头像不必改库就失效
         friendCode: row.friend_code || null,
         lastCheckin: row.last_checkin,
         checkinStreak: row.checkin_streak || 0,
@@ -179,19 +180,6 @@ function createUserRepository(db) {
                 gold: row.gold,
                 isAdmin: !!row.is_admin
             }));
-        },
-        importUser(user) {
-            return this.createUser(user.username, user.password_hash, !!user.isAdmin, user.email || null, {
-                id: user.id,
-                gold: Number.isInteger(user.gold) ? user.gold : 0,
-                displayName: user.displayName || user.username,
-                avatar: user.avatar || null,
-                lastCheckin: user.lastCheckin || null,
-                checkinStreak: user.checkinStreak || 0,
-                createdAtMs: parseCreatedAt(user.created_at),
-                initialOperationKey: `legacy-initial:${user.id}`,
-                initialMetadata: { source: 'data.json' }
-            });
         }
     };
 }

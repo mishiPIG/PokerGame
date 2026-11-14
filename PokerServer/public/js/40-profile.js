@@ -5,6 +5,7 @@
 const AWARD_PREFIXES = ['🥇', '🥈', '🥉'];
 // 结算类消息是我们自己按固定格式发的（标题 / 你第X名 / —— 分节 —— / 排名行），
 // 这里按那套格式做轻量结构化渲染，比整段纯文本好读得多；不认识的行原样显示，格式变了也不会崩。
+// 返回【已转义】的 HTML：每一行都先过 escapeHtml 再套标签
 function formatInboxText(text) {
     const lines = String(text).split('\n');
     let html = '', first = true;
@@ -57,7 +58,7 @@ async function openInbox() {
         const icon = m.type === 'result' ? '🏆' : m.type === 'admin' ? '📢' : '✉️';
         return `<div class="inbox-item${m.read ? '' : ' unread'}">
             <div class="ib-head"><span class="ib-icon">${icon}</span><span class="ib-time">${t}</span></div>
-            ${formatInboxText(m.text || '')}</div>`;
+            ${formatInboxText(m.text || '')}</div>`;   // escape-ok: formatInboxText 内部逐行 escapeHtml
     }).join('');
     // 标记已读
     try {
@@ -178,7 +179,7 @@ function renderProfileInfo() {
 function renderDisplayNameSection() {
     const box = document.getElementById('pi-display-name'); if (!box) return;
     const left = Math.max(0, (myDisplayNameChangedAtMs || 0) + 86400000 - Date.now());
-    const hint = left ? L(`下次可修改：${new Date(Date.now() + left).toLocaleString()}`, `Next change: ${new Date(Date.now() + left).toLocaleString()}`) : L('可每 24 小时修改一次', 'Can change once every 24h');
+    const hint = left ? L(`下次可修改：${fmtDateTime(Date.now() + left)}`, `Next change: ${fmtDateTime(Date.now() + left)}`) : L('可每 24 小时修改一次', 'Can change once every 24h');
     box.innerHTML = `<div class="pi-section-title">${L('显示名称', 'Display name')}</div>
         <div class="pi-name-form"><input id="display-name-input" class="be-input" maxlength="16" value="${escapeHtml(myDisplayName || myUsername || '')}" aria-label="${L('显示名称', 'Display name')}">
         <button class="mini-btn" onclick="saveDisplayName()"${left ? ' disabled' : ''}>${L('保存', 'Save')}</button></div>

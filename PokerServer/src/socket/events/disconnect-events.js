@@ -13,6 +13,10 @@ function registerDisconnectEvents(context) {
         if (!roomId) return;
         const game = roomGames[roomId];
         if (!game) return;
+        // 不管走的是不是在座玩家，都挂一次空房计时：原来只有在座的人掉线才挂，
+        // 于是「房主建了房、还没坐下就关了页面」这种房间永远不会被清理（还占着一个房间码）。
+        // 计时器到点会【再查一次】房里还有没有连接，有人就什么都不做，所以多挂无害。
+        scheduleEmptyCleanup(roomId);
         const idx = game.players.findIndex(p => p.userId === user.id);
         if (idx < 0) return;
         const player = game.players[idx];
@@ -31,11 +35,9 @@ function registerDisconnectEvents(context) {
         //  · 若没轮到他：留在本局，等轮到他时 startActionTimer 见 away 走快速超时自动处理。
         // 重连(join_room)会把 away 置回 false 并（若轮到他）重启计时。
         broadcastState(roomId);
-        // 掉线也挂上「空房清理」计时（原来只在主动退出时挂）：3 分钟宽限后【到点再查】房里还有没有连接，
-        // ⚠️ 只要还有任何人连着就直接不解散——所以绝不会把「还有人在玩」的房解散掉；
-        // 只有全员离线且到点仍无人回来，才按房型自动结算/解散（现金=筹码兑回金币，SNG=奖池给领先者）。
-        // 重连时会清掉这个计时（见 membership-service），playing 中的房不会残留待解散计时。
-        scheduleEmptyCleanup(roomId);
+        // 空房计时在上面已经挂过：3 分钟宽限后【到点再查】房里还有没有连接，
+        // ⚠️ 只要还有任何人连着就直接不解散——所以绝不会把「还有人在玩」的房解散掉。
+        // 重连时会清掉这个计时（见 membership-service）。
     });
 }
 

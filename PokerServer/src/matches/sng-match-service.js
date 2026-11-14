@@ -28,7 +28,26 @@ function dissolveSngRoom(roomId) {
     const game = roomGames[roomId];
     if (!game) return;
     // ⚠️ 已自然结束(tournamentOver)的 SNG 奖金已在 maybeEndSNG 发过 —— 此时只清房，绝不再发奖/再弹排名
-    if (!game.tournamentOver) {
+    if (!game.tournamentOver && game.status === 'waiting') {
+        // 🔴 从没开过赛：大家筹码一样多，「筹码领先者」只是座位号最小的那位（通常是房主）。
+        //    原来会把所有人的报名费（抽水后）判给他 —— 房主在等待室点一下解散就能拿走；
+        //    全员掉线 3 分钟后的空房清理走的也是这条路。没开赛就该原数退还。
+        const refunds = game.players
+            .map(p => ({ p, gold: p.buyInGold || 0 }))
+            .filter(r => r.gold > 0);
+        if (refunds.length) {
+            const committed = persistence.commitWithWallet(roomId, refunds.map(({ p, gold }) => ({
+                userId: p.userId, delta: gold, type: 'sng_refund', matchId: game.matchId,
+                operationKey: `sng-refund:${game.matchId}:${p.userId}:${db.wallet.countOperations(`sng-refund:${game.matchId}:${p.userId}`) + 1}`,
+                metadata: { reason: 'dissolved_before_start' }
+            })), 'sng_refund', null, { reason: 'dissolved_before_start' });
+            refunds.forEach(({ p, gold }, i) => {
+                p.settlementGold = gold; p.settledAt = Date.now();
+                if (p.socketId) io.to(p.socketId).emit('gold_update', { gold: committed.wallets[i].balance });
+            });
+        }
+        game.prizePool = 0;
+    } else if (!game.tournamentOver) {
         const prize = sngPrize(game.prizePool);
         const leader = [...game.players].sort((a, b) => b.chips - a.chips)[0];
         if (leader && prize > 0) {

@@ -27,6 +27,10 @@ let _confirmResolve = null;
 function uiConfirm(text, { ok, cancel, danger = false } = {}) {
     const box = document.getElementById('confirm-modal');
     if (!box) return Promise.resolve(window.confirm(text));   // 兜底：元素不在就退回原生
+    // 上一个还开着就又来一个（比如正问「确定离开吗」时收到牌友邀请）：
+    // 先把上一个按「取消」了结。否则它的 Promise 永远不落地 ——
+    // 被顶掉的若是邀请，房主那边要干等 3 分钟过期。
+    if (_confirmResolve) { const prev = _confirmResolve; _confirmResolve = null; prev(false); }
     document.getElementById('confirm-text').textContent = text;
     const okBtn = document.getElementById('confirm-ok');
     okBtn.textContent = ok || t('btn.ok', '确定');

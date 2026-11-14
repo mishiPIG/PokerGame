@@ -13,7 +13,7 @@ SERVER_PATH="/root/PokerGame/PokerServer"
 DB_PATH="/root/PokerGame/data/pokerdojo.sqlite"
 BACKUP_PATH="/root/PokerGame/backups"
 PM2_APP="poker"
-PUBLIC_URL="http://18.140.12.176:3000"
+PUBLIC_URL="https://pokerdojo.space"   # 3000 端口自 1.10.1 起只对 KAUST 网段开放
 
 # Step 0: 部署前安全体检（eslint no-undef + 解构交叉核对）——专抓"用了但没定义/没准备好"的崩溃隐患。
 # 不过就中止部署，绝不把会崩全服的代码上线。（首次需在 PokerServer 里 npm install 装上 eslint）
@@ -48,6 +48,9 @@ fi
 #    测试服部署不涨号 —— 否则号涨得毫无意义。判定按玩家视角：
 #      主=大改版 / 次=新功能 / 修订=修 bug。
 BUILD_SHA="$(git -C "$SCRIPT_DIR" rev-parse --short HEAD)"
+# 打包的是【工作区文件】而不是某个 commit：工作区有没提交的改动时，
+# 光写 HEAD 的 SHA 等于谎报「线上跑的就是这个 commit」。带上 -dirty，事后才追得清。
+if [ -n "$(git -C "$SCRIPT_DIR" status --porcelain -- PokerServer)" ]; then BUILD_SHA="$BUILD_SHA-dirty"; fi
 BUILD_AT="$(date '+%Y-%m-%d %H:%M:%S')"
 # 先 cd 再用相对路径 require：Git Bash 下把 $SCRIPT_DIR 直接塞进 require() 会因 POSIX 路径解析失败
 APP_VERSION="$(cd "$SCRIPT_DIR/PokerServer" && node -p "require('./package.json').version")"
@@ -66,64 +69,36 @@ if ! grep -q "const CLIENT_BUILD = '__BUILD__'" "$SCRIPT_DIR/PokerServer/public/
     exit 1
 fi
 # 前端构建号：把占位替换成真实 SHA（打包用的临时副本，改完还原）
-cp "$SCRIPT_DIR/PokerServer/public/js/00-state.js" /tmp/00-state.orig.js
+STATE_BAK="$(mktemp -t poker_state.XXXXXX)"
+cp "$SCRIPT_DIR/PokerServer/public/js/00-state.js" "$STATE_BAK"
 sed -i "s/const CLIENT_BUILD = '__BUILD__'/const CLIENT_BUILD = '$BUILD_SHA'/" "$SCRIPT_DIR/PokerServer/public/js/00-state.js"
-restore_build_stamp() { cp /tmp/00-state.orig.js "$SCRIPT_DIR/PokerServer/public/js/00-state.js"; }
+restore_build_stamp() { cp "$STATE_BAK" "$SCRIPT_DIR/PokerServer/public/js/00-state.js"; rm -f "$STATE_BAK"; }
 trap restore_build_stamp EXIT
 
-# Step 2: 打包源码（排除 node_modules）并上传到服务器
+# Step 2: 打包 —— 只打 git 里有的源码（含还没提交的新文件），不打测试和运行时数据
+# 原来是「目录里的文件全打、再排除几个数据文件」：41 个测试文件跟着上了生产，
+# 以后谁在 PokerServer/ 根目录随手放个文件也会被带上去。
 echo ""
-echo "🚀 同步代码到服务器..."
-DEPLOY_TMP="/tmp/poker_deploy_$$.tar.gz"
+echo "🚀 打包并上传..."
+DEPLOY_TMP="$(mktemp -t poker_deploy.XXXXXX).tar.gz"
+LIST_TMP="$(mktemp -t poker_files.XXXXXX)"
 cd "$SCRIPT_DIR/PokerServer"
-tar czf "$DEPLOY_TMP" $(find . -maxdepth 1 -type f ! -name "data.json*" ! -name "hands.jsonl" ! -name "secret.key" ! -name "mail.json" ! -name "feedback.jsonl") avatars scripts src public tools
-scp "$DEPLOY_TMP" "$SERVER_HOST:/tmp/poker_deploy.tar.gz"
-ssh "$SERVER_HOST" "cd $SERVER_PATH && tar xzf /tmp/poker_deploy.tar.gz && rm /tmp/poker_deploy.tar.gz"
-rm -f "$DEPLOY_TMP"
+git ls-files --cached --others --exclude-standard -- . \
+    | grep -v '\.test\.js$' | grep -v '^\.eslintrc' \
+    | while read -r f; do [ -e "$f" ] && echo "$f"; done > "$LIST_TMP"
+echo "build-info.json" >> "$LIST_TMP"
+tar czf "$DEPLOY_TMP" -T "$LIST_TMP"
+echo "   $(wc -l < "$LIST_TMP") 个文件"
+scp -q "$DEPLOY_TMP" "$SERVER_HOST:/tmp/poker_deploy_$PM2_APP.tar.gz"
+rm -f "$DEPLOY_TMP" "$LIST_TMP"
 cd "$SCRIPT_DIR"
 
-# Step 3: 安装依赖（服务器端编译 native 模块）
-echo ""
-echo "📦 服务器安装依赖..."
-ssh "$SERVER_HOST" "cd $SERVER_PATH && npm install --omit=dev"
+# Step 3: 服务器端：临时目录里装好依赖 → 在线备份 → 停机几秒切换 → 校验快照
+# 具体步骤见 PokerServer/scripts/deploy-remote.sh（两个部署脚本共用）
+ssh "$SERVER_HOST" "set -e; STAGE=\$(mktemp -d /tmp/poker_stage.XXXXXX); tar xzf /tmp/poker_deploy_$PM2_APP.tar.gz -C \$STAGE; rm -f /tmp/poker_deploy_$PM2_APP.tar.gz; \
+    SERVER_PATH='$SERVER_PATH' DB_PATH='$DB_PATH' BACKUP_PATH='$BACKUP_PATH' PM2_APP='$PM2_APP' bash \$STAGE/scripts/deploy-remote.sh \$STAGE"
 
-echo ""
-echo "🗄️ 停写、备份并校验数据库..."
-# 记下错误日志当前大小：Step 4 只读【这之后】新增的部分（比事后猜时间/过滤关键字都准）
-ssh "$SERVER_HOST" "PM2_APP='$PM2_APP' bash -s" <<'REMOTE_ERRMARK'
-ERRLOG=$(pm2 jlist 2>/dev/null | python3 -c "import sys,json;d=json.load(sys.stdin);print([x['pm2_env']['pm_err_log_path'] for x in d if x['name']=='$PM2_APP'][0])" 2>/dev/null)
-# pm2 里查不到（比如机器刚重启、进程还没拉起来）就退回约定路径
-[ -n "$ERRLOG" ] || ERRLOG="$HOME/.pm2/logs/${PM2_APP}-error.log"
-# 🔴 取不到基准时必须写 unknown，【绝不能写 0】——
-#    写 0 等于把「我不知道」偷偷变成「从头比」，于是自查会把整个历史日志当成新错误喷出来。
-#    2026-09-17 就这么误报过一次：测试服重启后进程没拉起来，取基准时 pm2 里查不到它。
-#    一个会喊狼来了的自查，和吵闹的告警是同一个毛病——很快就没人看了。
-if [ -f "$ERRLOG" ]; then wc -c < "$ERRLOG" > "/tmp/poker_errsize_$PM2_APP"; else echo unknown > "/tmp/poker_errsize_$PM2_APP"; fi
-REMOTE_ERRMARK
-
-ssh "$SERVER_HOST" "DB_PATH='$DB_PATH' BACKUP_PATH='$BACKUP_PATH' SERVER_PATH='$SERVER_PATH' PM2_APP='$PM2_APP' bash -s" <<'REMOTE_DB'
-set -e
-mkdir -p "$(dirname "$DB_PATH")" "$BACKUP_PATH"
-pm2 stop "$PM2_APP" >/dev/null 2>&1 || true
-cd "$SERVER_PATH"
-if [ -f "$DB_PATH" ]; then
-  SNAPSHOT="$BACKUP_PATH/pokerdojo-predeploy-$(date +%Y%m%d-%H%M%S).sqlite"
-  node scripts/backup-sqlite.js "$DB_PATH" "$SNAPSHOT"
-  POKER_DB_PATH="$DB_PATH" node scripts/migrate-sqlite.js
-else
-  test -f data.json || { echo '❌ 首次切换缺少 data.json，拒绝创建空数据库'; exit 1; }
-  IMPORT_DB="$DB_PATH.importing-$(date +%Y%m%d-%H%M%S)-$$"
-  node scripts/migrate-json-to-sqlite.js --database "$IMPORT_DB" --data data.json --hands hands.jsonl --feedback feedback.jsonl
-  node scripts/verify-sqlite.js "$IMPORT_DB"
-  mv "$IMPORT_DB" "$DB_PATH"
-fi
-node scripts/verify-sqlite.js "$DB_PATH"
-POKER_DB_PATH="$DB_PATH" NODE_ENV=production pm2 restart "$PM2_APP" --update-env ||
-  POKER_DB_PATH="$DB_PATH" NODE_ENV=production pm2 start server.js --name "$PM2_APP"
-pm2 save
-REMOTE_DB
-
-# Step 4: 发版后自查错误日志（2026-08-10 加）
+# Step 4: 版本核对 + 发版后自查错误日志（2026-08-10 加）
 # 连着三个经济漏洞（边池分钱、straddle 少扣、补码白拿）里，有两个是【部署后翻 error.log】
 # 才发现的——玩家自己不会报，「点了没反应」「补不上码」他们只当是自己的问题。
 # 筹码守恒审计也抓不到这类：钱没凭空多，只是分错人；或者漏的是金币、根本不在牌谱里。
@@ -131,7 +106,8 @@ REMOTE_DB
 # 版本核对：不再靠 grep 关键字猜，直接问服务器它是哪一版
 echo ""
 echo "🏷️  线上版本核对..."
-LIVE=$(ssh "$SERVER_HOST" "curl -s http://127.0.0.1:3000/api/version")
+# 刚 pm2 restart 完进程可能还没开始监听：重试几次，别把「还没起来」误报成「版本对不上」
+LIVE=$(ssh "$SERVER_HOST" "curl -s --retry 6 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/api/version")
 LIVE_SHA=$(node -p "try{JSON.parse(process.argv[1]).commit}catch(e){''}" "$LIVE" 2>/dev/null)
 if [ "$LIVE_SHA" = "$BUILD_SHA" ]; then
   echo "   ✅ 线上已是本次构建：$(node -p "JSON.parse(process.argv[1]).label" "$LIVE" 2>/dev/null)"

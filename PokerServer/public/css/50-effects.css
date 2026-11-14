@@ -41,20 +41,6 @@
         #runit-boards .rib-slot.ghost { visibility: hidden; }   /* 占位对齐（共享底位置留空）*/
         #runit-boards .rib-slots .card { width: var(--comm-w); height: calc(var(--comm-w) * 1.39); min-width: var(--comm-w); }
         /* 多次发牌结果 */
-        #runit-result { position: fixed; inset: 0; z-index: 242; background: rgba(6,10,18,0.62); display: none; align-items: center; justify-content: center; padding: 18px; }
-        #runit-result .rir-box { width: 100%; max-width: 400px; background: linear-gradient(160deg,#22392e,#12201a); color: #eaf3ee;
-            border-radius: 16px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); max-height: 86vh; overflow-y: auto; }
-        #runit-result .rir-title { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 10px; }
-        #runit-result .rir-row { display: flex; align-items: center; gap: 8px; padding: 8px 4px; border-top: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap; }
-        #runit-result .rir-no { font-size: 12px; color: #9db9a9; min-width: 44px; }
-        #runit-result .rir-board { display: flex; gap: 2px; --card-w: 22px; --card-h: 30px; }
-        #runit-result .rir-board .card { width: 22px; height: 30px; font-size: 9px; }
-        #runit-result .rir-win { font-size: 12px; color: #f4d35e; flex: 1; min-width: 90px; }
-        #runit-result .rir-amt { color: #7ee6a6; font-weight: bold; }
-        #runit-result .rir-cat { color: #9db9a9; }
-        #runit-result .rir-total { text-align: center; font-size: 13px; margin-top: 10px; color: #dfe9e2; }
-        #runit-result .rir-close { display: block; width: 100%; margin-top: 12px; padding: 10px; border-radius: 10px; cursor: pointer;
-            background: rgba(120,160,220,0.2); border: 1px solid rgba(120,160,220,0.5); color: #eaf3ee; font-weight: bold; }
         /* 高牌定庄：座位上方翻出的牌 */
         .bd-card { --card-w: 32px; --card-h: 44px; position: fixed; z-index: 300; pointer-events: none;
             transform: translate(-50%, -100%); transform-origin: bottom center;
@@ -104,12 +90,7 @@
         .hist-item.lose { border-left-color: #6b7f72; }
         .hi-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; align-items: center; }
         .hi-time { color: #9db9a9; font-size: 11px; }
-        .hi-hole { font-weight: bold; letter-spacing: 1px; }
         .hi-net { color: #4ade80; font-size: 12px; }
-        .hi-body { display: none; margin-top: 8px; font-size: 12px; color: #cbd9d0; line-height: 1.7; }
-        .hist-item.open .hi-body { display: block; }
-        .hi-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-        .ha { background: rgba(255,255,255,0.07); border-radius: 8px; padding: 2px 7px; font-size: 11px; }
         .match-info { font-size: 14px; color: #dfe9e2; }
         .mi-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px solid rgba(255,255,255,0.1); }
         .mi-row > span { white-space: nowrap; flex-shrink: 0; }   /* 标签不折行（「当前状/态」，2026-09-29 截图）；长的值去右边折行 */

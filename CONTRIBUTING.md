@@ -21,9 +21,21 @@ LOCAL_DEV=1 PORT=3000 node server.js   # http://127.0.0.1:3000, seeds test/test 
 
 ## Testing / 测试
 
-There's no framework; behavior is verified with small **socket.io-client** scripts that log in over `/api/login`, drive a hand, and assert on the broadcasts. When you change game flow (betting, side pots, run-it, seating), add or run such a script and paste the result in your PR.
+```bash
+cd PokerServer
+npm test          # Node's built-in test runner (node --test), ~350 tests, a few seconds
+npm run check     # lint + structural gates (i18n, escaping, CSS, timers, destructuring)
+```
 
-没有测试框架;用小的 **socket.io-client** 脚本验证行为(登录→驱动一手→断言广播)。改动游戏流程(下注、边池、多次发牌、座位)时,请附上此类脚本的运行结果。
+Both run in CI on every push and PR (Node 20 and 22). `npm run check` is also the pre-deploy gate, so a failing check blocks deployment.
+
+When you change game flow (betting, side pots, run-it, seating, disconnects) or anything that moves gold or chips, add a test that drives the real engine (see `short-blind.test.js` and `table-flow.test.js` for the pattern) and, for socket-level behaviour, a short socket.io-client script against a local server.
+
+两条命令都会在 CI 上跑（Node 20 / 22），`npm run check` 也是部署前的关卡。
+改动牌局流程（下注、边池、多次发牌、座位、掉线）或任何动金币 / 筹码的逻辑时，请加一个用真实引擎跑的测试
+（写法参考 `short-blind.test.js`、`table-flow.test.js`），必要时再附一段连本地服务器的 socket 脚本结果。
+
+Text shown to players must be bilingual from the start (`L('中文', 'English')` or a `t()` key); user-supplied text must go through `escapeHtml` before it reaches HTML. Both are enforced by `npm run check`.
 
 Test accounts should share a known password so they can be cleaned up afterward. Delete any test accounts you create.
 

@@ -1,6 +1,6 @@
 name: CI
 
-# 🔴 为什么要有这条：153 条测试 + npm run check 那四道关卡，在 2026-09-16 之前
+# 🔴 为什么要有这条：全部测试 + npm run check 那几道关卡，在 2026-09-16 之前
 #    【只在开发者本机跑过】。而这个仓库是 public、有朋友提 PR
 #    （dreamingwill 的 SQLite 重构、zrh 的提示音修复都合进来过），
 #    合并时全靠人肉记得去跑一遍——而合 PR 差点丢掉 CLAUDE.md 513 行的事真发生过。
@@ -82,5 +82,5 @@ jobs:
       - name: shell 脚本不许有 CRLF
         working-directory: .
         run: |
-          bad=$(find . -name '*.sh' -not -path './node_modules/*' -exec file {} \; | grep -i crlf || true)
+          bad=$(find . -name '*.sh' -not -path '*/node_modules/*' -exec file {} \; | grep -i crlf || true)
           [ -z "$bad" ] || { echo "::error::这些 .sh 是 CRLF，Linux 上会 'required file not found'：$bad"; exit 1; }

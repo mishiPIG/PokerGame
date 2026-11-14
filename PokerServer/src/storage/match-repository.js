@@ -88,21 +88,39 @@ function createMatchRepository(db) {
         return { id, stateVersion: 1 };
     });
 
+    // 这三条每次广播都要跑：语句只准备一次（原来每次 commit 都重新 prepare）
+    const selectCurrentStmt = db.prepare('SELECT state_version, status FROM matches WHERE id = ?');
+    const updateMatchStmt = db.prepare(`
+        UPDATE matches
+        SET state_version = ?, status = ?, config_json = ?, invite_json = ?,
+            started_at_ms = COALESCE(started_at_ms, ?), scheduled_end_ms = ?,
+            ended_at_ms = ?, updated_at_ms = ?
+        WHERE id = ? AND state_version = ?
+    `);
+    const upsertStateStmt = db.prepare(`
+        INSERT INTO active_match_states(match_id, state_version, hand_seq, phase, snapshot_json, updated_at_ms)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(match_id) DO UPDATE SET
+            state_version = excluded.state_version,
+            hand_seq = excluded.hand_seq,
+            phase = excluded.phase,
+            snapshot_json = excluded.snapshot_json,
+            updated_at_ms = excluded.updated_at_ms
+    `);
+    // 「state_committed」是每次广播的通用写入，事件本身没有任何内容（payload 恒为 {}）。
+    // 全量排查时它占了 match_events 的 63%（12 万行），连同两个索引吃掉近 40MB，而没有任何代码读它。
+    // 快照照常写（重启恢复靠它）；只是不再为它记一条空事件。有内容的事件（结算、补码、straddle…）照记。
+    const SILENT_EVENTS = new Set(['state_committed']);
+
     const commitTx = db.transaction(params => {
-        const current = db.prepare('SELECT state_version, status FROM matches WHERE id = ?').get(params.matchId);
+        const current = selectCurrentStmt.get(params.matchId);
         if (!current) throw new Error('MATCH_NOT_FOUND');
         if (params.expectedVersion != null && current.state_version !== params.expectedVersion) {
             throw new Error('STALE_MATCH_VERSION');
         }
         const nextVersion = current.state_version + 1;
         const now = Date.now();
-        const update = db.prepare(`
-            UPDATE matches
-            SET state_version = ?, status = ?, config_json = ?, invite_json = ?,
-                started_at_ms = COALESCE(started_at_ms, ?), scheduled_end_ms = ?,
-                ended_at_ms = ?, updated_at_ms = ?
-            WHERE id = ? AND state_version = ?
-        `).run(
+        const update = updateMatchStmt.run(
             nextVersion,
             params.status || current.status,
             JSON.stringify(params.config || {}),
@@ -115,24 +133,12 @@ function createMatchRepository(db) {
             current.state_version
         );
         if (update.changes !== 1) throw new Error('STALE_MATCH_VERSION');
-        db.prepare(`
-            INSERT INTO active_match_states(match_id, state_version, hand_seq, phase, snapshot_json, updated_at_ms)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(match_id) DO UPDATE SET
-                state_version = excluded.state_version,
-                hand_seq = excluded.hand_seq,
-                phase = excluded.phase,
-                snapshot_json = excluded.snapshot_json,
-                updated_at_ms = excluded.updated_at_ms
-        `).run(params.matchId, nextVersion, params.handSeq || 0, params.phase || 'waiting', JSON.stringify(params.snapshot), now);
-        insertEvent.run(
-            params.matchId,
-            nextVersion,
-            params.eventType || 'state_committed',
-            params.userId || null,
-            JSON.stringify(params.eventPayload || {}),
-            now
-        );
+        const snapshotJson = params.snapshotJson != null ? params.snapshotJson : JSON.stringify(params.snapshot);
+        upsertStateStmt.run(params.matchId, nextVersion, params.handSeq || 0, params.phase || 'waiting', snapshotJson, now);
+        const eventType = params.eventType || 'state_committed';
+        if (!SILENT_EVENTS.has(eventType)) {
+            insertEvent.run(params.matchId, nextVersion, eventType, params.userId || null, JSON.stringify(params.eventPayload || {}), now);
+        }
         for (const player of params.players || []) upsertPlayer({ ...player, matchId: params.matchId });
         return { stateVersion: nextVersion };
     });

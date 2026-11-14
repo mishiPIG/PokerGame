@@ -153,9 +153,7 @@ LOCAL_DEV=1 PORT=3000 node server.js
 
 ## 🗺️ Roadmap highlights
 
-Done: multiplayer engine + real side pots · SNG & cash tables · run-it-N-times · hand histories + replay · career stats · avatars/chat/emote/voice · CSPRNG shuffle · email accounts + TLS · Android build.
-
-Planned: richer admin tools · avatar upload · bankruptcy relief · card-face themes.
+Done: multiplayer engine + real side pots · SNG & cash tables · run-it-N-times · chained straddles · hand histories + replay · career stats · friends & one-tap invites · provably fair shuffle (verifiable offline) · Chinese / English UI · four card-face styles · avatars/chat/emote/voice · email accounts + TLS · Android build.
 
 See [`CHANGELOG.md`](./CHANGELOG.md) for release history and
 [`docs/archive/`](./docs/archive/) for the legacy development notes.

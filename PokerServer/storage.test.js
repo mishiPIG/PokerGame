@@ -6,7 +6,6 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { createDatabaseService } = require('./src/storage/database-service');
-const { importLegacy } = require('./src/storage/legacy-import');
 const { displayNameChangeAllowed, normalizeDisplayName } = require('./src/account/display-name');
 
 function withDatabase(fn) {
@@ -163,46 +162,3 @@ test('match snapshots use optimistic versions and are recoverable', () => {
     });
 });
 
-test('legacy import is complete and idempotent', () => {
-    withDatabase(db => {
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poker-sqlite-import-'));
-        const dataPath = path.join(dir, 'data.json');
-        const handsPath = path.join(dir, 'hands.jsonl');
-        const feedbackPath = path.join(dir, 'feedback.jsonl');
-        const user = {
-            id: 'legacy-user',
-            username: 'Legacy',
-            password_hash: 'hash',
-            gold: 4321,
-            isAdmin: false,
-            created_at: '2026-01-01T00:00:00.000Z',
-            messages: [{ id: 'legacy-message', ts: 1, read: false, type: 'result', text: '旧消息' }]
-        };
-        fs.writeFileSync(dataPath, JSON.stringify({ users: { [user.id]: user } }));
-        fs.writeFileSync(handsPath, `${JSON.stringify({
-            ts: 2,
-            roomId: '111111',
-            mode: 'sng',
-            handSeq: 1,
-            sb: 10,
-            bb: 20,
-            seats: [{ userId: user.id, username: user.username, seat: 0, startChips: 1000, hole: ['AS', 'AH'] }],
-            actions: [],
-            community: [],
-            results: [{ userId: user.id, won: 30, endChips: 1010 }]
-        })}\n`);
-        fs.writeFileSync(feedbackPath, `${JSON.stringify({
-            ts: 3, userId: user.id, username: user.username, text: '旧反馈'
-        })}\n`);
-        const first = importLegacy(db, { data: dataPath, hands: handsPath, feedback: feedbackPath });
-        const second = importLegacy(db, { data: dataPath, hands: handsPath, feedback: feedbackPath });
-        assert.equal(first.users.rows, 1);
-        assert.equal(second.users.alreadyImported, true);
-        assert.equal(db.getUserById(user.id).gold, 4321);
-        assert.equal(db.getMessages(user.id).length, 1);
-        assert.equal(db.getHandsForUser(user.id, {}).length, 1);
-        assert.equal(db.getFeedback(10).length, 1);
-        assert.equal(db.integrityCheck(), 'ok');
-        assert.deepEqual(db.foreignKeyCheck(), []);
-    });
-});
