@@ -19,7 +19,7 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # 固定系统版本，见 android.yml 的说明
     strategy:
       fail-fast: false          # 一个版本挂了也要看另一个，好判断是不是版本相关
       matrix:
@@ -29,9 +29,9 @@ jobs:
         working-directory: PokerServer
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
           cache: npm

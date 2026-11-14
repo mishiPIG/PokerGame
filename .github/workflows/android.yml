@@ -15,21 +15,23 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # 固定系统版本：ubuntu-latest 从 2026-10-19 起换成 Ubuntu 26，Android SDK 安装那一步在新镜像上直接失败（2026-11-14）。
+    # 换系统版本前先在分支上跑一次再合。
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: mobile
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'

