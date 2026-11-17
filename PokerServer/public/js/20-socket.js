@@ -180,6 +180,7 @@ function connectSocket(token) {
     });
 
     socket.on('hole_cards', (cards) => {
+        noteGuestHand();     // 游客打过几手之后回大厅时提醒保存账号
         myHoleCards = cards;
         revealedCards = {};  // 新一局清除 showdown 展示
         showdownInfo = null; myHand = null;

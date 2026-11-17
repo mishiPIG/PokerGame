@@ -102,14 +102,15 @@ test('房里一个连接都没有时，行动计时器快速代打', () => {
 
 test('建房有上限（每人 / 全服）', () => {
     const lobby = codeOf(read('src/socket/events/lobby-events.js'));
-    assert.equal((lobby.match(/const limit = roomLimitReached\(roomGames, user\.id\)/g) || []).length, 2, 'SNG 和现金桌建房都要查');
-    const fn = new Function(/(function roomLimitReached[\s\S]*?\n\})/.exec(lobby)[1] + '\nreturn roomLimitReached;')();
-    const MAX_ROOMS_PER_OWNER = 3, MAX_ROOMS_TOTAL = 300;   // eslint-disable-line no-unused-vars
-    const limitFn = new Function('MAX_ROOMS_PER_OWNER', 'MAX_ROOMS_TOTAL', 'return ' + fn.toString())(MAX_ROOMS_PER_OWNER, MAX_ROOMS_TOTAL);
+    assert.equal((lobby.match(/const limit = roomLimitReached\(roomGames, user\)/g) || []).length, 2, 'SNG 和现金桌建房都要查');
+    // 2026-11-17 起按「人」查（游客的上限是 1，见 guest.test.js），所以把上限那几行一起取出来
+    const body = /(const MAX_ROOMS_GUEST[\s\S]*?\nfunction roomLimitReached[\s\S]*?\n\})/.exec(lobby)[1];
+    const limitFn = new Function('MAX_ROOMS_PER_OWNER', 'MAX_ROOMS_TOTAL', body + '\nreturn roomLimitReached;')(3, 300);
     const rooms = (n, owner) => Object.fromEntries(Array.from({ length: n }, (_, i) => [owner + i, { ownerUserId: owner }]));
-    assert.equal(limitFn(rooms(2, 'a'), 'a'), null);
-    assert.equal(limitFn(rooms(3, 'a'), 'a'), 'room.tooManyMine');
-    assert.equal(limitFn({ ...rooms(3, 'a'), x: { ownerUserId: 'a', tournamentOver: true } }, 'b'), null, '已结束的房间不算');
+    assert.equal(limitFn(rooms(2, 'a'), { id: 'a' }), null);
+    assert.equal(limitFn(rooms(3, 'a'), { id: 'a' }), 'room.tooManyMine');
+    assert.equal(limitFn({ ...rooms(3, 'a'), x: { ownerUserId: 'a', tournamentOver: true } }, { id: 'b' }), null, '已结束的房间不算');
+    assert.equal(limitFn(rooms(300, 'z'), { id: 'b' }), 'room.serverFull');
 });
 
 // ───────── 4 底池不能凭空消失 ─────────

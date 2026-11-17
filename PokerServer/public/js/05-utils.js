@@ -2,6 +2,9 @@
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
+// 「我是不是游客」变了：记下状态，并切换 body.is-guest ——
+// 它控制两类元素：.guest-only（只给游客看）/ .member-only（游客看不到）。
+function setGuest(v) { isGuest = !!v; document.body.classList.toggle('is-guest', isGuest); }
 function hashHue(s) { let h = 0; for (const c of (s || '?')) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
 // 当前战绩按「筹码总资产 - 累计带入」计算；下注和待生效补码仍属于玩家资产，不能提前算成亏损。
 function displayNet(p) {

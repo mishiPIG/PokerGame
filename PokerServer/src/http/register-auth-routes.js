@@ -4,8 +4,10 @@ const crypto = require('crypto');
 const { extractIp } = require('../ops/client-ip');
 const { createSendCodeLimiter } = require('../ops/send-code-limiter');
 const { createFailureLimiter } = require('../ops/failure-limiter');
+const { normalizeDisplayName } = require('../account/display-name');
+const { refreshLiveUser } = require('../account/live-user');
 
-function registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth }) {
+function registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth, io, roomGames }) {
 // 注册/登录来源埋点（2026-09-21）。两个用途：看用户分布在哪些地区、
 // 以及将来防同一人开多账号（尤其是做了「邀请注册送金币」之后）。
 // 🔴 **登录也要记**，不只是注册 —— 存量用户的注册 IP 已经永久丢了，
@@ -41,19 +43,32 @@ function wrongCode(store, key, res) {
     }
     return res.status(400).json({ error: '验证码错误', k: 'codeWrong' });
 }
-// 注册第一步：校验 + 发验证码
-app.post('/api/register/send-code', async (req, res) => {
-    let { username, email, password } = req.body || {};
+// 注册资料的校验。注册和「游客保存账号」共用这一份 ——
+// 两处各写一套的话规则迟早会漂移，而保存出来的账号必须和注册出来的【完全一样】，不能多出第三种账号。
+// 返回 { fail: [状态码, 响应体] } 或 { username, email, password }（已规整）。
+function checkSignup(body) {
+    let { username, email, password } = body || {};
     username = str(username).trim(); email = str(email).trim().toLowerCase(); password = str(password);
-    if (!username || !email || !password) return res.status(400).json({ error: '请填写用户名、邮箱和密码', k: 'signupFields' });
-    if (username.length < 2 || username.length > 20) return res.status(400).json({ error: '用户名 2-20 字符', k: 'nameLen' });
+    const fail = (status, error, k) => ({ fail: [status, { error, k }] });
+    if (!username || !email || !password) return fail(400, '请填写用户名、邮箱和密码', 'signupFields');
+    if (username.length < 2 || username.length > 20) return fail(400, '用户名 2-20 字符', 'nameLen');
     // 用户名会出现在别人的页面上（管理面板、点击事件里）。能拼出 HTML / 跳出 JS 字符串的字符一律不收：
     // 客户端该转义的地方都转了，这是第二道。现有用户名里一个都没有这些字符（2026-11-14 查过）。
-    if (/[<>"'`&\\]/.test(username)) return res.status(400).json({ error: '用户名不能包含 < > " \' ` & \\ 这些符号', k: 'nameChars' });
-    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确', k: 'badEmail' });
-    if (password.length < 6) return res.status(400).json({ error: '密码至少 6 位', k: 'pwdShort' });
-    if (db.getUserByUsername(username)) return res.status(409).json({ error: '用户名已被注册', k: 'nameTaken' });
-    if (db.getUserByEmail(email)) return res.status(409).json({ error: '该邮箱已注册，可直接登录或找回密码', k: 'emailTakenHint' });
+    if (/[<>"'`&\\]/.test(username)) return fail(400, '用户名不能包含 < > " \' ` & \\ 这些符号', 'nameChars');
+    // guest_ 开头留给游客号：否则有人注册一个 guest_xxx，和随机生成的游客用户名撞到一起
+    if (/^guest_/i.test(username)) return fail(400, '用户名不能以 guest_ 开头', 'nameReserved');
+    if (!EMAIL_RE.test(email)) return fail(400, '邮箱格式不正确', 'badEmail');
+    if (password.length < 6) return fail(400, '密码至少 6 位', 'pwdShort');
+    if (db.getUserByUsername(username)) return fail(409, '用户名已被注册', 'nameTaken');
+    if (db.getUserByEmail(email)) return fail(409, '该邮箱已注册，可直接登录或找回密码', 'emailTakenHint');
+    return { username, email, password };
+}
+
+// 注册第一步：校验 + 发验证码
+app.post('/api/register/send-code', async (req, res) => {
+    const checked = checkSignup(req.body);
+    if (checked.fail) return res.status(checked.fail[0]).json(checked.fail[1]);
+    const { username, email, password } = checked;
     const prev = pendingRegs[email];
     if (prev && Date.now() - prev.lastSent < 60000) return res.status(429).json({ error: '发送太频繁，请 1 分钟后再试', k: 'sendTooOften' });
     if (ipBlocked(req, res)) return;
@@ -112,7 +127,10 @@ app.post('/api/login', async (req, res) => {
         const minutes = Math.max(1, Math.ceil(blocked.retryAfterMs / 60000));
         return res.status(429).json({ error: `尝试次数过多，请 ${minutes} 分钟后再试`, k: 'loginTooMany', p: { minutes } });
     }
-    const user = username.includes('@') ? db.getUserByEmail(username) : db.getUserByUsername(username);
+    const found = username.includes('@') ? db.getUserByEmail(username) : db.getUserByUsername(username);
+    // 游客号没有密码，不能用「用户名 + 密码」登录：当成不存在处理（照样做一次等时比对）。
+    // 它的 password_hash 不是 bcrypt 哈希，本来就比不中；这里显式排除，是不想把这件事押在库的行为上。
+    const user = found && !found.isGuest ? found : null;
     const ok = await bcrypt.compare(String(password), user ? user.password_hash : DUMMY_HASH);
     if (!user || !ok) {
         keys.forEach(([l, k]) => l.fail(k));
@@ -204,6 +222,70 @@ app.post('/api/bind-email/verify', requireAuth, (req, res) => {
     db.setEmail(req.authUser.id, p.email);
     delete pendingBinds[req.authUser.id];
     res.json({ ok: true, email: p.email });
+});
+
+// ===== 游客（2026-11-17）=====
+// 只填一个昵称就能进来打牌。游客是 users 表里 is_guest=1 的一行（见 006-guests.sql），
+// 身份只靠浏览器里那个令牌 —— 所以客户端在四处提醒「保存账号」（常驻提示 / 打过几手后 / 点受限功能时 / 退出前）。
+//
+// 按 IP 限流：游客号不要邮箱，建号没有任何成本。每个新号有 1 万金币、能占一个房间名额，
+// 不限的话一个脚本就能把用户表和房间名额刷满。一小时 20 个：一间宿舍、一桌人同时点进来够用。
+const guestLimiter = createSendCodeLimiter({ max: 20, windowMs: 60 * 60 * 1000 });
+app.post('/api/guest', (req, res) => {
+    const name = normalizeDisplayName((req.body || {}).name);
+    if (!name) return res.status(400).json({ error: '昵称须为 2–16 个字符，仅支持中文、字母、数字、空格、_、-、.', k: 'nameFormat' });
+    if (!guestLimiter.check(extractIp(req.headers, req.socket?.remoteAddress)).ok) {
+        return res.status(429).json({ error: '此网络创建游客账号过于频繁，请稍后再试，或直接注册', k: 'guestTooMany' });
+    }
+    try {
+        const user = db.createGuest(name);
+        noteSource(req, user.id, 'signup');
+        console.log(`[guest] 新游客 ${user.username}`);
+        res.json({ token: signToken(user), user: userPayload(user) });
+    } catch (err) { console.error(err); res.status(500).json({ error: '服务器错误', k: 'serverError' }); }
+});
+
+// 游客「保存账号」：两步，和注册完全一样（同一份 checkSignup、同样要邮箱验证码），
+// 区别只在最后一步 —— 不新建一行，而是把资料补到游客自己那一行上（db.upgradeGuest）。
+// 🔴 只有游客能走这条路。正式账号拿着令牌调这里必须被拒：否则它就是一个不用输旧密码的改密后门。
+const pendingUpgrades = {};   // userId -> { username, email, hash, code, expires, lastSent }
+const NOT_GUEST = { error: '这个账号已经是正式账号了', k: 'notGuest' };
+app.post('/api/guest/upgrade/send-code', requireAuth, async (req, res) => {
+    if (!req.authUser.isGuest) return res.status(403).json(NOT_GUEST);
+    const checked = checkSignup(req.body);
+    if (checked.fail) return res.status(checked.fail[0]).json(checked.fail[1]);
+    const { username, email, password } = checked;
+    const prev = pendingUpgrades[req.authUser.id];
+    if (prev && Date.now() - prev.lastSent < 60000) return res.status(429).json({ error: '发送太频繁，请 1 分钟后再试', k: 'sendTooOften' });
+    if (ipBlocked(req, res)) return;
+    const code = gen6();
+    const hash = await bcrypt.hash(password, 10);
+    pendingUpgrades[req.authUser.id] = { username, email, hash, code, expires: Date.now() + 600000, lastSent: Date.now() };
+    try { await mailer.sendCode(email, code, 'register'); }
+    catch (e) { console.error('发信失败', e.message); return res.status(500).json({ error: '验证码发送失败，请稍后重试', k: 'sendFailed' }); }
+    res.json({ ok: true, mailConfigured: mailer.isConfigured() });
+});
+app.post('/api/guest/upgrade/verify', requireAuth, (req, res) => {
+    const id = req.authUser.id;
+    if (!req.authUser.isGuest) return res.status(403).json(NOT_GUEST);
+    const p = pendingUpgrades[id];
+    if (!p) return res.status(400).json({ error: '请先获取验证码', k: 'needCode' });
+    if (Date.now() > p.expires) { delete pendingUpgrades[id]; return res.status(400).json({ error: '验证码已过期，请重新获取', k: 'codeExpiredNew' }); }
+    if (String((req.body || {}).code).trim() !== p.code) return wrongCode(pendingUpgrades, id, res);
+    try {
+        const user = db.upgradeGuest(id, { username: p.username, email: p.email, passwordHash: p.hash });
+        if (!user) return res.status(403).json(NOT_GUEST);
+        delete pendingUpgrades[id];
+        // 他可能正坐在牌桌上：把内存里认识他的地方一起改过来，不用断线重连
+        refreshLiveUser({ io, roomGames, user });
+        console.log(`[guest] 游客转正 → ${user.username}`);
+        res.json({ token: signToken(user), user: userPayload(user) });
+    } catch (err) {
+        // 从发码到验码之间，用户名 / 邮箱被别人抢先用了。游客那一行没有被改动（一条 UPDATE 是原子的）。
+        if (err.message?.includes('EMAIL')) return res.status(409).json({ error: '该邮箱已注册', k: 'emailTaken' });
+        if (err.message?.includes('UNIQUE')) return res.status(409).json({ error: '用户名已被注册', k: 'nameTaken' });
+        console.error(err); res.status(500).json({ error: '服务器错误', k: 'serverError' });
+    }
 });
 
 }

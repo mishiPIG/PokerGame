@@ -169,10 +169,10 @@ test('SNG 里已入座的人不能被请出（否则报名费既不退也不参�
 });
 
 // ───────── 验证码 ─────────
-test('🔴 邮箱验证码输错有次数上限，三个校验入口都走同一个闸；生成用 crypto', () => {
+test('🔴 邮箱验证码输错有次数上限，四个校验入口都走同一个闸；生成用 crypto', () => {
     const src = codeOf(read('src/http/register-auth-routes.js'));
     assert.match(src, /MAX_CODE_TRIES\s*=\s*[3-9]\b/);
-    assert.equal((src.match(/return wrongCode\(/g) || []).length, 3, '注册 / 找回密码 / 绑邮箱 三处都要计错');
+    assert.equal((src.match(/return wrongCode\(/g) || []).length, 4, '注册 / 找回密码 / 绑邮箱 / 游客保存账号 四处都要计错');
     assert.doesNotMatch(src, /k: 'codeWrong' \}\);\s*\n\s*(try|const hash|const existing)/, '不能还有直接返回「验证码错误」而不计数的校验');
     assert.match(src, /gen6 = \(\) => String\(crypto\.randomInt\(100000, 1000000\)\)/);
     assert.doesNotMatch(src, /Math\.random/);

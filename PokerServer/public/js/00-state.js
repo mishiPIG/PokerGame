@@ -10,6 +10,9 @@ let myDisplayName = null;
 let myDisplayNameChangedAtMs = null;
 let myGold       = 0;
 let myAvatar     = null;
+// 游客 = 只填了昵称进来的账号（没有邮箱和密码，身份只靠这个浏览器里的令牌）。
+// 改它一律走 05-utils.js 的 setGuest()：那里顺带切换页面上游客 / 正式用户各自能看到的东西。
+let isGuest      = false;
 // 牜友（跨文件用）。
 // ⚠️ 必须声明在这里而不是 43-friends.js：经典脚本下顶层 let 是脚本全局的，
 //    但在声明它的文件执行之前处于 TDZ —— 比它早加载的文件（如 30-room.js 的

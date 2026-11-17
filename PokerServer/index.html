@@ -65,6 +65,16 @@
     <div id="auth-box">
         <!-- i18n-ok: 产品名 --><h1><img src="/avatars/logo.png" class="auth-logo" alt="">德扑道场</h1><!-- /i18n-ok -->
         <div class="auth-sub" data-i18n="brand.tagline">Poker Dojo · 好友开房 · 切磋成长</div>
+        <!-- 游客入口（2026-11-17）：只填一个昵称就能进来。放在登录 / 注册之上 ——
+             第一次点进来的人还没看过游戏长什么样，不该先被一张注册表拦住。-->
+        <div id="guest-entry">
+            <div class="auth-invite" id="invite-hint" style="display:none" data-i18n="guest.inviteHint">🎟️ 朋友邀请你加入一桌牌局，填个昵称就能进</div>
+            <input class="auth-field" type="text" id="guest-name" maxlength="16" autocomplete="nickname"
+                   placeholder="给自己起个昵称" data-i18n-ph="guest.namePh" onkeydown="if(event.key==='Enter')doGuest()">
+            <button class="auth-submit" id="guest-go" onclick="doGuest()" data-i18n="guest.play">直接试玩 · 不用注册</button>
+            <p class="auth-hint"><a class="auth-link" onclick="openDemoHand()" data-i18n="guest.demo">▶ 先看一手牌是什么样</a></p>
+            <div class="auth-or"><span data-i18n="guest.or">已有账号</span></div>
+        </div>
         <div class="auth-tabs">
             <button class="auth-tab active" onclick="showTab('login')" data-i18n="tab.login">登录</button>
             <button class="auth-tab"        onclick="showTab('register')" data-i18n="tab.register">注册</button>
@@ -221,6 +231,14 @@
 
       <!-- ===== 约局：我和朋友的局 ===== -->
       <section class="lobby-pane active" id="pane-play">
+        <!-- 游客常驻提示：身份只存在这个浏览器里，丢了就找不回来 —— 这句话必须一直看得见 -->
+        <div id="guest-banner" class="guest-only guest-banner">
+            <div class="gb-text" data-i18n="guest.banner">👋 你现在是游客。换浏览器或清缓存后，筹码和牌谱就找不回来了。</div>
+            <div class="gb-acts">
+                <button class="mini-btn" onclick="openSaveAccount()" data-i18n="guest.save">保存账号</button>
+                <a class="auth-link" onclick="openDemoHand()" data-i18n="guest.demoShort">▶ 看一手示例</a>
+            </div>
+        </div>
         <div id="friends-online" class="fr-online" style="display:none" onclick="openFriends()"></div>
         <div class="lobby-top">
             <button class="lobby-entry create" onclick="showCreateForm()">
@@ -325,10 +343,12 @@
             <button class="me-row" id="inbox-toggle" onclick="openInbox()">
                 <span class="mr-ico">📬</span><span class="mr-txt" data-i18n="me.inbox">消息</span>
                 <span class="mr-badge" id="inbox-badge" style="display:none"></span><span class="mr-arrow">›</span></button>
-            <button class="me-row" onclick="openFriends()">
+            <button class="me-row guest-only" onclick="openSaveAccount()">
+                <span class="mr-ico">💾</span><span class="mr-txt" data-i18n="guest.saveRow">保存账号（现在是游客）</span><span class="mr-arrow">›</span></button>
+            <button class="me-row member-only" onclick="openFriends()">
                 <span class="mr-ico">👥</span><span class="mr-txt" data-i18n="me.friends">牌友</span>
                 <span class="mr-badge" id="friends-badge" style="display:none"></span><span class="mr-arrow">›</span></button>
-            <button class="me-row" id="checkin-btn" onclick="openCheckin()">
+            <button class="me-row member-only" id="checkin-btn" onclick="openCheckin()">
                 <span class="mr-ico">🎁</span><span class="mr-txt" data-i18n="me.checkin">每日签到</span>
                 <span class="dot" id="checkin-dot" style="display:none"></span><span class="mr-arrow">›</span></button>
         </div>
@@ -345,7 +365,7 @@
         <div class="me-group">
             <button class="me-row" onclick="openSettings()">
                 <span class="mr-ico">⚙️</span><span class="mr-txt" data-i18n="me.settings">设置</span><span class="mr-arrow">›</span></button>
-            <button class="me-row" onclick="openFeedback()">
+            <button class="me-row member-only" onclick="openFeedback()">
                 <span class="mr-ico">🐞</span><span class="mr-txt" data-i18n="me.feedback">反馈问题</span><span class="mr-arrow">›</span></button>
             <button class="me-row" id="admin-toggle" onclick="toggleAdminPanel()" style="display:none">
                 <span class="mr-ico">🛡️</span><span class="mr-txt" data-i18n="me.admin">管理面板</span><span class="mr-arrow">›</span></button>
@@ -450,7 +470,7 @@
         </div>
         <div class="tc-right">
             <button class="tc-btn" onclick="toggleChat()" data-i18n-title="ui.chat" title="聊天/表情">💬</button>
-            <button class="tc-btn" id="voice-btn" title="按住说话" data-i18n-title="voice.hold">🎤</button>
+            <button class="tc-btn member-only" id="voice-btn" title="按住说话" data-i18n-title="voice.hold">🎤</button>
         </div>
     </div>
     <div id="voice-recording" style="display:none">按住说话</div>
@@ -579,6 +599,31 @@
         <div class="note-acts">
             <button class="fr-btn" onclick="closeNoteModal()" data-i18n="btn.cancel">取消</button>
             <button class="fr-btn ok" onclick="saveFriendNote()" data-i18n="btn.save">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 游客「保存账号」：和注册同样两步（资料 → 邮箱验证码），但补在游客自己那个账号上，筹码牌谱都不动。
+     两个主按钮各自一个元素、用 display 切换 —— 不让 JS 去改一个挂着 data-i18n 的按钮的文字（切语言会被盖回去）。-->
+<div id="save-account-modal" class="modal-mask" style="display:none">
+    <div class="modal-box sa-box">
+        <h3 data-i18n="sa.title">保存账号</h3>
+        <div class="sa-note" data-i18n="sa.note">补上用户名、邮箱和密码，这个游客账号就成为正式账号：筹码、牌谱、战绩全部保留，换设备也能登录。</div>
+        <div id="sa-step1">
+            <input class="auth-field" type="text" id="sa-user" autocomplete="username" placeholder="用户名（2-20 字符）" data-i18n-ph="ph.regUser">
+            <input class="auth-field" type="email" id="sa-email" autocomplete="email" placeholder="邮箱" data-i18n-ph="ph.email">
+            <input class="auth-field" type="password" id="sa-pass" autocomplete="new-password" placeholder="密码（至少 6 位）" data-i18n-ph="ph.regPass">
+        </div>
+        <div id="sa-step2" style="display:none">
+            <input class="auth-field" type="text" id="sa-code" placeholder="6 位邮箱验证码" inputmode="numeric" maxlength="6"
+                   data-i18n-ph="ph.code6" onkeydown="if(event.key==='Enter')saveAccountVerify()">
+            <p class="auth-hint"><a class="auth-link" onclick="saveAccountBack()" data-i18n="link.regBack">返回修改</a> · <a class="auth-link" onclick="saveAccountSend()" data-i18n="link.resend">重发验证码</a></p>
+        </div>
+        <div id="sa-msg" class="be-msg"></div>
+        <div class="modal-actions">
+            <button class="cancel" onclick="closeSaveAccount()" data-i18n="sa.later">以后再说</button>
+            <button class="confirm" id="sa-send" onclick="saveAccountSend()" data-i18n="btn.sendCode">发送验证码</button>
+            <button class="confirm" id="sa-done" onclick="saveAccountVerify()" style="display:none" data-i18n="sa.done">完成保存</button>
         </div>
     </div>
 </div>

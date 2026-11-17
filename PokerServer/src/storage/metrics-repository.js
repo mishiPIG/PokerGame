@@ -61,7 +61,7 @@ function createMetricsRepository(db) {
             const d = new Date((todayIdx - i) * DAY_MS);
             out.push({
                 date: d.toISOString().slice(0, 10),
-                dau: 0, playedUsers: 0, checkinUsers: 0, hands: 0, signups: 0, matches: 0,
+                dau: 0, playedUsers: 0, checkinUsers: 0, hands: 0, signups: 0, guests: 0, matches: 0,
             });
         }
         return out;
@@ -96,8 +96,14 @@ function createMetricsRepository(db) {
 
         for (const r of db.prepare(`
             SELECT ${DAY_OF('created_at_ms')} AS day, COUNT(*) AS n
-              FROM users WHERE created_at_ms >= @since AND deleted_at_ms IS NULL GROUP BY day
+              FROM users WHERE created_at_ms >= @since AND deleted_at_ms IS NULL AND is_guest = 0 GROUP BY day
         `).all({ since })) put(r.day, 'signups', r.n);
+
+        // 当天建了多少个游客号。读的是累计计数器而不是 users 表：
+        // 一手没打的游客 7 天后整行删掉，数 users 的话这一列会自己慢慢变小。
+        for (const r of db.prepare(`
+            SELECT day, n FROM daily_counters WHERE key = 'guest_created' AND day >= @day
+        `).all({ day: rows[0].date })) put(r.day, 'guests', r.n);
 
         for (const r of db.prepare(`
             SELECT ${DAY_OF('created_at_ms')} AS day, COUNT(*) AS n
@@ -112,7 +118,18 @@ function createMetricsRepository(db) {
         const since = (d) => now - d * DAY_MS;
 
         return {
-            users: one('SELECT COUNT(*) AS n FROM users WHERE deleted_at_ms IS NULL'),
+            // 🔴 「用户」只数正式账号。游客号谁都能随手建，混进来的话「用户总数」「从没打过牌」
+            //    这几个数会被一次点进来就走的人撑大，和以前的数字也没法比。游客另外三行单独给。
+            users: one('SELECT COUNT(*) AS n FROM users WHERE deleted_at_ms IS NULL AND is_guest = 0'),
+            // 游客漏斗：建过多少 → 现在还留着多少 → 其中打过牌的 → 最后保存成正式账号的
+            guestsCreated: one("SELECT COALESCE(SUM(n), 0) AS n FROM daily_counters WHERE key = 'guest_created'"),
+            guests: one('SELECT COUNT(*) AS n FROM users WHERE deleted_at_ms IS NULL AND is_guest = 1'),
+            guestsPlayed: one(`
+                SELECT COUNT(*) AS n FROM users u
+                 WHERE u.deleted_at_ms IS NULL AND u.is_guest = 1
+                   AND EXISTS (SELECT 1 FROM hand_players hp WHERE hp.user_id = u.id)
+            `),
+            guestsUpgraded: one('SELECT COUNT(*) AS n FROM users WHERE upgraded_at_ms IS NOT NULL'),
             deletedUsers: one('SELECT COUNT(*) AS n FROM users WHERE deleted_at_ms IS NOT NULL'),
             hands: one('SELECT COUNT(*) AS n FROM hands'),
             matches: one('SELECT COUNT(*) AS n FROM matches'),
@@ -124,7 +141,7 @@ function createMetricsRepository(db) {
             // 正是 ROADMAP 里「冷启动死局」预测会发生的事。
             neverPlayed: one(`
                 SELECT COUNT(*) AS n FROM users u
-                 WHERE u.deleted_at_ms IS NULL
+                 WHERE u.deleted_at_ms IS NULL AND u.is_guest = 0
                    AND NOT EXISTS (SELECT 1 FROM hand_players hp WHERE hp.user_id = u.id)
             `),
             // 只在**一天**里打过牌的人（来了一次就没再回来）
@@ -148,7 +165,7 @@ function createMetricsRepository(db) {
 
         const regs = db.prepare(`
             SELECT ${DAY_OF('created_at_ms')} AS day, id
-              FROM users WHERE created_at_ms >= @since AND deleted_at_ms IS NULL
+              FROM users WHERE created_at_ms >= @since AND deleted_at_ms IS NULL AND is_guest = 0
         `).all({ since });
 
         // 活跃集合取全量（注册在窗口内、但活跃可能发生在今天）

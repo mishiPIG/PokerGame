@@ -1,12 +1,14 @@
 function createAuth({ db, jwt, jwtSecret }) {
+    // 游客的令牌给一年：正式用户 30 天过期后重新输密码就行，游客【没有密码】——
+    // 令牌一过期这个号就再也进不去了，等于丢号。（一手没打的游客 7 天后会被清理，不会因此堆积。）
     const signToken = user => jwt.sign(
-        { id: user.id, username: user.username, isAdmin: !!user.isAdmin },
+        { id: user.id, username: user.username, isAdmin: !!user.isAdmin, isGuest: !!user.isGuest },
         jwtSecret,
-        { expiresIn: '30d' }
+        { expiresIn: user.isGuest ? '365d' : '30d' }
     );
     const userPayload = user => ({
         id: user.id, username: user.username, displayName: user.displayName, displayNameChangedAtMs: user.displayNameChangedAtMs, gold: user.gold,
-        isAdmin: !!user.isAdmin, email: user.email || null
+        isAdmin: !!user.isAdmin, email: user.email || null, isGuest: !!user.isGuest
     });
 
     function requireAdmin(req, res, next) {

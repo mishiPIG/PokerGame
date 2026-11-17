@@ -198,7 +198,7 @@ async function loadAdminUsers() {
     const tbody = document.querySelector('#admin-users-table tbody');
     tbody.innerHTML = users.map(u => `
         <tr data-user="${escapeHtml(u.username)}">
-            <td>${escapeHtml(u.username)}${u.isAdmin ? ' 👑' : ''}</td>
+            <td>${escapeHtml(u.username)}${u.isAdmin ? ' 👑' : ''}${u.isGuest ? ' <span style="opacity:.6">游客</span>' : ''}</td>
             <td>${u.gold.toLocaleString()}</td>
             <td><input type="number" id="gold-${u.id}" value="${u.gold}" min="0"></td>
             <td><button onclick="adminSetGold(this.closest('tr').dataset.user,'${u.id}')">确认</button></td>
@@ -287,6 +287,10 @@ async function loadAdminMetrics() {
         + card('总手数', t.hands.toLocaleString(), t.matches + ' 场牙局')
         + card('从没打过牌', t.neverPlayed, pct(t.neverPlayed, t.users) + ' 的注册用户')
         + card('只玩过一天', t.onlyOneDay, '来了一次就没再回来')
+        // 游客漏斗（用户数不含游客）。「累计建过」读的是计数器，不受过期游客被清理的影响。
+        + card('游客 · 累计建过', t.guestsCreated ?? 0, '现存 ' + (t.guests ?? 0) + '（一手没打的 7 天后清理）')
+        + card('游客 · 打过牌', t.guestsPlayed ?? 0, '现存游客里')
+        + card('游客 · 已保存账号', t.guestsUpgraded ?? 0, pct(t.guestsUpgraded ?? 0, t.guestsCreated ?? 0) + ' 的游客')
         + '</div>';
 
     // 趋势：条形图直接用 div 宽度画，不引图表库
@@ -303,7 +307,7 @@ async function loadAdminMetrics() {
             + '<span class="mt-n">' + r.dau + ' 人</span>'
             + '<span class="mt-bar mt-bar2"><i style="width:' + Math.round(r.hands / maxHands * 100) + '%"></i></span>'
             + '<span class="mt-n">' + r.hands + ' 手</span>'
-            + '<span class="mt-x">' + (r.signups ? '+' + r.signups + ' 新' : '') + '</span>'
+            + '<span class="mt-x">' + (r.signups ? '+' + r.signups + ' 新' : '') + (r.guests ? ' +' + r.guests + ' 游客' : '') + '</span>'
             + '</div>';
     }
     html += '</div>';

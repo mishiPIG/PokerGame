@@ -259,6 +259,8 @@ function toast(msg, ms = 2600) {
     _toastTimer = setTimeout(() => { el.style.display = 'none'; clearInterval(_toastPlaceTimer); }, ms);
 }
 function showLobby() {
+    const leftTable = !!currentRoom;      // 是真的从一张牌桌回来（而不是刚连上）
+    if (leftTable) setTimeout(maybeNudgeGuest, 600);
     cancelVoiceRecording();
     stopVoicePlayback();
     clearVoiceBubbles();
@@ -840,8 +842,9 @@ function renderMeHead() {
     box.innerHTML = `<div class="me-avatar">${av}</div>
         <div class="me-id">
             <div class="me-name">${escapeHtml(name)}</div>
+            ${isGuest ? `<div><span class="me-guest-tag">${L('游客 · 还没保存账号', 'Guest · not saved yet')}</span></div>` : ''}
             <div class="me-gold">\u{1FA99} ${(myGold || 0).toLocaleString()}</div>
-            ${myFriendCode ? `<div class="me-code" onclick="copyMyCode()" title="${L('点一下复制', 'Tap to copy')}">${
+            ${myFriendCode && !isGuest ? `<div class="me-code" onclick="copyMyCode()" title="${L('点一下复制', 'Tap to copy')}">${
                 L('牌友号', 'Code')} ${escapeHtml(myFriendCode)} ⧉</div>` : ''}
         </div>`;
 }

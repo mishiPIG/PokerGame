@@ -169,7 +169,8 @@ function profileTab(t) {
 function renderProfileInfo() {
     document.getElementById('pi-head').innerHTML =
         `<div class="pi-name">${escapeHtml(myDisplayName || myUsername || '')}</div>`
-        + `<div class="pi-handle">${L('账号', 'Account')}：${escapeHtml(myUsername || '')}</div>`
+        // 游客的用户名是随机生成的 guest_xxx，给他看没有意义，换成一句「现在是游客」
+        + `<div class="pi-handle">${isGuest ? L('游客账号（还没保存）', 'Guest account (not saved yet)') : L('账号', 'Account') + '：' + escapeHtml(myUsername || '')}</div>`
         + `<div class="pi-gold">🪙 ${(myGold || 0).toLocaleString()}</div>`;
     renderDisplayNameSection();
     renderDangerZone();
@@ -210,6 +211,12 @@ async function authPostToken(url, body) {
 }
 async function renderEmailSection() {
     const box = document.getElementById('pi-email'); if (!box) return;
+    // 游客没有邮箱也没有密码，「绑定邮箱」那套（要输当前密码）走不通 —— 这里换成保存账号的入口
+    if (isGuest) {
+        box.innerHTML = `<div class="pi-email-row"><span>${L('保存账号后，换设备也能登录，筹码和牌谱不会丢', 'Save your account to sign in on other devices and keep your chips and hands')}</span>
+            <button class="mini-btn" onclick="openSaveAccount()">${L('保存账号', 'Save account')}</button></div>`;
+        return;
+    }
     box.innerHTML = `<div style="opacity:.6;font-size:13px">${L('邮箱加载中…', 'Loading email…')}</div>`;
     let email = null;
     try { const r = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } }); if (r.ok) email = (await r.json()).email; } catch {}
@@ -339,6 +346,9 @@ function refreshMeDot() {
 function renderDangerZone() {
     const box = document.getElementById('pi-danger');
     if (!box) return;
+    // 游客没有密码，注销要输密码确认 —— 这一块对游客没有意义（一手没打的游客号 7 天后会自动清理）
+    box.style.display = isGuest ? 'none' : '';
+    if (isGuest) return;
     box.innerHTML = '<div class="pi-danger-h">' + L('注销账号', 'Delete account') + '</div>'
         + '<div class="pi-danger-t">'
         + L('注销后将永久删除你的邮箱、密码、显示名、头像、牌友号与好友关系，【金币余额作废且无法找回】。',

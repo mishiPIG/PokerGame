@@ -5,10 +5,16 @@
 // 而且每个房间都常驻内存，1G 的生产机经不起刷。
 const MAX_ROOMS_PER_OWNER = 3;
 const MAX_ROOMS_TOTAL = 300;
-function roomLimitReached(roomGames, userId) {
+// 游客同时只能开 1 个房间：全服一共 300 个房间的名额，游客号谁都能建，
+// 每个游客都给 3 个的话，一百个游客号就能把名额占满、谁都开不了房。
+const MAX_ROOMS_GUEST = 1;
+const roomCapFor = (user) => (user.isGuest ? MAX_ROOMS_GUEST : MAX_ROOMS_PER_OWNER);
+function roomLimitReached(roomGames, user) {
     const live = Object.values(roomGames).filter(g => !g.tournamentOver);
     if (live.length >= MAX_ROOMS_TOTAL) return 'room.serverFull';
-    if (live.filter(g => g.ownerUserId === userId).length >= MAX_ROOMS_PER_OWNER) return 'room.tooManyMine';
+    if (live.filter(g => g.ownerUserId === user.id).length >= roomCapFor(user)) {
+        return user.isGuest ? 'room.guestOneRoom' : 'room.tooManyMine';
+    }
     return null;
 }
 const cleanRoomName = (v) => (v == null ? '' : String(v)).replace(/[<>"'`&\\]/g, '').trim().slice(0, 20);
@@ -27,8 +33,8 @@ function registerLobbyEvents(context) {
     // 创建 SNG 房间（双人升盲），创建者自动入座
     socket.on('create_room', (cfg) => {
         cfg = cfg || {};
-        const limit = roomLimitReached(roomGames, user.id);
-        if (limit) { socket.emit('server_msg', { k: limit, p: { n: MAX_ROOMS_PER_OWNER } }); return; }
+        const limit = roomLimitReached(roomGames, user);
+        if (limit) { socket.emit('server_msg', { k: limit, p: { n: roomCapFor(user) } }); return; }
         const roomId = genRoomId();
         roomGames[roomId] = {
             deck: new Deck(), players: [], phase: PHASES.WAITING,
@@ -70,8 +76,8 @@ function registerLobbyEvents(context) {
     // 创建现金桌（2–9 人，固定盲注，金币↔筹码买入），创建者按 buyInChips 买入
     socket.on('create_cash_room', (cfg) => {
         cfg = cfg || {};
-        const limit = roomLimitReached(roomGames, user.id);
-        if (limit) { socket.emit('server_msg', { k: limit, p: { n: MAX_ROOMS_PER_OWNER } }); return; }
+        const limit = roomLimitReached(roomGames, user);
+        if (limit) { socket.emit('server_msg', { k: limit, p: { n: roomCapFor(user) } }); return; }
         const roomId = genRoomId();
         const bb = clampInt(cfg.bb, 20, 1000, 40);
         const sb = clampInt(cfg.sb, 10, bb, Math.floor(bb / 2));

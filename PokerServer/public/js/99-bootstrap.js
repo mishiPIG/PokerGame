@@ -30,6 +30,7 @@ if (savedToken) {
             myUsername = payload.username;
             myDisplayName = payload.displayName || payload.username;
             isAdmin    = !!payload.isAdmin;
+            setGuest(payload.isGuest);
             if (typeof renderMeHead === 'function') renderMeHead();
             document.getElementById('admin-toggle').style.display = isAdmin ? '' : 'none';
             document.getElementById('auth-overlay').style.display = 'none';
@@ -37,6 +38,9 @@ if (savedToken) {
             connectSocket(savedToken);
             refreshInboxBadge();
             refreshCheckinDot();
+            // 上次打完直接关了页面的游客：这次打开停在大厅时提醒一次保存账号。
+            // 要回牌桌 / 是点邀请链接进来的就不打扰（那两种情况马上要进桌）。
+            if (!localStorage.getItem('currentRoom') && !pendingInviteToken) setTimeout(maybeNudgeGuest, 4000);
         } else {
             localStorage.removeItem('token');
         }
@@ -44,6 +48,8 @@ if (savedToken) {
         localStorage.removeItem('token');
     }
 }
+
+initGuestEntry();   // 登录页的游客入口：预填随机昵称；是点邀请链接来的就说明一句
 
 // ===== 版本信息（设置面板底部）=====
 // 前端构建号来自打包进 JS 的常量；服务端版本实时拉。两者不一致 = 本机缓存了旧前端。
@@ -135,6 +141,7 @@ const DISMISSIBLE = [
     { id: 'table-menu',       close: 'toggleTableMenu' },
     { id: 'confirm-modal',    close: 'closeConfirm' },     // 点外面 = 取消（closeConfirm() 不传参就是 false）
     { id: 'note-modal',       close: 'closeNoteModal' },
+    { id: 'save-account-modal', close: 'closeSaveAccount' },
     { id: 'buyin-modal',      close: 'closeBuyin' },
     { id: 'match-modal',      close: 'closeMatchSettings' },
     { id: 'invite-modal',     close: 'closeInvite' },

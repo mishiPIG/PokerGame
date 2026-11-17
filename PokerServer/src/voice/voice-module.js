@@ -135,7 +135,11 @@ resetVoiceTempDir();
 const voiceSweepTimer = setInterval(() => sweepExpiredVoices(), VOICE_SWEEP_MS);
 voiceSweepTimer.unref?.();
 
-app.post('/api/voice', requireAuth, voiceUploadGate,
+// 游客不能发语音：上传是最容易被滥用的入口，而游客号谁都能随手建。
+const membersOnly = (req, res, next) => (req.authUser.isGuest
+    ? res.status(403).json({ error: '保存账号后才能使用这个功能', k: 'needAccount' })
+    : next());
+app.post('/api/voice', requireAuth, membersOnly, voiceUploadGate,
     express.raw({ type: ['audio/*', 'application/octet-stream'], limit: VOICE_MAX_BYTES }),
     async (req, res) => {
         const roomId = String(req.headers['x-room-id'] || '');

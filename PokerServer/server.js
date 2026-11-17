@@ -88,7 +88,7 @@ const { projectedPositions } = tableService;
 registerAdminRoutes({ app, db, requireAdmin, roomGames, io, clientErrors });
 const voiceModule = registerVoiceModule({ app, io, db, roomGames, requireAuth, express, crypto, fs, path, baseDir: __dirname });
 registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin, bcrypt, roomGames, io });
-registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth });
+registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth, io, roomGames });
 
 registerSocketGuard(io);   // 每 IP 连接数 + 事件限频，挡在鉴权之前（见 src/ops/socket-guard.js）
 auth.registerSocketAuth(io);
@@ -98,7 +98,7 @@ const PORT = process.env.PORT || 3000;
 const onListening = () => {
     const host = LOCAL_DEV ? '127.0.0.1' : '0.0.0.0';
     console.log(`🚀 扑克服务器已启动！${host}:${PORT}${LOCAL_DEV ? ' (本地开发模式)' : ''}`);
-    runStartupTasks({ db, mailer, label: buildInfo.label });
+    runStartupTasks({ db, mailer, label: buildInfo.label, io, roomGames });
 };
 if (require.main === module) {
     // 只有真正启动服务时才恢复牌局和计时器。测试或工具仅 require 本模块时不得产生后台定时器。

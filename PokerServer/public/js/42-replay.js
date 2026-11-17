@@ -14,7 +14,8 @@ function buildReplayFrames(h) {
     const players = (h.seats || []).slice().sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0)).map(s => ({
         userId: s.userId, name: s.username, avatar: s.avatar, seat: s.seat ?? 0,
         stack: s.startChips || 0, bet: 0, folded: false, showCards: false,
-        hole: (s.hole || []).map(rpParseCard), isMe: s.userId === myUserId, pos: ''
+        // heroId：示例牌局没有「我」，由牌谱自己指定从谁的视角看（那一家的牌亮着、坐在屏幕下方）
+        hole: (s.hole || []).map(rpParseCard), isMe: s.userId === (h.heroId || myUserId), pos: ''
     }));
     const byId = {}; players.forEach(p => byId[p.userId] = p);
     const n = players.length;
@@ -155,7 +156,7 @@ function openReplay(h) {
     rpCommunity = (h.community || []).map(rpParseCard);
     rpIdx = 0; rpPlaying = false;
     const time = fmtDateTime(h.ts);
-    const me = (h.seats || []).find(s => s.userId === myUserId);
+    const me = (h.seats || []).find(s => s.userId === (h.heroId || myUserId));
     document.getElementById('rp-info').textContent =
         `${time} · ${h.mode === 'cash' ? L('现金桌', 'Cash') : 'SNG'} · ${L('盲注', 'Blinds')} ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''} · ${L(`${(h.seats || []).length} 人`, `${(h.seats || []).length} players`)}`
         + (me ? L(` · 你的后手 ${Math.round((me.startChips || 0) / h.bb)}BB`,
@@ -242,3 +243,37 @@ function copyHandForVerify() {
     }
     copyText(JSON.stringify(curDetailHand, null, 2), L('已复制验证数据', 'Verification data copied'));
 }
+
+// ===== 示例牌局（2026-11-17）=====
+// 一个人点进来、没有朋友在线时，开了桌也是空桌 —— 看不到游戏最好看的那部分。
+// 这里放一手写死的牌，用现成的回放界面播出来；登录页上（还没有账号）也能看。
+// 名字都是虚构的。数字是自洽的：各家投入加起来 = 底池 20,150，赢家拿走的也是 20,150
+// （guest.test.js 里有一条断言守着，改牌的时候别把账改歪）。
+function demoHand() {
+    const seat = (i, username, hole, avatar) => ({
+        userId: 'demo-' + i, username, seat: i, avatar: '/avatars/b' + avatar + '.svg', startChips: 10000, hole });
+    const act = (street, i, action, amount, thinkMs) => ({ street, userId: 'demo-' + i, action, amount, thinkMs });
+    return {
+        ts: Date.now(), mode: 'cash', sb: 50, bb: 100, ante: 0,
+        heroId: 'demo-0', buttonUserId: 'demo-0',
+        seats: [
+            seat(0, 'Mika', ['AS', 'KS'], 3), seat(1, 'Yuki', ['9C', '4D'], 8), seat(2, 'Sam', ['JH', '6C'], 12),
+            seat(3, 'Leo', ['8D', '3H'], 17), seat(4, 'Ana', ['QH', 'QD'], 21), seat(5, 'Tom', ['TC', '5H'], 26),
+        ],
+        community: ['KD', '7S', '2S', 'QC', '5S'],
+        actions: [
+            act('preflop', 3, 'fold', 0, 2100), act('preflop', 4, 'raise', 250, 3400), act('preflop', 5, 'fold', 0, 1500),
+            act('preflop', 0, 'raise', 800, 6200), act('preflop', 1, 'fold', 0, 1800), act('preflop', 2, 'fold', 0, 2600),
+            act('preflop', 4, 'call', 800, 9100),
+            act('flop', 4, 'check', 0, 3000), act('flop', 0, 'bet', 900, 5200), act('flop', 4, 'call', 900, 7400),
+            act('turn', 4, 'check', 0, 4100), act('turn', 0, 'bet', 2400, 8800),
+            act('turn', 4, 'raise', 8300, 12500), act('turn', 0, 'call', 8300, 15200),
+        ],
+        results: [
+            { userId: 'demo-0', won: 20150, endChips: 20150 }, { userId: 'demo-1', won: 0, endChips: 9950 },
+            { userId: 'demo-2', won: 0, endChips: 9900 }, { userId: 'demo-3', won: 0, endChips: 10000 },
+            { userId: 'demo-4', won: 0, endChips: 0 }, { userId: 'demo-5', won: 0, endChips: 10000 },
+        ],
+    };
+}
+function openDemoHand() { openReplay(demoHand()); }

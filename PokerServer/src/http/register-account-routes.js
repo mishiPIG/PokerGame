@@ -29,7 +29,7 @@ app.get('/api/my-hands', requireAuth, (req, res) => {
 // 当前账号信息（含邮箱，供个人主页显示/更换邮箱）
 app.get('/api/me', requireAuth, (req, res) => {
     const u = req.authUser;
-    res.json({ id: u.id, username: u.username, displayName: u.displayName, displayNameChangedAtMs: u.displayNameChangedAtMs, gold: u.gold, email: u.email || null, isAdmin: !!u.isAdmin });
+    res.json({ id: u.id, username: u.username, displayName: u.displayName, displayNameChangedAtMs: u.displayNameChangedAtMs, gold: u.gold, email: u.email || null, isAdmin: !!u.isAdmin, isGuest: !!u.isGuest });
 });
 
 // 我的生涯统计（从牌谱聚合 VPIP/PFR/3bet/AF/WTSD…，可按 mode 筛选）
@@ -54,6 +54,8 @@ const rewardForStreak = s => CHECKIN_REWARDS[Math.min(Math.max(s, 1), 7) - 1];
 const dayStr = (offsetDays = 0) =>
     new Date(Date.now() + 8 * 3600 * 1000 - offsetDays * 86400000).toISOString().slice(0, 10);
 
+// 游客点到「保存账号后才能用」的功能时统一回这一条（客户端 err.needAccount 有中英两份）
+const NEED_ACCOUNT = { error: '保存账号后才能使用这个功能', k: 'needAccount' };
 app.get('/api/checkin/status', requireAuth, (req, res) => {
     const u = req.authUser;
     const today = dayStr(0);
@@ -72,6 +74,8 @@ app.get('/api/checkin/status', requireAuth, (req, res) => {
 
 app.post('/api/checkin', requireAuth, (req, res) => {
     const u = req.authUser;
+    // 游客不能签到：游客号谁都能随手建，签到等于「每建一个号白拿一份金币」。保存账号后就能签。
+    if (u.isGuest) return res.status(403).json(NEED_ACCOUNT);
     const today = dayStr(0);
     if (u.lastCheckin === today) return res.status(400).json({ error: '今日已签到', k: 'checkedIn' });
     const streak = (u.lastCheckin === dayStr(1) ? (u.checkinStreak || 0) : 0) + 1;
@@ -94,6 +98,8 @@ const feedbackHits = new Map();   // userId -> [时间戳]
 const FEEDBACK_PER_HOUR = 5;
 const asText = (v) => (typeof v === 'string' ? v : '');
 app.post('/api/feedback', requireAuth, (req, res) => {
+    // 游客不能发反馈：每条反馈都会发一封邮件，「每人每小时 5 条」对能无限建号的游客不成立。
+    if (req.authUser.isGuest) return res.status(403).json(NEED_ACCOUNT);
     const now = Date.now();
     const recent = (feedbackHits.get(req.authUser.id) || []).filter(t => now - t < 3600000);
     if (recent.length >= FEEDBACK_PER_HOUR) return res.status(429).json({ error: '反馈太频繁，请稍后再试', k: 'feedbackTooOften' });

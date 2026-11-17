@@ -14,6 +14,14 @@ function registerFriendEvents(context) {
     const { socket, user, io, db, runtime } = context;
     const { roomGames } = runtime;
 
+    // 游客不能用牌友系统（2026-11-17）。游客号谁都能随手建：放开的话，
+    // 「加牌友 / 申请」就成了一个不要成本的骚扰通道，「搜索」也多了一个枚举用户的入口。
+    // 读 user.isGuest 而不是建连接时存一份：游客在线保存账号后，这里立刻放行。
+    const memberOn = (event, handler) => socket.on(event, (...args) => {
+        if (user.isGuest) { socket.emit('server_msg', { k: 'guest.needAccount' }); return; }
+        handler(...args);
+    });
+
     // 某人现在在哪：离线 / 在大厅 / 在某张牌桌。
     // 靠 io 里该用户的 socket 有没有 currentRoom —— 不另存一份在线表，
     // 免得断线/重连时两边对不上（那种不一致最后总会以「显示在线其实早走了」暴露出来）。
@@ -106,7 +114,7 @@ function registerFriendEvents(context) {
     // 搜索加好友：只认【精确匹配】牌友号或用户名。
     // ⚠️ 刻意不做模糊/前缀搜索 —— 那等于让任何人把整个用户库枚举出来。
     // 返回里带上当前关系，客户端好决定显示「加牌友」还是「已是牌友」。
-    socket.on('friend_search', ({ q } = {}) => {
+    memberOn('friend_search', ({ q } = {}) => {
         const found = db.findByCodeOrName(q);
         if (!found || found.id === user.id) {
             socket.emit('friend_search', { found: null, self: !!(found && found.id === user.id) });
@@ -125,9 +133,12 @@ function registerFriendEvents(context) {
         });
     });
 
-    socket.on('friend_request', ({ userId } = {}) => {
+    memberOn('friend_request', ({ userId } = {}) => {
         if (!userId || typeof userId !== 'string') return;
-        if (!db.getUserById(userId)) { socket.emit('server_msg', { k: 'friend.noUser' }); return; }
+        const target = db.getUserById(userId);
+        if (!target) { socket.emit('server_msg', { k: 'friend.noUser' }); return; }
+        // 对方是游客：他自己同意不了申请，而且挂着一条申请会让那个游客号永远清理不掉
+        if (target.isGuest) { socket.emit('server_msg', { k: 'friend.targetGuest' }); return; }
         const result = db.friends.request(user.id, userId);
         const msg = { self: 'friend.self', already: 'friend.already', pending: 'friend.pending',
                       accepted: 'friend.accepted', requested: 'friend.requested',
@@ -141,7 +152,7 @@ function registerFriendEvents(context) {
         if (result === 'accepted') notify(userId, 'friend.nowFriends', { name: nameOf(user) });
     });
 
-    socket.on('friend_respond', ({ userId, accept } = {}) => {
+    memberOn('friend_respond', ({ userId, accept } = {}) => {
         if (!userId || typeof userId !== 'string') return;
         if (accept) {
             if (!db.friends.accept(user.id, userId)) { socket.emit('server_msg', { k: 'friend.noRequest' }); return; }
@@ -158,7 +169,7 @@ function registerFriendEvents(context) {
     // 刻意【不】做的两件事（等真有人被骚扰了再说）：不阻止他坐同一张公开桌
     // （那要在入座时查每个人的黑名单，链路长，还会产生「我明明能坐却坐不下」的困惑）、
     // 不隐藏我的在线状态。
-    socket.on('friend_block', ({ userId } = {}) => {
+    memberOn('friend_block', ({ userId } = {}) => {
         if (!userId || typeof userId !== 'string' || userId === user.id) return;
         if (!db.getUserById(userId)) { socket.emit('server_msg', { k: 'friend.noUser' }); return; }
         db.friends.block(user.id, userId);
@@ -167,13 +178,13 @@ function registerFriendEvents(context) {
         pushTo(userId);           // 他那边关系没了 —— 和被删好友看起来一模一样
     });
 
-    socket.on('friend_unblock', ({ userId } = {}) => {
+    memberOn('friend_unblock', ({ userId } = {}) => {
         if (!userId || typeof userId !== 'string') return;
         if (db.friends.unblock(user.id, userId)) socket.emit('server_msg', { k: 'friend.unblocked' });
         sendList();
     });
 
-    socket.on('friend_remove', ({ userId } = {}) => {
+    memberOn('friend_remove', ({ userId } = {}) => {
         if (!userId || typeof userId !== 'string') return;
         db.friends.remove(user.id, userId);
         sendList();
@@ -183,7 +194,7 @@ function registerFriendEvents(context) {
     // ⚠️ 备注是【私有】的：只写我这一行，并且【绝不 pushTo 对方】——
     //    他不该知道我给他记了「爱诈唬」。friend-repository 那边只更新我这一行，
     //    这里再守一次「不往对方推」，两层都有测试锁着。
-    socket.on('friend_note', ({ userId, note } = {}) => {
+    memberOn('friend_note', ({ userId, note } = {}) => {
         if (!userId || typeof userId !== 'string') return;
         if (!db.friends.setNote(user.id, userId, note)) {
             socket.emit('server_msg', { k: 'friend.noteFailed' });

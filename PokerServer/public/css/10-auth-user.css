@@ -86,3 +86,21 @@
         button.start:hover:not(:disabled) { filter: brightness(1.15); }
         button.start:disabled { opacity: 0.4; cursor: not-allowed; }
 
+
+        /* ===== 游客（2026-11-17）===== */
+        /* 两个开关类，全站共用：
+           .guest-only  只给游客看（保存账号的提示 / 入口）
+           .member-only 游客看不到（签到 / 牌友 / 语音 / 反馈 —— 服务端同样会拒绝，这里只是别让人点了没反应） */
+        body:not(.is-guest) .guest-only { display: none !important; }
+        body.is-guest .member-only { display: none !important; }
+        #guest-entry .auth-hint { margin-top: 8px; }
+        .auth-invite { text-align: center; font-size: 13px; color: #f4d35e; margin-bottom: 10px; line-height: 1.5; }
+        .auth-or { display: flex; align-items: center; gap: 10px; margin: 16px 0 14px; color: #9db9a9; font-size: 12px; }
+        .auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.14); }
+        .guest-banner { background: rgba(244,211,94,0.1); border: 1px solid rgba(244,211,94,0.35);
+            border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+        .gb-text { font-size: 13px; color: #eaf3ee; line-height: 1.5; }
+        .gb-acts { display: flex; align-items: center; gap: 14px; margin-top: 8px; font-size: 13px; }
+        .sa-note { font-size: 13px; color: #9db9a9; line-height: 1.6; margin: 6px 0 12px; }
+        .me-guest-tag { display: inline-block; margin: 0 0 4px; padding: 1px 8px; border-radius: 999px;
+            font-size: 11px; font-weight: normal; color: #f4d35e; border: 1px solid rgba(244,211,94,0.45); vertical-align: middle; }
