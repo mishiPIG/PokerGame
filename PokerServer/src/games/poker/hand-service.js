@@ -371,6 +371,10 @@ function startHand(roomId) {
     const bbIdx = nextLiveIdx(game, sbIdx);
     const sb = game.players[sbIdx];
     const bb = game.players[bbIdx];
+    // 记下这一手谁是大小盲，供牌桌上标 SB / BB（只是展示用；规则判断仍然按 sbIdx/bbIdx 走）。
+    // 存 userId 不存下标：本手中途有人离座 splice 会让下标漂移。
+    game.sbUserId = sb ? sb.userId : null;
+    game.bbUserId = bb ? bb.userId : null;
     const utgIdx = live >= 3 ? nextLiveIdx(game, bbIdx) : -1;
     const utg = utgIdx >= 0 ? game.players[utgIdx] : null;
 

@@ -735,6 +735,8 @@ function renderMatchInfo(st) {
     if (!st) return;
     const isCash = st.roomType === 'cash';
     const rows = [
+        // 房间名原来常驻在桌心水印里；水印精简成一行盲注之后，它住到这里（玩家视角复盘 P1b）
+        [L('房间', 'Room'), escapeHtml(st.roomName || '')],
         [L('类型', 'Type'), isCash ? L('现金桌', 'Cash table') : L('SNG 升盲', 'SNG (blinds up)')],
         [L('入场状态', 'Access'), iCanPlay ? L('🔐 已获下场资格', '🔐 May sit down') : L('👀 观战中', '👀 Spectating')],
         [L('盲注', 'Blinds'), `${st.smallBlind}/${st.bigBlind}` + (st.ante ? ` · ante ${st.ante}` : '')],

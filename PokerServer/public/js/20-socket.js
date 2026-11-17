@@ -290,7 +290,8 @@ function connectSocket(token) {
             showdownInfo = {
                 winners: data.winners || [], winnerId: data.winnerId,
                 bestCommunity: data.bestCommunity || [], bestHole: data.bestHole || [],
-                category: data.category || '', bestByWinner: data.bestByWinner || {}
+                category: data.category || '', bestByWinner: data.bestByWinner || {},
+                categories: data.categories || {}   // 每一家亮出来的牌型（旧服务端没有这个字段 → 只显示赢家的）
             };
         } else {
             revealedCards = data; showdownInfo = null;

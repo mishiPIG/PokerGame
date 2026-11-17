@@ -67,14 +67,54 @@ function check() {
     return orphans;
 }
 
+// 反方向（2026-11-17 加）：页面用到了、字典里却没有的 key。
+//
+// 为什么要有：1.11.0 清理孤儿条目时，好几行是「一行塞了好几条」—— 孤儿和活的条目同在一行，
+// 整行一删，活的也没了。玩家看到的就是按钮上写着 `act.call`、`result.back` 这种原始 key，
+// 在生产上挂了三天没人发现：t() 找不到时【返回 key 本身】，不报错、不崩，只是难看。
+// 只查「孤儿」这一个方向，正好放过了它自己造成的那类问题。
+//
+// 「用到」只认写死的字面量：data-i18n / data-i18n-ph / data-i18n-title="k"，以及 t('k')。
+// 动态拼出来的 key（srv.* / err.* / 前缀 + 变量）不在这里查 —— 那些有各自的关卡。
+function localeKeys(dictSrc, loc) {
+    const start = dictSrc.indexOf(`\n    ${loc}: {`);
+    if (start < 0) return new Set();
+    const end = dictSrc.indexOf('\n    },', start);
+    return new Set([...dictSrc.slice(start, end).matchAll(/'([\w.]+)'\s*:/g)].map(m => m[1]));
+}
+function missing(dictSrc, clientSrc) {
+    const used = new Set([
+        ...[...clientSrc.matchAll(/data-i18n(?:-ph|-title)?="([\w.]+)"/g)].map(m => m[1]),
+        ...[...clientSrc.matchAll(/\bt\(\s*['"]([\w.]+)['"]/g)].map(m => m[1]),
+    ]);
+    const out = [];
+    for (const loc of ['zh', 'en']) {
+        const have = localeKeys(dictSrc, loc);
+        for (const k of [...used].sort()) if (!have.has(k)) out.push(`${loc}  '${k}'`);
+    }
+    return out;
+}
+function checkMissing() {
+    const dictSrc = fs.readFileSync(DICT, 'utf8');
+    const client = [path.join(ROOT, 'index.html'), ...walk(path.join(ROOT, 'public/js'), ['.js'])]
+        .filter(f => f !== DICT).map(f => fs.readFileSync(f, 'utf8')).join('\n');
+    return missing(dictSrc, client);
+}
+
 if (require.main === module) {
     const orphans = check();
+    const lacking = checkMissing();
+    if (lacking.length) {
+        console.error(`❌ 页面用到了、字典里却没有的翻译 ${lacking.length} 处（玩家会直接看到原始 key）：`);
+        lacking.forEach(o => console.error('   ' + o));
+    }
     if (orphans.length) {
         console.error(`❌ 字典里有 ${orphans.length} 条没有任何地方用到的翻译（删掉，或在该行注明 i18n-orphan-ok: 原因）：`);
+        console.error('   ⚠️ 一行里有好几条时只删那一条，别整行删（1.11.0 就是这么把活的条目一起删掉的）');
         orphans.forEach(o => console.error('   ' + o));
-        process.exit(1);
     }
-    console.log('✅ 翻译条目检查通过（字典里每一条都有地方用到）');
+    if (lacking.length || orphans.length) process.exit(1);
+    console.log('✅ 翻译条目检查通过（字典里每一条都有地方用到；页面用到的每一条中英文都有）');
 } else {
-    module.exports = { check };
+    module.exports = { check, missing, checkMissing };
 }

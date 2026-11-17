@@ -57,10 +57,17 @@ function doShowdown(roomId) {
         };
     });
     const ob = bestByWinner[overallId] || { community: [], hole: [], category: '' };
+    // 每一家亮出来的牌型（不只是赢家）：玩家最想看清的是「他拿什么输给我的」。
+    // 只取 active（本来就在 reveals 里、全桌都看得见底牌的人），所以不多泄露任何东西 ——
+    // 弃牌者的牌型绝不能出现在这里。
+    const categories = {};
+    active.forEach(p => {
+        categories[p.userId] = HandEvaluator.bestHand(game.communityCards.concat(game.holeCards[p.userId])).category;
+    });
     io.in(roomId).emit('showdown_reveal', {
         reveals, winners: winnerIds, winnerId: overallId,
         bestCommunity: ob.community, bestHole: ob.hole, category: ob.category,
-        bestByWinner, pots: potResults
+        bestByWinner, categories, pots: potResults
     });
     const label = winnerIds.map(id => {
         const p = game.players.find(x => x.userId === id);

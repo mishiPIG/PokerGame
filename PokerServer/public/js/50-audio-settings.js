@@ -200,12 +200,14 @@ function flyEmote(fromUserId, toUserId, emote) {
 // 手机振动反馈（不支持则忽略）
 function vibrate(pattern) { try { if (soundOn && navigator.vibrate) navigator.vibrate(pattern); } catch (e) {} }
 // 赢额「+X」弹字：从赢家座位上飘出
+// 自己的座位是横排（左=名字头像筹码，右=两张大牌），挂在整个座位中间就正好压在自己的牌上
+// （玩家视角复盘 P1）。所以挂在左边那一栏上方往上飘，牌永远露着。
 function winPopup(userId, amount) {
     const seat = document.querySelector(`.seat[data-uid="${userId}"]`);
     if (!seat || !amount) return;
     const el = document.createElement('div');
     el.className = 'win-pop'; el.textContent = '+' + fmtChips(amount);
-    seat.appendChild(el);
+    (seat.querySelector('.self-info') || seat).appendChild(el);
     setTimeout(() => el.remove(), 1600);
 }
 // 分池依次飞币 + 赢额弹字（主池先、边池后）

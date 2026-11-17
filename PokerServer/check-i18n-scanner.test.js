@@ -27,3 +27,18 @@ test('位置要对：递归扫出来的字面量报的是它在原文件里的�
     assert.equal(src.slice(0, hit.at).split('\n').length, 2, '行号报错了');
     assert.equal(src[hit.at], "'");
 });
+
+// ── 翻译条目的反方向：页面用到了、字典里却没有（2026-11-17）──
+// 1.11.0 清理孤儿条目时整行删除，把同一行里 18 条还在用的 key 一起删了；
+// 玩家看到的是按钮上的 `act.call`、`result.back`。孤儿检查只查一个方向，正好放过了它自己造成的问题。
+const { missing, checkMissing } = require('./tools/check-i18n-orphans');
+const DICT = "const I18N = {\n    zh: {\n        'a.one': '一', 'a.two': '二',\n    },\n    en: {\n        'a.one': 'one',\n    },\n};";
+
+test('🔴 页面用到、字典里没有的 key 会被报出来（中英分别查）', () => {
+    const client = '<b data-i18n="a.one"></b> t(\'a.two\') <i data-i18n-title="a.three"></i>';
+    assert.deepEqual(new Set(missing(DICT, client)), new Set(["zh  'a.three'", "en  'a.three'", "en  'a.two'"]));
+});
+
+test('仓库里现在没有缺失的翻译', () => {
+    assert.deepEqual(checkMissing(), []);
+});

@@ -79,6 +79,9 @@ function broadcastState(roomId) {
         //    玩家到牌谱里逐手验（见 hand-visibility.js）。不损害可验证性，只是晚一会儿。
         fairRevealAfterTable: true,
         buttonUserId:   game.players[game.buttonIdx]?.userId || null,
+        // 本手大小盲（牌桌上标 SB / BB）。局间（waiting）不发：那时还没定下一手谁贴盲。
+        sbUserId:       game.phase !== PHASES.WAITING ? (game.sbUserId || null) : null,
+        bbUserId:       game.phase !== PHASES.WAITING ? (game.bbUserId || null) : null,
         actionOnUserId: game.actionOnIdx >= 0 ? (game.players[game.actionOnIdx]?.userId || null) : null,
         communityCards: game.communityCards.map(c => ({ suit: c.suit, rank: c.rank })),
         players: game.players.map(p => ({

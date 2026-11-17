@@ -300,6 +300,13 @@ const I18N = {
         'compliance': '绿色竞技 · 远离赌博 · 谨防诈骗 · 健康生活',
         'ms.title': '比赛设置', 'ms.close': '关闭', 'ms.end': '🛑 提前结束',
         'rp.title': '牌谱回放', 'rp.prev': '上一步', 'rp.play': '播放/暂停', 'rp.next': '下一步', 'rp.speed': '速度',
+        // 2026-11-17 补回：1.11.0 清理没人用的条目时，这些和它们同在一行、被整行删掉了（tools/check-i18n-orphans.js 现在也查反方向）
+        'title.sound': '音效', 'title.fullscreen': '全屏', 'cfg.tabSng': '🏆 SNG 升盲',
+        'cfg.tabCash': '💵 现金桌', 'voice.hold': '按住说话', 'act.fold': '弃牌',
+        'act.bet': '下注…', 'act.raise': '加注…', 'act.check': '过牌',
+        'act.call': '跟注', 'reserve.sitback': '🪑 回到座位', 'bm.chips': '记分牌',
+        'bm.cost': '消耗 🪙', 'bm.avail': '可用 🪙', 'hd.replay': '▶ 回放',
+        'hd.verify': '🔒 验证数据', 'ap.sub': '本局数据', 'result.back': '返回大厅',
     },
     en: {
         'brand.tagline': 'Poker Dojo · Play with friends · Grow together',
@@ -593,6 +600,13 @@ const I18N = {
         'compliance': 'Play for fun · No gambling · Beware of scams · Stay healthy',
         'ms.title': 'Game settings', 'ms.close': 'Close', 'ms.end': '🛑 End early',
         'rp.title': 'Hand replay', 'rp.prev': 'Previous', 'rp.play': 'Play/Pause', 'rp.next': 'Next', 'rp.speed': 'Speed',
+        // 2026-11-17 补回：1.11.0 清理没人用的条目时，这些和它们同在一行、被整行删掉了（tools/check-i18n-orphans.js 现在也查反方向）
+        'title.sound': 'Sound', 'title.fullscreen': 'Fullscreen', 'cfg.tabSng': '🏆 SNG',
+        'cfg.tabCash': '💵 Cash', 'voice.hold': 'Hold to talk', 'act.fold': 'Fold',
+        'act.bet': 'Bet…', 'act.raise': 'Raise…', 'act.check': 'Check',
+        'act.call': 'Call', 'reserve.sitback': '🪑 Sit back', 'bm.chips': 'chips',
+        'bm.cost': 'Cost 🪙', 'bm.avail': 'Have 🪙', 'hd.replay': '▶ Replay',
+        'hd.verify': '🔒 Verify data', 'ap.sub': 'This hand', 'result.back': 'Back to lobby',
     },
 };
 let lang = (() => { try { return localStorage.getItem('lang') || (String(navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'zh'); } catch { return 'zh'; } })();

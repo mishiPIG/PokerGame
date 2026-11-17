@@ -129,17 +129,21 @@ function startDealFx(state) {
     const now = performance.now();
     const myCards = document.querySelectorAll(`.seat[data-uid="${myUserId}"] .self-cards .card`);
     const flips = [];
+    const backs = {};   // userId -> [t0, t1]：对手两张小牌背各自落地的时刻
     for (let k = 0; k < n; k++) {
         const p = order[k % order.length], round = Math.floor(k / order.length);
         const mine = p.userId === myUserId;
-        const target = mine ? myCards[round] : document.querySelector(`.seat[data-uid="${p.userId}"] .avatar-block`);
+        // 对手：飞到头像左下角那两张小牌背上（P4）；没有牌背的（老布局兜底）照旧飞到头像上收进去
+        const back = mine ? null : document.querySelectorAll(`.seat[data-uid="${p.userId}"] .opp-backs .card`)[round];
+        const target = mine ? myCards[round] : (back || document.querySelector(`.seat[data-uid="${p.userId}"] .avatar-block`));
         if (!target) continue;
         const delay = k * step;
-        flyDealCard(from, target, delay, mine);
+        flyDealCard(from, target, delay, mine || !!back);
         sndDeal(0, delay / 1000);
         if (mine) flips[round] = now + delay + DEAL_FLIGHT_MS;
+        else if (back) (backs[p.userId] = backs[p.userId] || [])[round] = now + delay + DEAL_FLIGHT_MS;
     }
-    dealFx = { flips };
+    dealFx = { flips, backs };
     return true;
 }
 // 亮牌（全押亮牌 / 摊牌）：一家一家翻，从庄家左手边（翻后第一个行动的人）开始。
@@ -168,7 +172,13 @@ function applyTimelineFx() {
     if (dealFx) {
         const cards = document.querySelectorAll(`.seat[data-uid="${myUserId}"] .self-cards .card`);
         dealFx.flips.forEach((t, i) => { if (t != null && cards[i]) flipFrom(cards[i], t, now, true); });
-        if (dealFx.flips.every(t => t == null || now - t >= FLIP_MS)) dealFx = null;
+        // 对手的小牌背：飞到之前保持隐藏，落地那一刻出现（同一套「按绝对时刻重挂」，重绘不会让它们提前冒出来）
+        Object.keys(dealFx.backs || {}).forEach(uid => {
+            const els = document.querySelectorAll(`.seat[data-uid="${uid}"] .opp-backs .card`);
+            dealFx.backs[uid].forEach((t, i) => { if (t != null && els[i]) flipFrom(els[i], t, now, false); });
+        });
+        const allTimes = dealFx.flips.concat(...Object.values(dealFx.backs || {}));
+        if (allTimes.every(t => t == null || now - t >= FLIP_MS)) dealFx = null;
     }
     if (revealFx) {
         Object.keys(revealFx.at).forEach(uid => {
@@ -460,10 +470,14 @@ function buildSeat(p, state) {
     const readyHtml = canReady
         ? `<div class="ready-badge ${p.ready ? 'yes' : 'no'}">${p.ready ? L('✓ 已准备', '✓ Ready') : L('未准备', 'Not ready')}</div>` : '';
 
-    // 牌型徽章（独立深色小牌，绝不盖筹码）：赢家 or 我行牌中的当前牌型
+    // 牌型徽章（独立深色小牌，绝不盖筹码）：摊牌时每一家亮出来的 / 我行牌中的当前牌型
+    // 赢家用自己那手的牌型（分池时两个赢家牌型可能不同），旧服务端没发 categories 时退回总赢家的。
     let handTypeBadge = '';
-    if (showdownInfo && showdownInfo.winners.includes(p.userId) && showdownInfo.category)
-        handTypeBadge = `<div class="hand-type-badge win">🏆 ${handCat(showdownInfo.category)}</div>`;
+    const sdCat = showdownInfo && revealedCards[p.userId] && (showdownInfo.categories || {})[p.userId];
+    if (showdownInfo && showdownInfo.winners.includes(p.userId) && (sdCat || showdownInfo.category))
+        handTypeBadge = `<div class="hand-type-badge win">🏆 ${handCat(sdCat || showdownInfo.category)}</div>`;
+    else if (sdCat)
+        handTypeBadge = `<div class="hand-type-badge lose">${handCat(sdCat)}</div>`;
     else if (isMe && myHand && state.phase !== 'waiting') {
         // 已弃牌也显示（玩家反馈想知道「我弃掉的牌最后会是什么」）——加「弃」前缀+灰样式，
         // 明确这是假设性的牌型，不会误以为自己还在牌局里。摊牌阶段同样保留（那时才最想看）。
@@ -477,12 +491,27 @@ function buildSeat(p, state) {
         ? `<div class="show-hint">${L('👁️ 点亮牌给对手', '👁️ Tap to show a card')}</div>` : '';
 
     // 对手亮牌：覆盖在头像上（不占额外高度、不顶出屏幕），牌型徽章压在牌下沿
+    // 牌单独包一行（.card-row）：容器是竖排，徽章才会落在牌下面、按自己的文字宽度显示
     const oppCardsOverlay = (!isMe && cardsHtml)
-        ? `<div class="opp-cards">${cardsHtml}${handTypeBadge}</div>` : '';
+        ? `<div class="opp-cards"><div class="card-row">${cardsHtml}</div>${handTypeBadge}</div>` : '';
+    // 还在这一手里的对手：头像左下角两张小牌背（玩家视角复盘 P4）。
+    // 原来对手没有任何牌，弃没弃只差一点明暗，看不出谁还在局里。弃牌那一刻牌背飞走（fold-out），之后就没了。
+    // 没被发牌的人（坐出 / 中途入座）开局就是 folded，所以「没弃牌」= 本手发到牌了。
+    const inHandPhase = state.phase === 'preflop' || state.phase === 'flop' || state.phase === 'turn' || state.phase === 'river';
+    let oppBacks = '';
+    if (!isMe && !cardsHtml && inHandPhase) {
+        if (!p.folded) oppBacks = `<div class="opp-backs">${cardBack()}${cardBack()}</div>`;
+        else if (foldingNow.has(p.userId)) oppBacks = `<div class="opp-backs">${cardBack({ fold: true })}${cardBack({ fold: true })}</div>`;
+    }
+    // 位置：庄家 D 之外只标大小盲（UTG/CO 之类不标 —— T2 信息层别再变重，见 20-table.css 开头的层级契约）。
+    // 和 D 共用头像右下角那个位置；单挑时庄家就是小盲，只显示 D。
+    const posTag = isBtn ? '<div class="dealer-btn">D</div>'
+        : p.userId === state.sbUserId ? '<div class="blind-tag">SB</div>'
+        : p.userId === state.bbUserId ? '<div class="blind-tag">BB</div>' : '';
     const avatarBlock = `<div class="avatar-block" onclick="openAvatarPopup('${p.userId}')" style="cursor:pointer">
         ${betBadge}${equityBadge}
         <div class="avatar" style="background:hsl(${hue},45%,42%)">${escapeHtml(initial)}${avatarImg}</div>
-        ${isBtn ? '<div class="dealer-btn">D</div>' : ''}
+        ${oppBacks}${posTag}
         ${showRing ? `<div class="avatar-ring" id="seat-ring"></div><div class="avatar-secs" id="seat-timer-num">${secs0}</div>` : ''}
         ${oppCardsOverlay}
     </div>`;
@@ -492,7 +521,7 @@ function buildSeat(p, state) {
 
     if (isMe) {
         // 自己：横向——左=名字/头像/筹码，右=两张牌（+牌型）
-        const rightCards = cardsHtml ? `<div class="self-cards">${cardsHtml}${handTypeBadge}${showHint}</div>`
+        const rightCards = cardsHtml ? `<div class="self-cards"><div class="card-row">${cardsHtml}</div>${handTypeBadge}${showHint}</div>`
             : (handTypeBadge || showHint ? `<div class="self-cards">${handTypeBadge}${showHint}</div>` : '');
         return `<div class="${cls}" data-uid="${p.userId}">${statusBubble}${readyHtml}`
             + `<div class="self-body"><div class="self-info">${nameHtml}${avatarBlock}${chipsHtml}</div>${rightCards}</div></div>`;
@@ -501,10 +530,6 @@ function buildSeat(p, state) {
     return `<div class="${cls}" data-uid="${p.userId}">${statusBubble}${readyHtml}${nameHtml}${avatarBlock}${chipsHtml}</div>`;
 }
 
-// roomId 仅作内部标识，不再展示为可输入的邀请凭证。
-function roomNoHtml() {
-    return iCanPlay ? `<span class="room-no">${L('🔐 已加入', '🔐 Joined')}</span>` : `<span class="room-no">${L('👀 观战中', '👀 Spectating')}</span>`;
-}
 function render(state) {
     // 底池竖排（商业级）：中间=总底池；有边池时 上=主池、下=各边池；下注中 上=上一轮总底池
     const bets = state.players.reduce((s, p) => s + p.currentBet, 0);
@@ -527,27 +552,26 @@ function render(state) {
 
     // SNG 比赛信息：作为桌面中央淡色水印（不再占顶栏空间）
     const sng = document.getElementById('table-info');
+    // 只留一行：盲注 + 级别/剩余时长。房间名在「比赛设置」里，入场状态有观战横幅（见 20-table.css #table-info）。
     if (state.roomType === 'sng') {
         const lvl = (state.currentLevel || 0) + 1;
         nextLevelAt = state.nextLevelAt || 0;
-        sng.innerHTML = `${escapeHtml(state.roomName)} · ${roomNoHtml()}<br>`
-            + `${L('级别', 'Level')} ${lvl} · ${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}`
+        sng.innerHTML = `${L('级别', 'Level')} ${lvl} · ${state.smallBlind}/${state.bigBlind}`
             // 分隔符「 · 」由倒计时自己带（见 70-actions.js）：模板里再写一个就成了「· ·」（2026-09-29 截图里看到的）
             + (state.pendingLevelUp ? ` · <span style="color:#ff9f1c">${L('⏫本局后升盲', '⏫ Blinds up next hand')}</span>` : `<span id="next-level"></span>`);
     } else {
         nextLevelAt = 0; tableEndAt = state.tableEndAt || 0;
-        sng.innerHTML = `${escapeHtml(state.roomName)} · ${roomNoHtml()}<br>`
-            + `${L('现金桌', 'Cash')} · ${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
+        sng.innerHTML = `${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
             + (state.allowUtgStraddle ? ' · STR 2BB' : '')
             + (tableEndAt ? `<span id="table-remain"></span>` : '');   // 分隔符由倒计时自己带，同上
     }
     if (state.timeExpired) {
         // 带上兜底倒计时：让全桌都知道「不处理的话什么时候会自动结算」，而不是干等着
         const left = state.timeUpGraceAt ? Math.max(0, Math.ceil((state.timeUpGraceAt - Date.now()) / 60000)) : null;
-        sng.innerHTML += `<br><span style="color:#ffcf5c">${L('⏸️ 训练时间已到，等待房主决定', '⏸️ Session time up — waiting for host')}`
+        sng.innerHTML += `<br><span class="ti-state">${L('⏸️ 训练时间已到，等待房主决定', '⏸️ Session time up — waiting for host')}`
             + (left != null ? L(`（约 ${left} 分钟后自动结算）`, ` (auto-settles in ~${left} min)`) : '') + `</span>`;
     }
-    else if (state.paused) sng.innerHTML += `<br><span style="color:#ffcf5c">${L('⏸️ 房主已暂停发牌', '⏸️ Host paused dealing')}</span>`;
+    else if (state.paused) sng.innerHTML += `<br><span class="ti-state">${L('⏸️ 房主已暂停发牌', '⏸️ Host paused dealing')}</span>`;
 
     // 公共牌：固定 5 个位置（已发的是牌，未发的占位空槽），避免发牌时布局跳动
     const comm = state.communityCards;
