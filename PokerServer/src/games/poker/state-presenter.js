@@ -1,4 +1,5 @@
 'use strict';
+const { publicVote } = require('../../rooms/rule-vote');
 
 function createStatePresenter({ io, db, roomGames, PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, livePots, HandEvaluator, persistence }) {
 function broadcastState(roomId) {
@@ -14,6 +15,11 @@ function broadcastState(roomId) {
         bigBlind: gameBB(game),
         ante:       gameAnte(game),
         allowUtgStraddle: !!game.config?.allowUtgStraddle,
+        sevenDeuceBB: Number(game.config?.sevenDeuceBB) || 0,   // 7-2 奖励倍数（0 = 关）
+        bombEvery: Number(game.config?.bombEvery) || 0,           // Bomb pot 每 N 手一次（0 = 不自动）
+        bombBB: [2, 5, 10].includes(Number(game.config?.bombBB)) ? Number(game.config.bombBB) : 2,   // Bomb pot 每人几个大盲
+        bombNext: !!game.nextBomb,                                // 房主已点「下一手 Bomb」
+        bombHand: !!(game.hand && game.hand.bomb),                // 当前这一手是 Bomb pot
         straddle: game.straddle ? {
             type: 'utg', userId: game.straddle.userId, amount: game.straddle.amount,
             chain: game.straddle.chain || 1
@@ -35,6 +41,9 @@ function broadcastState(roomId) {
         roomName:   game.config?.name || roomId,
         maxPlayers: game.config?.maxPlayers || 9,
         actionTimeSec: (game.config?.actionTimeSec) || ACTION_TIME / 1000,
+        // 桌规投票（改盲注 / 7-2 / Bomb）：正在投票的提议（断线重连回来也能看到投票条）+ 已通过、下一手生效的新盲注
+        ruleVote: publicVote(game),
+        pendingBlinds: game.pendingBlinds || null,
         approveBuyIn: !!game.config?.approveBuyIn,   // 现金桌：带入 / 补码需房主批准   // 每次行动的思考时间（比赛设置里显示）
         sidePots:   livePots(game),
         spectators: listSpectators(roomId),

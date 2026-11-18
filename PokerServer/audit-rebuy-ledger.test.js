@@ -116,6 +116,18 @@ test('开了 ante 的桌上，合法补码不被误报（前注不是 action，�
     });
 });
 
+test('Bomb pot 那一手的合法补码不被误报（Bomb 和前注一样不是 action，必须单独补进投入）', () => {
+    // 同上一条：Bomb 的那笔是发牌前直接放进底池的。数学和 ante=40 一样，只是记在 hand.bomb 上、ante 为 0。
+    const hand = makeHand({ seq: 1, ts: base, extraChips: 10000, ante: 40 });
+    hand.ante = 0; hand.bomb = { amount: 40 };
+    delete hand.matchId; delete hand.completedAt;
+    withFixture([{ hand }], ({ status, out }) => {
+        assert.match(out, /回退启发式/);
+        assert.match(out, /合法的手中补码 1 处/, '不补 Bomb 的话补码差额变成 10,000−40，不再是整百而被误报');
+        assert.equal(status, 0);
+    });
+});
+
 test('没有账本可查时（旧牌谱 / JSONL）回退启发式，不因缺账本就误报', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poker-audit-legacy-'));
     try {

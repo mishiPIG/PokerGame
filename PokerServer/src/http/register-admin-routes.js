@@ -127,6 +127,7 @@ app.get('/api/admin/hands/:username', requireAdmin, (req, res) => {
         const r = (h.results || []).find(x => x.userId === target.id);
         const net = (seat && r) ? (r.endChips - seat.startChips) : null;
         return {
+            handId: h.handId,   // 点「回放」时用它去取整手记录（/api/admin/hand/:handId）
             ts: h.ts, roomId: h.roomId, mode: h.mode, handSeq: h.handSeq,
             sb: h.sb, bb: h.bb,
             hole: seat ? seat.hole : [],
@@ -136,7 +137,82 @@ app.get('/api/admin/hands/:username', requireAdmin, (req, res) => {
             playerCount: (h.seats || []).length
         };
     });
-    res.json({ username: target.username, displayName: target.displayName || target.username, hands });
+    res.json({ userId: target.id, username: target.username, displayName: target.displayName || target.username, hands });
+});
+
+// —— 任意一手的完整记录（含所有人底牌），给管理员面板的「回放」用：处理「这手牌到底怎么回事」的纠纷 ——
+app.get('/api/admin/hand/:handId', requireAdmin, (req, res) => {
+    const hand = db.getRawHandForAdmin(req.params.handId);
+    if (!hand) return res.status(404).json({ error: '找不到这一手' });
+    console.log(`[admin] ${req.adminUser.username} 查看牌谱 ${hand.roomId}#${hand.handSeq}`);
+    res.json(hand);
+});
+
+// —— 封禁 / 解封 ——
+// 封禁可撤销：只记时间和原因，账号、金币、牌谱、牌友一概不动。被封的人登录、HTTP、socket 三处都进不来（src/auth.js）。
+// 在线的立刻断开；如果正坐在牌桌上，按「主动离开」处理（1.5 秒代打：无注过牌、有注弃牌），
+// 筹码留在桌上、到收桌时照常兑回金币 —— 不在这里动钱。
+app.post('/api/admin/ban', requireAdmin, (req, res) => {
+    const { username, reason } = req.body || {};
+    if (!username) return res.status(400).json({ error: '缺少 username' });
+    if (!reason || !String(reason).trim()) return res.status(400).json({ error: '必须填写封禁原因' });
+    const target = db.getUserByUsername(String(username));
+    if (!target) return res.status(404).json({ error: `用户 "${username}" 不存在` });
+    if (target.id === req.adminUser.id) return res.status(400).json({ error: '不能封禁自己' });
+    if (target.isAdmin) return res.status(400).json({ error: '不能封禁管理员（先取消管理员身份）' });
+    db.setBan(target.id, String(reason).trim());
+    let kicked = 0;
+    for (const [, s] of io.sockets.sockets) {
+        if (s.user && s.user.id === target.id) { s.emit('account_banned'); s.disconnect(true); kicked++; }
+    }
+    for (const g of Object.values(roomGames || {})) {
+        for (const p of g.players || []) if (p.userId === target.id) p.leftByChoice = true;
+    }
+    console.log(`[admin] ${req.adminUser.username} 封禁 ${target.username}：${reason}（断开 ${kicked} 个连接）`);
+    res.json({ ok: true, username: target.username, kicked });
+});
+app.post('/api/admin/unban', requireAdmin, (req, res) => {
+    const target = db.getUserByUsername(String((req.body || {}).username || ''));
+    if (!target) return res.status(404).json({ error: '用户不存在' });
+    db.setBan(target.id, null);
+    console.log(`[admin] ${req.adminUser.username} 解封 ${target.username}`);
+    res.json({ ok: true, username: target.username });
+});
+
+// —— 实时在线：现在谁连着、在哪张桌、在不在打 ——
+// 按账号聚合（同一账号只保留一个会话，但断线重连的瞬间可能短暂有两条）。
+app.get('/api/admin/online', requireAdmin, (req, res) => {
+    const byUser = new Map();
+    for (const [, s] of io.sockets.sockets) {
+        const u = s.user;
+        if (!u) continue;
+        const roomId = s.currentRoom || null;
+        const g = roomId ? (roomGames || {})[roomId] : null;
+        const p = g ? (g.players || []).find(x => x.userId === u.id) : null;
+        const prev = byUser.get(u.id);
+        const row = {
+            userId: u.id, username: u.username, displayName: u.displayName || u.username,
+            isGuest: !!u.isGuest, isAdmin: !!u.isAdmin,
+            connections: (prev ? prev.connections : 0) + 1,
+            roomId: roomId || (prev && prev.roomId) || null,
+            roomName: g ? (g.config?.name || roomId) : (prev && prev.roomName) || null,
+            roomType: g ? (g.roomType || 'cash') : (prev && prev.roomType) || null,
+            // 在座 / 观战 / 大厅
+            where: p ? 'seated' : (g ? 'watching' : (prev && prev.where) || 'lobby'),
+            inHand: !!(p && !p.folded && g.phase && g.phase !== 'waiting' && g.phase !== 'showdown'),
+            chips: p ? p.chips : null,
+            away: !!(p && p.away)
+        };
+        byUser.set(u.id, row);
+    }
+    const users = [...byUser.values()].sort((a, b) => (a.where === b.where ? 0 : a.where === 'seated' ? -1 : b.where === 'seated' ? 1 : a.where === 'watching' ? -1 : 1));
+    res.json({
+        users,
+        total: users.length,
+        seated: users.filter(u => u.where === 'seated').length,
+        watching: users.filter(u => u.where === 'watching').length,
+        lobby: users.filter(u => u.where === 'lobby').length
+    });
 });
 
 // —— 筹码守恒审计：网页上直接跑，不必 SSH（复用 tools/audit-chips.js 的判定逻辑）——

@@ -13,7 +13,8 @@ function rpRingPos(i, n) {
 function buildReplayFrames(h) {
     const players = (h.seats || []).slice().sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0)).map(s => ({
         userId: s.userId, name: s.username, avatar: s.avatar, seat: s.seat ?? 0,
-        stack: s.startChips || 0, bet: 0, folded: false, showCards: false,
+        // revealAll：管理员回放（处理纠纷）—— 每家的底牌从头到尾都亮着
+        stack: s.startChips || 0, bet: 0, folded: false, showCards: !!h.revealAll,
         // heroId：示例牌局没有「我」，由牌谱自己指定从谁的视角看（那一家的牌亮着、坐在屏幕下方）
         // 底牌被过滤掉的人（桌子还没散时别人弃掉的牌 / 分享链接里看不见的牌）：画两张牌背，别让他看起来像没拿牌
         hole: s.hole && s.hole.length ? s.hole.map(rpParseCard) : [null, null], isMe: s.userId === (h.heroId || myUserId), pos: ''
@@ -33,8 +34,11 @@ function buildReplayFrames(h) {
     const frames = [];
     const snap = (caption, actingId, extra = {}) => frames.push({ players: players.map(p => ({ ...p })), pot, community, caption, actingId, ...extra });
     if (h.ante > 0) players.forEach(p => { const a = Math.min(h.ante, p.stack); p.stack -= a; pot += a; });
-    const sbP = players.find(p => (p.pos || '').includes('SB'));
-    const bbP = players.find(p => (p.pos || '').includes('BB'));
+    // Bomb pot：没有大小盲，每人先把同样一笔放进底池，直接到翻牌
+    const bombAmt = (h.bomb && h.bomb.amount) || 0;
+    if (bombAmt > 0) players.forEach(p => { const a = Math.min(bombAmt, p.stack); p.stack -= a; pot += a; });
+    const sbP = bombAmt ? null : players.find(p => (p.pos || '').includes('SB'));
+    const bbP = bombAmt ? null : players.find(p => (p.pos || '').includes('BB'));
     if (sbP) { const v = Math.min(h.sb, sbP.stack); sbP.stack -= v; sbP.bet = v; }
     if (bbP) { const v = Math.min(h.bb, bbP.stack); bbP.stack -= v; bbP.bet = v; }
     // 链式 straddle 每一档都记成了一条 'straddle' 行动（UTG 2BB → 下一位 4BB → …）。
@@ -46,7 +50,7 @@ function buildReplayFrames(h) {
         const sp = byId[st.userId]; if (!sp) continue;
         sp.stack -= (st.amount - sp.bet); sp.bet = st.amount;
     }
-    snap(`${L('发牌 · 盲注', 'Deal · blinds')} ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''}`
+    snap(bombAmt ? L(`💣 Bomb pot · 每人 ${fmtChips(bombAmt)}`, `💣 Bomb pot · ${fmtChips(bombAmt)} each`) : `${L('发牌 · 盲注', 'Deal · blinds')} ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''}`
         + (tiers.length ? ` · Straddle ${tiers.map(st => st.amount).join(' → ')}` : ''), null);
     const stName = { preflop: L('翻前', 'Preflop'), flop: L('翻牌', 'Flop'), turn: L('转牌', 'Turn'), river: L('河牌', 'River') };
     for (const a of (h.actions || [])) {
@@ -93,9 +97,26 @@ function buildReplayFrames(h) {
     community = (h.community || []).length;
     players.forEach(p => { if (!p.folded) p.showCards = true; });
     const winners = (h.results || []).filter(r => r.won > 0);
-    winners.forEach(r => { const p = byId[r.userId]; if (p) p.stack += r.won; });
+    // 最终筹码以牌谱记录的结果为准，不自己加 won：没人跟的那部分下注会退回给下注的人（returnUncalledBets），
+    // 它不在 won 里 —— 原来自己加，「全押没人跟」的那一手回放里他就只剩底池那一点（2026-11-18 压测抓到：牌谱 2620、回放 40）。
+    // 多次发牌那条分支一直就是这么做的。
+    (h.results || []).forEach(r => { const p = byId[r.userId]; if (p && typeof r.endChips === 'number') p.stack = r.endChips; });
+    // （底池数字留在这一帧上，和「赢得 X」对着看 —— 原来就是这样显示的）
+    // 7-2 奖励：结束筹码里已经含了这笔。摊牌这一帧先扣掉（显示奖励前的样子），下一帧再加回
+    const sd = h.sevenDeuce;
+    if (sd && byId[sd.userId]) {
+        (sd.payers || []).forEach(x => { const p = byId[x.userId]; if (p) p.stack += x.paid; });
+        byId[sd.userId].stack -= sd.total;
+    }
     const wn = winners.map(r => byId[r.userId] && byId[r.userId].name).filter(Boolean);
     snap(`${L('摊牌', 'Showdown')} · ${wn.length ? wn.join('、') + L(' 赢得 ', ' won ') + fmtChips(winners.reduce((s, r) => s + r.won, 0)) : L('结束', 'End')}`, null);
+    // 7-2 奖励：其余每人付给赢家
+    if (sd && byId[sd.userId]) {
+        (sd.payers || []).forEach(x => { const p = byId[x.userId]; if (p) p.stack -= x.paid; });
+        byId[sd.userId].stack += sd.total;
+        byId[sd.userId].showCards = true;
+        snap(L(`7-2 奖励 · ${byId[sd.userId].name} 收 ${fmtChips(sd.total)}`, `7-2 bounty · ${byId[sd.userId].name} collects ${fmtChips(sd.total)}`), null);
+    }
     return frames;
 }
 // ===== 牌谱详情（清爽 breakdown，参考商业软件截图3）=====

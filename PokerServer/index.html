@@ -194,6 +194,7 @@
         <div class="adm-head"><h3>⚙️ 管理员面板</h3><button class="adm-close" onclick="toggleAdminPanel()" title="关闭" aria-label="关闭">✕</button></div>
         <div class="adm-tabs">
             <button class="adm-tab sel" data-at="users" onclick="adminTab('users')">👥 玩家</button>
+            <button class="adm-tab" data-at="online" onclick="adminTab('online')">🟢 在线</button>
             <button class="adm-tab" data-at="rooms" onclick="adminTab('rooms')">🎲 房间总览</button>
             <button class="adm-tab" data-at="wallet" onclick="adminTab('wallet')">💰 钱包流水</button>
             <button class="adm-tab" data-at="hands" onclick="adminTab('hands')">📜 牌谱</button>
@@ -208,6 +209,10 @@
                 <thead><tr><th>用户名</th><th>金币</th><th>设置金币</th><th></th><th>操作</th></tr></thead>
                 <tbody></tbody>
             </table>
+        </div>
+        <div id="adm-pane-online" style="display:none">
+            <div class="adm-bar"><button onclick="loadAdminOnline()">🔄 刷新</button><span id="adm-online-sum"></span></div>
+            <div id="adm-online"></div>
         </div>
         <div id="adm-pane-metrics" style="display:none">
             <div class="adm-bar">
@@ -354,6 +359,10 @@
                     <input type="range" id="ccAnte" min="0" max="80" step="10" value="0" oninput="updateCashLabels()"></label>
                 <label class="toggle-label"><input type="checkbox" id="ccStraddle">
                     <span data-i18n="cfg.straddle">允许 UTG Straddle（固定 2BB）</span></label>
+                <label class="toggle-label"><input type="checkbox" id="ccBomb">
+                    <span data-i18n="cfg.bomb">Bomb pot（每 10 手一次：每人 2BB 进底池，直接发翻牌）</span></label>
+                <label class="toggle-label"><input type="checkbox" id="ccSevenDeuce">
+                    <span data-i18n="cfg.sevenDeuce">7-2 奖励（用 7-2 赢下底池，其余每人付 2BB）</span></label>
                 <label class="toggle-label"><input type="checkbox" id="ccApprove">
                     <span data-i18n="cfg.approve">带入需房主批准（坐下和补码都要你点头）</span></label>
                 <label><span data-i18n="cfg.maxSeats">单桌最大人数：</span><b id="ccMaxVal">6</b> <span data-i18n="cfg.unitPeople">人</span>
@@ -479,6 +488,14 @@
         <button id="straddle-flag" style="display:none" onclick="answerStraddle(true)">
             <span class="sf-tag">STR</span><span class="sf-n" id="straddle-flag-n">×1</span>
         </button>
+        <!-- 桌规投票条（改盲注 / 7-2 / Bomb）：在座每个人都要点同意，下一手起生效 -->
+        <div id="rule-vote-bar" style="display:none" role="alert">
+            <div id="bv-text"></div>
+            <div class="bv-btns" id="bv-btns">
+                <button type="button" class="bv-no" onclick="voteRule(false)" data-i18n="bv.no">不同意</button>
+                <button type="button" class="bv-yes" onclick="voteRule(true)" data-i18n="bv.yes">同意</button>
+            </div>
+        </div>
         <!-- 合规横幅（纯娱乐定位）-->
         <div id="compliance-banner" data-i18n="compliance">绿色竞技 · 远离赌博 · 谨防诈骗 · 健康生活</div>
         <!-- 公共牌 + 底池（绝对居中，布局稳定不随行动浮层移动）-->
@@ -622,6 +639,17 @@
         <div class="modal-box">
             <h3 data-i18n="ms.title">比赛设置</h3>
             <div id="match-info" class="match-info"></div>
+            <!-- 中途改盲注（现金桌房主）：放在 #match-info 外面 —— 那块每个 game_state 都会整块重画，
+                 输入框放进去的话房主打到一半就被清掉 -->
+            <div id="ms-blinds" class="cfg-field" style="display:none;margin-top:10px">
+                <span class="cfg-label" data-i18n="ms.blinds.label">调整盲注（全桌同意后下一手起生效）</span>
+                <div class="ms-blinds-row">
+                    <label><span data-i18n="ms.blinds.sb">小盲</span><input id="ms-sb" type="number" inputmode="numeric" min="10" max="1000"></label>
+                    <label><span data-i18n="ms.blinds.bb">大盲</span><input id="ms-bb" type="number" inputmode="numeric" min="20" max="1000"></label>
+                    <label><span data-i18n="ms.blinds.ante">前注</span><input id="ms-ante" type="number" inputmode="numeric" min="0" max="80"></label>
+                    <button type="button" class="ext-btn" onclick="proposeBlinds()" data-i18n="ms.blinds.go">发起</button>
+                </div>
+            </div>
             <div class="modal-actions">
                 <button class="cancel" onclick="closeMatchSettings()" data-i18n="ms.close">关闭</button>
                 <button class="confirm danger owner-only" onclick="dissolveRoom();closeMatchSettings()"><svg class="ic" aria-hidden="true"><use href="#i-stop"/></svg><span data-i18n="ms.end">提前结束</span></button>

@@ -35,7 +35,20 @@ function connectSocket(token) {
         showKickedNotice(m && m.reason);
     });
 
+    // 封禁（管理员操作）：在线时收到 account_banned、之后再连会被鉴权拒绝（错误代号 banned）。
+    // 🔴 令牌【不清】：游客没有密码，令牌一清这个号就再也回不来了 —— 解封之后刷新一下就能接着玩。
+    function showBanned() {
+        sessionKicked = true;
+        try { socket.io.opts.reconnection = false; } catch {}
+        try { socket.disconnect(); } catch {}
+        document.getElementById('auth-overlay').style.display = 'flex';
+        document.getElementById('game-section').style.display = 'none';
+        setAuthError(t('err.banned'));
+    }
+    socket.on('account_banned', showBanned);
+
     socket.on('connect_error', (err) => {
+        if (err && err.message === 'banned') { showBanned(); return; }
         // connect_error 在【每次重连尝试失败】时也会触发（信号断了几秒、服务器正在重启）。
         // 那不是登录失效：socket.active 为真表示它还会自己接着重连 —— 只显示「重连中」，
         // 绝不能清掉令牌把人扔回登录页（牌局打到一半被踢出去、下次打开还得重新登录）。
@@ -163,6 +176,13 @@ function connectSocket(token) {
     // 比赛结束排名（现金桌训练结束/房主结束/SNG 结束）：弹结算面板
     // 带入审批（2026-11-17）：房主收到申请 / 申请人收到批准（逻辑在 30-room.js）
     socket.on('buyin_request', (req) => { if (req && req.userId) onBuyinRequest(req); });
+    // 桌规投票（改盲注 / 7-2 / Bomb）：开始 / 有人同意 → rule_vote；通过 / 拒绝 / 超时 → rule_vote_end（结果文字走 table_notice）
+    socket.on('rule_vote', (v) => {
+        const fresh = !ruleVoteState && v && v.voters.includes(myUserId) && !v.agreed.includes(myUserId);
+        renderRuleVote(v);
+        if (fresh) haptic(30);
+    });
+    socket.on('rule_vote_end', () => renderRuleVote(null));
     socket.on('buyin_approved', (a) => { if (a) onBuyinApproved(a); });
 
     // 别人发起了「再来一局」：弹个确认，点加入才进（下场资格靠服务端那条待办记录，见 rematch-invites.js）
@@ -203,6 +223,7 @@ function connectSocket(token) {
         noteGuestHand();     // 游客打过几手之后回大厅时提醒保存账号
         maybeStartCoach();   // 新来的人第一次被发到牌：三步提示（44-guide.js）
         myHoleCards = cards;
+        refreshRails(600);   // 宽屏常驻的牌谱栏：上一手刚存好，刷一下
         revealedCards = {};  // 新一局清除 showdown 展示
         showdownInfo = null; myHand = null;
         hideStraddleOffer();  // 没点的 straddle 小标志：新一手开始就收掉（本手的机会已经过了）
@@ -401,7 +422,9 @@ function connectSocket(token) {
         // 杜绝「上一手多次发牌的 runit-on 残留把这一手公共牌一直藏住」的 bug。
         document.getElementById('board').classList.toggle('runit-on', !!runitState);
         // 面板打开时随状态实时刷新
-        if (document.getElementById('stats-panel').style.display !== 'none') renderStats(state);
+        renderRuleVote(state.ruleVote || null);   // 断线重连回来也能看到投票条
+        const sp = document.getElementById('stats-panel');
+        if (sp.style.display !== 'none' || isDockedRail(sp)) renderStats(state);
         if (document.getElementById('match-modal').style.display !== 'none') renderMatchInfo(state);
         // 下注/收注两段筹码动画：
         // ① 下注瞬间：本次下注额【变大】→ 从头像抛一枚筹码到自己的下注徽章（"把筹码推出去"的手感）

@@ -467,7 +467,10 @@ function buildSeat(p, state) {
     else if (p.pendingRebuy > 0) stText = L('补码', 'Rebuy');
     else if (p.allIn) { stText = 'All in'; stCls = 'allin'; }
     else if (p.folded) { stText = L('弃牌', 'Fold'); stCls = 'fold'; }
-    const statusBubble = stText ? `<div class="status-bubble ${stCls}">${stText}</div>` : '';
+    // 跑马时头像上方有胜率徽章（很宽，从名字左边一直盖到名字右边），这时 All in 标签往下挪一行、
+    // 放到头像旁边 —— 原来两个叠在一起，「All in」只露出一个「n」（2026-11-18 重拍 README 时看到的）。
+    const eqShown = equityMap[p.userId] != null && !p.folded && state.phase !== 'showdown' && state.phase !== 'waiting';
+    const statusBubble = stText ? `<div class="status-bubble ${stCls}${eqShown ? ' with-eq' : ''}">${stText}</div>` : '';
 
     // 手牌展示
     const dealing = holeJustDealt && !timelineFxOk();   // 发牌动画窗口（支持时改由 startDealFx 从桌心飞牌）
@@ -514,8 +517,7 @@ function buildSeat(p, state) {
         ? `<div class="bet-badge">${chipStackHtml(p.currentBet)}${isStraddler ? 'STR ' : ''}${fmtChips(p.currentBet)}</div>` : '';
     // 全押跑马实时胜率徽章（仅跑马中，摊牌前）
     const eqPct = equityMap[p.userId];
-    const equityBadge = (eqPct != null && !p.folded && state.phase !== 'showdown' && state.phase !== 'waiting')
-        ? `<div class="equity-badge">${eqPct}%</div>` : '';
+    const equityBadge = eqShown ? `<div class="equity-badge">${eqPct}%</div>` : '';
 
     // 头像（小方块）+ 行动倒计时数字
     const displayName = p.displayName || p.username || L('玩家', 'Player');
@@ -624,6 +626,8 @@ function render(state) {
         nextLevelAt = 0; tableEndAt = state.tableEndAt || 0;
         sng.innerHTML = `${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
             + (state.allowUtgStraddle ? ' · STR 2BB' : '')
+            + (state.sevenDeuceBB ? ` · 7-2 ${state.sevenDeuceBB}BB` : '')
+            + (state.bombHand ? ' · 💣 Bomb pot' : (state.bombNext ? L(' · 下一手 Bomb', ' · bomb next') : ''))
             + (tableEndAt ? `<span id="table-remain"></span>` : '');   // 分隔符由倒计时自己带，同上
     }
     if (state.timeExpired) {

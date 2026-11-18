@@ -25,6 +25,10 @@ function createAuth({ db, jwt, jwtSecret }) {
         }
     }
 
+    // 封禁（2026-11-18）：登录、HTTP、socket 三处闸都查这一个字段。
+    // 读取层（getUserById）刻意不按封禁过滤 —— 管理员要看得到、能解封。
+    const BANNED = { error: '账号已被封禁', k: 'banned' };
+
     function requireAuth(req, res, next) {
         const authorization = req.headers.authorization;
         if (!authorization?.startsWith('Bearer ')) return res.status(401).json({ error: '未登录', k: 'notLoggedIn' });
@@ -32,6 +36,7 @@ function createAuth({ db, jwt, jwtSecret }) {
             const payload = jwt.verify(authorization.slice(7), jwtSecret);
             const user = db.getUserById(payload.id);
             if (!user) return res.status(401).json({ error: '用户不存在', k: 'noSuchUser' });
+            if (user.bannedAtMs) return res.status(403).json(BANNED);
             req.authUser = user;
             next();
         } catch { res.status(401).json({ error: '登录已过期', k: 'sessionExpired' }); }
@@ -45,6 +50,8 @@ function createAuth({ db, jwt, jwtSecret }) {
                 const payload = jwt.verify(token, jwtSecret);
                 const user = db.getUserById(payload.id);
                 if (!user) return next(new Error('用户不存在'));
+                // 错误信息用固定的英文代号：客户端认出它就显示「账号已被封禁」（按界面语言），而不是一句中文原文
+                if (user.bannedAtMs) return next(new Error('banned'));
                 socket.user = { ...user };
                 next();
             } catch {

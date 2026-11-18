@@ -18,7 +18,7 @@ function computeUserStatsUncached(userId, mode, room) {
     const chrono = hands.slice().reverse();   // getHandsForUser 是倒序（新→旧），翻成时序
 
     let totalHands = 0, netTotal = 0, biggestWin = 0;
-    let vpip = 0, pfr = 0;
+    let vpip = 0, pfr = 0, preHands = 0;   // preHands：有正常翻前下注的手数（Bomb pot 不算）
     let threeBet = 0, threeBetOpp = 0;
     let ats = 0, atsOpp = 0;   // 偷盲尝试：偷盲位(BTN/CO/SB)、翻前 folded-to-me 时开池加注
     let foldTo3bet = 0, faced3betAfterOpen = 0;
@@ -44,9 +44,13 @@ function computeUserStatsUncached(userId, mode, room) {
         const myPost = myActs.filter(a => a.street !== 'preflop');
         const isAgg = a => a.action === 'bet' || a.action === 'raise';
 
-        // VPIP / PFR（翻前自愿入池 / 翻前加注）
-        if (myPre.some(a => a.action === 'call' || isAgg(a))) vpip++;
-        if (myPre.some(isAgg)) pfr++;
+        // VPIP / PFR（翻前自愿入池 / 翻前加注）。Bomb pot 那一手每个人都是被动放钱、没有翻前下注，
+        // 算进分母会把 VPIP 平白拉低 —— 不算
+        if (!h.bomb) {
+            preHands++;
+            if (myPre.some(a => a.action === 'call' || isAgg(a))) vpip++;
+            if (myPre.some(isAgg)) pfr++;
+        }
 
         // 翻前序列解析：3bet、弃3bet、翻前最后加注者（aggressor）
         const preSeq = acts.filter(a => a.street === 'preflop');
@@ -105,8 +109,8 @@ function computeUserStatsUncached(userId, mode, room) {
         net: netTotal,
         biggestWin,
         winRateBB: 0,   // 预留（需稳定 BB 基准，暂不计）
-        vpip: pct(vpip, totalHands),
-        pfr: pct(pfr, totalHands),
+        vpip: pct(vpip, preHands),
+        pfr: pct(pfr, preHands),
         threeBet: pct(threeBet, threeBetOpp),
         ats: pct(ats, atsOpp),
         foldTo3bet: pct(foldTo3bet, faced3betAfterOpen),

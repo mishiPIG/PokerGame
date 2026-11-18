@@ -15,12 +15,13 @@ function admMsg(text, ok = true) {
     if (el) el.textContent = (ok ? '✅ ' : '❌ ') + text;
 }
 function adminTab(name) {
-    ['users', 'metrics', 'rooms', 'wallet', 'hands', 'audit', 'errors', 'sources', 'mail'].forEach(t => {
+    ['users', 'online', 'metrics', 'rooms', 'wallet', 'hands', 'audit', 'errors', 'sources', 'mail'].forEach(t => {
         const pane = document.getElementById('adm-pane-' + t);
         if (pane) pane.style.display = t === name ? '' : 'none';
     });
     document.querySelectorAll('.adm-tab').forEach(b => b.classList.toggle('sel', b.dataset.at === name));
     if (name === 'rooms') loadAdminRooms();
+    if (name === 'online') loadAdminOnline();
     if (name === 'metrics') loadAdminMetrics();
     if (name === 'errors') loadAdminErrors();
     if (name === 'sources') loadAdminSources();
@@ -43,13 +44,77 @@ async function loadAdminHands(username) {
         const net = h.net || 0;
         const hole = (h.hole || []).join(' ');
         const comm = (h.community || []).join(' ');
-        return `<div class="adm-tx" style="grid-template-columns:auto auto 1fr auto">
+        return `<div class="adm-tx" style="grid-template-columns:auto auto 1fr auto auto">
             <span class="adm-dim">${when}</span>
             <span class="adm-dim">#${escapeHtml(String(h.roomId || ''))}</span>
             <span>${escapeHtml(hole)}${comm ? ` <span class="adm-dim">| ${escapeHtml(comm)}</span>` : ''}</span>
             <span style="color:${net >= 0 ? '#4ade80' : '#f87171'};font-weight:bold">${net >= 0 ? '+' : ''}${net.toLocaleString()}</span>
+            ${h.handId ? `<button class="adm-mini" data-hid="${escapeHtml(h.handId)}" data-uid="${escapeHtml(d.userId || '')}" onclick="adminReplayHand(this.dataset.hid, this.dataset.uid)">▶ 回放</button>` : '<span></span>'}
         </div>`;
     }).join('');
+}
+
+// —— 任意一手的完整回放（所有人的底牌都亮着），处理「这手牌到底怎么回事」的纠纷 ——
+// 从被查那个玩家的视角摆座位（他坐屏幕下方），其余每家的牌也全部翻开。
+async function adminReplayHand(handId, userId) {
+    const res = await admGet('/api/admin/hand/' + encodeURIComponent(handId));
+    if (!res.ok) { const e = await res.json().catch(() => ({})); admMsg(e.error || '加载失败', false); return; }
+    const h = await res.json();
+    openReplay({ ...h, heroId: userId || undefined, revealAll: true });
+}
+
+// —— 实时在线：谁连着、在哪张桌、在不在打 ——
+async function loadAdminOnline() {
+    const box = document.getElementById('adm-online');
+    if (!box) return;
+    box.innerHTML = '<div class="adm-empty">加载中…</div>';
+    const res = await admGet('/api/admin/online');
+    if (!res.ok) { box.innerHTML = '<div class="adm-empty">加载失败</div>'; return; }
+    const d = await res.json();
+    document.getElementById('adm-online-sum').textContent = `在线 ${d.total} 人 · 在座 ${d.seated} · 观战 ${d.watching} · 大厅 ${d.lobby}`;
+    if (!d.users.length) { box.innerHTML = '<div class="adm-empty">现在没有人在线</div>'; return; }
+    const whereText = { seated: '在座', watching: '观战', lobby: '大厅' };
+    box.innerHTML = d.users.map(u => {
+        const tags = [];
+        if (u.isAdmin) tags.push('👑');
+        if (u.isGuest) tags.push('游客');
+        if (u.away) tags.push('📴掉线');
+        if (u.inHand) tags.push('🃏打牌中');
+        if (u.connections > 1) tags.push(`${u.connections} 个连接`);
+        const roomHtml = u.roomId ? `${escapeHtml(u.roomName || u.roomId)} <span class="adm-dim">#${escapeHtml(u.roomId)} · ${u.roomType === 'sng' ? 'SNG' : '现金桌'}</span>` : '<span class="adm-dim">—</span>';
+        return `<div class="adm-tx" style="grid-template-columns:minmax(0,1.2fr) auto minmax(0,1.6fr) auto">
+            <span><b>${escapeHtml(u.displayName)}</b> <span class="adm-dim">${escapeHtml(u.username)}</span> ${tags.map(escapeHtml).join(' ')}</span>
+            <span class="adm-dim">${whereText[u.where] || escapeHtml(u.where)}</span>
+            <span>${roomHtml}</span>
+            <span>${u.chips != null ? u.chips.toLocaleString() : ''}</span>
+        </div>`;
+    }).join('');
+}
+
+// —— 封禁 / 解封 ——
+async function adminBan(username) {
+    const reason = prompt(`封禁 ${username} 的原因（必填，只有管理员看得到）：`);
+    if (reason == null) return;
+    if (!reason.trim()) { admMsg('必须填写封禁原因', false); return; }
+    const res = await fetch('/api/admin/ban', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admToken()}` },
+        body: JSON.stringify({ username, reason: reason.trim() })
+    });
+    const d = await res.json();
+    if (!res.ok) { admMsg(d.error || '封禁失败', false); return; }
+    admMsg(`已封禁 ${d.username}${d.kicked ? `（已断开 ${d.kicked} 个在线连接）` : ''}`);
+    loadAdminUsers();
+}
+async function adminUnban(username) {
+    if (!confirm(`解封 ${username}？`)) return;
+    const res = await fetch('/api/admin/unban', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admToken()}` },
+        body: JSON.stringify({ username })
+    });
+    const d = await res.json();
+    if (!res.ok) { admMsg(d.error || '解封失败', false); return; }
+    admMsg(`已解封 ${d.username}`);
+    loadAdminUsers();
 }
 
 // —— 筹码守恒审计：网页直接跑，不必 SSH ——
@@ -188,6 +253,8 @@ async function adminAdjustGold(username, btn) {
     loadAdminWallet(username);
 }
 
+const BTN_BAN = `<button class="danger" onclick="adminBan(this.closest('tr').dataset.user)">🚫 封禁</button>`;
+const BTN_UNBAN = `<button onclick="adminUnban(this.closest('tr').dataset.user)">解封</button>`;
 async function loadAdminUsers() {
     const token = localStorage.getItem('token');
     const res = await fetch('/api/admin/users', {
@@ -198,12 +265,13 @@ async function loadAdminUsers() {
     const tbody = document.querySelector('#admin-users-table tbody');
     tbody.innerHTML = users.map(u => `
         <tr data-user="${escapeHtml(u.username)}">
-            <td>${escapeHtml(u.username)}${u.isAdmin ? ' 👑' : ''}${u.isGuest ? ' <span style="opacity:.6">游客</span>' : ''}</td>
+            <td>${escapeHtml(u.username)}${u.isAdmin ? ' 👑' : ''}${u.isGuest ? ' <span style="opacity:.6">游客</span>' : ''}${u.bannedAtMs ? ` <span class="adm-banned" title="${escapeHtml(u.banReason || '')}">🚫 已封禁</span>` : ''}</td>
             <td>${u.gold.toLocaleString()}</td>
             <td><input type="number" id="gold-${u.id}" value="${u.gold}" min="0"></td>
             <td><button onclick="adminSetGold(this.closest('tr').dataset.user,'${u.id}')">确认</button></td>
             <td><button onclick="adminTab('wallet');loadAdminWallet(this.closest('tr').dataset.user)">💰 流水</button>
-                <button onclick="adminTab('hands');loadAdminHands(this.closest('tr').dataset.user)">📜 牌谱</button></td>
+                <button onclick="adminTab('hands');loadAdminHands(this.closest('tr').dataset.user)">📜 牌谱</button>
+                ${u.isAdmin ? '' : u.bannedAtMs ? BTN_UNBAN : BTN_BAN}</td>
         </tr>`).join('');
 }
 

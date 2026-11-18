@@ -1,7 +1,9 @@
 'use strict';
 const { newServerSeed, commitOf } = require('./provably-fair');
+const { settleSevenDeuce } = require('./extensions/seven-deuce');
+const { nameOf } = require('../../account/display-name');
 
-function createHandHistoryService({ db, persistence, roomGames, HandEvaluator }) {
+function createHandHistoryService({ db, persistence, roomGames, HandEvaluator, io }) {
 function recordAction(game, player, action, amount) {
     if (!game.hand) return;
     game.hand.actions.push({
@@ -27,6 +29,19 @@ function saveHandHistory(game, winShare) {
             return bh ? bh.category : null;
         } catch (e) { return null; }   // 牌型只是展示信息，算不出也不能影响牌谱落库
     };
+    // 7-2 奖励：底池已经分完、结束筹码还没取 —— 在这里转账，牌谱里的结束筹码就已经含奖励（规则见 seven-deuce.js）
+    const sd = settleSevenDeuce(game, winShare);
+    if (sd) {
+        game.hand.sevenDeuce = sd;
+        const roomId = game.hand.roomId;
+        const winner = game.players.find(p => p.userId === sd.userId);
+        if (io && roomId) {
+            // 拿奖励要亮牌：没摊牌就赢的，替他亮给全桌（摊牌时本来就亮着，再发一次也无妨）
+            const hole = game.holeCards[sd.userId] || [];
+            io.in(roomId).emit('show_cards', { userId: sd.userId, cards: hole.map((c, i) => ({ index: i, suit: c.suit, rank: c.rank })) });
+            io.in(roomId).emit('table_notice', { k: 'notice.sevenDeuce', p: { name: nameOf(winner || {}), total: sd.total, bounty: sd.bounty } });
+        }
+    }
     game.hand.results = game.hand.seats.map(s => ({
         userId: s.userId,
         won: (winShare && winShare[s.userId]) || 0,

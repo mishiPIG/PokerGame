@@ -143,6 +143,11 @@ function registerLobbyEvents(context) {
                 allowUtgStraddle: cfg.allowUtgStraddle === true,
                 durationH: [0.5, 1, 2, 3, 4, 5, 6].includes(+cfg.durationH) ? +cfg.durationH : 2,
                 approveBuyIn: cfg.approveBuyIn === true,   // 带入 / 补码需房主批准（默认关）
+                // 7-2 奖励：0 = 关；1 / 2 / 5 = 用 7-2 赢下底池时其余每人付几个大盲（见 extensions/seven-deuce.js）
+                sevenDeuceBB: [0, 1, 2, 5].includes(Number(cfg.sevenDeuceBB)) ? Number(cfg.sevenDeuceBB) : 0,
+                // Bomb pot：每 N 手一次（0 = 不自动；房主也可以随时点「下一手 Bomb」）、每人放几个大盲（见 extensions/bomb-pot.js）
+                bombEvery: [0, 5, 10, 20].includes(Number(cfg.bombEvery)) ? Number(cfg.bombEvery) : 0,
+                bombBB: [2, 5, 10].includes(Number(cfg.bombBB)) ? Number(cfg.bombBB) : 2,
                 actionTimeSec: context.config.pickActionTimeSec(cfg.actionTimeSec)   // 每次行动的思考时间（秒）
             },
             prizePool: 0, tournamentOver: false,

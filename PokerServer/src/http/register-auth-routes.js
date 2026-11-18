@@ -139,6 +139,8 @@ app.post('/api/login', async (req, res) => {
         return res.status(401).json({ error: '账号或密码错误', k: 'badLogin' });
     }
     loginByIpAcct.clear(ip + '|' + acct);
+    // 封禁的号：密码对了才告诉他被封了（放在比对之前的话，「被封」本身就成了不用密码也能探的信息）
+    if (user.bannedAtMs) return res.status(403).json({ error: '账号已被封禁', k: 'banned' });
     noteSource(req, user.id, 'login');
     res.json({ token: signToken(user), user: userPayload(user) });
 });

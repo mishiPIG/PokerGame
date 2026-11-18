@@ -1,6 +1,9 @@
 'use strict';
 const { nameOf } = require('../../account/display-name');
 const { newServerSeed, commitOf, createSeededRng } = require('./provably-fair');
+const { applyPendingBlinds } = require('../../rooms/rule-vote');
+const { bountyForHand } = require('./extensions/seven-deuce');
+const { isBombHand, bombAmount, postBomb } = require('./extensions/bomb-pot');
 
 function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config, rules, pots, presenter, straddle, runIt, showdown, history, hooks }) {
     const { PHASES, actionTimeOf, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, STANDARD_BLIND_LEVELS, gameSB, gameBB, gameAnte, timeCardsFor } = config;
@@ -305,6 +308,10 @@ function startHand(roomId) {
     game.beginning = false;   // 开赛流程结束（含下面各 early return：否则房主再也点不动「开始」）
     if (game.paused || game.timeExpired) { broadcastState(roomId); return; } // 手动暂停或训练到时：不开新局
 
+    // 中途改盲注（全桌同意的）只在这里换上 —— 一手牌中间绝不改（见 rooms/rule-vote.js）
+    const newBlinds = applyPendingBlinds(game);
+    if (newBlinds) io.in(roomId).emit('table_notice', { k: 'notice.blindApplied', p: { sb: newBlinds.sb, bb: newBlinds.bb, ante: newBlinds.ante || 0 } });
+
     const BB = gameBB(game), SB = gameSB(game);
     const targetHandSeq = (game.handSeq || 0) + 1;
     // 至少 2 名可参与玩家（有筹码、未坐出）才能开局
@@ -378,8 +385,14 @@ function startHand(roomId) {
     const utgIdx = live >= 3 ? nextLiveIdx(game, bbIdx) : -1;
     const utg = utgIdx >= 0 ? game.players[utgIdx] : null;
 
+    // Bomb pot（见 extensions/bomb-pot.js）：这一手不收盲注 / 前注 / straddle，每人先放同样一笔，发完底牌直接到翻牌
+    const bomb = isBombHand(game, targetHandSeq);
+    game.nextBomb = false;
+    const bombAmt = bomb ? bombAmount(game, BB) : 0;
+    if (bomb) { game.sbUserId = null; game.bbUserId = null; }   // 这一手没有大小盲，牌桌上不标 SB / BB
+
     // 前注 ante（现金桌可选）：先收 Ante，再收盲注/Straddle；直接进底池，不计入当前下注。
-    const ante = gameAnte(game);
+    const ante = bomb ? 0 : gameAnte(game);
     if (ante > 0) {
         game.players.forEach(p => {
             if (p.folded) return;   // 坐出玩家不交前注
@@ -390,8 +403,20 @@ function startHand(roomId) {
         game.pot = game.players.reduce((s, p) => s + (p.committed || 0), 0);
     }
 
-    const sbAmt = Math.min(SB, sb.chips);
-    const bbAmt = Math.min(BB, bb.chips);
+    let sbAmt = 0, bbAmt = 0, lastStraddlerIdx = -1;
+    game.straddles = [];
+    if (bomb) {
+        postBomb(game, bombAmt);
+        game.currentBet = 0;
+        // 上一手局间答应了 straddle 的人：这一手没有 straddle，告诉他作废了（下一手照常可以再 straddle）
+        for (const entry of (game.straddleChain || [])) {
+            const who = game.players.find(p => p.userId === entry.userId);
+            const s = who && io.sockets.sockets.get(who.socketId);
+            if (s) s.emit('straddle_decision_result', { targetHandSeq, status: 'invalidated' });
+        }
+    } else {
+    sbAmt = Math.min(SB, sb.chips);
+    bbAmt = Math.min(BB, bb.chips);
     sb.chips -= sbAmt; sb.currentBet = sbAmt;
     bb.chips -= bbAmt; bb.currentBet = bbAmt;
     if (sb.chips === 0) sb.allIn = true;
@@ -408,8 +433,6 @@ function startHand(roomId) {
     // 链式 straddle：按接受顺序（UTG → UTG+1 → …，每档翻倍）依次贴出。
     // 开手时按最终阵容逐个重新校验：位置没变、筹码够、金额是这一档应有的值；
     // 任何一档不满足就在那里截断（保留前面已成立的部分），并通知本人失效。
-    game.straddles = [];
-    let lastStraddlerIdx = -1;
     const chain = (game.roomType === 'cash' && game.config.allowUtgStraddle
         && Array.isArray(game.straddleChain)
         && game.straddleChain.length
@@ -447,6 +470,7 @@ function startHand(roomId) {
         lastStraddlerIdx = idx;
     }
     // game.straddle 保留为「最后一档」，兼容既有的 state/牌谱/客户端展示
+    }   // ← 非 Bomb 手的盲注 + straddle 到此为止
     game.straddle = game.straddles.length
         ? { type: 'utg', userId: game.straddles[game.straddles.length - 1].userId,
             amount: game.straddles[game.straddles.length - 1].amount, chain: game.straddles.length }
@@ -454,7 +478,8 @@ function startHand(roomId) {
     game.straddleChain = [];
 
     io.in(roomId).emit('server_msg', `\n--- 🎲 新一局开始 ---`);
-    io.in(roomId).emit('server_msg', `💰 SB: ${nameOf(sb)} (${sbAmt}) | BB: ${nameOf(bb)} (${bbAmt})`);
+    if (bomb) io.in(roomId).emit('table_notice', { k: 'notice.bombPot', p: { amount: bombAmt } });
+    else io.in(roomId).emit('server_msg', `💰 SB: ${nameOf(sb)} (${sbAmt}) | BB: ${nameOf(bb)} (${bbAmt})`);
     (game.straddles || []).forEach((st, i) => {
         const label = i === 0 ? 'UTG Straddle' : `Re-straddle ×${i + 1}`;
         io.in(roomId).emit('server_msg', `🔥 ${nameOf(st)} ${label} ${st.amount}`);
@@ -476,6 +501,10 @@ function startHand(roomId) {
     game.hand = {
         ts: Date.now(), matchId: game.matchId, roomId, mode: game.roomType, handSeq: game.handSeq,
         sb: SB, bb: BB, ante,
+        // 7-2 奖励额：开手这一刻就定下（房主中途改设置只影响下一手）；0 = 这一手没开
+        sevenDeuceBounty: bountyForHand(game, BB),
+        // Bomb pot：每人放进底池的那笔（和前注一样不是 action，审计 / 回放要单独补）；null = 普通的一手
+        bomb: bomb ? { amount: bombAmt } : null,
         straddle: game.straddle ? { ...game.straddle } : null,
         buttonUserId: game.players[game.buttonIdx]?.userId || null,
         seats: game.players.filter(p => !p.folded).map(p => ({
@@ -496,6 +525,17 @@ function startHand(roomId) {
         p.handStartChips = p.chips + p.currentBet + (p.committed || 0);
         p.handStartSeq = game.handSeq;
     });
+
+    // Bomb pot：没有翻前下注。交给 advanceStage —— 它就是「翻前结束 → 收池 → 发翻牌 → 从按钮左手第一位开始」
+    // （所有人都因 Bomb 全押时它会直接走全押亮牌，和平常一样）
+    if (bomb) {
+        game.players.forEach(p => { if (!p.folded) p.hasActed = true; });
+        game.actionOnIdx = -1;
+        broadcastState(roomId);
+        advanceStage(roomId);
+        prepareNextStraddleDecision(roomId);
+        return;
+    }
 
     // preflop 第一个行动：heads-up = SB（按钮）；N≥3 = BB 后第一位（UTG）
     // 注意：heads-up 时若 SB 已因下盲全押，则不能让 SB 行动（否则超时会误弃全押者）→ 顺延找下一个能行动的

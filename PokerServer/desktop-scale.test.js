@@ -62,3 +62,22 @@ test('底池和公共牌的位置：JS 里的百分比和样式里的 top 对得
     assert.match(TABLE_CSS, new RegExp(`body\\.layout-landscape #board \\{ top: ${pct('BOARD_TOP_PCT_LANDSCAPE')}%`));
     assert.match(TABLE_CSS, new RegExp(`max-height: 800px\\) \\{ body\\.layout-landscape #board \\{ top: ${pct('BOARD_TOP_PCT_LANDSCAPE_SHORT')}%`));
 });
+
+test('🔴 宽屏两侧常驻栏：钉住的栏不算「开着的浮层」（否则点牌桌会被吞、快捷键全失灵）', () => {
+    const rd = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
+    // 点外面关闭：钉住的栏必须被排除
+    assert.match(rd('public/js/99-bootstrap.js'), /function panelIsOpen\(el\) \{ return !!el && !isDockedRail\(el\)/);
+    // 快捷键的「有浮层开着就不响应」：同样排除
+    assert.match(rd('public/js/71-hotkeys.js'), /isDockedRail\(el\)\) continue;/);
+    // 钉住只在电脑横屏、够宽时
+    const st = rd('public/js/50-audio-settings.js');
+    assert.match(st, /const rails = landscape && window\.innerWidth >= 1400;/);
+    const css = rd('public/css/46-history.css');
+    assert.match(css, /body\.wide-rails\.in-room #stats-panel, body\.wide-rails\.in-room #history-panel \{\s*display: block !important;/);
+    assert.match(css, /body\.wide-rails\.in-room #table-view \{ margin-left: var\(--rail-w\); margin-right: var\(--rail-w\); \}/, '牌桌让出两栏的宽度，座位不被盖住');
+    assert.match(css, /body\.wide-rails\.in-room \.edge-arrow \{ display: none !important; \}/, '常驻了就不要再显示边缘箭头');
+    // 战绩栏随状态刷新、牌谱栏每手刷新
+    const sock = rd('public/js/20-socket.js');
+    assert.match(sock, /isDockedRail\(sp\)\) renderStats\(state\)/);
+    assert.match(sock, /refreshRails\(600\)/);
+});

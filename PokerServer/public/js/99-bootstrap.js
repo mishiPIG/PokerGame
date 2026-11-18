@@ -209,7 +209,7 @@ const DISMISSIBLE = [
 // 聊天抽屉也在里面：原来那套独立实现本来就会在点牌桌时收起它，
 // 删掉旧机制后必须接上，否则等于悄悄改了既有行为。
 
-function panelIsOpen(el) { return !!el && el.style.display !== 'none' && el.getClientRects().length > 0; }
+function panelIsOpen(el) { return !!el && !isDockedRail(el) && el.style.display !== 'none' && el.getClientRects().length > 0; }
 
 // ⚠️ 必须记住「这次点击【按下时】哪些面板是开着的」：
 //    否则打开面板的那一下点击自己会冒泡到 document，刚开就被关掉。

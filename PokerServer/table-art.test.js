@@ -128,3 +128,16 @@ test('🔴 不许用「#某容器 button { background }」这种一刀切的规�
     }
     assert.deepEqual(bad, []);
 });
+
+test('🔴 跑马时胜率徽章和「All in」标签不叠在一起（2026-11-18 重拍 README 时看到只露出一个「n」）', () => {
+    // 胜率徽章在头像上方、很宽，横跨名字那一行；有徽章时 All in 标签必须挪到头像旁边那一行、放到座位外侧。
+    const js = read('public/js/80-table-renderer.js');
+    assert.match(js, /status-bubble \$\{stCls\}\$\{eqShown \? ' with-eq' : ''\}/, '有胜率徽章时状态标签要挂 with-eq');
+    assert.match(js, /const equityBadge = eqShown \?/, '徽章和标签必须用同一个判定（否则一个出现一个没挪）');
+    const css = stripComments(read('public/css/20-table.css'));
+    const rule = css.match(/\.status-bubble\.with-eq\s*\{([^}]*)\}/);
+    assert.ok(rule, '.status-bubble.with-eq 要有样式');
+    const top = Number((rule[1].match(/top:\s*(-?\d+)px/) || [])[1]);
+    assert.ok(top >= 20, `挪到头像那一行（top ≥ 20px，徽章下沿约 16px），现在是 ${top}`);
+    assert.match(css, /\.ring-seat\.bub-l \.status-bubble\.with-eq\s*\{[^}]*right:\s*calc\(100% \+/, '放左边的座位也要挪到座位外侧');
+});

@@ -93,6 +93,20 @@
         .edge-arrow.left { left: 0; border-radius: 0 12px 12px 0; }
         .edge-arrow.right { right: 0; border-radius: 12px 0 0 12px; }
         body.in-room .edge-arrow { display: flex !important; }
+        /* 宽屏两侧常驻栏（2026-11-18）：左「当前战绩」、右「本局牌谱」钉在两侧，牌桌夹在中间。
+           就是原来那两个侧栏 —— 只在 body.wide-rails（电脑横屏、宽 ≥ 1400）时换成钉住的样子。
+           !important 是要压过它们自己行内的 display:none（平时靠那个开关）。 */
+        body.wide-rails { --rail-w: clamp(260px, 19vw, 360px); }
+        body.wide-rails.in-room #stats-panel, body.wide-rails.in-room #history-panel {
+            display: block !important; top: 0; bottom: 0; width: var(--rail-w); max-width: none;
+            z-index: 40; animation: none; box-shadow: none; padding: 14px 12px; }
+        body.wide-rails.in-room #stats-panel { left: 0; right: auto; border-right: 1px solid rgba(244,211,94,0.14); }
+        body.wide-rails.in-room #history-panel { left: auto; right: 0; border-right: 0; border-left: 1px solid rgba(244,211,94,0.14); }
+        body.wide-rails.in-room #stats-panel .sp-head button, body.wide-rails.in-room #history-panel .sp-head button { display: none; }
+        body.wide-rails.in-room .sp-head { font-size: 15px; margin-bottom: 10px; }
+        body.wide-rails.in-room .edge-arrow { display: none !important; }
+        body.wide-rails.in-room #table-view { margin-left: var(--rail-w); margin-right: var(--rail-w); }
+        body.wide-rails.in-room #latency { right: calc(var(--rail-w) + 12px); }
         /* 点头像弹层：本局数据 + 表情 */
         #avatar-popup { position: fixed; inset: 0; z-index: 205; background: rgba(8,18,13,0.62);
             display: none; align-items: center; justify-content: center; padding: 20px; }

@@ -24,6 +24,8 @@ function mapUser(row) {
         friendCode: row.friend_code || null,
         isGuest: !!row.is_guest,
         upgradedAtMs: row.upgraded_at_ms || null,
+        bannedAtMs: row.banned_at_ms || null,
+        banReason: row.ban_reason || null,
         lastCheckin: row.last_checkin,
         checkinStreak: row.checkin_streak || 0,
         created_at: new Date(row.created_at_ms).toISOString()
@@ -271,9 +273,17 @@ function createUserRepository(db) {
             db.prepare('UPDATE users SET is_admin = ?, updated_at_ms = ? WHERE id = ?')
                 .run(isAdmin ? 1 : 0, Date.now(), id);
         },
+        // 封禁 / 解封（reason 为 null = 解封）。只动这两列，账号其余一切原样（可撤销）。
+        // 返回是否真的改到了一行（账号不存在 / 已注销时为 false）。
+        setBan(id, reason) {
+            const banned = reason != null;
+            return db.prepare(`UPDATE users SET banned_at_ms = ?, ban_reason = ?, updated_at_ms = ?
+                               WHERE id = ? AND deleted_at_ms IS NULL`)
+                .run(banned ? Date.now() : null, banned ? String(reason).slice(0, 200) : null, Date.now(), id).changes === 1;
+        },
         getAllUsers() {
             return db.prepare(`
-                SELECT id, username, gold, is_admin, is_guest
+                SELECT id, username, gold, is_admin, is_guest, banned_at_ms, ban_reason
                 FROM users
                 WHERE deleted_at_ms IS NULL
                 ORDER BY created_at_ms
@@ -282,7 +292,9 @@ function createUserRepository(db) {
                 username: row.username,
                 gold: row.gold,
                 isAdmin: !!row.is_admin,
-                isGuest: !!row.is_guest
+                isGuest: !!row.is_guest,
+                bannedAtMs: row.banned_at_ms || null,
+                banReason: row.ban_reason || null
             }));
         }
     };

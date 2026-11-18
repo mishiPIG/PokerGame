@@ -286,6 +286,7 @@ function showLobby() {
     // 上一桌的「轮到谁 / 警告音响过没 / 全押胜率」不能带进下一桌：
     // 否则换桌后第一次轮到我可能没有提示音，别人头上还挂着上一桌的胜率。
     lastActionOnUserId = null; warnedThisTurn = false; equityMap = {};
+    renderRuleVote(null);
     shownCards = {}; myShown = new Set(); showJustHappened = false;
     showdownInfo = null; myHand = null; mySeated = false; prevChipsShown = {}; roomInviteInfo = null;
     // 关闭所有桌内面板/弹窗
@@ -306,6 +307,7 @@ function showTable() {
         setTimeout(() => tv.classList.remove('table-enter'), 700);
     }
     document.body.classList.add('in-room');
+    refreshRails(300);
     // 刚从大厅切过来时牌桌尺寸还没定下来，此时算出的座位坐标不准（座位会挤在一起）。
     // 等浏览器完成一次布局后再重排一遍，坐标才是按真实尺寸算的。
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -389,6 +391,9 @@ function submitCreate() {
             sb, bb,
             ante: parseInt(document.getElementById('ccAnte').value),
             allowUtgStraddle: document.getElementById('ccStraddle').checked,
+            sevenDeuceBB: document.getElementById('ccSevenDeuce').checked ? 2 : 0,
+            bombEvery: document.getElementById('ccBomb').checked ? 10 : 0,
+            bombBB: 2,
             approveBuyIn: document.getElementById('ccApprove').checked,
             maxPlayers: parseInt(document.getElementById('ccMax').value),
             minBuyIn: parseInt(document.getElementById('ccMin').value),
@@ -831,6 +836,9 @@ function renderMatchInfo(st) {
         rows.push([L('带入区间', 'Buy-in range'), `${(st.minBuyIn || 0).toLocaleString()} ~ ${st.maxBuyIn > 0 ? st.maxBuyIn.toLocaleString() : L('无限制', 'Unlimited')}`]);
         rows.push(['UTG Straddle', st.allowUtgStraddle ? L('🔥 已开启 · 2BB', '🔥 On · 2BB') : L('未开启', 'Off')]);
         rows.push([L('带入审批', 'Buy-in approval'), st.approveBuyIn ? L('🔐 需房主批准', '🔐 Host approves') : L('不需要', 'Off')]);
+        rows.push(['Bomb pot', (st.bombEvery ? L(`每 ${st.bombEvery} 手一次`, `every ${st.bombEvery} hands`) : L('不自动', 'manual only'))
+            + L(` · 每人 ${st.bombBB}BB`, ` · ${st.bombBB}BB each`) + (st.bombNext ? L(' · 下一手就是', ' · next hand') : '')]);
+        rows.push([L('7-2 奖励', '7-2 bounty'), st.sevenDeuceBB ? L(`其余每人付 ${st.sevenDeuceBB}BB`, `Everyone else pays ${st.sevenDeuceBB}BB`) : L('未开启', 'Off')]);
         if (st.tableEndAt) {
             // 和播报走同一个 fmtDuration —— 否则面板说「约 80 分钟」、toast 说「1 小时 20 分」，
             // 同一个数两种说法，正是那种「说不上哪儿不对」的来源。
@@ -845,6 +853,8 @@ function renderMatchInfo(st) {
         }
         else if (st.paused) rows.push([L('当前状态', 'Status'), L('⏸️ 房主手动暂停', '⏸️ Paused by host')]);
     } else rows.push([L('当前级别', 'Level'), (st.currentLevel || 0) + 1]);
+    if (isCash && st.pendingBlinds) rows.push([L('下一手起', 'From next hand'), `${st.pendingBlinds.sb}/${st.pendingBlinds.bb}` + (st.pendingBlinds.ante ? ` · ante ${st.pendingBlinds.ante}` : '')]);
+    if (isCash && st.ruleVote) rows.push([L('投票中', 'Vote'), `${escapeHtml(ruleText(st.ruleVote.kind, st.ruleVote.payload))} · ${L('同意', 'agreed')} ${st.ruleVote.agreed.length}/${st.ruleVote.voters.length}`]);
     const isOwner = st.ownerUserId === myUserId;
     let html = rows.map(([k, v]) => `<div class="mi-row"><span>${k}</span><b>${v}</b></div>`).join('');
     // 现金桌房主：比赛加时
@@ -855,6 +865,18 @@ function renderMatchInfo(st) {
         html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('带入审批（坐下和补码都要你批准）', 'Buy-in approval (buy-ins and rebuys need your OK)')}</span>
             <div class="tier-row"><button type="button" class="ext-btn" onclick="setApproveBuyIn(${!st.approveBuyIn})">
             ${st.approveBuyIn ? L('关闭带入审批', 'Turn off approval') : L('开启带入审批', 'Turn on approval')}</button></div></div>`;
+        // Bomb pot / 7-2 奖励：点按钮 = 发起投票，在座每个人都同意才生效（规则见 src/rooms/rule-vote.js）
+        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('Bomb pot（不收盲注，每人放同样一笔，直接发翻牌；改动需全桌同意）', 'Bomb pot (no blinds, everyone puts in the same amount, straight to the flop; changes need everyone’s OK)')}</span>
+            <div class="tier-row"><button type="button" class="ext-btn" onclick="proposeRule('bombNext')" ${st.bombNext ? 'disabled' : ''}>${st.bombNext ? L('下一手就是 Bomb', 'Next hand is a bomb') : L('下一手来一个 Bomb', 'Bomb pot next hand')}</button></div>
+            <div class="tier-row"><span class="tier-cap">${L('自动', 'Auto')}</span>` +
+            [0, 5, 10, 20].map(n => `<button type="button" class="ext-btn${(st.bombEvery || 0) === n ? ' sel' : ''}" onclick="proposeRule('bomb', { every: ${n} })">${n ? L(`每 ${n} 手`, `Every ${n}`) : L('关', 'Off')}</button>`).join('') +
+            `</div><div class="tier-row"><span class="tier-cap">${L('每人', 'Each')}</span>` +
+            [2, 5, 10].map(n => `<button type="button" class="ext-btn${(st.bombBB || 2) === n ? ' sel' : ''}" onclick="proposeRule('bomb', { bb: ${n} })">${n}BB</button>`).join('') +
+            `</div></div>`;
+        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('7-2 奖励（用 7-2 赢下底池，其余每人付几个大盲；改动需全桌同意）', '7-2 bounty (win with 7-2, everyone else pays N big blinds; changes need everyone’s OK)')}</span>
+            <div class="tier-row">` +
+            [0, 1, 2, 5].map(n => `<button type="button" class="ext-btn${(st.sevenDeuceBB || 0) === n ? ' sel' : ''}" onclick="proposeRule('sevenDeuce', { bb: ${n} })">${n ? n + 'BB' : L('关', 'Off')}</button>`).join('') +
+            `</div></div>`;
         // 只留加时：提前结束房主本来就有「⏸️ 暂停发牌」和「结束比赛」两个入口，
         // 再放一排「−30/−15」是重复的路径，还容易误点把桌子提前判到时。
         html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('比赛加时（分钟）', 'Extend game (minutes)')}</span>
@@ -865,7 +887,61 @@ function renderMatchInfo(st) {
     }
     if (!isOwner) html += `<div class="mi-note">${L('仅房主可调整时间 / 结束比赛', 'Only the host can adjust time / end the game')}</div>`;
     document.getElementById('match-info').innerHTML = html;
+    // 改盲注的输入框不在上面那块重画区里；第一次显示时填上当前盲注，之后不碰（房主可能正在改）
+    const mb = document.getElementById('ms-blinds');
+    if (mb) {
+        const show = isCash && isOwner;
+        if (show && mb.style.display === 'none') {
+            const cur = st.pendingBlinds || { sb: st.smallBlind, bb: st.bigBlind, ante: st.ante || 0 };
+            document.getElementById('ms-sb').value = cur.sb;
+            document.getElementById('ms-bb').value = cur.bb;
+            document.getElementById('ms-ante').value = cur.ante || 0;
+        }
+        mb.style.display = show ? '' : 'none';
+    }
     document.querySelectorAll('#match-modal .owner-only').forEach(e => e.style.display = isOwner ? '' : 'none');
+}
+// ===== 桌规投票（现金桌）：改盲注 / 7-2 奖励 / Bomb pot —— 房主提议 → 在座每人同意 → 下一手起生效 =====
+// 规则见 src/rooms/rule-vote.js。房主没有「直接改」这几样的入口。
+function proposeRule(kind, payload) {
+    if (!socket) return;
+    socket.emit('propose_rule', { kind, ...(payload || {}) });
+}
+function proposeBlinds() {
+    const num = id => parseInt(document.getElementById(id).value, 10);
+    proposeRule('blinds', { sb: num('ms-sb'), bb: num('ms-bb'), ante: num('ms-ante') || 0 });
+}
+// 一句话说清提议了什么（投票条、比赛设置里那一行共用）
+function ruleText(kind, v) {
+    v = v || {};
+    if (kind === 'blinds') return L(`盲注改为 ${v.sb}/${v.bb}`, `blinds ${v.sb}/${v.bb}`) + (v.ante ? ` · ante ${v.ante}` : '');
+    if (kind === 'sevenDeuce') return v.bb ? L(`7-2 奖励每人 ${v.bb}BB`, `7-2 bounty ${v.bb}BB each`) : L('关掉 7-2 奖励', 'turn off the 7-2 bounty');
+    if (kind === 'bomb') return v.every ? L(`Bomb pot 每 ${v.every} 手一次、每人 ${v.bb}BB`, `bomb pot every ${v.every} hands, ${v.bb}BB each`)
+        : L(`关掉自动 Bomb pot（每人 ${v.bb}BB）`, `no automatic bomb pots (${v.bb}BB each)`);
+    if (kind === 'bombNext') return L(`下一手来一个 Bomb（每人 ${v.bb}BB）`, `bomb pot next hand (${v.bb}BB each)`);
+    return '';
+}
+let ruleVoteState = null, _rvTimer = null;
+function renderRuleVote(v) {
+    ruleVoteState = (v && v.deadline > Date.now()) ? v : null;
+    const bar = document.getElementById('rule-vote-bar');
+    if (!bar) return;
+    if (!ruleVoteState) { bar.style.display = 'none'; clearInterval(_rvTimer); _rvTimer = null; return; }
+    const s = ruleVoteState;
+    // 投票条只给【还要表态的人】看，一点完就收：它压在牌桌上方，人坐满时会挡住最上面那家。
+    // 同样的话桌面提示（公共牌下方）已经说了，房主在比赛设置里看得到几个人同意了。
+    if (!s.voters.includes(myUserId) || s.agreed.includes(myUserId)) { bar.style.display = 'none'; return; }
+    const secs = Math.max(0, Math.ceil((s.deadline - Date.now()) / 1000));
+    document.getElementById('bv-text').textContent =
+        L(`房主提议：${ruleText(s.kind, s.payload)} · 同意 ${s.agreed.length}/${s.voters.length} · ${secs} 秒`,
+          `Host proposes ${ruleText(s.kind, s.payload)} · ${s.agreed.length}/${s.voters.length} agreed · ${secs}s`);
+    bar.style.display = '';
+    if (!_rvTimer) _rvTimer = setInterval(() => renderRuleVote(ruleVoteState), 1000);
+}
+function voteRule(agree) {
+    if (!socket || !ruleVoteState) return;
+    socket.emit('vote_rule', { agree: agree === true });
+    document.getElementById('rule-vote-bar').style.display = 'none';   // 点完就收；结果走桌面提示
 }
 function setApproveBuyIn(enabled) {
     if (!socket) return;

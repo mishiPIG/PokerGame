@@ -194,6 +194,11 @@ function contributions(hand) {
     // 实测：房间 832138（唯一开 ante=10 的桌）4 处「异常」全部是这个原因造成的误报。
     // ⚠️ 误报比漏报更危险：cron 每天 --yesterday --mail，退出码 1 就发告警邮件，
     //    告警一旦变吵就会被忽略，那才是真正的风险。
+    // Bomb pot 同理：每人发牌前直接放进底池的那笔，不是 action
+    const bombAmt = (hand.bomb && hand.bomb.amount) || 0;
+    if (bombAmt > 0) {
+        for (const s of hand.seats || []) total[s.userId] = (total[s.userId] || 0) + Math.min(bombAmt, s.startChips ?? bombAmt);
+    }
     const ante = hand.ante || 0;
     if (ante > 0) {
         for (const s of hand.seats || []) {

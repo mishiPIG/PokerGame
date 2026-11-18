@@ -39,6 +39,8 @@
             font-family: inherit; margin-bottom: 8px; }
         .adm-tx { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; font-size: 12px;
             padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,0.06); align-items: center; }
+        .adm-mini { font-size: 11px; padding: 2px 8px; white-space: nowrap; }
+        .adm-banned { font-size: 11px; color: #f87171; white-space: nowrap; cursor: help; }
         #admin-panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
         #admin-panel th { color: #888; font-weight: normal; text-align: left; padding: 4px 6px; }
         #admin-panel td { padding: 4px 6px; border-top: 1px solid rgba(255,255,255,0.05); }
@@ -250,6 +252,11 @@
             border: 1.5px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.07); color: #eaf3ee; font-weight: bold; font-size: 15px; }
         .ext-btn:hover { background: rgba(255,255,255,0.14); }
         .ext-btn:active { transform: scale(0.96); }
+        /* 比赛设置里的多选一（7-2 倍数、Bomb 频率 / 金额）：选中的那个用薄荷色（全站「已选中」的颜色） */
+        .ext-btn.sel { background: #06d6a0; color: #0a1f1a; border-color: transparent; }
+        .ext-btn:disabled { opacity: .6; cursor: default; }
+        .tier-row .tier-cap { flex: 0 0 auto; align-self: center; font-size: 12px; color: #9db9a9; white-space: nowrap; }
+        .tier-row + .tier-row { margin-top: 6px; }
         .tier-btn small { font-size: 10px; font-weight: normal; opacity: 0.7; margin-top: 2px; }
         .tier-btn.sel { border-color: #06d6a0; background: linear-gradient(180deg,#0be6ad,#06d6a0);
             color: #06231c; box-shadow: 0 0 0 3px rgba(6,214,160,0.3), 0 3px 8px rgba(0,0,0,0.4); transform: translateY(-1px); }

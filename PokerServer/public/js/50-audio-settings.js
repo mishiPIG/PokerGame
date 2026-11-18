@@ -287,6 +287,11 @@ function applyLayoutMode() {
     const s = landscape ? Math.max(1, Math.min(1.75, window.innerWidth / 1100, window.innerHeight / 680)) : 1;
     UI_SCALE = Math.round(s * 100) / 100;
     document.body.style.setProperty('--ui-scale', String(UI_SCALE));
+    // 宽屏两侧常驻栏：两边各占约 19% 宽，剩下的牌桌至少还要有 ~900px，所以 1400 以上才开
+    const rails = landscape && window.innerWidth >= 1400;
+    const hadRails = document.body.classList.contains('wide-rails');
+    document.body.classList.toggle('wide-rails', rails);
+    if (rails && !hadRails && typeof refreshRails === 'function') refreshRails();
     if (typeof lastState !== 'undefined' && lastState && typeof render === 'function') render(lastState);   // 座位环要按新半径重排
 }
 function setLayout(mode) {

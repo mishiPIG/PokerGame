@@ -73,3 +73,47 @@ test('没发多次的牌谱照旧：最后一帧是摊牌、用 h.community', ()
     assert.match(last.caption, /摊牌/);
     assert.equal(last.community, 5);
 });
+
+test('🔴 全押没人跟：回放最后一帧要把没人跟的那部分退回给下注的人（2026-11-18 压测抓到：牌谱 2620、回放 40）', () => {
+    // 单挑：A 平跟 20，B 全押 2600，A 弃牌。服务端退还 B 没人跟的 2580，B 赢下 40 的底池 → 结束 2620。
+    // won 只记争到的底池（40），不含退还 —— 回放自己加 won 就会少一大截。
+    const build = load();
+    const h = {
+        ts: 1, sb: 10, bb: 20, ante: 0, buttonUserId: 'a',
+        seats: [
+            { userId: 'a', username: 'Ann', seat: 0, startChips: 2000, hole: ['AH', 'TH'] },
+            { userId: 'b', username: 'Bob', seat: 1, startChips: 2600, hole: ['7H', 'KS'] },
+        ],
+        actions: [
+            { userId: 'a', street: 'preflop', action: 'call', amount: 20 },
+            { userId: 'b', street: 'preflop', action: 'raise', amount: 2600 },
+            { userId: 'a', street: 'preflop', action: 'fold', amount: 20 },
+        ],
+        community: [],
+        results: [{ userId: 'a', won: 0, endChips: 1980 }, { userId: 'b', won: 40, endChips: 2620 }],
+    };
+    const last = build(h).at(-1);
+    assert.deepEqual(last.players.map(p => [p.userId, p.stack]), [['a', 1980], ['b', 2620]]);
+});
+
+test('7-2 奖励：摊牌那一帧是奖励前的筹码，下一帧才加上（最后一帧 = 牌谱）', () => {
+    const build = load();
+    const h = {
+        ts: 1, sb: 10, bb: 20, ante: 0, buttonUserId: 'a',
+        seats: [
+            { userId: 'a', username: 'Ann', seat: 0, startChips: 1000, hole: ['7H', '2S'] },
+            { userId: 'b', username: 'Bob', seat: 1, startChips: 1000, hole: ['KS', 'KH'] },
+        ],
+        actions: [
+            { userId: 'a', street: 'preflop', action: 'raise', amount: 100 },
+            { userId: 'b', street: 'preflop', action: 'fold', amount: 20 },
+        ],
+        community: [],
+        sevenDeuce: { userId: 'a', bounty: 40, total: 40, payers: [{ userId: 'b', paid: 40 }] },
+        results: [{ userId: 'a', won: 120, endChips: 1060 }, { userId: 'b', won: 0, endChips: 940 }],
+    };
+    const fr = build(h);
+    const stacks = (f) => f.players.map(p => p.stack);
+    assert.deepEqual(stacks(fr.at(-2)), [1020, 980], '摊牌：A 赢了 B 的 20 大盲');
+    assert.deepEqual(stacks(fr.at(-1)), [1060, 940], '7-2 奖励：B 再付 40');
+});

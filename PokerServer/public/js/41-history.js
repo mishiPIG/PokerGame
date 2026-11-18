@@ -1,6 +1,29 @@
 // ===== 牌谱回顾 (C9) =====
 let histMode = '';
 function openHistory() { document.getElementById('history-panel').style.display = ''; loadHistory('history-list', histMode, currentRoom); }
+
+// ===== 宽屏两侧常驻栏（2026-11-18）=====
+// 电脑横屏、窗口够宽时，「当前战绩」常驻左边、「本局牌谱」常驻右边，不用再点边缘箭头。
+// 不另造面板：就是原来那两个侧栏，由 body.wide-rails 把它们钉在两侧（样式见 46-history.css）。
+// 手机和窄窗口完全不变。开关在 50-audio-settings.js 的 applyLayoutMode（窗口一变就重新判断）。
+function railsOn() {
+    return document.body.classList.contains('wide-rails') && document.body.classList.contains('in-room');
+}
+// 钉住的栏不算「开着的浮层」：否则点牌桌任何地方都会被当成「点外面关面板」吞掉，快捷键也会全部失灵。
+function isDockedRail(el) {
+    return !!el && railsOn() && (el.id === 'stats-panel' || el.id === 'history-panel');
+}
+// 刷新两栏。牌谱在每手开始时刷（那时上一手已经存好了），quiet = 不先闪一下「加载中…」。
+let _railTimer = null;
+function refreshRails(delayMs = 0) {
+    if (!railsOn()) return;
+    clearTimeout(_railTimer);
+    _railTimer = setTimeout(() => {
+        if (!railsOn()) return;
+        if (typeof lastState !== 'undefined' && lastState) renderStats(lastState);
+        if (currentRoom) loadHistory('history-list', histMode, currentRoom, { quiet: true });
+    }, delayMs);
+}
 function closeHistory() { document.getElementById('history-panel').style.display = 'none'; }
 
 // 个人主页的牌谱 tab（独立 mode 与目标容器）
@@ -11,11 +34,11 @@ function phistFilter(btn, mode) {
 }
 const HIST_PAGE = 40;
 let histState = {};         // listId -> { mode, offset, loading, done }
-async function loadHistory(listId, mode, room) {
+async function loadHistory(listId, mode, room, { quiet = false } = {}) {
     listId = listId || 'history-list'; mode = mode || '';
     histState[listId] = { mode, room: room || null, offset: 0, loading: false, done: false };
     histHandsByList[listId] = [];
-    document.getElementById(listId).innerHTML = `<div class="hist-empty">${L('加载中…', 'Loading…')}</div>`;
+    if (!quiet) document.getElementById(listId).innerHTML = `<div class="hist-empty">${L('加载中…', 'Loading…')}</div>`;
     await fetchHistPage(listId, true);
 }
 async function fetchHistPage(listId, first) {

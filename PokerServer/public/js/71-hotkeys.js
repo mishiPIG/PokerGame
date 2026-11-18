@@ -90,6 +90,7 @@ const BLOCKING_PANELS = ['.modal-mask', '.c-overlay', '.side-panel', '#chat-pane
 function anyPanelOpen() {
     for (const sel of BLOCKING_PANELS) {
         for (const el of document.querySelectorAll(sel)) {
+            if (typeof isDockedRail === 'function' && isDockedRail(el)) continue;   // 宽屏常驻栏是牌桌的一部分，不是浮层
             if (el.getClientRects().length > 0) return true;
         }
     }

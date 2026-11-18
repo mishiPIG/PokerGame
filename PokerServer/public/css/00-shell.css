@@ -107,6 +107,21 @@
         }
         /* Straddle 小标志：贴在牌桌右边缘（在「牌谱」箭头上方），随时可点、不打断行动。
            点一下 = 下一手我 straddle；点完/下一手开始就消失。*/
+        /* 桌规投票条（改盲注 / 7-2 / Bomb）：合规横幅下方居中，T1 焦点层之外（静止、不闪） */
+        #rule-vote-bar { position:absolute; top:34px; left:50%; transform:translateX(-50%); z-index:25;
+            display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center;
+            max-width:calc(100% - 24px); padding:8px 12px; border-radius:10px;
+            background:rgba(18,32,26,.94); border:1px solid rgba(244,211,94,.45);
+            box-shadow:0 4px 16px rgba(0,0,0,.5); color:#eaf3ee; font-size:13px; }
+        #rule-vote-bar .bv-btns { display:flex; gap:8px; }
+        #rule-vote-bar button { border:0; border-radius:999px; padding:6px 14px; font-weight:bold; font-size:13px; cursor:pointer; }
+        #rule-vote-bar .bv-yes { background:#06d6a0; color:#0a1f1a; }
+        #rule-vote-bar .bv-no { background:rgba(255,255,255,.12); color:#dfe9e2; }
+        body.layout-landscape #rule-vote-bar { zoom: var(--ui-scale, 1); }
+        .ms-blinds-row { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+        .ms-blinds-row label { display:flex; flex-direction:column; gap:3px; font-size:12px; color:#9db9a9; }
+        .ms-blinds-row input { width:76px; padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,.18);
+            background:rgba(0,0,0,.25); color:#eaf3ee; font-size:14px; }
         #straddle-flag { position:absolute; right:0; top:44%; transform:translateY(-50%);
             z-index:19; display:flex; flex-direction:column; align-items:center; gap:1px;
             padding:7px 5px 7px 7px; border:0; cursor:pointer;

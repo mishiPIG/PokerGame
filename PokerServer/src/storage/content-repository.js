@@ -213,6 +213,13 @@ function createContentRepository(db) {
                 handId: row.hand_id,   // 客户端分享这一手时用（牌谱 payload 里本身不带库里的 id）
             }));
         },
+        // 🔴 只给管理员用：原样返回整手记录（含同桌每个人的底牌和种子），不经过 hand-visibility 过滤。
+        //    处理纠纷时要看到全部；调用方必须在 requireAdmin 后面。
+        getRawHandForAdmin(handId) {
+            const row = db.prepare('SELECT id, payload_json FROM hands WHERE id = ?').get(String(handId || ''));
+            if (!row) return null;
+            try { return { ...JSON.parse(row.payload_json), handId: row.id }; } catch { return null; }
+        },
         saveHandTx
     };
 }
