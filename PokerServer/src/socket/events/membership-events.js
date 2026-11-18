@@ -2,6 +2,7 @@
 const { nameOf } = require('../../account/display-name');
 const { bind } = require('./room-context');
 const { createMembershipService } = require('../../rooms/membership-service');
+const { needsApproval, takeApproval, requestApproval, decide } = require('../../rooms/buyin-approval');
 function createJoinRoomHandler(context) {
     const { socket, user, io, runtime, tableService, config } = bind(context);
     const membershipService = createMembershipService({ io, runtime, tableService, config });
@@ -30,6 +31,12 @@ function registerMembershipEvents(context) {
         if (socket.playRoom !== roomId) { socket.emit('server_msg', '👀 你在观战——请使用邀请链接或四位房间码加入后再入座'); return; }
         if (game.players.length >= game.config.maxPlayers) { socket.emit('server_msg', { k: 'seat.full' }); return; }
         if (occupiedSeats(game).has(seat)) { socket.emit('server_msg', { k: 'seat.taken' }); return; }
+        // 带入审批（房主打开时）：先要有房主的批准。金额按 seatPlayer 实际会用的那个数来比。
+        const asked = clampInt(buyInChips, game.config.minBuyIn, game.config.maxBuyIn || 1e9, game.config.minBuyIn);
+        if (needsApproval(game, user.id) && !takeApproval(game, user.id, 'sit', asked)) {
+            requestApproval({ io, game, roomId, socket, user, kind: 'sit', chips: asked, seat, name: nameOf(user) });
+            return;
+        }
         if (seatPlayer(roomId, socket, user, buyInChips, seat)) {
             // 带入额已在 seatPlayer 内记录（buyIn=chips），此处不再重复累加
             // 入座后若满足开局条件且现金桌进行中/可开，尝试开局
@@ -71,6 +78,34 @@ function registerMembershipEvents(context) {
         if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyPause' }); return; }
         game.paused = true;
         io.in(roomId).emit('server_msg', { k: 'host.paused' });
+        broadcastState(roomId);
+    });
+
+    // ===== 带入审批（2026-11-17）=====
+    // 房主处理一条带入 / 补码申请。批准 = 给申请人记一张一次性批准，并让他的页面把原来的请求再发一次
+    // （真正的入座 / 补码仍走原来那条路径，见 rooms/buyin-approval.js 开头）。
+    socket.on('buyin_decide', ({ userId, approve } = {}) => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game || typeof userId !== 'string') return;
+        const res = decide(game, user.id, userId, approve === true);
+        if (!res.ok) { if (res.reason === 'gone') socket.emit('server_msg', { k: 'buyin.gone' }); return; }
+        for (const s of io.sockets.sockets.values()) {
+            if (!s.user || s.user.id !== userId || s.currentRoom !== roomId) continue;
+            if (res.approved) s.emit('buyin_approved', { kind: res.request.kind, chips: res.request.chips, seat: res.request.seat });
+            else s.emit('server_msg', { k: 'buyin.declined' });
+        }
+    });
+    socket.on('set_approve_buyin', ({ enabled } = {}) => {
+        const roomId = socket.currentRoom;
+        const game = roomId && roomGames[roomId];
+        if (!game || game.roomType !== 'cash') return;
+        if (game.ownerUserId !== user.id) { socket.emit('server_msg', { k: 'host.onlyApprove' }); return; }
+        const next = enabled === true;
+        if (!!game.config.approveBuyIn === next) return;
+        game.config.approveBuyIn = next;
+        if (!next) { game.pendingBuyins = {}; game.approvedBuyins = {}; }   // 关掉就不再需要批准，挂着的申请一并清掉
+        io.in(roomId).emit('server_msg', { k: next ? 'host.approveOn' : 'host.approveOff' });
         broadcastState(roomId);
     });
 

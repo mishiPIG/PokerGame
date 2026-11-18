@@ -121,7 +121,11 @@ test('messages, feedback and hand history keep current API response shapes', () 
         };
         assert.equal(db.appendHand(hand).inserted, true);
         assert.equal(db.appendHand(hand).inserted, false);
-        assert.deepEqual(db.getHandsForUser(user.id, { limit: 10 }), [hand]);
+        // 2026-11-17：多了一个 handId（库里的 id，客户端分享这一手时用）。其余字段必须原样不变。
+        const [got] = db.getHandsForUser(user.id, { limit: 10 });
+        assert.match(got.handId, /^hand-/);
+        const { handId, ...rest } = got;   // eslint-disable-line no-unused-vars
+        assert.deepEqual(rest, hand);
     });
 });
 

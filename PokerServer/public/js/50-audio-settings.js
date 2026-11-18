@@ -231,7 +231,7 @@ function animatePotsToWinners(pots, fallbackId, afterMs = 0) {
 function toggleSound() {
     soundOn = !soundOn;
     localStorage.setItem('soundOff', soundOn ? '0' : '1');
-    document.getElementById('btnSound').textContent = soundOn ? '🔊' : '🔇';
+    setIconLabel(document.getElementById('btnSound'), soundOn ? 'sound' : 'mute');
     const s = document.getElementById('set-sound'); if (s) s.checked = soundOn;
     if (soundOn) { unlockAudio(); sndTurn(); }
 }
@@ -250,6 +250,8 @@ const MAX_QUICK = 5;   // 最多 5 个快捷尺度
 let settings = {
     theme:     localStorage.getItem('s_theme') || 'green',
     cardStyle: localStorage.getItem('s_cardStyle') || 'four',   // 四色为默认（最易辨认）
+    // 人头牌（J/Q/K）画法：brush 书法印章（默认）/ warrior 道服武者 / classic 经典字母（45-card-art.js）
+    faceArt:   (FACE_ARTS.includes(localStorage.getItem('s_faceArt')) ? localStorage.getItem('s_faceArt') : 'brush'),
     // 屏幕布局：auto=按屏幕比例自动（宽屏走横屏）/ portrait=强制竖屏 / landscape=强制横屏
     layout:    localStorage.getItem('s_layout') || 'auto',
     quickBetsPost: JSON.parse(localStorage.getItem('s_quickBetsPost') || localStorage.getItem('s_quickBets') || '[0.5,0.75,1]'),
@@ -260,6 +262,7 @@ settings.quickBetsPre  = settings.quickBetsPre.slice(0, MAX_QUICK);
 function saveSettings() {
     localStorage.setItem('s_theme', settings.theme);
     localStorage.setItem('s_cardStyle', settings.cardStyle);
+    localStorage.setItem('s_faceArt', settings.faceArt);
     localStorage.setItem('s_layout', settings.layout);
     localStorage.setItem('s_quickBetsPost', JSON.stringify(settings.quickBetsPost));
     localStorage.setItem('s_quickBetsPre', JSON.stringify(settings.quickBetsPre));
@@ -278,6 +281,12 @@ function applyLayoutMode() {
     const auto = window.innerWidth / Math.max(1, window.innerHeight) >= 1.3;
     const landscape = settings.layout === 'landscape' || (settings.layout === 'auto' && auto);
     document.body.classList.toggle('layout-landscape', landscape);
+    // 电脑端整体放大（2026-11-17，美术第二轮 ②）：原来座位、行动按钮、底栏在手机和 1920 屏上一样大
+    // （按钮 40px、对手头像 43px、名字 11px），大屏上对手缩成贴边的几个小点。以 1100×680 为 1 倍，
+    // 1280×720≈1.06、1440×900≈1.3、1920×1080≈1.6，最多 1.75；手机横放（矮）不会低于 1。
+    const s = landscape ? Math.max(1, Math.min(1.75, window.innerWidth / 1100, window.innerHeight / 680)) : 1;
+    UI_SCALE = Math.round(s * 100) / 100;
+    document.body.style.setProperty('--ui-scale', String(UI_SCALE));
     if (typeof lastState !== 'undefined' && lastState && typeof render === 'function') render(lastState);   // 座位环要按新半径重排
 }
 function setLayout(mode) {
@@ -286,7 +295,8 @@ function setLayout(mode) {
     document.querySelectorAll('.lay-opt').forEach(b => b.classList.toggle('sel', b.dataset.lay === mode));
 }
 // 窗口尺寸变化（电脑拖窗口 / 手机转屏）时，auto 模式要跟着切
-window.addEventListener('resize', () => { if (settings.layout === 'auto') applyLayoutMode(); });
+// 放大倍数也跟着窗口走，所以不论哪种模式都要重算
+window.addEventListener('resize', () => applyLayoutMode());
 // 设置分页：8 个区块堆一个面板里翻不到底，分成 外观/牌桌/操作 三页。
 // 记住上次停留的页——调快捷键那种要反复试的场景，每次都跳回第一页很烦。
 function switchSettingsTab(pane) {
@@ -323,6 +333,9 @@ function buildSettingsPanel() {
     document.querySelectorAll('.lay-opt').forEach(b => b.classList.toggle('sel', b.dataset.lay === settings.layout));
     syncLangButtons();   // 语言按钮同样复用 .cs-opt —— 原来漏了这一句，中文/English 两个都不亮（2026-09-29 截图）
     document.getElementById('cs-preview').innerHTML = ['Spades', 'Hearts', 'Diamonds', 'Clubs'].map(s => formatCard({ suit: s, rank: 'A' })).join('');
+    document.querySelectorAll('.fa-opt').forEach(b => b.classList.toggle('sel', b.dataset.fa === settings.faceArt));
+    const fap = document.getElementById('fa-preview');
+    if (fap) fap.innerHTML = [['J', 'Spades'], ['Q', 'Hearts'], ['K', 'Diamonds']].map(([r, s]) => formatCard({ suit: s, rank: r })).join('');
     // 翻前（BB 倍数）：预设 + 已添加的自定义值
     const preAll = [...new Set([...PRE_CHOICES, ...settings.quickBetsPre])].sort((a, b) => a - b);
     document.getElementById('quickbet-pre').innerHTML = preAll.map(v => {
@@ -339,6 +352,10 @@ function buildSettingsPanel() {
     document.getElementById('set-sound').checked = soundOn;
 }
 function setTheme(id) { settings.theme = id; saveSettings(); applySettings(); buildSettingsPanel(); }
+function setFaceArt(fa) {
+    if (!FACE_ARTS.includes(fa)) return;
+    settings.faceArt = fa; saveSettings(); buildSettingsPanel(); if (lastState) render(lastState);
+}
 function setCardStyle(cs) { settings.cardStyle = cs; saveSettings(); applySettings(); buildSettingsPanel(); if (lastState) render(lastState); }
 function qbList(kind) { return kind === 'pre' ? settings.quickBetsPre : settings.quickBetsPost; }
 function toggleQuickBet(kind, v) {

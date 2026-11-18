@@ -21,6 +21,8 @@ function connectSocket(token) {
             showLobby();                               // 首次连接/无房：进大厅（会清掉 currentRoom 记录）
             if (saved) socket.emit('join_room', { roomId: saved });
         }
+        // 重连多半是服务器重启（发版）：页面不会重新加载，手里的前端可能已经旧了 —— 再比一次版本
+        if (everConnected && typeof recheckVersion === 'function') recheckVersion();
         everConnected = true;
     });
     socket.on('disconnect', () => { if (sessionKicked) return; showReconnecting(); });   // 断线：显示「重连中」而非弹回大厅
@@ -89,6 +91,7 @@ function connectSocket(token) {
         try { sessionStorage.removeItem('pendingInviteToken'); } catch {}
         currentRoom = roomId;
         iCanPlay = !!canPlay;   // 观战者=false → 禁止入座
+        document.getElementById('result-overlay').style.display = 'none';   // 「再来一局」进了新桌：上一场的结算面板收起
         localStorage.setItem('currentRoom', roomId);
         resetJoinCode(true);   // 复位四格房间码
         hideReconnecting();
@@ -157,8 +160,24 @@ function connectSocket(token) {
     });
 
     // 比赛结束排名（现金桌训练结束/房主结束/SNG 结束）：弹结算面板
-    socket.on('match_result', ({ title, ranking, awards }) => {
+    // 带入审批（2026-11-17）：房主收到申请 / 申请人收到批准（逻辑在 30-room.js）
+    socket.on('buyin_request', (req) => { if (req && req.userId) onBuyinRequest(req); });
+    socket.on('buyin_approved', (a) => { if (a) onBuyinApproved(a); });
+
+    // 别人发起了「再来一局」：弹个确认，点加入才进（下场资格靠服务端那条待办记录，见 rematch-invites.js）
+    socket.on('rematch_offer', ({ roomId, fromName, buyIn }) => {
+        if (!roomId) return;
+        const fee = buyIn ? L(`，报名费 ${buyIn} 金币`, `, entry ${buyIn} coins`) : '';
+        uiConfirm(L(`${fromName} 发起了再来一局（同样设置${fee}）。一起来？`, `${fromName} started a rematch (same settings${fee}). Join?`),
+            { ok: L('加入', 'Join'), cancel: L('不了', 'No thanks') })
+            .then(ok => { if (ok) socket.emit('rematch_join', { roomId }); });
+    });
+
+    socket.on('match_result', ({ title, ranking, awards, matchId, rematch, ownerUserId }) => {
         setTimeout(() => {
+            // 再来一局：只给房主看按钮（服务端 rematch_sng 自己还会再校验一遍）
+            document.getElementById('result-rematch').style.display = (rematch && ownerUserId === myUserId) ? '' : 'none';
+            loadBestHand(matchId);
             const me = (ranking || []).find(r => r.userId === myUserId);
             document.getElementById('result-title').textContent = matchTitleL(title) || L('比赛结束', 'Game over');
             document.getElementById('result-sub').innerHTML = me
@@ -181,6 +200,7 @@ function connectSocket(token) {
 
     socket.on('hole_cards', (cards) => {
         noteGuestHand();     // 游客打过几手之后回大厅时提醒保存账号
+        maybeStartCoach();   // 新来的人第一次被发到牌：三步提示（44-guide.js）
         myHoleCards = cards;
         revealedCards = {};  // 新一局清除 showdown 展示
         showdownInfo = null; myHand = null;
@@ -345,7 +365,7 @@ function connectSocket(token) {
         const ms = Date.now() - t;
         const el = document.getElementById('latency');
         if (el) {
-            el.textContent = `📶 ${ms}ms`;
+            const v = document.getElementById('latency-ms'); if (v) v.textContent = `${ms}ms`;
             el.style.color = ms < 80 ? '#06d6a0' : (ms < 200 ? '#f4d35e' : '#ff5252');
         }
     });

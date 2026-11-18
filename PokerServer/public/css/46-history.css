@@ -38,10 +38,18 @@
             border-bottom: 1px solid rgba(255,255,255,0.08); }
         /* 窄屏（~400px）时按钮文字被挤成两行（「回/放」「验证数/据」，2026-09-29 截图）：
            按钮不折行、按钮组不收缩，让标题去折行 */
-        .hd-head { gap: 10px; }
-        .hd-head b { font-size: 15px; min-width: 0; }
-        .hd-head-btns { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+        /* 标题和按钮放不下一行时，按钮整排换到下一行（右对齐），标题不再被挤成一列竖字。
+           加了「分享」之后按钮有三个，英文窄屏上标题被压成五行（2026-11-17 截图）。*/
+        .hd-head { gap: 10px; flex-wrap: wrap; }
+        .hd-head b { font-size: 15px; min-width: 0; flex: 1 1 140px; }
+        .hd-head-btns { display: flex; gap: 8px; align-items: center; flex-shrink: 0; margin-left: auto; }
         .hd-replay { background: #06d6a0; color: #0a1f1a; border: none; border-radius: 8px; padding: 7px 11px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap; }
+        /* 点「分享」后出现的一行：链接 + 复制 / 系统分享 */
+        .hd-share-row { display: flex; gap: 8px; align-items: center; margin: 2px 0 10px; }
+        .hd-share-row input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 8px; font-size: 12.5px;
+            background: rgba(0,0,0,0.3); color: #dfe9e2; border: 1px solid rgba(255,255,255,0.18); }
+        .hd-share-row button { flex-shrink: 0; background: #3a86ff; color: #fff; border: none; border-radius: 8px;
+            padding: 7px 12px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap; }
         .hd-close { background: none; border: none; color: #9db9a9; font-size: 22px; cursor: pointer; }
         #hd-board { text-align: center; padding: 12px; background: radial-gradient(ellipse at center,#1c3a34 0%,#12201a 80%); }
         .hd-pot { font-size: 13px; color: #f4d35e; margin-bottom: 8px; }

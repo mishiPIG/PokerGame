@@ -201,16 +201,17 @@ function createContentRepository(db) {
             //    而 1.8.0 之后还多了 fair.serverSeed（知道种子就能重算整副牌）。
             //    规则见 hand-visibility.js：桌子没散就只给【本来就该看见】的，散了全公开。
             return db.prepare(`
-                SELECT h.payload_json, m.status AS match_status, m.ended_at_ms AS ended_at_ms
+                SELECT h.id AS hand_id, h.payload_json, m.status AS match_status, m.ended_at_ms AS ended_at_ms
                 FROM hand_players hp
                 JOIN hands h ON h.id = hp.hand_id
                 LEFT JOIN matches m ON m.id = h.match_id
                 WHERE ${conditions.join(' AND ')}
                 ORDER BY h.started_at_ms DESC, h.hand_seq DESC
                 LIMIT ? OFFSET ?
-            `).all(...params).map(row => filterHandForViewer(
-                JSON.parse(row.payload_json), userId,
-                { tableEnded: tableEndedFrom(row) }));
+            `).all(...params).map(row => ({
+                ...filterHandForViewer(JSON.parse(row.payload_json), userId, { tableEnded: tableEndedFrom(row) }),
+                handId: row.hand_id,   // 客户端分享这一手时用（牌谱 payload 里本身不带库里的 id）
+            }));
         },
         saveHandTx
     };

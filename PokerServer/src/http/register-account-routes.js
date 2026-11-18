@@ -2,6 +2,7 @@
 
 const buildInfo = require('../build-info');
 const { findBlockingRoom } = require('../account/deletion-guards');
+const { publicHandView } = require('../games/poker/public-hand');
 
 function registerAccountRoutes({ app, db, stats, mailer, requireAuth, requireAdmin, bcrypt, roomGames, io }) {
 // 版本信息（公开，不需要登录）：部署脚本和玩家报 bug 都靠它对上是哪一版。
@@ -24,6 +25,21 @@ app.get('/api/my-hands', requireAuth, (req, res) => {
     const mode = (req.query.mode === 'sng' || req.query.mode === 'cash') ? req.query.mode : null;
     const room = req.query.room ? String(req.query.room).slice(0, 12) : null;
     res.json(db.getHandsForUser(req.authUser.id, { limit, offset, mode, room }));
+});
+
+// ===== 牌谱分享（2026-11-17）=====
+// 生成：只有打过这一手的人能分享它（游客也可以 —— 分享出去的链接正好接到游客模式上）。
+app.post('/api/hands/share', requireAuth, (req, res) => {
+    const handId = typeof (req.body || {}).handId === 'string' ? req.body.handId.slice(0, 80) : '';
+    const token = db.handShares.createShare(handId, req.authUser.id);
+    if (!token) return res.status(404).json({ error: '找不到这一手牌', k: 'shareNotFound' });
+    res.json({ token });
+});
+// 查看：不用登录。只给分享人当时看得见的东西（见 public-hand.js），并且匿名掉内部 id。
+app.get('/api/shared-hand/:token', (req, res) => {
+    const found = db.handShares.getShared(req.params.token);
+    if (!found) return res.status(404).json({ error: '链接已失效', k: 'shareGone' });
+    res.json({ hand: publicHandView(found.hand, found.sharerUserId) });
 });
 
 // 当前账号信息（含邮箱，供个人主页显示/更换邮箱）

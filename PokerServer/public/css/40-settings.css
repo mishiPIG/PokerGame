@@ -39,6 +39,9 @@
         .cs-preview { display: flex; gap: 4px; justify-content: center; }
         .cs-preview .card { width: 38px; height: 52px; }
         .cs-preview .card .rank { font-size: 13px; } .cs-preview .card .suit { font-size: 18px; }
+        /* 人头牌预览：放到手机上实际看到的大小（混合版），别用上面那个 38px（会退回经典字母，看不出区别）*/
+        .fa-preview { gap: 8px; margin-top: 8px; }
+        .fa-preview .card { --card-w: 56px; --card-h: 78px; width: 56px; height: 78px; }
         .quickbet-opts { display: flex; flex-wrap: wrap; gap: 8px; }
         .qb-opt { padding: 7px 12px; border: 2px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); border-radius: 16px;
             font-size: 13px; font-weight: bold; color: #dfe9e2; cursor: pointer; }

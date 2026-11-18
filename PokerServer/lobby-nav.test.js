@@ -54,6 +54,7 @@ function loadLobby() {
         console,
         L: (zh) => zh,                                   // 测试里固定取中文，断言好写
         escapeHtml: s => String(s),
+        ic: n => `<svg data-ic="${n}"></svg>`,           // 真实定义在 05-utils.js（线条图标）
         onLangChange() {},                               // 真实定义在 03-i18n.js
         openProfile() {}, profileTab() {},
         localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } },

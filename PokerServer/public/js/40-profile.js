@@ -55,7 +55,7 @@ async function openInbox() {
     if (!msgs.length) { list.innerHTML = `<div class="hist-empty">${L('暂无消息', 'No messages')}</div>`; return; }
     list.innerHTML = msgs.map(m => {
         const t = fmtDateTime(m.ts);
-        const icon = m.type === 'result' ? '🏆' : m.type === 'admin' ? '📢' : '✉️';
+        const icon = m.type === 'result' ? ic('trophy', 'c-gold') : m.type === 'admin' ? ic('megaphone', 'c-orange') : ic('mail', 'c-blue');
         return `<div class="inbox-item${m.read ? '' : ' unread'}">
             <div class="ib-head"><span class="ib-icon">${icon}</span><span class="ib-time">${t}</span></div>
             ${formatInboxText(m.text || '')}</div>`;   // escape-ok: formatInboxText 内部逐行 escapeHtml
@@ -120,7 +120,7 @@ async function doCheckin() {
         const body = document.getElementById('checkin-body');
         body.innerHTML = `<div style="text-align:center;padding:24px 8px">
             <div style="font-size:40px">🎉</div>
-            <div style="font-size:18px;font-weight:bold;margin-top:8px">${L('签到成功！', 'Checked in!')}+${data.reward} 🪙</div>
+            <div style="font-size:18px;font-weight:bold;margin-top:8px">${L('签到成功！', 'Checked in!')}+${data.reward} ${ic('coin', 'gold')}</div>
             <div style="opacity:.75;margin-top:6px">${L(`已连续签到 ${data.streak} 天，明天再来～`, `${data.streak}-day streak — come back tomorrow`)}</div>
             <div style="margin-top:10px;color:#f4d35e">${L('当前金币', 'Coins')}：${myGold.toLocaleString()}</div></div>`;
         refreshCheckinDot();
@@ -171,7 +171,7 @@ function renderProfileInfo() {
         `<div class="pi-name">${escapeHtml(myDisplayName || myUsername || '')}</div>`
         // 游客的用户名是随机生成的 guest_xxx，给他看没有意义，换成一句「现在是游客」
         + `<div class="pi-handle">${isGuest ? L('游客账号（还没保存）', 'Guest account (not saved yet)') : L('账号', 'Account') + '：' + escapeHtml(myUsername || '')}</div>`
-        + `<div class="pi-gold">🪙 ${(myGold || 0).toLocaleString()}</div>`;
+        + `<div class="pi-gold">${ic('coin')} ${(myGold || 0).toLocaleString()}</div>`;
     renderDisplayNameSection();
     renderDangerZone();
     renderProfileAvatars();
@@ -221,7 +221,7 @@ async function renderEmailSection() {
     let email = null;
     try { const r = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } }); if (r.ok) email = (await r.json()).email; } catch {}
     box.innerHTML =
-        `<div class="pi-email-row"><span>📧 ${email ? escapeHtml(email) : `<span style="color:#f87171">${L('未绑定', 'Not set')}</span>`}</span>
+        `<div class="pi-email-row"><span>${ic('mail')} ${email ? escapeHtml(email) : `<span style="color:#f87171">${L('未绑定', 'Not set')}</span>`}</span>
             <button class="mini-btn" onclick="toggleEmailForm()">${email ? L('更换', 'Change') : L('绑定', 'Bind')}</button></div>
          <div id="pi-email-form" style="display:none"></div>`;
 }

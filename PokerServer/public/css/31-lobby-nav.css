@@ -114,6 +114,20 @@
         .me-group .me-row:last-child { border-bottom: 0; }
         .me-row:hover { background: rgba(255,255,255,0.06); }
         .me-row .mr-ico { font-size: 18px; width: 22px; text-align: center; flex-shrink: 0; }
+        /* 每一行一个带底色的小圆角块（像手机系统设置）：线条图标放进彩色块里，整页一眼就有颜色。颜色见 index.html 里的 t-* */
+        .me-row .mr-ico[class*="t-"] { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center;
+            justify-content: center; color: #fff; font-size: 17px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); }
+        .mr-ico.t-blue   { background: linear-gradient(160deg, #4f8ff7, #2f6fd6); }
+        .mr-ico.t-gold   { background: linear-gradient(160deg, #f2c94c, #d4a017); color: #3a2a00 !important; }
+        .mr-ico.t-mint   { background: linear-gradient(160deg, #20c997, #0f9d74); }
+        .mr-ico.t-pink   { background: linear-gradient(160deg, #ff6f91, #e0466b); }
+        .mr-ico.t-purple { background: linear-gradient(160deg, #a77bf3, #7c4ddb); }
+        .mr-ico.t-teal   { background: linear-gradient(160deg, #2bb5ad, #1b8a84); }
+        .mr-ico.t-orange { background: linear-gradient(160deg, #ff9a4d, #e6732a); }
+        .mr-ico.t-indigo { background: linear-gradient(160deg, #6c7cff, #4a58d6); }
+        .mr-ico.t-gray   { background: linear-gradient(160deg, #7d8f86, #56665e); }
+        .mr-ico.t-lime   { background: linear-gradient(160deg, #8bc34a, #5f9a2a); }
+        .mr-ico.t-red    { background: linear-gradient(160deg, #ef5b5b, #c93a3a); }
         .me-row .mr-txt { flex: 1; }
         .me-row .mr-arrow { color: #6f8c7c; font-size: 18px; line-height: 1; }
         .me-row .mr-badge { background: #f4d35e; color: #12201a; font-size: 11px; font-weight: 800;

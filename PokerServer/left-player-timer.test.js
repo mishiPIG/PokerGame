@@ -15,7 +15,7 @@ test('🔴 主动退出 SNG 的人快速代打；断网的人仍给正常时间'
     const i = hs.indexOf('function startActionTimer(');
     const body = hs.slice(i, hs.indexOf('\n}\n', i));
     // 2026-11-14：房里一个连接都没有（nobodyHere）也快速代打 —— 那不是「网络抖动的人」，是整桌都没人了
-    assert.match(body, /\(actor\.leftByChoice \|\| nobodyHere\)\s*\?\s*LEFT_PLAYER_ACT_MS\s*:\s*ACTION_TIME/, '计时要按 leftByChoice / 房里没人 区分');
+    assert.match(body, /\(actor\.leftByChoice \|\| nobodyHere\)\s*\?\s*LEFT_PLAYER_ACT_MS\s*:\s*actionTimeOf\(game\)/, '计时要按 leftByChoice / 房里没人 区分（正常时间取这一桌设置的思考时间）');
     assert.doesNotMatch(body, /\baway\s*\?/, '不能按 away 缩短 —— 那会让网络抖动的人被秒判弃牌（7/26 修过的老问题）');
     const m = /const LEFT_PLAYER_ACT_MS = (\d+)/.exec(hs);
     assert.ok(m && +m[1] >= 1000 && +m[1] <= 3000, '代打前留 1~3 秒，让桌上看得清');

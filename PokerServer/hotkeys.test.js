@@ -17,8 +17,9 @@ const vm = require('vm');
 
 const SOURCE = fs.readFileSync(path.join(__dirname, 'public/js/71-hotkeys.js'), 'utf8');
 
-function makeEnv({ inRoom = true, buttons = {}, openPanels = [] } = {}) {
+function makeEnv({ inRoom = true, buttons = {}, openPanels = [], pointerFine = true } = {}) {
     const clicked = [];
+    const bodyClasses = {};
     const store = {};
     const els = {};
     for (const [id, cfg] of Object.entries(buttons)) {
@@ -27,6 +28,9 @@ function makeEnv({ inRoom = true, buttons = {}, openPanels = [] } = {}) {
             offsetParent: cfg.visible === false ? null : {},
             disabled: !!cfg.disabled,
             click() { clicked.push(id); },
+            attrs: {},
+            setAttribute(k, v) { this.attrs[k] = v; },
+            removeAttribute(k) { delete this.attrs[k]; },
         };
     }
     let keyHandler = null;
@@ -44,11 +48,13 @@ function makeEnv({ inRoom = true, buttons = {}, openPanels = [] } = {}) {
             querySelectorAll: (sel) => (openPanels.includes(sel)
                 ? [{ getClientRects: () => [{}] }]      // 这个选择器对应的面板开着
                 : []),
-            body: { classList: { contains: (c) => c === 'in-room' && inRoom } },
+            body: { classList: { contains: (c) => c === 'in-room' && inRoom, toggle: (c, on) => { bodyClasses[c] = !!on; } } },
         },
         window: {
             addEventListener(type, fn) { if (type === 'keydown') keyHandler = fn; },
             removeEventListener() {},
+            // 按钮上的快捷键小键帽只在有鼠标的设备上显示（71-hotkeys.js 的 paintHotkeyHints）
+            matchMedia: () => ({ matches: pointerFine, addEventListener() {} }),
         },
         sizeCtx: { minTo: 100, maxTo: 5000 },
         // ⚠️ 这些桩必须用【真实存在的函数名】——见下方「依赖的外部全局必须真实存在」那条测试
@@ -75,7 +81,7 @@ function makeEnv({ inRoom = true, buttons = {}, openPanels = [] } = {}) {
     //    不会挂到 context 对象上（和 sizeCtx 不在 window 上是同一个 JS 语义）。
     //    所以只能用 runInContext 求值来读写，不能 ctx.hotkeyBindings。
     const evalIn = (expr) => vm.runInContext(expr, ctx);
-    return { ctx, clicked, press, store, evalIn };
+    return { ctx, clicked, press, store, evalIn, els, bodyClasses };
 }
 
 test('🔴 依赖的外部全局必须真实存在 —— 防「桩跟错误假设一致，测试假绿」', () => {
@@ -240,4 +246,33 @@ test('恢复默认能把绑定还原', () => {
     env.evalIn("hotkeyBindings.fold = 'z'");
     env.evalIn('resetHotkeys()');
     assert.equal(env.evalIn('hotkeyBindings.fold'), 'f');
+});
+
+// ───────────── 按钮上的快捷键小键帽（2026-11-17，美术第二轮 ②）─────────────
+const ALL_BTNS = { btnFold: {}, btnCheckCall: {}, btnRaise: {}, btnBet: {}, btnConfirmBet: {}, btnReady: {}, btnStart: {} };
+
+test('按钮上显示玩家绑定的键：默认 F / C / R / 回车 / 空格挂在对应按钮上', () => {
+    const { els, bodyClasses } = makeEnv({ buttons: ALL_BTNS });
+    assert.equal(bodyClasses['show-hk'], true, '有鼠标的设备上显示');
+    assert.equal(els.btnFold.attrs['data-hk'], 'F');
+    assert.equal(els.btnCheckCall.attrs['data-hk'], 'C');
+    assert.equal(els.btnRaise.attrs['data-hk'], 'R');
+    assert.equal(els.btnBet.attrs['data-hk'], 'R', '下注和加注共用一个键');
+    assert.equal(els.btnConfirmBet.attrs['data-hk'], '↵');
+    assert.equal(els.btnReady.attrs['data-hk'], '␣');
+});
+
+test('手机（没有鼠标）不显示键帽', () => {
+    const { bodyClasses } = makeEnv({ buttons: ALL_BTNS, pointerFine: false });
+    assert.equal(bodyClasses['show-hk'], false);
+});
+
+test('改绑 / 解绑之后键帽立刻跟着变', () => {
+    const { els, evalIn } = makeEnv({ buttons: ALL_BTNS });
+    evalIn("hotkeyBindings.fold = 'x'; saveHotkeys();");
+    assert.equal(els.btnFold.attrs['data-hk'], 'X');
+    evalIn("hotkeyBindings.fold = ''; saveHotkeys();");
+    assert.equal(els.btnFold.attrs['data-hk'], undefined, '解绑了就不显示');
+    evalIn('resetHotkeys();');
+    assert.equal(els.btnFold.attrs['data-hk'], 'F');
 });

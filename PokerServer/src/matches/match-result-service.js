@@ -65,7 +65,10 @@ function buildAwards(ranking) {
 function sendMatchResult(roomId, title, ranking) {
     if (!ranking || !ranking.length) return;
     const awards = buildAwards(ranking);
-    io.in(roomId).emit('match_result', { title, ranking, awards });
+    // matchId：客户端据此从「我的牌谱」里挑出【这一场】的牌（房间号会被复用，不能只按房间号挑）。
+    // rematch：SNG 才有「再来一局」（按钮只给房主看，真正的校验在服务端 rematch_sng 里）。
+    const g = roomGames[roomId] || {};
+    io.in(roomId).emit('match_result', { title, ranking, awards, matchId: g.matchId || null, rematch: g.roomType === 'sng', ownerUserId: g.ownerUserId || null });
     // 收件箱：之前只有一行「第几名/盈亏」太简略，补上手数、称号与完整排名（含手数）
     const label = u => {
         const tags = [];

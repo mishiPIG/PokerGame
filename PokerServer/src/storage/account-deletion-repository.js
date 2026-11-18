@@ -116,6 +116,11 @@ function createAccountDeletionRepository(db) {
         // 站内信是发给他个人的（名次/盈亏/管理员通知），跟着人走
         db.prepare('DELETE FROM user_messages WHERE user_id = @id').run({ id: userId });
 
+        // 他生成过的牌谱分享链接：跟着人走，全部作废（链接里有他的底牌、写着「来自他的分享」）
+        db.prepare('DELETE FROM hand_shares WHERE user_id = @id').run({ id: userId });
+        // 他自己是从某条分享链接进来的：抹掉「是谁」，那一行留着（运营面板上「分享带来过几个人」不该因为有人注销就变小）
+        db.prepare('UPDATE share_signups SET user_id = NULL WHERE user_id = @id').run({ id: userId });
+
         // 反馈：**联系方式和 UA 是实打实的个人数据**（玩家会填邮箱/微信/手机），必须清；
         // 正文留下 —— 那是一份还可能要处理的 bug 报告，且不含身份指向。
         db.prepare(`

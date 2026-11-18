@@ -97,7 +97,7 @@ test('任何连接离开都挂空房计时（原来只在座玩家掉线才挂�
 
 test('房里一个连接都没有时，行动计时器快速代打', () => {
     const hs = codeOf(read('src/games/poker/hand-service.js'));
-    assert.match(hs, /leftByChoice \|\| nobodyHere\) \? LEFT_PLAYER_ACT_MS : ACTION_TIME/);
+    assert.match(hs, /leftByChoice \|\| nobodyHere\) \? LEFT_PLAYER_ACT_MS : actionTimeOf\(game\)/);
 });
 
 test('建房有上限（每人 / 全服）', () => {

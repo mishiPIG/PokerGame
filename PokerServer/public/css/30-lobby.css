@@ -149,8 +149,22 @@
             display: block; width: 100%; margin-top: 4px; background: rgba(0,0,0,0.3);
             border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 8px; font-size: 14px;
         }
-        #create-form input[type=range] { display: block; width: 100%; margin-top: 6px; accent-color: #3a86ff; }
-        .create-actions { display: flex; gap: 10px; }
+        /* 滑条换成和下注滑条同一套（道场绿圆钮 + 细轨道）：原来是浏览器自带的蓝白样式，和整站不是一套（2026-11-17，美术第二轮 12.1）*/
+        #create-form input[type=range], #buyin-modal input[type=range] { display: block; width: 100%; margin-top: 6px;
+            -webkit-appearance: none; appearance: none; height: 30px; background: transparent; cursor: pointer; touch-action: none; }
+        #create-form input[type=range]::-webkit-slider-runnable-track, #buyin-modal input[type=range]::-webkit-slider-runnable-track {
+            height: 6px; border-radius: 6px; background: rgba(255,255,255,0.16); }
+        #create-form input[type=range]::-webkit-slider-thumb, #buyin-modal input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 24px; height: 24px; margin-top: -9px; border-radius: 50%;
+            background: #06d6a0; border: 3px solid #eaf3ee; box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+        #create-form input[type=range]::-moz-range-track, #buyin-modal input[type=range]::-moz-range-track { height: 6px; border-radius: 6px; background: rgba(255,255,255,0.16); }
+        #create-form input[type=range]::-moz-range-progress, #buyin-modal input[type=range]::-moz-range-progress { height: 6px; border-radius: 6px; background: #06d6a0; }
+        #create-form input[type=range]::-moz-range-thumb, #buyin-modal input[type=range]::-moz-range-thumb {
+            width: 20px; height: 20px; border-radius: 50%; background: #06d6a0; border: 3px solid #eaf3ee; }
+        /* 建房表单很长，「确定创建」原来要滚到最底下才点得到：钉在可视区底部（2026-11-17，美术第二轮 ④）*/
+        .create-actions { display: flex; gap: 10px; position: sticky; bottom: -8px; z-index: 5;
+            margin: 12px -16px -16px; padding: 18px 16px 14px; border-radius: 0 0 12px 12px;
+            background: linear-gradient(180deg, rgba(26,44,35,0), rgba(26,44,35,0.98) 22%); }
         .ct-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
         .ct-tab { flex: 1; padding: 9px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.05);
             color: #9bb; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; }
@@ -173,6 +187,8 @@
         .rc-main { flex: 1; }
         .rc-name { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
         .rc-meta { font-size: 12px; color: #a8c4b6; }
+        .rc-mi { white-space: nowrap; }
+        .rc-mi .ic, .rc-tag .ic { margin-right: 2px; }
         .rc-owner { color: #cfe3d7; margin-right: 6px; }
         .rc-tag { background: rgba(255,255,255,0.12); color: #cbd9d0; padding: 1px 7px; border-radius: 8px; margin-right: 6px; }
         .rc-join { min-width: 72px; }
@@ -216,7 +232,7 @@
             animation: resultIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
         }
         @keyframes resultIn { from { opacity: 0; transform: translateY(18px) scale(0.96); } to { opacity: 1; transform: none; } }
-        .result-trophy { font-size: 56px; filter: drop-shadow(0 0 16px rgba(244,211,94,0.55));
+        .result-trophy { font-size: 56px; color: #f4d35e; filter: drop-shadow(0 0 16px rgba(244,211,94,0.55));
             animation: trophyPop 0.5s cubic-bezier(0.22,1,0.36,1) backwards; }
         @keyframes trophyPop { from { transform: scale(0.3); opacity: 0; } to { transform: none; opacity: 1; } }
         .result-title { font-size: 22px; font-weight: bold; color: #f4d35e; margin: 10px 0 6px;
@@ -274,6 +290,17 @@
             box-shadow: 0 6px 18px rgba(244,211,94,0.28);
             transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
         .result-btn:hover { filter: brightness(1.06); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(244,211,94,0.38); }
+        .result-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        /* 再来一局：次要按钮（返回大厅仍是主按钮），描边不填充 */
+        .result-btn.alt { background: transparent; color: #f4d35e; border: 1.5px solid rgba(244,211,94,0.6); box-shadow: none; }
+        /* 本场最大的一手 */
+        #result-best { margin: 4px 0 14px; padding: 10px 12px; border-radius: 12px; text-align: center;
+            background: rgba(0,0,0,0.22); border: 1px solid rgba(244,211,94,0.25); }
+        #result-best .rb-t { font-size: 12px; color: #9db9a9; letter-spacing: 0.5px; }
+        #result-best .rb-d { font-size: 14px; color: #eaf3ee; margin: 3px 0 8px; }
+        #result-best .rb-d b { color: #f4d35e; }
+        #result-best .rb-btn { background: #06d6a0; color: #0a1f1a; border: none; border-radius: 8px;
+            padding: 6px 14px; font-weight: bold; font-size: 13px; cursor: pointer; }
         .result-btn:active { transform: translateY(0); }
 
 

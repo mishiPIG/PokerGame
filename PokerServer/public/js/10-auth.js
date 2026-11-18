@@ -58,8 +58,10 @@ async function regVerify() {
     const code = document.getElementById('reg-code').value.trim();
     if (!code) return setAuthError(L('请输入验证码', 'Enter the code'));
     try {
-        const { ok, data } = await authPost('/api/register/verify', { email: regEmail, code });
+        const { ok, data } = await authPost('/api/register/verify', { email: regEmail, code, shareRef: peekShareRef() });
         if (!ok) return setAuthError(apiErr(data, '验证失败', 'Verification failed'));
+        clearShareRef();
+        try { localStorage.setItem('newAccount', '1'); } catch { /* 只影响新手提示，存不了就不显示 */ }   // 第一次进桌给三步提示
         onAuthSuccess(data);
     } catch { setAuthError(L('网络错误，请重试', 'Network error, please try again')); }
 }
@@ -114,8 +116,9 @@ async function doGuest() {
     btn.disabled = true;          // 防连点：点两下会建出两个游客号
     setAuthError('');
     try {
-        const { ok, data } = await authPost('/api/guest', { name });
+        const { ok, data } = await authPost('/api/guest', { name, shareRef: peekShareRef() });
         if (!ok) return setAuthError(apiErr(data, '进入失败，请重试', 'Could not start, please try again'));
+        clearShareRef();
         onAuthSuccess(data);
     } catch { setAuthError(L('网络错误，请重试', 'Network error, please try again')); }
     finally { btn.disabled = false; }

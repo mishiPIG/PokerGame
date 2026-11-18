@@ -143,16 +143,22 @@
         @keyframes winnerGlow { 0%,100% { box-shadow: 0 0 0 2px rgba(244,211,94,0.7), 0 0 16px 3px rgba(244,211,94,0.6); }
             50% { box-shadow: 0 0 0 3px #f4d35e, 0 0 34px 8px rgba(244,211,94,0.95); } }
         /* 状态气泡（按需）*/
-        .status-bubble { position: absolute; top: -10px; right: -12px; z-index: 7; font-size: 10.5px; font-weight: bold;
+        /* 状态小标签放在名字【旁边】、同一高度（2026-11-17，美术第二轮 ③）：原来 top:-10px 正好压在名字上
+           （截图里「弃牌」盖住「同花顺」、「未准备」盖住 Lin）。名字上方没地方 —— 最上面那家紧贴合规横幅。
+           默认放右边；右半边的座位和自己的座位（.bub-l）放左边，都朝桌里，不出屏幕、不压自己的手牌。*/
+        .status-bubble { position: absolute; top: -1px; left: calc(100% - 6px); z-index: 7; font-size: 10.5px; font-weight: bold;
             padding: 2px 8px; border-radius: 10px; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.45); }
         .status-bubble.wait { background: #3d5346; color: #dfe9e2; }
         .status-bubble.fold { background: #35453b; color: #9db9a9; }
         .status-bubble.allin { background: #e23b3b; color: #fff; }
         /* nowrap：座位块只有 68px 宽，「✓ 已准备」会被折成「已准/备」两行（2026-09-29 截图）*/
-        .ready-badge { position: absolute; top: -12px; left: -8px; z-index: 7; font-size: 10.5px; font-weight: bold;
+        .ready-badge { position: absolute; top: -1px; left: calc(100% - 6px); z-index: 7; font-size: 10.5px; font-weight: bold;
             padding: 2px 8px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.4); white-space: nowrap; }
         .ready-badge.yes { background: #06d6a0; color: #0a1f1a; }
         .ready-badge.no  { background: rgba(255,255,255,0.12); color: #ccc; border: 1px solid rgba(255,255,255,0.2); }
+        .ring-seat.bub-l .status-bubble, .ring-seat.bub-l .ready-badge { left: auto; right: calc(100% - 6px); }
+        /* 两个都有时（开赛前状态 + 准备）错开一行，别叠在一起 */
+        .status-bubble + .ready-badge { top: 18px; }
         /* 对手亮牌：盖在头像上，牌型徽章紧贴牌下沿。
            🔴 尺寸是【固定像素】、不跟屏幕走（2026-11-17 玩家视角复盘 P1）：
               座位本身是固定像素（头像 40px），可牌原来是 --card-w 的 0.95 倍 —— 电脑横屏 --card-w
@@ -180,14 +186,19 @@
         .self-info { display: flex; flex-direction: column; align-items: center; gap: 1px; position: relative; }
         .self-cards { display: flex; flex-direction: column; align-items: center; gap: 2px; }
         .self-cards .card-row { gap: 4px; }
+        /* 自己的牌是普通牌的 1.4 倍宽。宽度先在容器上算成 --self-w（用的是继承下来的 --card-w），
+           再让牌自己的 --card-w = --self-w —— 点数 / 花色的字号按 --card-w 算，这样字才跟着牌一起大（原来牌大了字没变）。
+           不能在牌上直接写 --card-w: calc(var(--card-w) * 1.4)：自己引用自己是无效值。*/
+        .ring-seat.bottom .self-cards { --self-w: calc(var(--card-w) * 1.4); }
         .ring-seat.bottom .self-cards .card, .ring-seat.bottom .self-cards .empty-slot {
-            width: calc(var(--card-w) * 1.4); height: calc(var(--card-h) * 1.4); }
+            width: var(--self-w); height: calc(var(--self-w) * 1.39); --card-w: var(--self-w); --card-h: calc(var(--self-w) * 1.39); }
         /* 牌型徽章：按文字宽度的小牌子。原来是 width:100% + padding（没 border-box），
            比两张牌还宽一截，一条黑带横着蹭到隔壁座位上（截图里最显眼的那个问题）。*/
         .hand-type-badge { width: max-content; white-space: nowrap;
             text-align: center; font-size: 10.5px; font-weight: bold; color: #eaf3ee;
             background: rgba(0,0,0,0.62); padding: 1px 7px; border-radius: 8px; margin-top: 1px; }
         .hand-type-badge.win { color: #f4d35e; }
+        .hand-type-badge.tappable { cursor: pointer; }
         /* 摊牌时输家的牌型：和赢家同一位置、同一大小，只是不发金 —— 看得清「他拿什么输的」，又不抢赢家 */
         .hand-type-badge.lose { color: #c9d6cd; background: rgba(0,0,0,0.7); }
         /* 弃牌后仍显示「我本来会是什么牌型」：灰调+虚线，明确是假设性的，不是还在局里 */
@@ -204,6 +215,16 @@
             20% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
             75% { opacity: 1; transform: translate(-50%, -22px) scale(1); }
             100% { opacity: 0; transform: translate(-50%, -46px) scale(0.95); } }
+        /* 对手座位：弹字放在名字旁边、朝桌里那一侧，原地上浮（2026-11-17，美术第二轮 ③）。
+           原来居中在名字那一行往上飘，一出来就盖住赢家的名字 —— 恰恰是这时候最想看清是谁赢了。
+           自己座位的弹字挂在 .self-info 上：放到头像【左边】（右边是自己的两张牌），同样不压名字。*/
+        .ring-seat .seat > .win-pop { left: calc(100% + 2px); top: 14px; transform: none; animation-name: winPopSide; }
+        .ring-seat.bub-l .seat > .win-pop { left: auto; right: calc(100% + 2px); }
+        .ring-seat.bottom .self-info > .win-pop { left: auto; right: calc(100% - 2px); top: 14px; transform: none; animation-name: winPopSide; }
+        @keyframes winPopSide { 0% { opacity: 0; transform: translateY(6px) scale(0.7); }
+            20% { opacity: 1; transform: translateY(0) scale(1.1); }
+            75% { opacity: 1; transform: translateY(-14px) scale(1); }
+            100% { opacity: 0; transform: translateY(-28px) scale(0.95); } }
 
         /* ===== Card（随屏幕尺寸连续缩放，取宽/高较小者）===== */
         /* 点数字体：Jost 700（SIL OFL，许可见 /fonts/Jost-OFL.txt），只子集化了 0-9 A J Q K 共 14 个字形，1.5KB。
@@ -212,6 +233,9 @@
         @font-face { font-family: 'DojoRank'; src: url('/fonts/dojo-rank.woff2') format('woff2');
             font-weight: 700; font-style: normal; font-display: swap;
             unicode-range: U+0030-0039, U+0041, U+004A, U+004B, U+0051; }
+        /* 人头牌「书法印章」的毛笔字：开源「马善政楷书」（SIL OFL，许可见 /fonts/MaShanZheng-OFL.txt）只截了「侠后王」三个字，1.6KB */
+        @font-face { font-family: 'DojoBrush'; src: url('/fonts/dojo-brush.woff2') format('woff2');
+            font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+4FA0, U+540E, U+738B; }
         :root { --card-w: clamp(22px, min(8.5vw, 5dvh), 40px); --card-h: calc(var(--card-w) * 1.39); }
         /* 三档权重的可调旋钮（含义见文件开头的层级契约）*/
         :root {
@@ -227,6 +251,22 @@
             border: 1px solid #d9ceb3; padding: calc(var(--card-w) * 0.09) calc(var(--card-w) * 0.11);
             box-shadow: 0 2px 5px rgba(0,0,0,0.35); font-weight: bold; user-select: none;
         }
+        /* ── 人头牌画法（2026-11-17，美术第二轮 ⑤，45-card-art.js）──
+           J/Q/K 里叠一层 SVG 图案，按【牌的实际宽度】挑一套：≥66px 完整牌面（角标 + 居中图案）、36–66px 混合版
+           （上半大字母、下半图案）、<36px 图案藏起来回到经典大字母。用容器查询，同一张牌在哪儿、多大都自己适配。
+           不支持容器查询的老浏览器：只显示混合版（默认规则），不会两套叠在一起。*/
+        .card.face-art { position: relative; container: card / inline-size; }
+        .card.face-art > .fa { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+        .card.face-art > .rank, .card.face-art > .suit { visibility: hidden; }
+        .card.face-art .fa-full { display: none; }
+        /* ⚠️ 两个坑（2026-11-17 截图里手机上的人头牌整张空白）：
+           ① 容器查询量的是牌【去掉内边距之后】的宽度：牌左右各有 11% 的内边距 + 1px 边框，内容宽 ≈ 牌宽 × 0.78 − 2。
+              所以「牌宽 ≥ 66px」写成 min-width: 49px，「牌宽 < 36px」写成 max-width: 26px。
+           ② 这里的选择器必须和上面的默认规则一样具体（.card.face-art …）—— 写成 .fa .fa-full 会被默认规则压住，
+              结果是小牌字母不回来、大牌两套都藏着，整张牌空白。*/
+        @container card (min-width: 49px) { .card.face-art .fa-full { display: inline; } .card.face-art .fa-mix { display: none; } }
+        @container card (max-width: 26px) { .card.face-art > .fa { display: none; }
+            .card.face-art > .rank, .card.face-art > .suit { visibility: visible; } }
         /* ── 牌面样式（设置里可选 4 种，body.cs-* 切换）──
            之前「标准/四色」两个选项其实没有区别：四色被写成无条件常开，开关是死的。
            现在四种都做成真正看得出差别的，全部纯 CSS、零美术素材。*/
@@ -238,13 +278,18 @@
         body.cs-four .card.suit-diamonds { color: #1667e0; }
         body.cs-four .card.suit-clubs    { color: #109b46; }
         /* ② 标准：传统两色（红桃/方块红，黑桃/梅花黑）——.red/.black 已经是这个，无需额外规则 */
-        /* ③ 黑面：深色卡面+浅色字，暗光环境不刺眼；红色系提亮以保证对比度 */
-        body.cs-dark .card { background: linear-gradient(160deg,#252a33,#161a21); border-color: #39404d;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.55); }
-        body.cs-dark .card.suit-spades   { color: #e8eef7; }
-        body.cs-dark .card.suit-hearts   { color: #ff6b6b; }
-        body.cs-dark .card.suit-diamonds { color: #5aa8ff; }
-        body.cs-dark .card.suit-clubs    { color: #4ade80; }
+        /* ③ 黑面：深色卡面+浅色字，暗光环境不刺眼；红色系提亮以保证对比度
+           2026-11-18 改成「漆黑金边」（用户看了三种改法后定）：原来是偏蓝的灰黑 #252a33 + 灰蓝边框 #39404d，
+           早期深蓝配色留下的，和道场绿不搭、整张牌又平又冷（用户原话「黑面很丑」）。
+           现在是暖调漆黑 + 细金边 + 一圈很淡的金色内描边，黑桃用奶白 —— 和牌背的鸟居、书法印章的朱印是一套暖色，
+           放在绿桌布上也比墨绿方案醒目。*/
+        /* :not(.back)：牌背也带 .card 类，不排除的话金色内描边会跑到牌背上（牌背规则只覆盖底色和边框，不覆盖阴影）*/
+        body.cs-dark .card:not(.back) { background: radial-gradient(ellipse at 30% 20%, #2b2724, #141210 75%); border-color: #8a6d2a;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(201,162,39,0.22); }
+        body.cs-dark .card.suit-spades   { color: #f3e9d2; }
+        body.cs-dark .card.suit-hearts   { color: #ff7466; }
+        body.cs-dark .card.suit-diamonds { color: #64b0ff; }
+        body.cs-dark .card.suit-clubs    { color: #45d98b; }
         /* ④ 大字：点数占满、花色缩到角落——最远也能一眼读牌（弱视/小屏友好）*/
         body.cs-big .card .rank { font-size: calc(var(--card-w) * 0.86); }
         body.cs-big .card .suit { font-size: calc(var(--card-w) * 0.34); align-self: flex-end; margin-top: -8%; }
@@ -255,10 +300,12 @@
         /* 牌背：道场绿底 + 奶白双线框 + 鸟居线稿（取自 logo）。原来的蓝色斜纹是 A1 统一配色时的漏网之鱼。
            选择器写成 body .card.back：要压过 body.cs-dark .card 的深灰底（同权重，靠排在后面赢），
            否则切到「黑面」牌样式时牌背也跟着变成深灰。 */
-        body .card.back {
-            background:
+        /* 牌背图案抽成变量：全押慢翻时揭开的那层盖板（.card.squeeze::after）也要画成同一张牌背 */
+        :root { --card-back-art:
                 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 70'%3E%3Crect x='3.5' y='3.5' width='43' height='63' rx='3.5' fill='none' stroke='%23ece2c6' stroke-opacity='.75'/%3E%3Crect x='6.5' y='6.5' width='37' height='57' rx='2' fill='none' stroke='%23ece2c6' stroke-opacity='.2'/%3E%3Cg fill='none' stroke='%23ece2c6' stroke-linecap='round'%3E%3Cpath d='M10 27 Q25 30.6 40 27' stroke-width='2.6'/%3E%3Cpath d='M14.5 33.6 H35.5' stroke-width='1.8'/%3E%3Cpath d='M18 28.8 V46 M32 28.8 V46' stroke-width='2.2'/%3E%3Cpath d='M25 29.6 V33.6' stroke-width='1.4'/%3E%3C/g%3E%3C/svg%3E") center / 100% 100% no-repeat,
-                radial-gradient(ellipse at 50% 42%, #37634f 0%, #24473a 62%, #1a362b 100%);
+                radial-gradient(ellipse at 50% 42%, #37634f 0%, #24473a 62%, #1a362b 100%); }
+        body .card.back {
+            background: var(--card-back-art);
             border-color: #12261d;
         }
         /* 数字+花色是唯一关键信息 → 尽量放大、居中、清晰，一眼即知无需细辨 */
@@ -378,6 +425,19 @@
             60%  { opacity: 1; }
             to   { opacity: 1; transform: none; }
         }
+        /* 全押跑马慢翻 / 搓牌（2026-11-18，美术第二轮 ⑤）：全押后发转牌、河牌时，牌先盖着落下、停一下，
+           再从底边斜着慢慢揭开（盖板 clip-path 收走），揭开那一下再响一声。约 1.1 秒，短于服务端每街 1.4 秒的间隔。
+           盖板就是牌背本身（--card-back-art），所以看起来是「同一张牌被掀开」。系统「减少动态效果」时不搓（见下方 reduce 规则）。*/
+        .card.squeeze { position: relative; overflow: hidden; animation: commDeal 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+        .card.squeeze::after { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: 3;
+            background: var(--card-back-art); pointer-events: none;
+            animation: squeezePeel 1.15s cubic-bezier(0.45, 0, 0.2, 1) forwards; animation-delay: inherit; }
+        @keyframes squeezePeel {
+            0%, 30% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); transform: translateY(0); }
+            45%     { clip-path: polygon(0 0, 100% 0, 100% 92%, 0 100%); transform: translateY(-1px); }
+            70%     { clip-path: polygon(0 0, 100% 0, 100% 46%, 0 70%); transform: translateY(-2px); }
+            100%    { clip-path: polygon(0 0, 100% 0, 100% 0, 0 0); transform: translateY(-4px); } }
+        @media (prefers-reduced-motion: reduce) { .card.squeeze::after { display: none; } }
         /* 公共牌下方一行提示（如"谁想看转牌"）*/
         #table-notice { display: table; margin: 8px auto 0; text-align: center; font-size: 13px; font-weight: bold; color: #dfe9e2;
             background: rgba(0,0,0,0.45); border-radius: 10px; padding: 4px 12px;
@@ -387,7 +447,11 @@
            所以真实值由 JS 按【这一桌的实际座位几何】算出来写进 --comm-w（见 80-table-renderer.js
            的 syncCommunityWidth），能放大就放大到 1.2 倍，放不下才收。这里只是 JS 没跑起来时的兜底。*/
         #community { --comm-w: calc(var(--card-w) * 1.2); }
-        #community .card, #community .empty-slot { width: var(--comm-w); height: calc(var(--comm-w) * 1.39); }
+        #community .card, #community .empty-slot { width: var(--comm-w); height: calc(var(--comm-w) * 1.39);
+            /* 点数 / 花色的字号是按 --card-w 算的：公共牌宽度变了，字号也得跟着变，否则牌放大了字还是原来那么小、牌面空一大块 */
+            --card-w: var(--comm-w); --card-h: calc(var(--comm-w) * 1.39); }
+        body.layout-landscape #board { top: 39%; }   /* = BOARD_TOP_PCT_LANDSCAPE（80-table-renderer.js）*/
+        @media (max-height: 800px) { body.layout-landscape #board { top: 36%; } }   /* = BOARD_TOP_PCT_LANDSCAPE_SHORT */
 
         /* ===== Action bar ===== */
         #action-bar {
@@ -408,6 +472,12 @@
         }
         /* 弃牌做成红色 ✕ 大图标 */
         #buttons-row .action-btn.fold { font-size: 18px; font-weight: 400; }
+        /* 手机（竖屏）上放大到 54px、拉开间距（2026-11-17，美术第二轮 ③）：40px 低于 44–48px 的触控下限，
+           三个挨着、弃牌紧贴加注，单手拇指很容易按错，而弃牌按错撤不回。电脑横屏另有整体放大（zoom），不走这条。*/
+        body:not(.layout-landscape) #buttons-row { gap: 22px; }
+        body:not(.layout-landscape) #buttons-row .action-btn { width: 54px; height: 54px; font-size: 12.5px; }
+        body:not(.layout-landscape) #buttons-row .action-btn.fold { font-size: 24px; }
+        body:not(.layout-landscape) #buttons-row .action-btn.bet, body:not(.layout-landscape) #buttons-row .action-btn.raise { font-size: 12px; }
         #sizing-row {
             display: flex; flex-direction: column; gap: 8px; align-items: center;
             width: 100%; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px;
@@ -467,6 +537,29 @@
             font-size: 14px; text-align: center;
         }
         #raiseAmount:disabled { opacity: 0.3; }
+        #raiseAmount.kp-on { border-color: #06d6a0; box-shadow: 0 0 0 2px rgba(6,214,160,0.3); }
+        /* 手机数字键盘（点金额框弹出，代替系统软键盘）。
+           排成 2 行 × 6 列（1–6 / 7 8 9 00 0 ⌫，DOM 顺序不用动）：第一版是 4 行 × 3 列的电话键盘，
+           整块面板从底池一直盖到座位，公共牌和右边几家全被挡住（验收时玩家实报）。扁下来高度少一半。*/
+        .bet-keypad { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; width: 100%; max-width: 360px; }
+        .bet-keypad button { height: 38px; border: 1px solid rgba(255,255,255,0.14); border-radius: 10px;
+            background: rgba(255,255,255,0.08); color: #eaf3ee; font-size: 18px; font-weight: bold; cursor: pointer;
+            font-variant-numeric: tabular-nums; touch-action: manipulation; }
+        .bet-keypad button:active { background: rgba(6,214,160,0.3); }
+        .bet-keypad .kp-del { color: #9db9a9; }
+        /* 键盘开着时再压一行：滑条用不上（直接打字）就藏起来，确认按钮挪到金额框右边同一行。
+           只改排列方向、不碰 display —— 面板是 JS 用行内 display:flex 开关的，这里写 display 会和它打架。*/
+        #sizing-row.kp-open { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+        #sizing-row.kp-open #betSlider { display: none; }
+        #sizing-row.kp-open .size-slider-group { order: 1; flex: 0 1 auto; }
+        #sizing-row.kp-open #raiseAmount { width: 120px; font-size: 16px; }
+        #sizing-row.kp-open #btnConfirmBet { order: 2; }
+        #sizing-row.kp-open .bet-keypad { order: 3; flex-basis: 100%; }
+        #sizing-row.kp-open .bet-info { order: 4; flex-basis: 100%; margin-top: 0; }
+        /* 矮屏（小手机）：按键再矮一点，面板上沿才退得到公共牌下面 */
+        @media (max-height: 700px) { .bet-keypad button { height: 34px; font-size: 16px; }
+            /* 还差一点：说明那行收掉（确认按钮上已经写着实际会下的数）*/
+            #sizing-row.kp-open .bet-info { display: none; } }
 
 
         /* 下注辅助信息：压下去之后还剩多少 / 占底池多少 / 对手要跟多少（省得自己心算）*/
@@ -474,3 +567,34 @@
             white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
         .bet-info b { color: #f4d35e; }
         .bet-info .bi-allin { color: #ff8f5e; font-weight: bold; }
+
+        /* ── 电脑端整体放大（2026-11-17，美术第二轮 ②）──
+           原来座位、行动按钮、底栏在手机和 1920 屏上一样大（按钮 40px、对手头像 43px、名字 11px），
+           大屏上对手缩成贴边的几个小点、中间一大片空桌布。--ui-scale 由 JS 按窗口算（applyLayoutMode），手机竖屏恒为 1。
+           用 zoom 而不是 transform：zoom 真的占位 —— 点击区域、里面元素的定位都跟着放大；transform 只是画大了。
+           ⚠️ 座位的半径夹取按 SEAT_BOX × UI_SCALE 算（80-table-renderer.js 的 seatBox()），两边必须同一个数。*/
+        body.layout-landscape .ring-seat,
+        body.layout-landscape #buttons-row,
+        body.layout-landscape #quick-bet-group,
+        body.layout-landscape #sizing-row,
+        body.layout-landscape #action-bar > .start,
+        body.layout-landscape #action-bar > .wait-host,
+        body.layout-landscape #btnRabbit,
+        body.layout-landscape .pa-btn,
+        body.layout-landscape #table-controls .tc-left,
+        body.layout-landscape #table-controls .tc-right,
+        body.layout-landscape #pot,
+        body.layout-landscape #table-info,
+        body.layout-landscape .edge-arrow { zoom: var(--ui-scale, 1); }
+        /* 自己的两张牌本来就按屏幕放大（--card-w），再乘一次 zoom 会过大：除回去，最终比原来略大一点（约 1.1 倍）*/
+        body.layout-landscape .ring-seat.bottom .self-cards { --self-w: calc(var(--card-w) * 1.55 / var(--ui-scale, 1)); }
+
+        /* ── 按钮上的快捷键小键帽（美术第二轮 ②）──
+           F / C / R / 回车 / 空格 早就能用，可按钮上不显示，用鼠标的人根本不知道有。
+           只在有鼠标的设备上显示（body.show-hk，见 71-hotkeys.js），显示的是玩家自己绑定的键。*/
+        body.show-hk [data-hk] { position: relative; }
+        body.show-hk [data-hk]::after { content: attr(data-hk); position: absolute; top: -6px; right: -6px;
+            min-width: 15px; height: 15px; padding: 0 3px; border-radius: 4px; box-sizing: border-box;
+            background: rgba(10,20,15,0.92); border: 1px solid rgba(255,255,255,0.35); color: #eaf3ee;
+            font: 700 9.5px/13px -apple-system, "Segoe UI", sans-serif; text-align: center; pointer-events: none; }
+        body.show-hk #btnConfirmBet[data-hk]::after { top: -7px; right: -7px; }

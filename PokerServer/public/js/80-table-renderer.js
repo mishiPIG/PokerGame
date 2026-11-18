@@ -13,6 +13,7 @@ function formatCard(c, animate = false, delayMs = 0, opts = {}) {
     if (animate)       cls.push('deal-in');
     if (opts.flip)     cls.push('flip-in');
     if (opts.commDeal) cls.push('comm-deal');
+    if (opts.squeeze)  cls.push('squeeze');   // 全押跑马慢翻（盖板从底边斜着揭开，见 20-table.css）
     if (opts.fold)     cls.push('fold-out');
     if (opts.showable) cls.push('showable');
     if (opts.shown)    cls.push('shown');
@@ -20,11 +21,14 @@ function formatCard(c, animate = false, delayMs = 0, opts = {}) {
     if (opts.dim)      cls.push('dim');
     if (opts.mine)     cls.push('mine');
     if (opts.anim)     cls.push('reveal-anim');
-    const style = ((animate || opts.flip || opts.commDeal) && delayMs) ? ` style="animation-delay:${delayMs}ms"` : '';
+    // 人头牌画法（45-card-art.js）：书法印章 / 道服武者时在牌里加一层图案，按牌的大小由样式挑完整版 / 混合版 / 经典字母
+    const art = (typeof faceArtSvg === 'function' && typeof settings !== 'undefined') ? faceArtSvg(c.rank, sym, settings.faceArt) : '';
+    if (art) cls.push('face-art', 'fa-' + settings.faceArt);
+    const style = ((animate || opts.flip || opts.commDeal || opts.squeeze) && delayMs) ? ` style="animation-delay:${delayMs}ms"` : '';
     const click = opts.onclick ? ` onclick="${opts.onclick}"` : '';
     return `<span class="${cls.join(' ')}"${style}${click} data-cid="${c.suit}${c.rank}">
                 <span class="rank">${rank}</span>
-                <span class="suit">${sym}</span>
+                <span class="suit">${sym}</span>${art}
             </span>`;
 }
 // 所有赢家「用到的公共牌」并集（分池时两位赢家的关键公共牌都高亮）
@@ -206,8 +210,17 @@ function emptySlot() {
 // ⚠️ 之前这里写 h:81 / overhangTop:34 —— 高度少算了 15px，于是下面的筹码数字没被算进夹取范围，
 //    公共牌那一排就压到了两侧玩家的后手数字上（玩家实拍反馈）。改 CSS 尺寸务必回来同步。
 const SEAT_BOX = { w: 68, h: 90, overhangTop: 11 };
+// 电脑端整体放大后，座位块的实际像素 = SEAT_BOX × UI_SCALE（样式那头是 zoom: var(--ui-scale)）。
+// 半径夹取、公共牌宽度都必须用放大后的尺寸，否则放大的座位会被挤出牌桌边。
+function seatBox() {
+    const k = (typeof UI_SCALE === 'number' && UI_SCALE > 0) ? UI_SCALE : 1;
+    return { w: SEAT_BOX.w * k, h: SEAT_BOX.h * k, overhangTop: SEAT_BOX.overhangTop * k };
+}
 // #board 的垂直位置（00-shell.css 里的 top%）。两边要一致——seatfit 会交叉核对。
 const BOARD_TOP_PCT = 43;
+// 电脑横屏时整体上移一点（美术第二轮 ②）：放大后的快捷小球从下面拱上来，43% 会压到公共牌和盲注那行。和 20-table.css 对得上。
+const BOARD_TOP_PCT_LANDSCAPE = 39;
+const BOARD_TOP_PCT_LANDSCAPE_SHORT = 36;   // 窗口高度 ≤ 800（如 1280×720）再高一点
 // 座位环可用尺寸：优先量真实 DOM；测试环境(jsdom 无布局)可用 __ringW/__ringH 注入。
 // ⚠️ 必须挡掉「残缺尺寸」：牌桌刚显示、布局还没稳定的那一帧量到的可能是个很小的非零值，
 // 半径夹取会因此退化成最小值 → 所有座位挤成一条线（点「坐下」瞬间出现过）。
@@ -233,9 +246,10 @@ function ringPos(ringIndex, M) {
     // 座位块有固定像素宽高(约 78×81)，屏幕越小它占的百分比越大，写死半径必然把边上的座位挤出去。
     // 这里保证「圆心偏移 + 半个座位」永远落在层内 —— 与屏幕尺寸、人数、横竖屏都无关。
     const sz = ringLayerSize();
-    const halfW = (SEAT_BOX.w / 2 / Math.max(1, sz.w)) * 100;
-    const halfTop = ((SEAT_BOX.h / 2 + SEAT_BOX.overhangTop) / Math.max(1, sz.h)) * 100;
-    const halfBottom = (SEAT_BOX.h / 2 / Math.max(1, sz.h)) * 100;
+    const SB = seatBox();
+    const halfW = (SB.w / 2 / Math.max(1, sz.w)) * 100;
+    const halfTop = ((SB.h / 2 + SB.overhangTop) / Math.max(1, sz.h)) * 100;
+    const halfBottom = (SB.h / 2 / Math.max(1, sz.h)) * 100;
     // 半径按【这一桌真正用到的方向】精确求解，而不是按「最坏情况」写死：
     // 位置是 x = cx + rx*cos + dx、y = cy + ry*sin + dy，边界约束对 rx/ry 都是线性的，
     // 所以逐座位反解出各自允许的最大半径、取最小即可 —— 结果是刚好贴边、一点空间都不浪费。
@@ -255,6 +269,9 @@ function ringPos(ringIndex, M) {
     // 下限不能太低：万一某一帧量到的尺寸不对，半径被夹到很小就会让所有座位挤成一条线（比溢出难看得多）。
     // 正常屏幕尺寸下这个下限永远不会生效（seatfit 测试覆盖了 2~9 人 × 5 种屏幕）。
     rx = Math.max(26, rx); ry = Math.max(24, ry);
+    // 电脑端（美术第二轮 ②）：横屏的牌桌层又宽又扁，椭圆横向铺满的话，左右两家贴着屏幕边、中间空一大片。
+    // 限一个宽高比（真实牌桌约 2:1）：横向半径的像素数最多是纵向的 1.7 倍。只会往里收，不会顶出边界。
+    if (landscape) rx = Math.min(rx, ry * 1.7 * sz.h / Math.max(1, sz.w));
     const ang = Math.PI / 2 + (2 * Math.PI * ringIndex / M);   // 0→底部；+ 使递增为顺时针
     const c = Math.cos(ang), s = Math.sin(ang);
     let x = cx + rx * c, y = cy + ry * s;
@@ -279,7 +296,8 @@ function communityCardW(M, ringW, ringH, padTop, areaH, boardTopPct, cardW) {
     // 甚至比自己那两张(1.4 倍)还小 —— 公共牌本该是全桌的焦点。横屏放到 1.7 倍，
     // 竖屏保持 1.2 倍（玩家说手机上这个大小正好）。放不下时下面的几何夹取照样会收。
     const landscape = typeof document !== 'undefined' && document.body.classList.contains('layout-landscape');
-    const maxW = cardW * (landscape ? 1.7 : 1.2);
+    // 横屏再按牌桌高度封个顶：1280×720 这类矮屏上牌一高，就压到下面的快捷小球和盲注那行（2026-11-17 截图）
+    const maxW = landscape ? Math.min(cardW * 1.7, areaH * 0.08) : cardW * 1.2;
     const rowH = maxW * 1.39;
     // ⚠️ #board 是【底池行 + 公共牌行】整体垂直居中于 boardTopPct，
     //    所以公共牌那一排的中心比 boardTopPct 低了「半个底池行」。
@@ -288,17 +306,31 @@ function communityCardW(M, ringW, ringH, padTop, areaH, boardTopPct, cardW) {
     const mid = areaH * boardTopPct / 100 + POT_ROW_H / 2;
     const rowTop = mid - rowH / 2, rowBottom = mid + rowH / 2;
     let halfLimit = Infinity;
+    const SB = seatBox();
     for (let i = 0; i < M; i++) {
         const pt = ringPos(i, M);
         const cy = padTop + pt.y / 100 * ringH;
         // 这个座位竖直方向压根不在这一排的高度范围内 → 不构成限制
-        if (cy + SEAT_BOX.h / 2 < rowTop || cy - SEAT_BOX.h / 2 - SEAT_BOX.overhangTop > rowBottom) continue;
+        if (cy + SB.h / 2 < rowTop || cy - SB.h / 2 - SB.overhangTop > rowBottom) continue;
         const cx = pt.x / 100 * ringW;
-        const gap = Math.abs(cx - ringW / 2) - SEAT_BOX.w / 2 - 4;   // 留 4px 呼吸
+        const gap = Math.abs(cx - ringW / 2) - SB.w / 2 - 4;   // 留 4px 呼吸
         if (gap < halfLimit) halfLimit = gap;
     }
     if (halfLimit === Infinity) return maxW;
     return Math.min(maxW, Math.max(18, (halfLimit * 2 - 4 * 5) / 5));   // 5 张牌 + 4 个 5px 间距
+}
+// --card-w 的实际像素。⚠️ 不能用 getComputedStyle(…).getPropertyValue('--card-w')：自定义属性读出来的是
+// 写的那串 clamp(…) 文本、不是算好的数，parseFloat 得 NaN → 原来一直退到兜底的 32 ——
+// 公共牌宽度于是从来没跟着屏幕变过（手机恒 38px、电脑恒 54px，2026-11-17 量出来的）。
+// 放一个看不见的探针，宽度设成 var(--card-w)，读它算出来的像素。挂在 body 上：横屏模式的 --card-w 写在 body 上。
+let _cardProbe = null;
+function cardWidthPx() {
+    if (!_cardProbe || !_cardProbe.isConnected) {
+        _cardProbe = document.createElement('div');
+        _cardProbe.style.cssText = 'position:absolute;left:-9999px;top:0;height:0;visibility:hidden;pointer-events:none;width:var(--card-w)';
+        document.body.appendChild(_cardProbe);
+    }
+    return _cardProbe.getBoundingClientRect().width || 32;
 }
 function syncCommunityWidth(M) {
     const comm = document.getElementById('community');
@@ -308,8 +340,10 @@ function syncCommunityWidth(M) {
     const sz = ringLayerSize();
     const areaH = area.clientHeight || sz.h;
     const padTop = ring.offsetTop || 0;
-    const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 32;
-    const w = communityCardW(M, sz.w, sz.h, padTop, areaH, BOARD_TOP_PCT, cardW);
+    const cardW = cardWidthPx();
+    const landscape = document.body.classList.contains('layout-landscape');
+    const boardPct = !landscape ? BOARD_TOP_PCT : (window.innerHeight <= 800 ? BOARD_TOP_PCT_LANDSCAPE_SHORT : BOARD_TOP_PCT_LANDSCAPE);
+    const w = communityCardW(M, sz.w, sz.h, padTop, areaH, boardPct, cardW);
     comm.style.setProperty('--comm-w', w.toFixed(1) + 'px');
     const rib = document.getElementById('runit-boards');
     if (rib) rib.style.setProperty('--comm-w', w.toFixed(1) + 'px');
@@ -333,7 +367,9 @@ function renderSeats(state) {
         const p = bySeat[s];
         const inner = p ? buildSeat(p, state)
                         : emptySeatHtml(isCash && amSpectator, s);
-        const cls = 'ring-seat' + (ringIndex === 0 ? ' bottom' : '');
+        // bub-l：状态小标签（弃牌 / 未准备…）放在名字【左边】—— 右半边的座位和自己的座位都朝桌里放，
+        // 不会被屏幕边裁掉，也不压自己右边的手牌（见 20-table.css 的 .status-bubble）
+        const cls = 'ring-seat' + (ringIndex === 0 ? ' bottom' : '') + (ringIndex === 0 || pt.x > 50.5 ? ' bub-l' : '');
         html += `<div class="${cls}" style="left:${pt.x}%;top:${pt.y}%">${inner}</div>`;
     }
     ring.innerHTML = html;
@@ -348,7 +384,7 @@ function renderSeats(state) {
     const banner = document.getElementById('spectator-banner');
     if (amSpectator) {
         banner.style.display = '';
-        banner.textContent = isCash ? L('👀 观战中 · 点空座「坐下」带入入座', '👀 Spectating · tap an empty seat to buy in') : L('👀 观战中', '👀 Spectating');
+        setIconLabel(banner, 'eye', isCash ? L('观战中 · 点空座「坐下」带入入座', 'Spectating · tap an empty seat to buy in') : L('观战中', 'Spectating'));
     } else banner.style.display = 'none';
 }
 
@@ -475,20 +511,21 @@ function buildSeat(p, state) {
     let handTypeBadge = '';
     const sdCat = showdownInfo && revealedCards[p.userId] && (showdownInfo.categories || {})[p.userId];
     if (showdownInfo && showdownInfo.winners.includes(p.userId) && (sdCat || showdownInfo.category))
-        handTypeBadge = `<div class="hand-type-badge win">🏆 ${handCat(sdCat || showdownInfo.category)}</div>`;
+        handTypeBadge = `<div class="hand-type-badge win">${ic('trophy')} ${handCat(sdCat || showdownInfo.category)}</div>`;
     else if (sdCat)
         handTypeBadge = `<div class="hand-type-badge lose">${handCat(sdCat)}</div>`;
     else if (isMe && myHand && state.phase !== 'waiting') {
         // 已弃牌也显示（玩家反馈想知道「我弃掉的牌最后会是什么」）——加「弃」前缀+灰样式，
         // 明确这是假设性的牌型，不会误以为自己还在牌局里。摊牌阶段同样保留（那时才最想看）。
         if (p.folded) handTypeBadge = `<div class="hand-type-badge folded-hint">${L('弃', 'Fold')} · ${handCat(myHand.category)}</div>`;
-        else if (!showdownInfo) handTypeBadge = `<div class="hand-type-badge">${handCat(myHand.category)}</div>`;
+        // 点自己的牌型徽章 → 牌型大小速查表（新手最常问的就是「这算大吗」）
+        else if (!showdownInfo) handTypeBadge = `<div class="hand-type-badge tappable" onclick="openHandGuide()">${handCat(myHand.category)}</div>`;
     }
 
     // 亮牌提示（摊牌局间，含弃牌者可亮牌）
     const showHint = (isMe && state.phase === 'showdown'
         && !revealedCards[myUserId] && myHoleCards.length === 2 && myShown.size < 2)
-        ? `<div class="show-hint">${L('👁️ 点亮牌给对手', '👁️ Tap to show a card')}</div>` : '';
+        ? `<div class="show-hint">${ic('eye')} ${L('点亮牌给对手', 'Tap to show a card')}</div>` : '';
 
     // 对手亮牌：覆盖在头像上（不占额外高度、不顶出屏幕），牌型徽章压在牌下沿
     // 牌单独包一行（.card-row）：容器是竖排，徽章才会落在牌下面、按自己的文字宽度显示
@@ -558,7 +595,7 @@ function render(state) {
         nextLevelAt = state.nextLevelAt || 0;
         sng.innerHTML = `${L('级别', 'Level')} ${lvl} · ${state.smallBlind}/${state.bigBlind}`
             // 分隔符「 · 」由倒计时自己带（见 70-actions.js）：模板里再写一个就成了「· ·」（2026-09-29 截图里看到的）
-            + (state.pendingLevelUp ? ` · <span style="color:#ff9f1c">${L('⏫本局后升盲', '⏫ Blinds up next hand')}</span>` : `<span id="next-level"></span>`);
+            + (state.pendingLevelUp ? ` · <span style="color:#ff9f1c">${ic('arrow-up')}${L('本局后升盲', 'Blinds up next hand')}</span>` : `<span id="next-level"></span>`);
     } else {
         nextLevelAt = 0; tableEndAt = state.tableEndAt || 0;
         sng.innerHTML = `${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
@@ -568,10 +605,10 @@ function render(state) {
     if (state.timeExpired) {
         // 带上兜底倒计时：让全桌都知道「不处理的话什么时候会自动结算」，而不是干等着
         const left = state.timeUpGraceAt ? Math.max(0, Math.ceil((state.timeUpGraceAt - Date.now()) / 60000)) : null;
-        sng.innerHTML += `<br><span class="ti-state">${L('⏸️ 训练时间已到，等待房主决定', '⏸️ Session time up — waiting for host')}`
+        sng.innerHTML += `<br><span class="ti-state">${ic('pause')} ${L('训练时间已到，等待房主决定', 'Session time up — waiting for host')}`
             + (left != null ? L(`（约 ${left} 分钟后自动结算）`, ` (auto-settles in ~${left} min)`) : '') + `</span>`;
     }
-    else if (state.paused) sng.innerHTML += `<br><span class="ti-state">${L('⏸️ 房主已暂停发牌', '⏸️ Host paused dealing')}</span>`;
+    else if (state.paused) sng.innerHTML += `<br><span class="ti-state">${ic('pause')} ${L('房主已暂停发牌', 'Host paused dealing')}</span>`;
 
     // 公共牌：固定 5 个位置（已发的是牌，未发的占位空槽），避免发牌时布局跳动
     const comm = state.communityCards;
@@ -596,6 +633,7 @@ function render(state) {
         });
     } else {
         let commHtml = '';
+        let squeezed = false;
         for (let i = 0; i < 5; i++) {
             if (i >= comm.length) { commHtml += emptySlot(); continue; }
             const isNew = i >= animateFrom;
@@ -604,13 +642,16 @@ function render(state) {
                 opts.anim = revealAnimActive();
                 commHtml += formatCard(comm[i], isNew, (i - animateFrom) * 140, opts);
             } else {
-                if (isNew) opts.commDeal = true;    // 新发的公共牌：落下+翻牌，逐张 stagger（flop 依次 1→2→3，转/河同理）
+                // 全押跑马时的转牌 / 河牌：慢翻（搓牌），最有悬念的那两张；其余照常落下 + 翻牌
+                if (isNew && allinSpot && i >= 3 && !reducedMotion()) { opts.squeeze = true; squeezed = true; }
+                else if (isNew) opts.commDeal = true;    // 新发的公共牌：落下+翻牌，逐张 stagger（flop 依次 1→2→3，转/河同理）
                 commHtml += formatCard(comm[i], false, isNew ? (i - animateFrom) * 200 : 0, opts);
             }
         }
         commEl.innerHTML = commHtml;
         if (comm.length > prevCommunityCount) {
             for (let i = 0; i < comm.length - animateFrom; i++) sndFlip(i);   // 翻几张响几声
+            if (squeezed) setTimeout(() => sndFlip(0), 1000);                 // 慢翻：揭开那一下再响一声
             lockInput(650);                                                   // 翻牌瞬间防误触
         }
     }
@@ -658,8 +699,8 @@ function render(state) {
     const btnReady = document.getElementById('btnReady');
     btnReady.style.display = canReady ? '' : 'none';
     btnReady.disabled = !me || !canReady;
-    if (me && me.ready) { btnReady.textContent = L('⏳ 已准备（点击取消）', '⏳ Ready (tap to cancel)'); btnReady.classList.add('readied'); }
-    else                { btnReady.textContent = L('✅ 准备', '✅ Ready');              btnReady.classList.remove('readied'); }
+    if (me && me.ready) { setIconLabel(btnReady, 'hourglass', L('已准备（点击取消）', 'Ready (tap to cancel)')); btnReady.classList.add('readied'); }
+    else                { setIconLabel(btnReady, 'check', L('准备', 'Ready'));                         btnReady.classList.remove('readied'); }
 
     // ── 现金桌开赛：房主「开始」/ 其他人「等待房主」──
     const seatedCount = state.players.length;
@@ -674,8 +715,8 @@ function render(state) {
     const amVacated  = isCash && !me && (state.vacatedUserIds || []).includes(myUserId);   // 站起围观：已离座，可带筹码回座
     const amSittingOut = isCash && me && !amReserved && me.sittingOut && (me.pendingRebuy || 0) === 0;
     document.getElementById('reserveBackPanel').style.display = (amReserved || amVacated) ? '' : 'none';
-    if (amReserved || amVacated) document.getElementById('reserveBackLabel').textContent =
-        amVacated ? L('🧍 站起围观中（点「回到座位」带原筹码回来）', '🧍 On the rail (tap "Sit back" to return with your chips)') : L('💺 留座离桌中', '💺 Seat held (away)');
+    if (amReserved || amVacated) setIconLabel(document.getElementById('reserveBackLabel'), amVacated ? 'stand' : 'seat',
+        amVacated ? L('站起围观中（点「回到座位」带原筹码回来）', 'On the rail (tap "Sit back" to return with your chips)') : L('留座离桌中', 'Seat held (away)'));
     document.getElementById('sitOutPanel').style.display = amSittingOut ? '' : 'none';
 
     // ── 解散房间按钮（仅房主，开赛后可用；在设置面板内）──
@@ -723,7 +764,7 @@ function render(state) {
     const rabbitVisible = state.phase === 'showdown' && commLen < 5;
     if (rabbitVisible) {
         btnRabbit.style.display = '';
-        btnRabbit.textContent = commLen === 0 ? L('🐰 看翻牌', '🐰 See flop') : (commLen === 3 ? L('🐰 看转牌', '🐰 See turn') : L('🐰 看河牌', '🐰 See river'));
+        setIconLabel(btnRabbit, 'eye', commLen === 0 ? L('看翻牌', 'See flop') : (commLen === 3 ? L('看转牌', 'See turn') : L('看河牌', 'See river')));
     } else {
         btnRabbit.style.display = 'none';
     }
@@ -749,6 +790,7 @@ function render(state) {
     const ab = document.getElementById('action-bar');
     ab.style.display = showAB ? 'flex' : 'none';
     if (showAB) requestAnimationFrame(positionActionBar);
+    if (typeof syncCoachWithTurn === 'function') syncCoachWithTurn();   // 新手提示：轮到我时先收起，别挡行动按钮
 }
 
 // 把行动悬浮球放到「自己座位+手牌」的正上方（图二式），不遮挡手牌

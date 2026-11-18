@@ -284,13 +284,22 @@ async function loadAdminMetrics() {
         + card('用户总数', t.users, t.deletedUsers ? ('已注销 ' + t.deletedUsers) : '')
         + card('7 日活跃', t.active7d, pct(t.active7d, t.users) + ' 的用户')
         + card('30 日活跃', t.active30d, pct(t.active30d, t.users) + ' 的用户')
-        + card('总手数', t.hands.toLocaleString(), t.matches + ' 场牙局')
+        + card('总手数', t.hands.toLocaleString(), t.matches + ' 场牌局')
         + card('从没打过牌', t.neverPlayed, pct(t.neverPlayed, t.users) + ' 的注册用户')
         + card('只玩过一天', t.onlyOneDay, '来了一次就没再回来')
         // 游客漏斗（用户数不含游客）。「累计建过」读的是计数器，不受过期游客被清理的影响。
         + card('游客 · 累计建过', t.guestsCreated ?? 0, '现存 ' + (t.guests ?? 0) + '（一手没打的 7 天后清理）')
         + card('游客 · 打过牌', t.guestsPlayed ?? 0, '现存游客里')
         + card('游客 · 已保存账号', t.guestsUpgraded ?? 0, pct(t.guestsUpgraded ?? 0, t.guestsCreated ?? 0) + ' 的游客')
+        + '</div>';
+
+    // 分享漏斗：分享这个功能到底带来了多少人。「打开」是次数不是人数（含分享人自己点开、刷新）。
+    html += '<div class="adm-wallet-h">牌谱分享带来的新人</div><div class="mt-cards">'
+        + card('分享 · 生成', t.sharesCreated ?? 0, '条链接')
+        + card('分享 · 打开', t.shareViews ?? 0, '次（含分享人自己、刷新）')
+        + card('分享 · 带来新号', t.shareArrivals ?? 0, '打开链接后在同一浏览器建号 / 注册')
+        + card('分享 · 其中打过牌', t.shareArrivalsPlayed ?? 0, pct(t.shareArrivalsPlayed ?? 0, t.shareArrivals ?? 0))
+        + card('分享 · 其中正式账号', t.shareArrivalsSaved ?? 0, pct(t.shareArrivalsSaved ?? 0, t.shareArrivals ?? 0) + '（直接注册或游客转正）')
         + '</div>';
 
     // 趋势：条形图直接用 div 宽度画，不引图表库

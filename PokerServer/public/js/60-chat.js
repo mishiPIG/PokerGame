@@ -96,10 +96,10 @@ function openAvatarPopup(userId) {
     if (iAmOwner && !isMe) {
         apo.style.display = '';
         const stand = (targetSeated && lastState.roomType === 'cash')
-            ? `<button class="ap-owner-btn" onclick="forceStand('${userId}')">${L('🧍 移到观战席（腾出座位）', '🧍 Move to the rail (free the seat)')}</button>`
+            ? `<button class="ap-owner-btn" onclick="forceStand('${userId}')">${ic('stand')}<span>${L('移到观战席（腾出座位）', 'Move to the rail (free the seat)')}</span></button>`
             : '';
         apo.innerHTML = stand
-            + `<button class="ap-owner-btn danger" onclick="kickPlayer('${userId}')">${L('🚪 请出房间', '🚪 Remove from room')}</button>`;
+            + `<button class="ap-owner-btn danger" onclick="kickPlayer('${userId}')">${ic('logout')}<span>${L('请出房间', 'Remove from room')}</span></button>`;
     } else { apo.style.display = 'none'; apo.innerHTML = ''; }
     // 牌友：打完一局当场加是最自然的入口，比回大厅再去「一起玩过」里翻得快。
     // 已经是牌友 / 申请中 都不再显示按钮，而是直接告诉他当前状态——
@@ -113,10 +113,10 @@ function openAvatarPopup(userId) {
         const incoming = friendData.incoming.some(f => f.userId === userId);
         if (isFriend) apf.innerHTML = `<span class="ap-friend-tag">${L('✓ 已是牌友', '✓ Friends')}</span>`;
         else if (sent) apf.innerHTML = `<span class="ap-friend-tag">${L('已发申请，等对方同意', 'Request sent')}</span>`;
-        else if (incoming) apf.innerHTML = `<button class="ap-owner-btn" onclick="respondFriend('${userId}',true);closeAvatarPopup()">${L('✅ 同意牌友申请', '✅ Accept friend request')}</button>`;
-        else apf.innerHTML = `<button class="ap-owner-btn" onclick="requestFriend('${userId}')">${L('👥 加为牌友', '👥 Add friend')}</button>`;
+        else if (incoming) apf.innerHTML = `<button class="ap-owner-btn" onclick="respondFriend('${userId}',true);closeAvatarPopup()">${ic('check')}<span>${L('同意牌友申请', 'Accept friend request')}</span></button>`;
+        else apf.innerHTML = `<button class="ap-owner-btn" onclick="requestFriend('${userId}')">${ic('user-plus')}<span>${L('加为牌友', 'Add friend')}</span></button>`;
         // 牌桌上是最可能想拉黑一个人的时刻（他正在这儿烦你），别让人回大厅再去翻列表
-        if (!isFriend) apf.innerHTML += `<button class="ap-owner-btn danger" onclick="blockFromTable('${userId}')">${L('🚫 拉黑', '🚫 Block')}</button>`;
+        if (!isFriend) apf.innerHTML += `<button class="ap-owner-btn danger" onclick="blockFromTable('${userId}')">${ic('ban')}<span>${L('拉黑', 'Block')}</span></button>`;
     }
     document.getElementById('avatar-popup').style.display = 'flex';
     if (socket) socket.emit('req_player_stats', { targetUserId: userId });

@@ -21,6 +21,8 @@ const EXPECTED_SCRIPTS = [
     '41-history.js',
     '42-replay.js',
     '43-friends.js',
+    '44-guide.js',
+    '45-card-art.js',   // 人头牌画法：必须在 50-audio-settings.js 之前（settings 初始化时就要用 FACE_ARTS）
     '50-audio-settings.js',
     '60-chat.js',
     '61-voice.js',

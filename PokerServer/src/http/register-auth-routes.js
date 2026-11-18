@@ -6,6 +6,7 @@ const { createSendCodeLimiter } = require('../ops/send-code-limiter');
 const { createFailureLimiter } = require('../ops/failure-limiter');
 const { normalizeDisplayName } = require('../account/display-name');
 const { refreshLiveUser } = require('../account/live-user');
+const { randomAvatar } = require('../account/avatar');
 
 function registerAuthRoutes({ app, db, bcrypt, mailer, signToken, userPayload, requireAuth, io, roomGames }) {
 // 注册/登录来源埋点（2026-09-21）。两个用途：看用户分布在哪些地区、
@@ -89,8 +90,9 @@ app.post('/api/register/verify', async (req, res) => {
     if (Date.now() > p.expires) { delete pendingRegs[email]; return res.status(400).json({ error: '验证码已过期，请重新获取', k: 'codeExpiredNew' }); }
     if (String(code).trim() !== p.code) return wrongCode(pendingRegs, email, res);
     try {
-        const user = db.createUser(p.username, p.hash, false, p.email);
+        const user = db.createUser(p.username, p.hash, false, p.email, { avatar: randomAvatar() });
         noteSource(req, user.id, 'signup');
+        if ((req.body || {}).shareRef) db.handShares.recordSignup(req.body.shareRef, user.id, 'register');   // 从分享链接来的
         delete pendingRegs[email];
         res.json({ token: signToken(user), user: userPayload(user) });
     } catch (err) {
@@ -238,8 +240,9 @@ app.post('/api/guest', (req, res) => {
         return res.status(429).json({ error: '此网络创建游客账号过于频繁，请稍后再试，或直接注册', k: 'guestTooMany' });
     }
     try {
-        const user = db.createGuest(name);
+        const user = db.createGuest(name, { avatar: randomAvatar() });   // 新号默认随机内置头像（不再是首字母色块）
         noteSource(req, user.id, 'signup');
+        if ((req.body || {}).shareRef) db.handShares.recordSignup(req.body.shareRef, user.id, 'guest');   // 从分享链接来的
         console.log(`[guest] 新游客 ${user.username}`);
         res.json({ token: signToken(user), user: userPayload(user) });
     } catch (err) { console.error(err); res.status(500).json({ error: '服务器错误', k: 'serverError' }); }

@@ -39,7 +39,8 @@
         #runit-boards { --comm-w: calc(var(--card-w) * 1.2); }   /* 兜底：真实值由 JS 的 syncCommunityWidth 写入 */
         #runit-boards .rib-slot { width: var(--comm-w); height: calc(var(--comm-w) * 1.39); border-radius: 6px; }
         #runit-boards .rib-slot.ghost { visibility: hidden; }   /* 占位对齐（共享底位置留空）*/
-        #runit-boards .rib-slots .card { width: var(--comm-w); height: calc(var(--comm-w) * 1.39); min-width: var(--comm-w); }
+        #runit-boards .rib-slots .card { width: var(--comm-w); height: calc(var(--comm-w) * 1.39); min-width: var(--comm-w);
+            --card-w: var(--comm-w); --card-h: calc(var(--comm-w) * 1.39); }   /* 字号跟着牌宽走，同 #community */
         /* 多次发牌结果 */
         /* 高牌定庄：座位上方翻出的牌 */
         .bd-card { --card-w: 32px; --card-h: 44px; position: fixed; z-index: 300; pointer-events: none;

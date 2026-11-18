@@ -60,7 +60,21 @@ setInterval(() => {
 // ===== Game actions =====
 function act(action) {
     if (inputLocked()) return;
+    // 弃牌保护（2026-11-17，美术第二轮 ③）：能免费过牌时点了弃牌，几乎都是按错了 —— 先问一句。
+    // 「取消 / 点外面」= 什么都不做；就算一直不点，超时也是自动过牌、不会弃牌：默认结果是安全的那个。
+    // 预操作「过/弃」走的是 act('check')，不会经过这里；快捷键 F 会（它模拟点按钮）。
+    if (action === 'fold' && canCheckNow()) {
+        uiConfirm(L('现在可以免费过牌，确定要弃牌吗？', 'You can check for free. Fold anyway?'),
+            { ok: L('弃牌', 'Fold'), cancel: L('取消', 'Cancel'), danger: true }).then(yes => {
+                if (!yes || !lastState || lastState.actionOnUserId !== myUserId) return;   // 等待期间已经轮不到我了
+                preAction = null; updatePreBar();
+                haptic();
+                if (currentRoom && socket) socket.emit('player_action', { roomId: currentRoom, action: 'fold' });
+            });
+        return;
+    }
     preAction = null; updatePreBar();   // 手动行动即取消预操作
+    haptic();
     if (currentRoom && socket) socket.emit('player_action', { roomId: currentRoom, action });
 }
 // ===== 预操作（不轮到我时提前勾选，到点自动执行）=====
@@ -83,6 +97,12 @@ function runPreAction(toCall) {
         if (a === 'checkfold') act(toCall > 0 ? 'fold' : 'check');
         else if (a === 'call') act(toCall > 0 ? 'call' : 'check');
     }, 350);
+}
+// 现在轮到我、且不用跟注（可以过牌）
+function canCheckNow() {
+    if (!lastState || lastState.actionOnUserId !== myUserId) return false;
+    const me = lastState.players.find(p => p.userId === myUserId);
+    return !!me && lastState.currentBet - me.currentBet <= 0;
 }
 // 过牌/跟注合并按钮：有未跟注则跟注，否则过牌
 function actCheckCall() {
@@ -126,9 +146,11 @@ function sendSize(amount) {
     amount = clampSize(amount);
     if (inputLocked() || !sizeCtx || !amount) return;
     const action = sizeCtx.currentBet === 0 ? 'bet' : 'raise';
+    haptic();
     socket.emit('player_action', { roomId: currentRoom, action, amount });
     document.getElementById('sizing-row').style.display = 'none';  // 收起精调面板
     document.body.classList.remove('sizing-open');
+    hideKeypad();
 }
 // 点「下注/加注」展开精调面板（滑条 + 输入框 + 确认）
 function openSizing() {
@@ -143,7 +165,90 @@ function openSizing() {
     const show = row.style.display === 'none';
     row.style.display = show ? 'flex' : 'none';
     document.body.classList.toggle('sizing-open', show);   // 拖动时暂停座位呼吸光/环形重绘，手机不卡
-    if (show) syncSizeInputs(sizeCtx.minTo);
+    if (show) { setupAmountInput(); syncSizeInputs(sizeCtx.minTo); }
+    hideKeypad();
+}
+// ===== 手机上的数字键盘（玩家视角复盘 P5）=====
+// 手机上拖滑条很难停在想要的数上；系统软键盘又会把整个牌桌顶起来（视口变矮 → 座位全部重排），
+// 还挡住大半个牌桌。所以触屏设备上金额框改成只读，点它弹出面板里自带的键盘。
+// 电脑（有鼠标/键盘）照旧直接在框里打字，不弹这个键盘。
+// 按下行动按钮时轻振一下（2026-11-17，美术第二轮 ⑤）：手指要立刻知道「按到了」。
+// 只在触屏上振；开关沿用 vibrate() 里的那个（跟着音效开关走）。数字键盘每个键更轻一点。
+function haptic(ms = 12) {
+    if (touchInput() && typeof vibrate === 'function') vibrate(ms);
+}
+// 手机下注滑条（2026-11-17，美术第二轮 ⑤）：原生滑条在手机上要手指正好按中圆钮才拖得动、还会跳。
+// 改成按住滑条上【任何位置】都能拖：按下就跳到手指那里，之后跟手走。电脑鼠标照旧用原生行为。
+// 值仍写回 #betSlider、走 onSliderInput → syncSizeInputs，金额框 / 确认按钮 / 下注信息条全部不用改。
+function sliderValueAt(sl, clientX) {
+    const r = sl.getBoundingClientRect();
+    const thumb = 32;                                  // 和 20-table.css 里圆钮的宽度一致：两端各留半个圆钮
+    const ratio = Math.max(0, Math.min(1, (clientX - r.left - thumb / 2) / Math.max(1, r.width - thumb)));
+    const mn = +sl.min, mx = +sl.max, step = +sl.step || 1;
+    const raw = mn + ratio * (mx - mn);
+    return ratio >= 1 ? mx : Math.min(mx, mn + Math.round((raw - mn) / step) * step);   // 拖到头一定是全下
+}
+function setupSliderDrag() {
+    const sl = document.getElementById('betSlider');
+    if (!sl || !sl.addEventListener || !sl.dataset || sl.dataset.drag) return;
+    sl.dataset.drag = '1';
+    const move = (e) => { sl.value = sliderValueAt(sl, e.clientX); onSliderInput(); };
+    sl.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse') return;          // 电脑：原生滑条本来就好用
+        e.preventDefault();
+        try { sl.setPointerCapture(e.pointerId); } catch (err) { /* 老浏览器：照样能拖，只是手指滑出滑条就停 */ }
+        move(e);
+        haptic(6);
+        const up = () => { sl.removeEventListener('pointermove', move); sl.removeEventListener('pointerup', up); sl.removeEventListener('pointercancel', up); };
+        sl.addEventListener('pointermove', move);
+        sl.addEventListener('pointerup', up);
+        sl.addEventListener('pointercancel', up);
+    });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setupSliderDrag); else setupSliderDrag();
+function touchInput() {
+    return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+}
+function setupAmountInput() {
+    const inp = document.getElementById('raiseAmount');
+    if (!inp) return;
+    const touch = touchInput();
+    inp.readOnly = touch;                                    // 只读 = 不弹系统键盘
+    inp.setAttribute('inputmode', touch ? 'none' : 'numeric');
+}
+let kpFresh = true;   // 键盘刚弹出时，按第一个数字是【替换】预填的金额，而不是接在它后面
+function toggleKeypad() {
+    if (!touchInput()) return;
+    const kp = document.getElementById('bet-keypad');
+    if (!kp) return;
+    const show = kp.style.display === 'none';
+    kp.style.display = show ? '' : 'none';
+    document.getElementById('raiseAmount').classList.toggle('kp-on', show);
+    // 键盘开着时面板底色变半透明：哪怕压到一点公共牌 / 座位，底下的牌也透得出来（验收时玩家反馈「挡住牌面」）
+    const row = document.getElementById('sizing-row');
+    if (row) row.classList.toggle('kp-open', show);
+    kpFresh = true;
+}
+function hideKeypad() {
+    const kp = document.getElementById('bet-keypad');
+    if (kp) kp.style.display = 'none';
+    const inp = document.getElementById('raiseAmount');
+    if (inp) inp.classList.remove('kp-on');
+    const row = document.getElementById('sizing-row');
+    if (row) row.classList.remove('kp-open');
+}
+function keypadPress(k) {
+    haptic(6);
+    const inp = document.getElementById('raiseAmount');
+    let s = kpFresh ? '' : String(inp.value || '');
+    kpFresh = false;
+    if (k === 'del') s = s.slice(0, -1);
+    else {
+        s = (s + k).replace(/^0+(?=\d)/, '');   // 不留前导 0
+        if (s.length > 9) return;                // 再长就没有意义了（确认时反正会夹到全下额）
+    }
+    inp.value = s;
+    onAmountInput();
 }
 function confirmBet() {
     sendSize(clampSize(parseInt(document.getElementById('raiseAmount').value)));
@@ -164,7 +269,14 @@ function onSliderInput() {
 }
 function onAmountInput() {
     const raw = parseInt(document.getElementById('raiseAmount').value);
-    if (!isNaN(raw)) { document.getElementById('betSlider').value = clampSize(raw); updateConfirmLabel(raw); }
+    if (isNaN(raw)) return;
+    // 滑条跟着走（含绿色进度条），确认按钮显示【实际会下的】数：超过全下额按全下、不到最小加注按最小加注
+    const sl = document.getElementById('betSlider');
+    const v = clampSize(raw);
+    sl.value = v;
+    const mn = +sl.min, mx = +sl.max;
+    sl.style.setProperty('--fill', (mx > mn ? Math.round((v - mn) / (mx - mn) * 100) : 0) + '%');
+    updateConfirmLabel(raw);
 }
 function updateConfirmLabel(v) {
     const val = clampSize(v);

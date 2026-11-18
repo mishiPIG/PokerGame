@@ -165,6 +165,7 @@ LOCAL_DEV=1 PORT=3000 node server.js
 
 **第三方素材**(各自许可随素材一起分发):
 - 牌面点数字体:[Jost](https://github.com/indestructible-type/Jost) 子集 —— SIL Open Font License 1.1(`PokerServer/public/fonts/Jost-OFL.txt`)
+- 人头牌毛笔字(侠 / 后 / 王):[马善政楷书 Ma Shan Zheng](https://github.com/googlefonts/mashanzheng) 子集 —— SIL Open Font License 1.1(`PokerServer/public/fonts/MaShanZheng-OFL.txt`)
 - 牌与筹码音效:[Kenney — Casino Audio](https://kenney.nl/assets/casino-audio) —— CC0(`PokerServer/public/sfx/Kenney-Casino-Audio-License.txt`)
 
 © 德扑道场(Poker Dojo)。除 LICENSE 明示授予外,保留所有权利。

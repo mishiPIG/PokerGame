@@ -1,5 +1,6 @@
 'use strict';
 const { nameOf } = require('../account/display-name');
+const { needsApproval } = require('./buyin-approval');
 
 function createSeatService({ io, db, roomGames, lobbySockets, config, persistence, hooks }) {
     const { PHASES, BUYIN_RATE, CASHOUT_RATE, gameBB, timeCardsFor } = config;
@@ -149,7 +150,8 @@ function removeBustedPlayers(game) {
         const p = game.players[i];
         if (game.roomType === 'cash') {
             // 自动补码：耗尽且开启 autoRebuy 且无挂起 → 自动按最小带入补一手（要离座的人不补）
-            if (!p.vacateAfter && p.chips <= 0 && p.autoRebuy && !(p.pendingRebuy > 0)) {
+            // 房主开了带入审批：自动补码不再自动扣钱（那等于绕过审批），坐出后自己点补码去申请
+            if (!p.vacateAfter && p.chips <= 0 && p.autoRebuy && !(p.pendingRebuy > 0) && !needsApproval(game, p.userId)) {
                 if (chargeRebuy(game, p, game.config.minBuyIn)) io.in(roomId).emit('server_msg', `🔁 ${nameOf(p)} 自动补码 ${game.config.minBuyIn}`);
             }
             // 有挂起补码：下一手生效（加筹码，取消坐出）。

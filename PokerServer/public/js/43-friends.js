@@ -107,7 +107,7 @@ function renderFriends() {
     if (friendTab === 'friends') {
         const list = friendData.friends;
         if (!list.length && !friendData.incoming.length) {
-            html += `<div class="pane-empty"><span class="pe-ico">👥</span>${
+            html += `<div class="pane-empty"><span class="pe-ico">${ic('users')}</span>${
                 L('还没有牌友<br>去「一起玩过」里把老对手加上，下次开局直接找他们',
                   'No poker friends yet<br>Add past opponents from “Played with” — then just ping them next time')}</div>`;
         } else if (list.length) {
@@ -117,7 +117,7 @@ function renderFriends() {
                 h2h: h2hHtml(f.userId),
                 buttons: `<button class="fr-btn" onclick="editFriendNote('${f.userId}')">${L('备注', 'Note')}</button>`
                        + `<button class="fr-btn danger" onclick="removeFriend('${f.userId}')">${L('删除', 'Remove')}</button>`
-                       + `<button class="fr-btn danger" title="${L('拉黑', 'Block')}" onclick="blockFriend('${f.userId}')">🚫</button>`,
+                       + `<button class="fr-btn danger" title="${L('拉黑', 'Block')}" onclick="blockFriend('${f.userId}')">${ic('ban')}</button>`,
             })).join('');
         }
         // 已拉黑单独一组、放在最后：没有「解除」的入口，拉黑就是个陷阱。
@@ -138,7 +138,7 @@ function renderFriends() {
     } else {
         // 「一起玩过」：纯从牌谱算出来的，已排除掉已有关系的人
         if (!friendRecent.length) {
-            html += `<div class="pane-empty"><span class="pe-ico">🃏</span>${
+            html += `<div class="pane-empty"><span class="pe-ico">${ic('cards')}</span>${
                 L('最近没有一起打过牌的人', 'Nobody you have played with recently')}</div>`;
         } else {
             html += `<div class="fr-sec">${L('最近一起打过牌', 'Recently played with')}</div>`;

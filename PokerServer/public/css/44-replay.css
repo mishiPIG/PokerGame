@@ -7,8 +7,11 @@
         .rp-head button { background: none; border: none; color: #9db9a9; font-size: 20px; cursor: pointer; }
         #rp-info { font-size: 11.5px; color: #9db9a9; margin: 4px 0 6px; }
         #rp-table { position: relative; width: 100%; flex: 1; min-height: 360px;
-            background: radial-gradient(ellipse at center,#234 0%,#12201a 78%); border-radius: 14px; overflow: hidden; }
-        #rp-ring { position: absolute; inset: 0; }
+            background: radial-gradient(ellipse at center,#24473a 0%,#12201a 78%);   /* 原中心是深蓝 #234，A1 统一配色漏网（2026-11-18 换成道场绿）*/ border-radius: 14px; overflow: hidden; }
+        /* 座位以自己的中心定位（translate -50%），最上面那家中心离顶端只有 7% ——
+           一个座位块（牌 + 头像 + 名字 + 筹码）约 110px 高，一半就伸到桌框外面、牌被裁掉。
+           所以座位环往里收半个座位：怎么摆都完整露在框里。底池和公共牌在 #rp-board 上，不受影响。*/
+        #rp-ring { position: absolute; inset: 58px 30px; }
         #rp-board { position: absolute; left: 50%; top: 42%; transform: translate(-50%,-50%); text-align: center; }
         #rp-pot { font-size: 14px; font-weight: bold; color: #f4d35e; margin-bottom: 5px;
             display: inline-flex; align-items: center; gap: 5px; }
@@ -19,6 +22,10 @@
            于是数字字号 24.8px 配 26px 的牌 → 数字和花色直接撑爆牌面。
            手机上 --card-w 本来就小所以看不出来，这是个只在电脑端暴露的 bug。 */
         #rp-community { --card-w: 26px; --card-h: 36px; }
+        /* 多次发牌总览帧：每一次一行（牌缩小一点，最多 5 行也放得下）*/
+        #rp-community.runs { flex-direction: column; align-items: center; gap: 4px; --card-w: 22px; --card-h: 31px; }
+        .rp-run { display: flex; gap: 3px; align-items: center; }
+        .rp-run-no { font-size: 11px; color: #9db9a9; width: 38px; text-align: right; margin-right: 4px; }
         .rp-seat { position: absolute; transform: translate(-50%,-50%); display: flex; flex-direction: column;
             align-items: center; gap: 1px; width: 66px; }
         .rp-seat.folded { opacity: 0.42; }
@@ -40,6 +47,12 @@
             padding: 0 6px; border-radius: 8px; }
         #rp-caption { text-align: center; font-size: 13px; color: #eaf3ee; min-height: 20px; margin: 8px 0; font-weight: 600; }
         .rp-controls { display: flex; align-items: center; justify-content: center; gap: 12px; }
+        /* 别人分享来的一手、还没登录：回放下方一条入口（接游客模式）*/
+        .rp-cta { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+            margin-top: 10px; padding: 10px 12px; border-radius: 12px; text-align: center;
+            background: rgba(244,211,94,0.1); border: 1px solid rgba(244,211,94,0.35); color: #eaf3ee; font-size: 13px; }
+        .rp-cta button { background: linear-gradient(135deg,#f4d35e,#ee9b00); color: #241a00; border: none;
+            border-radius: 999px; padding: 8px 18px; font-weight: bold; font-size: 14px; cursor: pointer; }
         .rp-controls button { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.16);
             color: #fff; width: 42px; height: 38px; border-radius: 10px; font-size: 16px; cursor: pointer; }
         #rp-play { background: #06d6a0; border-color: #06d6a0; }

@@ -3,7 +3,7 @@ const { nameOf } = require('../../account/display-name');
 const { newServerSeed, commitOf, createSeededRng } = require('./provably-fair');
 
 function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config, rules, pots, presenter, straddle, runIt, showdown, history, hooks }) {
-    const { PHASES, ACTION_TIME, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, STANDARD_BLIND_LEVELS, gameSB, gameBB, gameAnte, timeCardsFor } = config;
+    const { PHASES, actionTimeOf, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, STANDARD_BLIND_LEVELS, gameSB, gameBB, gameAnte, timeCardsFor } = config;
     const { activePlayers, canAct, needsToAct, findNextActionIdx, isBettingRoundComplete } = rules;
     const { collectBetsToPot, returnUncalledBets } = pots;
     const { broadcastState } = presenter;
@@ -45,7 +45,7 @@ function startActionTimer(roomId) {
     // 这手却要每人每街等满 18 秒才打得完。
     const room = io.sockets.adapter.rooms.get(roomId);
     const nobodyHere = !room || room.size === 0;
-    const ms = actor && (actor.leftByChoice || nobodyHere) ? LEFT_PLAYER_ACT_MS : ACTION_TIME;
+    const ms = actor && (actor.leftByChoice || nobodyHere) ? LEFT_PLAYER_ACT_MS : actionTimeOf(game);
     game.actionDeadline = Date.now() + ms;
     game.actionTotalMs = ms;
     game.actionTimer = setTimeout(() => onActionTimeout(roomId), ms);

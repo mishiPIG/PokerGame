@@ -6,6 +6,7 @@ const { openSqlite } = require('./sqlite');
 const { createUserRepository } = require('./user-repository');
 const { createWalletRepository } = require('./wallet-repository');
 const { createContentRepository } = require('./content-repository');
+const { createHandShareRepository } = require('./hand-share-repository');
 const { createMatchRepository } = require('./match-repository');
 const { createFriendRepository } = require('./friend-repository');
 const { createMetricsRepository } = require('./metrics-repository');
@@ -36,6 +37,7 @@ function createDatabaseService({
     const metrics = createMetricsRepository(db);
     const accountDeletion = createAccountDeletionRepository(db);
     const loginEvents = createLoginEventRepository(db);
+    const handShares = createHandShareRepository(db);
     users.backfillFriendCodes();   // 存量用户补发牌友号（幂等，没的才发）
 
     const checkinTx = db.transaction((id, dateStr, streak, reward) => {
@@ -70,6 +72,7 @@ function createDatabaseService({
         metrics,
         accountDeletion,
         loginEvents,
+        handShares,
         applyCheckin(id, dateStr, streak, reward) {
             try {
                 return checkinTx(id, dateStr, streak, reward);

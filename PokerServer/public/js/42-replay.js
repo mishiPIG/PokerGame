@@ -15,7 +15,8 @@ function buildReplayFrames(h) {
         userId: s.userId, name: s.username, avatar: s.avatar, seat: s.seat ?? 0,
         stack: s.startChips || 0, bet: 0, folded: false, showCards: false,
         // heroId：示例牌局没有「我」，由牌谱自己指定从谁的视角看（那一家的牌亮着、坐在屏幕下方）
-        hole: (s.hole || []).map(rpParseCard), isMe: s.userId === (h.heroId || myUserId), pos: ''
+        // 底牌被过滤掉的人（桌子还没散时别人弃掉的牌 / 分享链接里看不见的牌）：画两张牌背，别让他看起来像没拿牌
+        hole: s.hole && s.hole.length ? s.hole.map(rpParseCard) : [null, null], isMe: s.userId === (h.heroId || myUserId), pos: ''
     }));
     const byId = {}; players.forEach(p => byId[p.userId] = p);
     const n = players.length;
@@ -30,7 +31,7 @@ function buildReplayFrames(h) {
     }
     let pot = 0, community = 0, street = 'preflop';
     const frames = [];
-    const snap = (caption, actingId) => frames.push({ players: players.map(p => ({ ...p })), pot, community, caption, actingId });
+    const snap = (caption, actingId, extra = {}) => frames.push({ players: players.map(p => ({ ...p })), pot, community, caption, actingId, ...extra });
     if (h.ante > 0) players.forEach(p => { const a = Math.min(h.ante, p.stack); p.stack -= a; pot += a; });
     const sbP = players.find(p => (p.pos || '').includes('SB'));
     const bbP = players.find(p => (p.pos || '').includes('BB'));
@@ -68,6 +69,27 @@ function buildReplayFrames(h) {
         snap(`${stName[street] || street} · ${cap}${think}`, a.userId);
     }
     players.forEach(p => { pot += p.bet; p.bet = 0; });
+    // 多次发牌（run it N times）：原来回放只用 h.community（第 1 次那一组），后面几次根本看不到（2026-11-18 玩家反馈）。
+    // 牌谱里每一次的完整公共牌 / 赢家 / 金额都存着（h.runIt.boards / winners / amounts）：每一次单独一帧，最后一帧把 N 组叠在一起总览。
+    const rr = h.runIt;
+    if (rr && rr.n > 1 && Array.isArray(rr.boards) && rr.boards.length) {
+        players.forEach(p => { if (!p.folded) p.showCards = true; });
+        snap(L(`全押 · 发 ${rr.n} 次（底池均分）`, `All-in · run it ${rr.n} times (pot split)`), null);
+        rr.boards.forEach((bd, i) => {
+            const ws = (rr.winners || [])[i] || [];
+            const amt = (rr.amounts || [])[i] || 0;
+            ws.forEach(id => { const p = byId[id]; if (p) p.stack += Math.floor(amt / ws.length); });
+            pot = Math.max(0, pot - amt);
+            const names = ws.map(id => byId[id] && byId[id].name).filter(Boolean).join('、');
+            snap(`${L(`第 ${i + 1} 次`, `Run ${i + 1}`)} · ${names || L('平分', 'split')} +${fmtChips(amt)}`, null,
+                { community: 5, board: (bd || []).map(rpParseCard) });
+        });
+        // 最终筹码以牌谱记录的结果为准（均分时的零头、边池都已算在里面）
+        (h.results || []).forEach(r => { const p = byId[r.userId]; if (p && typeof r.endChips === 'number') p.stack = r.endChips; });
+        pot = 0;
+        snap(L(`共发 ${rr.n} 次`, `Ran it ${rr.n} times`), null, { community: 5, boards: rr.boards.map(bd => (bd || []).map(rpParseCard)) });
+        return frames;
+    }
     community = (h.community || []).length;
     players.forEach(p => { if (!p.folded) p.showCards = true; });
     const winners = (h.results || []).filter(r => r.won > 0);
@@ -90,6 +112,9 @@ function handPositions(seats, buttonUserId) {
 }
 function openHandDetail(h) {
     curDetailHand = h;
+    document.getElementById('hd-share-row').style.display = 'none';   // 换了一手，上一手的分享链接收起来
+    // 示例牌局 / 别人分享给我的那一手：不是我打的，不能再分享
+    document.getElementById('hd-share-btn').style.display = h.handId ? '' : 'none';
     const seats = (h.seats || []).slice().sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
     const foldedSet = new Set((h.actions || []).filter(a => a.action === 'fold').map(a => a.userId));
     const showdown = seats.filter(s => !foldedSet.has(s.userId)).length >= 2;
@@ -109,7 +134,7 @@ function openHandDetail(h) {
                 const cards = (bd || []).map(cs => formatCard(rpParseCard(cs))).join('');
                 const wn = ((rr.winners || [])[i] || []).map(id => { const s = seats.find(x => x.userId === id); return s ? s.username : id; }).join(' / ');
                 return `<div class="hd-runit-row"><span class="hd-runit-no">${L(`第${i + 1}次`, `#${i + 1}`)}</span><div class="hd-runit-bd">${cards}</div>`
-                    + `<span class="hd-runit-w">🏆 ${escapeHtml(wn)} +${fmtChips((rr.amounts || [])[i] || 0)}</span></div>`;
+                    + `<span class="hd-runit-w">${ic('trophy', 'c-gold')} ${escapeHtml(wn)} +${fmtChips((rr.amounts || [])[i] || 0)}</span></div>`;
             }).join('') + `</div>`;
     }
     document.getElementById('hd-board').innerHTML =
@@ -119,7 +144,7 @@ function openHandDetail(h) {
         const isMe = s.userId === myUserId;
         const folded = foldedSet.has(s.userId);
         const showFace = isMe || (!folded && showdown);
-        const holeHtml = (s.hole || []).map(cs => showFace ? formatCard(rpParseCard(cs)) : cardBack()).join('');
+        const holeHtml = (s.hole && s.hole.length ? s.hole : [null, null]).map(cs => (showFace && cs) ? formatCard(rpParseCard(cs)) : cardBack()).join('');
         const acts = (h.actions || []).filter(a => a.userId === s.userId);
         let actHtml = '', lastStreet = null;
         acts.forEach(a => {
@@ -153,14 +178,20 @@ function replayCurrentDetail() { closeHandDetail(); if (curDetailHand) openRepla
 
 function openReplay(h) {
     rpFrames = buildReplayFrames(h);
+    // 别人分享来的那一手：没登录的人看完给一个「自己也来玩」（接到游客模式上）
+    let loggedIn = false; try { loggedIn = !!localStorage.getItem('token'); } catch {}
+    document.getElementById('rp-cta').style.display = (h.shared && !loggedIn) ? '' : 'none';
     rpCommunity = (h.community || []).map(rpParseCard);
     rpIdx = 0; rpPlaying = false;
     const time = fmtDateTime(h.ts);
     const me = (h.seats || []).find(s => s.userId === (h.heroId || myUserId));
-    document.getElementById('rp-info').textContent =
+    const sharer = h.shared && me ? L(`${me.username} 分享的一手 · `, `Shared by ${me.username} · `) : '';
+    document.getElementById('rp-info').textContent = sharer +
         `${time} · ${h.mode === 'cash' ? L('现金桌', 'Cash') : 'SNG'} · ${L('盲注', 'Blinds')} ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''} · ${L(`${(h.seats || []).length} 人`, `${(h.seats || []).length} players`)}`
-        + (me ? L(` · 你的后手 ${Math.round((me.startChips || 0) / h.bb)}BB`,
-                  ` · your stack ${Math.round((me.startChips || 0) / h.bb)}BB`) : '');
+        // 分享来的那一手：「我」是分享人，不是正在看的人
+        + (me ? (h.shared
+            ? L(` · TA 的后手 ${Math.round((me.startChips || 0) / h.bb)}BB`, ` · their stack ${Math.round((me.startChips || 0) / h.bb)}BB`)
+            : L(` · 你的后手 ${Math.round((me.startChips || 0) / h.bb)}BB`, ` · your stack ${Math.round((me.startChips || 0) / h.bb)}BB`)) : '');
     document.getElementById('replay-overlay').style.display = 'flex';
     renderReplayFrame();
     rpToggle();   // 自动播放
@@ -179,7 +210,7 @@ function renderReplayFrame() {
         const ri = ((i - base) % n + n) % n;
         const pos = rpRingPos(ri, n);
         const showFace = p.isMe || p.showCards;
-        const cards = p.hole.map(c => showFace ? formatCard(c) : cardBack()).join('');
+        const cards = p.hole.map(c => (showFace && c) ? formatCard(c) : cardBack()).join('');
         const cls = 'rp-seat' + (p.folded ? ' folded' : '') + (p.userId === f.actingId ? ' acting' : '');
         const initial = (p.name || '?').charAt(0).toUpperCase();
         const av = p.avatar ? `<img src="${escapeHtml(p.avatar)}" onerror="this.style.display='none'">` : escapeHtml(initial);
@@ -193,8 +224,15 @@ function renderReplayFrame() {
         </div>`;
     }).join('');
     let cc = '';
-    for (let i = 0; i < 5; i++) cc += (i < f.community && rpCommunity[i]) ? formatCard(rpCommunity[i]) : emptySlot();
-    document.getElementById('rp-community').innerHTML = cc;
+    const commEl = document.getElementById('rp-community');
+    if (f.boards) {   // 多次发牌总览：每一次一行
+        cc = f.boards.map((bd, i) => `<div class="rp-run"><span class="rp-run-no">${L(`第${i + 1}次`, `#${i + 1}`)}</span>${bd.map(c => formatCard(c)).join('')}</div>`).join('');
+    } else {
+        const src = f.board || rpCommunity;   // 多次发牌的某一次：用那一次的公共牌
+        for (let i = 0; i < 5; i++) cc += (i < f.community && src[i]) ? formatCard(src[i]) : emptySlot();
+    }
+    commEl.classList.toggle('runs', !!f.boards);
+    commEl.innerHTML = cc;
     // 与牌桌同一个筹码图标（原来是 💰 emoji，牌桌换成 CSS 筹码后回放没跟上）
     document.getElementById('rp-pot').innerHTML = '<span class="chip gold"></span>' + L('底池 ', 'Pot ') + escapeHtml(String(fmtChips(f.pot)));
     document.getElementById('rp-caption').textContent = f.caption || '';
@@ -202,16 +240,16 @@ function renderReplayFrame() {
 }
 function rpToggle() {
     rpPlaying = !rpPlaying;
-    document.getElementById('rp-play').textContent = rpPlaying ? '⏸' : '▶';
+    setIconLabel(document.getElementById('rp-play'), rpPlaying ? 'pause' : 'play');
     if (rpPlaying) rpAdvanceLoop(); else if (rpTimer) { clearTimeout(rpTimer); rpTimer = null; }
 }
 function rpAdvanceLoop() {
     if (!rpPlaying) return;
-    if (rpIdx >= rpFrames.length - 1) { rpPlaying = false; document.getElementById('rp-play').textContent = '▶'; return; }
+    if (rpIdx >= rpFrames.length - 1) { rpPlaying = false; setIconLabel(document.getElementById('rp-play'), 'play'); return; }
     rpTimer = setTimeout(() => { rpIdx++; renderReplayFrame(); rpAdvanceLoop(); }, 1300 / RP_SPEEDS[rpSpeedIdx]);
 }
 function rpStep(dir) {
-    rpPlaying = false; document.getElementById('rp-play').textContent = '▶';
+    rpPlaying = false; setIconLabel(document.getElementById('rp-play'), 'play');
     if (rpTimer) { clearTimeout(rpTimer); rpTimer = null; }
     rpIdx = Math.max(0, Math.min(rpFrames.length - 1, rpIdx + dir));
     renderReplayFrame();
@@ -277,3 +315,55 @@ function demoHand() {
     };
 }
 function openDemoHand() { openReplay(demoHand()); }
+
+// ===== 牌谱分享（2026-11-17）=====
+// 分两步：先拿链接、显示在一行里，再点「复制」/「分享到…」。
+// 不能一点就直接复制：拿链接要等服务器，而 Safari 等浏览器要求复制/系统分享发生在【用户这一下点击里】，
+// 等完网络请求这一下就过期了，复制会静默失败。第二次点击是新的一下，稳。
+async function shareCurrentHand() {
+    const h = curDetailHand;
+    if (!h || !h.handId) return;
+    let data = {};
+    try {
+        const r = await fetch('/api/hands/share', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('token') },
+            body: JSON.stringify({ handId: h.handId })
+        });
+        data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.token) throw data;
+    } catch (e) {
+        toast(apiErr(e, '生成分享链接失败', 'Could not create a share link'));
+        return;
+    }
+    document.getElementById('hd-share-url').value = location.origin + '/#/hand/' + data.token;
+    document.getElementById('hd-share-native').style.display = navigator.share ? '' : 'none';
+    document.getElementById('hd-share-row').style.display = '';
+}
+function copyShareUrl() {
+    copyText(document.getElementById('hd-share-url').value,
+        L('已复制，发给朋友就能看这一手的回放（不用登录）', 'Copied — anyone with the link can watch this hand (no login needed)'));
+}
+function nativeShare() {
+    const url = document.getElementById('hd-share-url').value;
+    if (!navigator.share || !url) return;
+    navigator.share({ title: L('德扑道场 · 一手牌', 'Poker Dojo · a hand'), url }).catch(() => {});   // 用户取消也会进这里，不提示
+}
+// 点分享链接进来：拉那一手（服务端已经过滤成分享人当时看得见的样子）直接放回放
+async function openSharedHand(token) {
+    try {
+        const r = await fetch('/api/shared-hand/' + encodeURIComponent(token));
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.hand) throw data;
+        rememberShareRef(token);       // 没登录的人：记下是哪条分享带他来的（之后建号时一起报上去）
+        openReplay(data.hand);
+    } catch (e) {
+        toast(apiErr(e, '这个分享链接已失效', 'This share link is no longer available'), 4000);
+    }
+}
+// 回放下方的「自己也来玩」：关掉回放，光标落到登录页的昵称框（填个昵称就能进）
+function ctaPlay() {
+    closeReplay();
+    const inp = document.getElementById('guest-name');
+    if (inp) { inp.focus(); inp.select && inp.select(); }
+}

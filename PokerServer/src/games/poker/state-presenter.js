@@ -34,6 +34,8 @@ function broadcastState(roomId) {
         roomType:   game.roomType || 'cash',
         roomName:   game.config?.name || roomId,
         maxPlayers: game.config?.maxPlayers || 9,
+        actionTimeSec: (game.config?.actionTimeSec) || ACTION_TIME / 1000,
+        approveBuyIn: !!game.config?.approveBuyIn,   // 现金桌：带入 / 补码需房主批准   // 每次行动的思考时间（比赛设置里显示）
         sidePots:   livePots(game),
         spectators: listSpectators(roomId),
         vacatedUserIds: (game.vacatedPlayers || []).map(v => v.userId),   // 站起围观者（可带原筹码回座）

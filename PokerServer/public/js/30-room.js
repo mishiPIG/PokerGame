@@ -48,7 +48,7 @@ function showKickedNotice(reason) {
             + 'background:rgba(8,18,13,0.9);padding:24px';
         el.innerHTML = '<div style="max-width:340px;background:linear-gradient(160deg,#22392e,#12201a);color:#eaf3ee;'
             + 'border-radius:16px;padding:22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.1)">'
-            + '<div style="font-size:34px;margin-bottom:8px">🔒</div>'
+            + '<div style="font-size:34px;margin-bottom:8px">' + ic('lock') + '</div>'
             + `<div style="font-size:16px;font-weight:bold;margin-bottom:8px">${L('此页面已断开', 'This page was disconnected')}</div>`
             + '<div id="kicked-reason" style="font-size:13px;color:#9db9a9;line-height:1.6;margin-bottom:16px"></div>'
             + '<button onclick="location.reload()" style="width:100%;padding:11px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:bold;'
@@ -173,12 +173,17 @@ function runitDealStreet(m) {
     const slots = document.querySelector(`#runit-boards .rib-row[data-run="${m.run}"] .rib-slots`);
     if (!slots) return;
     const start = runitState.baseLen + runitState.filled[m.run];
+    let squeezed = false;
     (m.cards || []).forEach((c, k) => {
         const slot = slots.children[start + k];
-        if (slot) slot.outerHTML = formatCard(c, true, k * 130);   // 替换占位为发牌动画
+        if (!slot) return;
+        // 这一组的转牌 / 河牌（第 4、5 张）慢翻，和单次跑马一样（2026-11-18 玩家反馈：协商发多次时最后两张没有慢翻）
+        if (start + k >= 3 && !reducedMotion()) { slot.outerHTML = formatCard(c, false, k * 130, { squeeze: true }); squeezed = true; }
+        else slot.outerHTML = formatCard(c, true, k * 130);   // 替换占位为发牌动画
     });
     runitState.filled[m.run] += (m.cards || []).length;
     sndFlip(0);
+    if (squeezed) setTimeout(() => sndFlip(0), 1000);         // 揭开那一下再响一声
     document.querySelectorAll('#runit-boards .rib-row').forEach(rw => rw.classList.toggle('active', +rw.dataset.run === m.run));
 }
 function runitAward(m) {
@@ -316,7 +321,7 @@ function renderSngTiers() {
     const row = document.getElementById('sngBuyinRow');
     row.innerHTML = SNG_TIERS.map(([fee, prize]) =>
         `<button type="button" class="tier-btn${fee === sngBuyin ? ' sel' : ''}" onclick="selectSngTier(${fee})">
-            🪙${fee}<small>${L('冠军≈', 'Win≈')}${prize}</small></button>`).join('');
+            ${ic('coin', 'gold')}${fee}<small>${L('冠军≈', 'Win≈')}${prize}</small></button>`).join('');
 }
 function selectSngTier(fee) { sngBuyin = fee; renderSngTiers(); }
 // 现金桌训练时长档位（小时）
@@ -349,6 +354,12 @@ function updateCashLabels() {
 // 谁能进：默认私密。默认值决定 90% 的结果 —— 把「陌生人能坐进我的局」设成默认，
 // 一旦出事就是信任事故，而信任事故比冷清难修得多。
 let createVisibility = 'private';
+// 每次行动的思考时间（秒）：默认 18，和原来一样；朋友里有新手的话房主可以放宽到 20 / 30
+let createThinkSec = 18;
+function setThinkTime(s) {
+    createThinkSec = s;
+    document.querySelectorAll('#thinkRow .tier-btn').forEach(b => b.classList.toggle('sel', +b.dataset.sec === s));
+}
 function setVisibility(v) {
     createVisibility = v === 'public' ? 'public' : 'private';
     document.getElementById('visPrivate')?.classList.toggle('sel', createVisibility === 'private');
@@ -363,10 +374,12 @@ function submitCreate() {
             sb, bb,
             ante: parseInt(document.getElementById('ccAnte').value),
             allowUtgStraddle: document.getElementById('ccStraddle').checked,
+            approveBuyIn: document.getElementById('ccApprove').checked,
             maxPlayers: parseInt(document.getElementById('ccMax').value),
             minBuyIn: parseInt(document.getElementById('ccMin').value),
             maxBuyIn: parseInt(document.getElementById('ccCap').value),
             durationH: ccDur,
+            actionTimeSec: createThinkSec,
             visibility: createVisibility
         });
     } else {
@@ -376,6 +389,7 @@ function submitCreate() {
             levelMinutes:  parseInt(document.getElementById('cfgLevel').value),
             maxPlayers:    parseInt(document.getElementById('cfgMax').value),
             buyIn:         sngBuyin,
+            actionTimeSec: createThinkSec,
             visibility:    createVisibility
         });
     }
@@ -448,7 +462,7 @@ function renderInviteInfo() {
     document.getElementById('invite-content').style.display = '';
     document.getElementById('invite-message').textContent = formatRoomInvite(roomInviteInfo);
     const lock = document.getElementById('invite-lock-btn');
-    lock.textContent = roomInviteInfo.entryLocked ? L('🔒 已锁定入场', '🔒 Entry locked') : L('🔓 开放入场', '🔓 Open entry');
+    setIconLabel(lock, roomInviteInfo.entryLocked ? 'lock' : 'unlock', roomInviteInfo.entryLocked ? L('已锁定入场', 'Entry locked') : L('开放入场', 'Open entry'));
     lock.classList.toggle('locked', !!roomInviteInfo.entryLocked);
 }
 function formatRoomInvite(invite) {
@@ -488,6 +502,36 @@ function dissolveRoom() {
         : L('确定解散比赛？比赛将结束，奖池归当前筹码领先者。', 'Dissolve the game? It ends now and the pool goes to the current chip leader.');
     uiConfirm(msg, { danger: true }).then(ok => { if (ok) socket.emit('dissolve_room'); });
 }
+// 「再来一局」（SNG，房主）：服务端用同样设置开新桌，自己直接入座，上一场的人收到邀请
+let _rematchAt = 0;
+function requestRematch() {
+    if (!socket || Date.now() - _rematchAt < 3000) return;   // 防连点
+    _rematchAt = Date.now();
+    socket.emit('rematch_sng');
+}
+// 本场最大的一手：从我自己的牌谱里挑这一场底池最大的那手。
+// 只挑我打过的（我的牌谱接口本来就只给这些）—— 别人的手牌我本来就无权看全。
+async function loadBestHand(matchId) {
+    const box = document.getElementById('result-best');
+    box.style.display = 'none';
+    if (!matchId || !currentRoom) return;
+    let hands = [];
+    try {
+        const r = await fetch('/api/my-hands?limit=300&room=' + encodeURIComponent(currentRoom),
+            { headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } });
+        hands = (await r.json()).filter(h => h.matchId === matchId);
+    } catch { return; }
+    const potOf = (h) => (h.results || []).reduce((s, r) => s + (r.won || 0), 0);
+    const best = hands.reduce((a, h) => (!a || potOf(h) > potOf(a) ? h : a), null);
+    if (!best || potOf(best) <= 0) return;
+    const winner = (best.seats || []).find(s => (best.results || []).some(r => r.userId === s.userId && r.won > 0));
+    window._bestHand = best;
+    box.innerHTML = `<div class="rb-t">${L('本场最大的一手', 'Biggest hand of the session')}</div>`
+        + `<div class="rb-d">${L('底池', 'Pot')} <b>${fmtChips(potOf(best))}</b>`
+        + (winner ? ` · ${escapeHtml(winner.username)} ${L('赢下', 'won it')}` : '') + `</div>`
+        + `<button class="rb-btn" onclick="openHandDetail(window._bestHand)">${L('看这一手 · 可分享', 'View · share')}</button>`;
+    box.style.display = '';
+}
 function closeResult() {
     document.getElementById('result-overlay').style.display = 'none';
     // 🔴 比赛已经结束（服务端已结算、房间已删）：直接回大厅。
@@ -511,7 +555,7 @@ function toggleTableMenu() {
         m.querySelectorAll('.seat-only').forEach(e => e.style.display = (isCash && amSeated) ? '' : 'none');
         m.querySelectorAll('.owner-only').forEach(e => e.style.display = isOwner ? '' : 'none');
         const pb = document.getElementById('tmPause');
-        if (pb) pb.textContent = st.paused ? L('▶️ 继续发牌', '▶️ Resume dealing') : L('⏸️ 暂停发牌', '⏸️ Pause dealing');
+        if (pb) setIconLabel(pb, st.paused ? 'play' : 'pause', st.paused ? L('继续发牌', 'Resume dealing') : L('暂停发牌', 'Pause dealing'), 'c-orange');
     }
     m.style.display = show ? '' : 'none';
 }
@@ -675,7 +719,7 @@ function renderRoomList(rooms) {
     if (myBox) {
         document.getElementById('my-room-count').textContent = mine.length ? `(${mine.length})` : '';
         myBox.innerHTML = mine.length ? roomCards(mine)
-            : `<div class="pane-empty"><span class="pe-ico">\u{1F0CF}</span>${
+            : `<div class="pane-empty"><span class="pe-ico">${ic('cards')}</span>${
                 L('还没有进行中的牌局<br>创建一局，或输入朋友给你的四位房间码',
                   'No games in progress<br>Create one, or enter the 4-digit room code a friend gave you')}</div>`;
     }
@@ -690,7 +734,7 @@ function renderRoomList(rooms) {
 
     const box = document.getElementById('room-list');
     if (!others.length) {
-        box.innerHTML = `<div class="pane-empty"><span class="pe-ico">\u{1F50D}</span>${
+        box.innerHTML = `<div class="pane-empty"><span class="pe-ico">${ic('search')}</span>${
             discoverTotal ? L('这个筛选下没有牌局', 'No games match this filter')
                           : L('现在没有别人的牌局<br>让朋友开一局，或者自己在「约局」里创建',
                               'Nobody else has a game going<br>Ask a friend to start one, or create your own under Play')}</div>`;
@@ -710,14 +754,18 @@ function roomCards(rooms) {
         const isPublic = r.visibility === 'public';
         if (r.isMember)     { btnLabel = L('重新进入', 'Re-enter'); disabled = false; cls = 'rejoin'; }
         else if (isPublic)  { btnLabel = L('进入牌局', 'Join');     disabled = false; cls = 'open'; }
-        else                { btnLabel = L('👀 观战', '👀 Spectate'); disabled = false; }
+        else                { btnLabel = L('观战', 'Spectate'); disabled = false; cls = 'watch'; }
         const isCash = r.roomType === 'cash';
         const tag  = isCash ? `<span class="rc-tag cash">${L('现金桌', 'Cash')}</span>` : `<span class="rc-tag">${L('SNG·升盲', 'SNG')}</span>`;
-        const vis  = isPublic ? `<span class="rc-tag open">${L('🌐 公开', '🌐 Open')}</span>`
-                              : `<span class="rc-tag priv">${L('🔒 房间码', '🔒 Code')}</span>`;
+        const vis  = isPublic ? `<span class="rc-tag open">${ic('globe')}${L('公开', 'Open')}</span>`
+                              : `<span class="rc-tag priv">${ic('lock')}${L('房间码', 'Code')}</span>`;
+        // 每一项包成不折行的一组：否则窄屏换行时图标会留在上一行行尾、数字掉到下一行
+        const mi = (s) => `<span class="rc-mi">${s}</span>`;
         const meta = isCash
-            ? `👤 ${r.playerCount}/${r.maxPlayers} · ${L('盲注', 'Blinds')} ${r.sb}/${r.bb}${r.ante ? ' · ante '+r.ante : ''} · ${L('带入≥', 'Buy-in≥')}${(r.minBuyIn||0).toLocaleString()}`
-            : `👤 ${r.playerCount}/${r.maxPlayers} · ⏱ ${r.levelMinutes}min · 🪙${L('报名', 'Buy-in')} ${r.buyIn}`;
+            ? [mi(`${ic('user')}${r.playerCount}/${r.maxPlayers}`), mi(`${L('盲注', 'Blinds')} ${r.sb}/${r.bb}`),
+               r.ante ? mi('ante ' + r.ante) : '', mi(`${L('带入≥', 'Buy-in≥')}${(r.minBuyIn||0).toLocaleString()}`)].filter(Boolean).join(' · ')
+            : [mi(`${ic('user')}${r.playerCount}/${r.maxPlayers}`), mi(`${ic('timer')}${r.levelMinutes}min`),
+               mi(`${ic('coin', 'c-gold')}${L('报名', 'Buy-in')} ${r.buyIn}`)].join(' · ');
         return `<div class="room-card">
             <div class="rc-main">
                 <div class="rc-name">${escapeHtml(r.name)}</div>
@@ -741,10 +789,12 @@ function renderMatchInfo(st) {
         [L('入场状态', 'Access'), iCanPlay ? L('🔐 已获下场资格', '🔐 May sit down') : L('👀 观战中', '👀 Spectating')],
         [L('盲注', 'Blinds'), `${st.smallBlind}/${st.bigBlind}` + (st.ante ? ` · ante ${st.ante}` : '')],
         [L('最大人数', 'Max players'), st.maxPlayers],
+        [L('思考时间', 'Thinking time'), L(`${st.actionTimeSec || 18} 秒`, `${st.actionTimeSec || 18}s`)],
     ];
     if (isCash) {
         rows.push([L('带入区间', 'Buy-in range'), `${(st.minBuyIn || 0).toLocaleString()} ~ ${st.maxBuyIn > 0 ? st.maxBuyIn.toLocaleString() : L('无限制', 'Unlimited')}`]);
         rows.push(['UTG Straddle', st.allowUtgStraddle ? L('🔥 已开启 · 2BB', '🔥 On · 2BB') : L('未开启', 'Off')]);
+        rows.push([L('带入审批', 'Buy-in approval'), st.approveBuyIn ? L('🔐 需房主批准', '🔐 Host approves') : L('不需要', 'Off')]);
         if (st.tableEndAt) {
             // 和播报走同一个 fmtDuration —— 否则面板说「约 80 分钟」、toast 说「1 小时 20 分」，
             // 同一个数两种说法，正是那种「说不上哪儿不对」的来源。
@@ -766,6 +816,9 @@ function renderMatchInfo(st) {
         html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('UTG Straddle（下一手起生效）', 'UTG straddle (from next hand)')}</span>
             <div class="tier-row"><button type="button" class="ext-btn" onclick="setUtgStraddle(${!st.allowUtgStraddle})">
             ${st.allowUtgStraddle ? L('关闭 Straddle', 'Turn off straddle') : L('开启 Straddle 2BB', 'Turn on straddle 2BB')}</button></div></div>`;
+        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('带入审批（坐下和补码都要你批准）', 'Buy-in approval (buy-ins and rebuys need your OK)')}</span>
+            <div class="tier-row"><button type="button" class="ext-btn" onclick="setApproveBuyIn(${!st.approveBuyIn})">
+            ${st.approveBuyIn ? L('关闭带入审批', 'Turn off approval') : L('开启带入审批', 'Turn on approval')}</button></div></div>`;
         // 只留加时：提前结束房主本来就有「⏸️ 暂停发牌」和「结束比赛」两个入口，
         // 再放一排「−30/−15」是重复的路径，还容易误点把桌子提前判到时。
         html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('比赛加时（分钟）', 'Extend game (minutes)')}</span>
@@ -777,6 +830,37 @@ function renderMatchInfo(st) {
     if (!isOwner) html += `<div class="mi-note">${L('仅房主可调整时间 / 结束比赛', 'Only the host can adjust time / end the game')}</div>`;
     document.getElementById('match-info').innerHTML = html;
     document.querySelectorAll('#match-modal .owner-only').forEach(e => e.style.display = isOwner ? '' : 'none');
+}
+function setApproveBuyIn(enabled) {
+    if (!socket) return;
+    socket.emit('set_approve_buyin', { enabled: enabled === true });
+}
+// 带入审批：房主这边一条一条处理（同时来几条就排队，一次只弹一个，免得后来的把前一个顶掉）
+const buyinQueue = [];
+let buyinShowing = false;
+function onBuyinRequest(req) {
+    buyinQueue.push(req);
+    if (!buyinShowing) nextBuyinRequest();
+}
+function nextBuyinRequest() {
+    const req = buyinQueue.shift();
+    if (!req) { buyinShowing = false; return; }
+    buyinShowing = true;
+    vibrate([40, 60, 40]);
+    const what = req.kind === 'rebuy'
+        ? L(`${req.name} 想补码 ${fmtChips(req.chips)}`, `${req.name} wants to rebuy ${fmtChips(req.chips)}`)
+        : L(`${req.name} 想坐下，带入 ${fmtChips(req.chips)}`, `${req.name} wants to sit down with ${fmtChips(req.chips)}`);
+    uiConfirm(what, { ok: L('批准', 'Approve'), cancel: L('拒绝', 'Decline') }).then(ok => {
+        if (socket) socket.emit('buyin_decide', { userId: req.userId, approve: ok });
+        nextBuyinRequest();
+    });
+}
+// 申请人这边：房主批准了 → 把原来那个请求再发一次（服务端这次会认出那张批准）
+function onBuyinApproved({ kind, chips, seat }) {
+    if (!socket) return;
+    if (kind === 'rebuy') socket.emit('rebuy', { amount: chips });
+    else socket.emit('sit_down', { buyInChips: chips, seat: Number.isInteger(seat) ? seat : null });
+    toast(L('房主已批准', 'The host approved'), 1800);
 }
 function setUtgStraddle(enabled) {
     if (!socket) return;
@@ -845,7 +929,7 @@ function renderMeHead() {
         <div class="me-id">
             <div class="me-name">${escapeHtml(name)}</div>
             ${isGuest ? `<div><span class="me-guest-tag">${L('游客 · 还没保存账号', 'Guest · not saved yet')}</span></div>` : ''}
-            <div class="me-gold">\u{1FA99} ${(myGold || 0).toLocaleString()}</div>
+            <div class="me-gold">${ic('coin')} ${(myGold || 0).toLocaleString()}</div>
             ${myFriendCode && !isGuest ? `<div class="me-code" onclick="copyMyCode()" title="${L('点一下复制', 'Tap to copy')}">${
                 L('牌友号', 'Code')} ${escapeHtml(myFriendCode)} ⧉</div>` : ''}
         </div>`;
@@ -866,7 +950,7 @@ function openFairPanel() {
     const fair = st.fair;
     const short = (x) => (x ? String(x).slice(0, 24) + '…' : '—');
 
-    let html = '<div class="modal-box"><h3>' + L('🔒 公平性验证', '🔒 Provably fair') + '</h3>';
+    let html = '<div class="modal-box"><h3>' + ic('shield-check') + ' ' + L('公平性验证', 'Provably fair') + '</h3>';
     html += '<div class="fair-note">'
         + L('每一手的牌序都由一个随机种子决定，而种子的指纹在【发牌之前】就已经公布给全桌。',
             'Every hand is dealt from a random seed whose fingerprint is published to the whole table BEFORE any card is dealt.')
@@ -897,8 +981,8 @@ function openFairPanel() {
         + '</div>';
 
     html += '<div class="fair-note">'
-        + L('怎么验：本桌结束后，在「牌谱回顾」里点开那一手 →「🔒 验证数据」导出，然后跑 <code>node tools/verify-hand.js 牌谱.json</code>。它不连服务器，只用标准 SHA-256。',
-            'How to verify: after this table ends, open the hand in "Hand history" → "🔒 Verify data", then run <code>node tools/verify-hand.js hand.json</code>. It never contacts the server and uses only standard SHA-256.')
+        + L('怎么验：本桌结束后，在「牌谱回顾」里点开那一手 →「验证数据」导出，然后跑 <code>node tools/verify-hand.js 牌谱.json</code>。它不连服务器，只用标准 SHA-256。',
+            'How to verify: after this table ends, open the hand in "Hand history" → "Verify data", then run <code>node tools/verify-hand.js hand.json</code>. It never contacts the server and uses only standard SHA-256.')
         + '</div>';
     html += '<div class="modal-actions"><button class="cancel" onclick="closeFairPanel()">' + L('关闭', 'Close') + '</button></div></div>';
 

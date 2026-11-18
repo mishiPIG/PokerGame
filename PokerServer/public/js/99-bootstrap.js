@@ -2,7 +2,7 @@
 ;['btnFold','btnCheckCall','btnBet','btnRaise','raiseAmount'].forEach(id => {
     const el = document.getElementById(id); if (el) el.disabled = true;
 });
-document.getElementById('btnSound').textContent = soundOn ? '🔊' : '🔇';
+setIconLabel(document.getElementById('btnSound'), soundOn ? 'sound' : 'mute');
 applySettings();   // 应用桌面风格 / 四色 / 自定义快捷下注
 setupVoiceRecording();
 window.addEventListener('pagehide', () => { cancelVoiceRecording(); stopVoicePlayback(); });
@@ -50,6 +50,28 @@ if (savedToken) {
 }
 
 initGuestEntry();   // 登录页的游客入口：预填随机昵称；是点邀请链接来的就说明一句
+if (pendingSharedHand) openSharedHand(pendingSharedHand);   // 点分享链接进来：直接放那一手的回放
+
+// 在【已经开着游戏】的标签页里再粘贴一条分享 / 邀请链接：只有 # 后面那段变了，页面不会重新加载，
+// 上面那两处「加载时读一次地址栏」就都错过了 —— 表现是粘贴回车之后什么都不发生（验收时玩家实报）。
+// 这里自己接住 hashchange。
+window.addEventListener('hashchange', () => {
+    const h = location.hash.match(/^#\/hand\/([A-Za-z0-9_-]{8,64})$/);
+    if (h) {
+        try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+        openSharedHand(h[1]);
+        return;
+    }
+    if (!location.hash.startsWith('#/join/')) return;
+    capturePendingInvite();                       // 记下 token 并清掉地址栏（和加载时同一套）
+    if (!pendingInviteToken) return;
+    if (socket && socket.connected) {
+        showLobby();                              // 同连上服务器时那条路径：邀请优先，先回大厅再进新桌
+        socket.emit('join_by_invite', { token: pendingInviteToken });
+    } else {
+        initGuestEntry();                         // 还没登录：登录页上那句「朋友邀请你…」要亮出来，登录后自动进桌
+    }
+});
 
 // ===== 版本信息（设置面板底部）=====
 // 前端构建号来自打包进 JS 的常量；服务端版本实时拉。两者不一致 = 本机缓存了旧前端。
@@ -73,7 +95,31 @@ function renderVersion() {
     document.getElementById('version-box').classList.toggle('stale', stale);
     if (stale) sEl.textContent += L('  ⚠️ 前端是旧的，请下拉刷新', '  ⚠️ Client is stale — pull to refresh');
     _verText = `${cEl.textContent} / ${sEl.textContent}`;
+    showUpdateBar(stale);
 }
+// 「有新版本，点这里刷新」：顶部一条，点了才刷新（牌局中途不替玩家做主；刷新后会自动回到这张桌）。
+// 为什么需要它：发版时服务器重启，页面只是【断线重连】，不会重新加载 —— 手里还是旧脚本、旧样式，
+// 一直打到关掉页面为止。原来只在「我的」页最底下那行小字里提醒，没人会去看（2026-11-17 验收时实拍：
+// 测了半天的数字键盘其实是旧版）。APK 薄壳同理：切到后台再回来，页面也不重新加载。
+function showUpdateBar(show) {
+    let bar = document.getElementById('update-bar');
+    if (!show) { if (bar) bar.remove(); return; }
+    if (bar) return;
+    bar = document.createElement('button');
+    bar.id = 'update-bar';
+    bar.type = 'button';
+    setIconLabel(bar, 'refresh', L('有新版本 · 点这里刷新', 'New version ready · tap to reload'));
+    bar.onclick = () => location.reload();
+    document.body.appendChild(bar);
+}
+// 断线重连（多半是发版重启）和从后台切回来时，各再比一次版本
+let _verCheckedAt = 0;
+function recheckVersion() {
+    if (Date.now() - _verCheckedAt < 30000) return;   // 别每次切回来都打一遍接口
+    _verCheckedAt = Date.now();
+    loadVersion();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) recheckVersion(); });
 // 🔴 这两个元素的文本【由 JS 拥有】，绝不能在 HTML 上挂 data-i18n ——
 //    applyLang() 会 el.textContent = 字典值，把刚填好的版本号覆盖回占位符「前端 …」。
 //    实拍过一次：服务端那半截是填好的、前端那半截永远是「…」，因为它先被填、后被覆盖。
@@ -137,7 +183,9 @@ setTimeout(() => dismissBootSplash('timeout'), BOOT_MAX_MS);
 //   · 侧边抽屉型（.side-panel，左侧滑出、【没有】遮罩）——点页面其它任何地方关
 // 统一判据：点击落点不在这个面板的内容盒子里 → 关。
 const DISMISSIBLE = [
-    { id: 'chat-panel',       close: 'toggleChat' },
+    // passThrough：点在这些区域里【不算】点外面 —— 聊天开着也能直接按行动按钮（2026-11-17，美术第二轮 ④）。
+    // 原来这一下会被当成「关掉聊天」吞掉，按钮根本没按下去，得再点一次：轮到自己时没法边聊边打。
+    { id: 'chat-panel',       close: 'toggleChat', passThrough: '#action-bar, #preaction-bar, #straddle-flag' },
     { id: 'table-menu',       close: 'toggleTableMenu' },
     { id: 'confirm-modal',    close: 'closeConfirm' },     // 点外面 = 取消（closeConfirm() 不传参就是 false）
     { id: 'note-modal',       close: 'closeNoteModal' },
@@ -156,6 +204,7 @@ const DISMISSIBLE = [
     { id: 'avatar-popup',     close: 'closeAvatarPopup' },
     { id: 'hand-detail',      close: 'closeHandDetail' },
     { id: 'replay-overlay',   close: 'closeReplay' },
+    { id: 'hand-guide',       close: 'closeHandGuide' },
 ];
 // 聊天抽屉也在里面：原来那套独立实现本来就会在点牌桌时收起它，
 // 删掉旧机制后必须接上，否则等于悄悄改了既有行为。
@@ -185,6 +234,7 @@ document.addEventListener('click', (e) => {
     let closed = false;
     for (const p of DISMISSIBLE) {
         if (!_openAtPress.has(p.id)) continue;          // 这一下点击之前它就没开着
+        if (p.passThrough && e.target.closest && e.target.closest(p.passThrough)) continue;   // 点的是允许穿透的区域：不关它
         const el = document.getElementById(p.id);
         if (!panelIsOpen(el)) continue;                  // 期间已经被别的方式关了
         try { window[p.close]?.(); closed = true; } catch (err) { console.warn('[ui] 关闭面板失败', p.id, err); }
@@ -195,6 +245,48 @@ document.addEventListener('click', (e) => {
     //    所以必须在【捕获阶段】处理：要赶在下面那个按钮自己的 onclick 之前。
     if (closed) { e.stopPropagation(); e.preventDefault(); }
 }, true);
+
+// ===== 手机上的底部抽屉：按住顶上往下拉就关（2026-11-17，美术第二轮 ④）=====
+// 样式见 43-modals.css（只在竖屏生效）。关闭走登记表里同一个函数，和点外面关闭是同一条路径。
+// 只从抽屉【顶部 56px】开始的拖动才算：抽屉中间有滑条、输入框、可滚动的列表，从那里起手的拖动不该被抢走。
+const SHEET_BOX = '.modal-box, .settings-box, .profile-box, .c-box, .ap-box, .side-panel';
+let _sheetDrag = null;
+function sheetOwner(box) {
+    return DISMISSIBLE.find(p => { const el = document.getElementById(p.id); return el && (el === box || el.contains(box)) && panelIsOpen(el); });
+}
+document.addEventListener('touchstart', (e) => {
+    if (document.body.classList.contains('layout-landscape') || e.touches.length !== 1) return;
+    const box = e.target.closest && e.target.closest(SHEET_BOX);
+    if (!box) return;
+    const y = e.touches[0].clientY;
+    if (y - box.getBoundingClientRect().top > 56 || box.scrollTop > 0) return;
+    const owner = sheetOwner(box);
+    if (!owner) return;
+    _sheetDrag = { box, owner, y0: y, t0: Date.now(), dy: 0 };
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+    if (!_sheetDrag) return;
+    const dy = Math.max(0, e.touches[0].clientY - _sheetDrag.y0);   // 只许往下
+    _sheetDrag.dy = dy;
+    _sheetDrag.box.classList.add('sheet-dragging');
+    _sheetDrag.box.style.transform = `translateY(${dy}px)`;
+}, { passive: true });
+function endSheetDrag() {
+    const d = _sheetDrag; _sheetDrag = null;
+    if (!d) return;
+    const fast = d.dy > 40 && d.dy / Math.max(1, Date.now() - d.t0) > 0.5;   // 快速一甩也算
+    d.box.classList.remove('sheet-dragging');
+    if (d.dy > 90 || fast) {
+        d.box.style.transform = '';
+        try { window[d.owner.close]?.(); } catch (err) { console.warn('[ui] 关闭面板失败', d.owner.id, err); }
+        return;
+    }
+    d.box.classList.add('sheet-settle');                 // 没拉够：弹回去
+    d.box.style.transform = '';
+    setTimeout(() => d.box.classList.remove('sheet-settle'), 240);
+}
+document.addEventListener('touchend', endSheetDrag);
+document.addEventListener('touchcancel', endSheetDrag);
 
 // Esc 关掉最上面那个（浮层是按登记顺序由低到高的，所以倒着找）
 document.addEventListener('keydown', (e) => {

@@ -50,7 +50,9 @@ fi
 BUILD_SHA="$(git -C "$SCRIPT_DIR" rev-parse --short HEAD)"
 # 打包的是【工作区文件】而不是某个 commit：工作区有没提交的改动时，
 # 光写 HEAD 的 SHA 等于谎报「线上跑的就是这个 commit」。带上 -dirty，事后才追得清。
-if [ -n "$(git -C "$SCRIPT_DIR" status --porcelain -- PokerServer)" ]; then BUILD_SHA="$BUILD_SHA-dirty"; fi
+if [ -n "$(git -C "$SCRIPT_DIR" status --porcelain -- PokerServer)" ]; then BUILD_SHA="$BUILD_SHA-dirty.$(date +%H%M%S)"; fi
+# ↑ 带上部署时刻：没提交就连着部署好几次时，构建号原来每次都一样（同一个 HEAD + -dirty），
+#   前端「你缓存了旧版」的检测就比不出新旧 —— 2026-11-17 验收时玩家拿着旧前端测了半天，检测一声没吭。
 BUILD_AT="$(date '+%Y-%m-%d %H:%M:%S')"
 # 先 cd 再用相对路径 require：Git Bash 下把 $SCRIPT_DIR 直接塞进 require() 会因 POSIX 路径解析失败
 APP_VERSION="$(cd "$SCRIPT_DIR/PokerServer" && node -p "require('./package.json').version")"

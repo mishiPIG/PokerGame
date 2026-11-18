@@ -20,9 +20,11 @@ function roomLimitReached(roomGames, user) {
 const cleanRoomName = (v) => (v == null ? '' : String(v)).replace(/[<>"'`&\\]/g, '').trim().slice(0, 20);
 const { bind } = require('./room-context');
 const { initialFair } = require('../../games/poker/provably-fair');
+const { offerRematch, REMATCH_TTL_MS } = require('../rematch-invites');
+const { nameOf } = require('../../account/display-name');
 
 function registerLobbyEvents(context) {
-    const { socket, user, roomGames, lobbySockets, listRooms, genRoomId, Deck, PHASES, createRoomInvite, clampInt, SNG_BUYIN_TIERS, STANDARD_BLIND_LEVELS, authorize, seatPlayer, emitRoomInviteInfo, joinAsSpectator, persistence } = bind(context);
+    const { socket, user, io, roomGames, lobbySockets, listRooms, genRoomId, Deck, PHASES, createRoomInvite, clampInt, SNG_BUYIN_TIERS, STANDARD_BLIND_LEVELS, authorize, seatPlayer, emitRoomInviteInfo, joinAsSpectator, persistence } = bind(context);
     // 进入大厅：订阅房间列表
     socket.on('enter_lobby', () => {
         lobbySockets.add(socket.id);
@@ -31,10 +33,11 @@ function registerLobbyEvents(context) {
     });
 
     // 创建 SNG 房间（双人升盲），创建者自动入座
-    socket.on('create_room', (cfg) => {
+    // 开一张 SNG。「再来一局」也走这里（同样的校验、同样的建房），返回新房间号或 null。
+    function createSngRoom(cfg) {
         cfg = cfg || {};
         const limit = roomLimitReached(roomGames, user);
-        if (limit) { socket.emit('server_msg', { k: limit, p: { n: roomCapFor(user) } }); return; }
+        if (limit) { socket.emit('server_msg', { k: limit, p: { n: roomCapFor(user) } }); return null; }
         const roomId = genRoomId();
         roomGames[roomId] = {
             deck: new Deck(), players: [], phase: PHASES.WAITING,
@@ -58,7 +61,8 @@ function registerLobbyEvents(context) {
                 maxPlayers:  clampInt(cfg.maxPlayers, 2, 9, 2),              // 2–9 人（引擎已支持多人）
                 startingStack: clampInt(cfg.startingStack, 5000, 30000, 10000),
                 levelMinutes:  clampInt(cfg.levelMinutes, 3, 10, 3),
-                buyIn:         SNG_BUYIN_TIERS.includes(+cfg.buyIn) ? +cfg.buyIn : SNG_BUYIN_TIERS[0]
+                buyIn:         SNG_BUYIN_TIERS.includes(+cfg.buyIn) ? +cfg.buyIn : SNG_BUYIN_TIERS[0],
+                actionTimeSec: context.config.pickActionTimeSec(cfg.actionTimeSec)   // 每次行动的思考时间（秒）
             },
             blindLevels: STANDARD_BLIND_LEVELS,
             currentLevel: 0, levelStartTime: null, prizePool: 0, tournamentOver: false,
@@ -69,8 +73,40 @@ function registerLobbyEvents(context) {
         if (!seatPlayer(roomId, socket, user)) {
             persistence.finish(roomId, 'cancelled');
             delete roomGames[roomId];
+            return null;
         }
-        else emitRoomInviteInfo(socket, roomGames[roomId], true);
+        emitRoomInviteInfo(socket, roomGames[roomId], true);
+        return roomId;
+    }
+    socket.on('create_room', (cfg) => { createSngRoom(cfg); });
+
+    // SNG 打完「再来一局」（2026-11-17）：房主一点，用同样设置开新桌，上一场还停在结算页的人收到邀请。
+    // 报名费照常扣（落座时扣，和正常建房 / 入座完全同一条路）。
+    socket.on('rematch_sng', () => {
+        const oldId = socket.currentRoom;
+        const old = oldId && roomGames[oldId];
+        // 🔴 只有房主、只有已经打完的 SNG、每场只能发起一次
+        if (!old || old.roomType !== 'sng' || !old.tournamentOver || old.ownerUserId !== user.id) return;
+        if (old.rematchRoomId && roomGames[old.rematchRoomId]) return;
+        const c = old.config || {};
+        // 先记下上一场还连着这张桌的人（房主建新桌时会离开旧桌）
+        const ids = new Set([...(old.players || []), ...(old.statsHistory || [])].map(p => p.userId));
+        ids.delete(user.id);
+        const here = [];
+        for (const sid of io.sockets.adapter.rooms.get(oldId) || []) {
+            const s = io.sockets.sockets.get(sid);
+            if (s && s.user && ids.has(s.user.id)) here.push(s);
+        }
+        const newId = createSngRoom({ name: c.name, visibility: c.visibility, maxPlayers: c.maxPlayers,
+            startingStack: c.startingStack, levelMinutes: c.levelMinutes, buyIn: c.buyIn, actionTimeSec: c.actionTimeSec });
+        if (!newId) return;
+        old.rematchRoomId = newId;
+        const expiresAt = Date.now() + REMATCH_TTL_MS;
+        for (const s of here) {
+            offerRematch(newId, s.user.id, user.id);
+            // ⚠️ 不带房间码（理由同牌友邀请）：拿到下场资格靠服务端那条待办记录，不靠码
+            s.emit('rematch_offer', { roomId: newId, fromName: nameOf(user), buyIn: c.buyIn, maxPlayers: c.maxPlayers, expiresAt });
+        }
     });
 
     // 创建现金桌（2–9 人，固定盲注，金币↔筹码买入），创建者按 buyInChips 买入
@@ -105,7 +141,9 @@ function registerLobbyEvents(context) {
                 maxPlayers: clampInt(cfg.maxPlayers, 2, 9, 6),
                 sb, bb, ante: clampInt(cfg.ante, 0, 80, 0), minBuyIn, maxBuyIn,
                 allowUtgStraddle: cfg.allowUtgStraddle === true,
-                durationH: [0.5, 1, 2, 3, 4, 5, 6].includes(+cfg.durationH) ? +cfg.durationH : 2
+                durationH: [0.5, 1, 2, 3, 4, 5, 6].includes(+cfg.durationH) ? +cfg.durationH : 2,
+                approveBuyIn: cfg.approveBuyIn === true,   // 带入 / 补码需房主批准（默认关）
+                actionTimeSec: context.config.pickActionTimeSec(cfg.actionTimeSec)   // 每次行动的思考时间（秒）
             },
             prizePool: 0, tournamentOver: false,
             statsHistory: [], tableEndAt: null, extraMs: 0, timeExpired: false

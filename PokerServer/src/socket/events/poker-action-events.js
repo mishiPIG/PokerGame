@@ -165,7 +165,7 @@ function registerPokerActionEvents(context) {
         actor.timeCards -= 1;
         game.extraAddedThisTurn = (game.extraAddedThisTurn || 0) + add;
         game.actionDeadline += add;
-        game.actionTotalMs = (game.actionTotalMs || ACTION_TIME) + add;
+        game.actionTotalMs = (game.actionTotalMs || config.actionTimeOf(game)) + add;
         clearActionTimer(game);
         game.actionTimer = setTimeout(() => onActionTimeout(roomId), Math.max(0, game.actionDeadline - Date.now()));
         io.in(roomId).emit('server_msg', `⏱ ${nameOf(user)} 加时 +${add / 1000}s（剩 ${actor.timeCards} 张时间卡）`);

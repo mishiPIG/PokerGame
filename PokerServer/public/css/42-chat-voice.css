@@ -5,6 +5,11 @@
         .chat-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;
             border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 14px; color: #eaf3ee; }
         .chat-head button { background: none; border: none; color: #9db9a9; font-size: 18px; cursor: pointer; }
+        /* 聊天面板不挡行动按钮和自己的牌（2026-11-17，美术第二轮 ④）：原来贴着底栏往上长，正好盖住这两样。
+           手机竖屏挪到牌桌上方（合规横幅下面）；电脑横屏靠右成一列，不碰中间的牌桌。
+           开着的时候照样能点行动按钮（99-bootstrap.js 的 passThrough）。*/
+        body:not(.layout-landscape) #chat-panel { top: 44px; bottom: auto; max-height: 46dvh; }
+        body.layout-landscape #chat-panel { left: auto; right: 64px; width: min(360px, 32vw); bottom: 70px; }   /* right 让开「牌谱 ›」箭头 */
         #chat-list { flex: 1; overflow-y: auto; padding: 8px 12px; min-height: 60px; max-height: 28vh; }
         .chat-row { font-size: 13px; margin-bottom: 5px; line-height: 1.4; }
         .chat-row .chat-name { color: #7ecfa8; font-weight: bold; margin-right: 6px; }

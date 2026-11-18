@@ -176,6 +176,7 @@ The product name **"Poker Dojo / 德扑道场"** and its logo are **not** covere
 
 **Third-party assets** (their own licenses, shipped alongside them):
 - Card-rank font: [Jost](https://github.com/indestructible-type/Jost) subset — SIL Open Font License 1.1 (`PokerServer/public/fonts/Jost-OFL.txt`)
+- Face-card calligraphy (侠 / 后 / 王): [Ma Shan Zheng](https://github.com/googlefonts/mashanzheng) subset — SIL Open Font License 1.1 (`PokerServer/public/fonts/MaShanZheng-OFL.txt`)
 - Card and chip sounds: [Kenney — Casino Audio](https://kenney.nl/assets/casino-audio) — CC0 (`PokerServer/public/sfx/Kenney-Casino-Audio-License.txt`)
 
 © Poker Dojo. All rights reserved except as granted by the LICENSE.

@@ -1,6 +1,7 @@
 'use strict';
 const { bind } = require('./room-context');
 const { nameOf } = require('../../account/display-name');
+const { takeRematch } = require('../rematch-invites');
 
 // ===== 一键邀请牌友（2026-09-14，第 2 批）=====
 // 产品约束（用户定的，别改）：
@@ -126,6 +127,18 @@ function registerInviteEvents(context, handleJoinRoom) {
         });
         const target = db.getUserById(userId);
         socket.emit('server_msg', { k: 'invite.sent', p: { name: nameOf(target || {}) } });
+    });
+
+    // 「再来一局」的邀请：和 invite_respond 同一道闸 —— 没有发给你本人的那条待办记录就不放行（见 rematch-invites.js）
+    socket.on('rematch_join', ({ roomId } = {}) => {
+        if (!roomId || typeof roomId !== 'string') return;
+        if (!takeRematch(roomId, user.id)) { socket.emit('server_msg', { k: 'invite.expired' }); return; }
+        const game = roomGames[roomId];
+        if (!game) { socket.emit('server_msg', { k: 'invite.gone' }); return; }
+        if (!canAuthorizeNewUser(game, user.id)) { socket.emit('server_msg', { k: 'invite.cantJoin' }); return; }
+        authorize(roomId, user.id);
+        socket.playRoom = roomId;
+        handleJoinRoom(roomId);
     });
 
     socket.on('invite_respond', ({ roomId, accept } = {}) => {

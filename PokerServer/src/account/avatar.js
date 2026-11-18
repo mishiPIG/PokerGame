@@ -11,4 +11,11 @@ function safeAvatar(value) {
     return (typeof value === 'string' && AVATAR_RE.test(value)) ? value : null;
 }
 
-module.exports = { safeAvatar, AVATAR_RE };
+// 新号默认头像（2026-11-17，美术第二轮 ①）：从内置那 27 个里随机给一个。
+// 原来新号一律没有头像 → 牌桌上一圈全是首字母色块，像占位符；用户可以随时在「资料与头像」里换掉或选「无」。
+const AVATAR_COUNT = 27;
+function randomAvatar(rand = Math.random) {
+    return `/avatars/b${1 + Math.floor(rand() * AVATAR_COUNT)}.svg`;
+}
+
+module.exports = { safeAvatar, randomAvatar, AVATAR_RE, AVATAR_COUNT };

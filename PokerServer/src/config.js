@@ -9,6 +9,11 @@ const PHASES = {
 const DEFAULT_SMALL_BLIND = 10;
 const DEFAULT_BIG_BLIND = 20;
 const ACTION_TIME = 18000;
+// 房主建房时可选的思考时间（秒）。默认还是 18 —— 新手觉得紧的话房主可以放宽（2026-11-17 玩家视角复盘 P6）。
+const ACTION_TIME_CHOICES = [15, 18, 20, 30];
+const pickActionTimeSec = (v) => (ACTION_TIME_CHOICES.includes(+v) ? +v : ACTION_TIME / 1000);
+// 这一桌每次行动给多少毫秒。老房间（快照里没有这个字段）照旧 18 秒。
+const actionTimeOf = (game) => pickActionTimeSec(game && game.config && game.config.actionTimeSec) * 1000;
 const EXTRA_STEP = 15000;
 const EXTRA_MAX = 120000;
 const RUNOUT_DELAY = 1400;
@@ -65,5 +70,6 @@ module.exports = {
     ACTION_TIME, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, RUNIT_MAX, RUNIT_DECIDE_MS,
     STRADDLE_DECISION_MS, STRADDLE_INTERMISSION_MS, SNG_BUYIN_TIERS,
     BUYIN_RATE, CASHOUT_RATE, CONFIGURED_PUBLIC_ORIGIN, STANDARD_BLIND_LEVELS,
-    loadJwtSecret, gameSB, gameBB, gameAnte, timeCardsFor, sngPrize
+    loadJwtSecret, gameSB, gameBB, gameAnte, timeCardsFor, sngPrize,
+    ACTION_TIME_CHOICES, pickActionTimeSec, actionTimeOf
 };

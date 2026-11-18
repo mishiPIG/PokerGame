@@ -35,6 +35,7 @@ function loadHotkeys() {
 }
 function saveHotkeys() {
     try { localStorage.setItem(HOTKEY_LS, JSON.stringify(hotkeyBindings)); } catch (e) { /* 隐私模式下写不进，忽略 */ }
+    paintHotkeyHints();   // 改绑之后按钮上的小键帽立刻跟着变
 }
 // 按键的显示名：空格/回车这类不可见键要给个看得懂的名字
 function hotkeyLabel(k) {
@@ -170,6 +171,27 @@ function renderWheelStep() {
 }
 
 loadHotkeys();
+// ===== 按钮上显示快捷键（2026-11-17，美术第二轮 ②）=====
+// 快捷键早就能用，可按钮上不显示，用鼠标的人根本不知道有。按钮上挂 data-hk，样式在右上角画一个小键帽（20-table.css）。
+// 只在【有鼠标】的设备上显示（hover + 精确指针）：手机上没有键盘，显示出来只是噪音。
+// 显示的是玩家自己绑定的键；解绑了就不显示。全下没有独立按钮，不挂。
+function hotkeyShort(k) {
+    if (k === ' ') return '␣';
+    if (k === 'Enter') return '↵';
+    return k.length === 1 ? k.toUpperCase() : k.slice(0, 3);
+}
+function paintHotkeyHints() {
+    const mq = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)');
+    document.body.classList.toggle('show-hk', !!(mq && mq.matches));
+    HOTKEY_DEFS.forEach(d => d.btns.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const k = hotkeyBindings[d.id];
+        if (k) el.setAttribute('data-hk', hotkeyShort(k)); else el.removeAttribute('data-hk');
+    }));
+}
+paintHotkeyHints();
+try { window.matchMedia('(hover: hover) and (pointer: fine)').addEventListener('change', paintHotkeyHints); } catch (e) { /* 老浏览器：不跟着切 */ }
 loadWheelStep();
 window.addEventListener('keydown', onHotkeyDown);
 

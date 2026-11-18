@@ -165,7 +165,7 @@ async function completeVoiceRecording() {
 function makeVoiceButton(message) {
     const sec = Math.max(1, Math.round((message.durationMs || 0) / 1000));
     const btn = document.createElement('button');
-    btn.type = 'button'; btn.textContent = L(`🎤 ${sec}秒`, `🎤 ${sec}s`);
+    btn.type = 'button'; setIconLabel(btn, 'mic', L(`${sec}秒`, `${sec}s`));
     btn.addEventListener('click', ev => { ev.stopPropagation(); playVoice(message.id, btn); });
     return btn;
 }
@@ -223,7 +223,7 @@ function clearPlayingVoiceAudio() {
     playingVoice.audio.pause();
     URL.revokeObjectURL(playingVoice.url);
     playingVoice.button?.classList.remove('playing');
-    if (playingVoice.button?.dataset.label) playingVoice.button.textContent = playingVoice.button.dataset.label;
+    if (playingVoice.button?.dataset.label) playingVoice.button.innerHTML = playingVoice.button.dataset.label;
     playingVoice = null;
 }
 
@@ -235,12 +235,12 @@ function stopVoicePlayback() {
 }
 
 async function playVoice(id, button) {
-    if (playingVoice?.id === id) { stopVoicePlayback(); button.textContent = button.dataset.label || button.textContent; return; }
+    if (playingVoice?.id === id) { stopVoicePlayback(); button.innerHTML = button.dataset.label || button.innerHTML; return; }
     stopVoicePlayback();
     const requestId = voicePlayRequestId;
     const controller = new AbortController();
     voicePlayController = controller;
-    button.dataset.label = button.textContent; button.textContent = L('加载中…', 'Loading…');
+    button.dataset.label = button.innerHTML; button.textContent = L('加载中…', 'Loading…');
     try {
         const res = await fetch('/api/voice/' + encodeURIComponent(id), {
             headers: { Authorization: 'Bearer ' + localStorage.getItem('token') },
@@ -255,21 +255,21 @@ async function playVoice(id, button) {
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         playingVoice = { id, audio, url, button };
-        button.textContent = L('⏸ 播放中', '⏸ Playing'); button.classList.add('playing');
+        setIconLabel(button, 'pause', L('播放中', 'Playing')); button.classList.add('playing');
         const done = () => {
             if (playingVoice?.audio !== audio) return;
             URL.revokeObjectURL(url); button.classList.remove('playing');
-            button.textContent = button.dataset.label; playingVoice = null;
+            button.innerHTML = button.dataset.label; playingVoice = null;
         };
         audio.onended = done; audio.onerror = done;
         await audio.play();
     } catch (err) {
         if (err?.name === 'AbortError') {
-            button.classList.remove('playing'); button.textContent = button.dataset.label || '🎤';
+            button.classList.remove('playing'); button.innerHTML = button.dataset.label || ic('mic');
             return;
         }
         if (playingVoice?.id === id) stopVoicePlayback();
-        button.classList.remove('playing'); button.textContent = button.dataset.label || '🎤';
+        button.classList.remove('playing'); button.innerHTML = button.dataset.label || ic('mic');
         toast(err.message || L('无法播放语音', 'Cannot play that voice clip'));
     } finally {
         if (voicePlayController === controller) voicePlayController = null;

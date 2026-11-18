@@ -33,6 +33,27 @@
         .modal-actions .cancel { background: rgba(255,255,255,0.1); color: #cbd9d0; border: 1px solid rgba(255,255,255,0.16); }
         .modal-actions .confirm { background: #06d6a0; color: #0a1f1a; }
         .modal-actions .confirm.danger { background: #ef476f; color: #fff; }
+        /* 牌型大小速查表（44-guide.js）*/
+        .hg-box { max-width: 420px; }
+        .hg-box h3 { margin: 0 0 10px; font-size: 17px; }
+        .hg-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+        .hg-no { width: 20px; flex-shrink: 0; text-align: center; color: #9db9a9; font-size: 12px; font-weight: bold; }
+        .hg-main { flex: 1; min-width: 0; }
+        .hg-name { font-weight: bold; font-size: 14px; color: #f4d35e; }
+        .hg-desc { font-size: 11.5px; color: #9db9a9; line-height: 1.35; margin-top: 1px; }
+        /* 必须设 --card-w/--card-h：牌面字号按它算（44-replay.css 开头那个坑）*/
+        .hg-cards { --card-w: 21px; --card-h: 29px; display: flex; gap: 2px; flex-shrink: 0; }
+        .hg-note { font-size: 12px; color: #c9d6cd; line-height: 1.5; margin: 10px 0 0; }
+        /* 第一次被发到牌的三步提示：不挡操作 —— 外圈光 pointer-events:none，气泡只有自己能点 */
+        #coach-ring { position: fixed; z-index: 140; pointer-events: none; border-radius: 12px;
+            box-shadow: 0 0 0 2px #f4d35e, 0 0 18px 4px rgba(244,211,94,0.55); }
+        #coach { position: fixed; z-index: 141; width: min(280px, calc(100vw - 16px)); padding: 12px 14px; border-radius: 14px;
+            background: #12201a; color: #eaf3ee; border: 1px solid rgba(244,211,94,0.55); box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            font-size: 13.5px; line-height: 1.5; }
+        .coach-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+        .coach-btns button { border: none; border-radius: 8px; padding: 6px 12px; font-weight: bold; font-size: 13px; cursor: pointer; }
+        #coach-skip { background: transparent; color: #9db9a9; }
+        #coach-next { background: #f4d35e; color: #241a00; }
         .invite-note { margin: -4px 0 14px; text-align: center; color: #9db9a9; font-size: 12px; line-height: 1.5; }
         .invite-field { margin: 12px 0; }
         .invite-label { display: block; color: #9db9a9; font-size: 12px; margin-bottom: 5px; font-weight: bold; }
@@ -78,3 +99,38 @@
     word-break: break-all;
     min-width: 0;
 }
+
+        /* ── 手机上弹窗一律从底部升起（2026-11-17，美术第二轮 ④）──
+           原来关闭 ✕ 全在右上角（设置、个人主页、牌谱、收件箱、头像弹层…），正是单手拇指最够不着的地方。
+           改成底部抽屉：顶上一根小横条，按住往下拉就关（99-bootstrap.js 的 sheetSwipe）；点外面关闭、✕ 照旧。
+           只改手机竖屏；电脑横屏仍是居中弹窗。用 body:not(.layout-landscape) 抬高权重，压过后面各文件里的基础规则。*/
+        body:not(.layout-landscape) .modal-mask,
+        body:not(.layout-landscape) #settings-overlay,
+        body:not(.layout-landscape) #profile-overlay,
+        body:not(.layout-landscape) .c-overlay,
+        body:not(.layout-landscape) #avatar-popup { align-items: flex-end; padding: 0; }
+        body:not(.layout-landscape) .modal-box,
+        body:not(.layout-landscape) .settings-box,
+        body:not(.layout-landscape) .profile-box,
+        body:not(.layout-landscape) .c-box,
+        body:not(.layout-landscape) .ap-box,
+        body:not(.layout-landscape) .side-panel {
+            max-width: none; width: 100%; border-radius: 20px 20px 0 0; border-bottom: 0;
+            max-height: 88dvh; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            animation: sheetIn 0.32s cubic-bezier(0.22,1,0.36,1); }
+        /* 左侧抽屉（战绩 / 牌谱 / 牌友 / 收件箱）也改成从底部升起，高度固定，里面自己滚 */
+        body:not(.layout-landscape) .side-panel { top: auto; right: 0; height: 86dvh; border-right: 0;
+            border-top: 1px solid rgba(244,211,94,0.14); box-shadow: 0 -10px 34px rgba(0,0,0,0.55); }
+        /* 抓手：顶上一根小横条，告诉人「可以往下拉」 */
+        body:not(.layout-landscape) .modal-box::before,
+        body:not(.layout-landscape) .settings-box::before,
+        body:not(.layout-landscape) .profile-box::before,
+        body:not(.layout-landscape) .c-box::before,
+        body:not(.layout-landscape) .ap-box::before,
+        body:not(.layout-landscape) .side-panel::before {
+            content: ''; display: block; flex-shrink: 0; width: 40px; height: 4px; border-radius: 999px;
+            background: rgba(255,255,255,0.28); margin: -6px auto 12px; }
+        @keyframes sheetIn { from { transform: translateY(100%); } }
+        /* 正在往下拉：跟手，不要过渡；松手回弹时才加过渡 */
+        .sheet-dragging { transition: none !important; animation: none !important; }
+        .sheet-settle { transition: transform 0.22s cubic-bezier(0.22,1,0.36,1) !important; }

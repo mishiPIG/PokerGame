@@ -54,7 +54,19 @@ function capturePendingInvite() {
 }
 capturePendingInvite();
 
+// 牌谱分享链接 #/hand/<token>（2026-11-17）：不用登录就能看。先记下来、清掉地址栏，启动完再打开回放。
+let pendingSharedHand = '';
+(function captureSharedHand() {
+    const m = location.hash.match(/^#\/hand\/([A-Za-z0-9_-]{8,64})$/);
+    if (!m) return;
+    pendingSharedHand = m[1];
+    try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+})();
+
 // ===== 动画门控：只在「真正发新牌」时播放入场动画，避免每次重绘都闪 =====
+// 电脑端整体放大倍数（美术第二轮 ②）：横屏时按窗口大小算，座位 / 行动按钮 / 底栏一起乘它；手机竖屏恒为 1。
+// 由 50-audio-settings.js 的 applyLayoutMode() 写入，座位定位（ringPos）读它。
+let UI_SCALE = 1;
 let lastState          = null;  // 最近一次 game_state，供 hole_cards/showdown 单独重渲时复用
 let prevCommunityCount = 0;     // 上次公共牌数量，新增的那几张才动画
 let holeJustDealt      = false; // 本局刚发到自己手牌

@@ -5,6 +5,37 @@ function escapeHtml(s) {
 // 「我是不是游客」变了：记下状态，并切换 body.is-guest ——
 // 它控制两类元素：.guest-only（只给游客看）/ .member-only（游客看不到）。
 function setGuest(v) { isGuest = !!v; document.body.classList.toggle('is-guest', isGuest); }
+// 线条图标（图标集在 index.html 开头的 #ic-sprite）。name 只许是代码里写死的常量，不接用户输入。
+function ic(name, cls) {
+    // 图标名只允许小写字母和连字符：就算哪天有人误把外部数据传进来，也拼不出别的标签（不合规就什么都不输出）
+    if (!/^[a-z-]+$/.test(name)) return '';
+    const c = /^[a-z -]*$/.test(cls || '') ? (cls || '') : '';
+    return `<svg class="ic${c ? ' ' + c : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;   // escape-ok: name / c 已按白名单字符校验
+}
+// 给一个按钮 / 标签换成「图标 + 文字」。文字走 textContent（玩家名之类也安全）；不给文字就只放图标。
+// cls：图标颜色（c-gold / c-orange…，见 00-shell.css）—— 静态页面上加过颜色的按钮，脚本重画时要把颜色一起带上，否则会被洗掉。
+function setIconLabel(el, name, text, cls) {
+    if (!el) return;
+    // 牌桌每来一个 game_state 都会调到这里：内容没变就别重建 DOM（省得按钮在手指底下被换掉）
+    const sig = name + '|' + (cls || '') + '|' + (text == null ? '' : text);
+    if (el.dataset.il === sig) return;
+    el.dataset.il = sig;
+    el.innerHTML = ic(name, cls) + (text == null ? '' : '<span></span>');
+    if (text != null) el.lastChild.textContent = text;
+}
+// 分享来源（2026-11-17）：没登录的人打开过一条牌谱分享链接，7 天内在这个浏览器里建号 / 注册，就算分享带来的。
+// 只是运营统计（服务端会核对这条分享是否真实存在），读写失败一律当没有。
+const SHARE_REF_TTL = 7 * 24 * 3600 * 1000;
+function rememberShareRef(token) {
+    try { if (!localStorage.getItem('token')) localStorage.setItem('shareRef', JSON.stringify({ token, at: Date.now() })); } catch {}
+}
+function peekShareRef() {
+    try {
+        const r = JSON.parse(localStorage.getItem('shareRef') || 'null');
+        return r && typeof r.token === 'string' && Date.now() - r.at < SHARE_REF_TTL ? r.token : undefined;
+    } catch { return undefined; }
+}
+function clearShareRef() { try { localStorage.removeItem('shareRef'); } catch {} }
 function hashHue(s) { let h = 0; for (const c of (s || '?')) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
 // 当前战绩按「筹码总资产 - 累计带入」计算；下注和待生效补码仍属于玩家资产，不能提前算成亏损。
 function displayNet(p) {

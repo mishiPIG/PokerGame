@@ -1,5 +1,6 @@
 'use strict';
 const { nameOf } = require('../../account/display-name');
+const { needsApproval, takeApproval, requestApproval } = require('../../rooms/buyin-approval');
 
 function registerTableControlEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
@@ -137,6 +138,11 @@ function registerTableControlEvents(context) {
         }
         if (cap <= 0) { socket.emit('server_msg', { k: 'seat.buyinCap' }); return; }
         const chips = clampInt(amount, gameBB(game), cap, Math.min(cap, game.config.minBuyIn));
+        // 带入审批（房主打开时）：补码同样要房主批准
+        if (needsApproval(game, user.id) && !takeApproval(game, user.id, 'rebuy', chips)) {
+            requestApproval({ io, game, roomId, socket, user, kind: 'rebuy', chips, name: nameOf(user) });
+            return;
+        }
         const outcome = {};
         if (!chargeRebuy(game, p, chips, outcome)) {
             socket.emit('server_msg', outcome.reason === 'INSUFFICIENT_GOLD'

@@ -130,6 +130,21 @@ function createMetricsRepository(db) {
                    AND EXISTS (SELECT 1 FROM hand_players hp WHERE hp.user_id = u.id)
             `),
             guestsUpgraded: one('SELECT COUNT(*) AS n FROM users WHERE upgraded_at_ms IS NOT NULL'),
+            // 分享漏斗（2026-11-17）：生成过几条 → 被打开几次 → 带来几个新号 → 其中打过牌的 → 其中现在是正式账号的。
+            // 「打开」是接口被调用的次数，含分享人自己点开、同一个人刷新；它只说明链接有人看，不是人数。
+            // 「带来」读 share_signups 的行数：被清理掉的游客、注销了的人那一行都还在，所以这个数不会自己变小。
+            sharesCreated: one('SELECT COUNT(*) AS n FROM hand_shares'),
+            shareViews: one('SELECT COALESCE(SUM(views), 0) AS n FROM hand_shares'),
+            shareArrivals: one('SELECT COUNT(*) AS n FROM share_signups'),
+            shareArrivalsPlayed: one(`
+                SELECT COUNT(DISTINCT s.user_id) AS n FROM share_signups s
+                  JOIN users u ON u.id = s.user_id AND u.deleted_at_ms IS NULL
+                 WHERE EXISTS (SELECT 1 FROM hand_players hp WHERE hp.user_id = s.user_id)
+            `),
+            shareArrivalsSaved: one(`
+                SELECT COUNT(DISTINCT s.user_id) AS n FROM share_signups s
+                  JOIN users u ON u.id = s.user_id AND u.deleted_at_ms IS NULL AND u.is_guest = 0
+            `),
             deletedUsers: one('SELECT COUNT(*) AS n FROM users WHERE deleted_at_ms IS NOT NULL'),
             hands: one('SELECT COUNT(*) AS n FROM hands'),
             matches: one('SELECT COUNT(*) AS n FROM matches'),
