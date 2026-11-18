@@ -86,7 +86,12 @@
            房间列表为空时页面很短，不这样它就会跟在列表后面浮在半空中。
            子元素 flex-shrink:0 —— 否则房间一多会被压扁（滚动由外层 overflow-y:auto 负责）。*/
         /* 大厅氛围：纯绿底加一层纵深渐变（顶亮底暗），不再是平的功能屏；进桌(body.in-room)后不动牌桌背景 */
-        body:not(.in-room) { background: radial-gradient(ellipse 100% 65% at 50% 6%, #35513f 0%, #294036 48%, #1e3128 100%) fixed; }
+        /* 2026-11-18（美术第二轮 §12.6 ②）：再叠两层和牌桌同一套的质感 —— 细噪点（纯色渐变在大屏上像塑料）
+           + 右下角一座很淡的鸟居。登录页有漂移光、牌桌有桌布纹理和鸟居，大厅夹在中间原来最「素」。*/
+        body:not(.in-room) { background:
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 160px 160px repeat fixed,
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 60'%3E%3Cg fill='none' stroke='%23ece2c6' stroke-opacity='.035' stroke-linecap='round'%3E%3Cpath d='M6 12 Q50 21 94 12' stroke-width='5'/%3E%3Cpath d='M17 25 H83' stroke-width='3.4'/%3E%3Cpath d='M26 15.5 V58 M74 15.5 V58' stroke-width='4.4'/%3E%3Cpath d='M50 17.5 V25' stroke-width='2.6'/%3E%3C/g%3E%3C/svg%3E") right -6% bottom 4% / min(70vw, 520px) auto no-repeat fixed,
+            radial-gradient(ellipse 100% 65% at 50% 6%, #35513f 0%, #294036 48%, #1e3128 100%) fixed; }
         /* 🔴 width:100% 不能删：#lobby-view 是纵向 flex 的子项，而交叉轴上只要有一侧
            margin 是 auto，flexbox 的 stretch 就【不生效】—— 它会退化成 shrink-to-fit
            （按内容最宽处算）。「约局」页有两张 min-width:200px 的大卡撑着看不出来，
@@ -115,7 +120,31 @@
             border-color: rgba(244,211,94,0.6);
             box-shadow: 0 14px 32px rgba(0,0,0,0.36), 0 0 0 1px rgba(244,211,94,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
         }
-        .lobby-entry.create:active { transform: translateY(-1px); }
+        .lobby-entry.create:active { transform: translateY(1px) scale(0.985); }
+        /* 入口卡插画（2026-11-18，美术第二轮 §12.6 ③，用户选「筹码 + 门票」）：创建=一摞金币 + 鸟居红筹码，加入=门票。
+           创建卡改成左对齐、右边留出插画的位置；加入卡的插画缩在右上角，标题 / 说明给它让出宽度，不压四格输入框。*/
+        .lobby-entry { position: relative; overflow: hidden; }
+        .le-art { position: absolute; pointer-events: none; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.35)); }
+        .le-art svg { width: 100%; height: 100%; display: block; }
+        .lobby-entry.create { display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
+            text-align: left; padding-right: 128px; min-height: 104px; color: #fbefc4;   /* 按钮默认是黑字，在深金底上看不清 */
+            background: radial-gradient(ellipse at 85% 80%, rgba(244,211,94,0.30), transparent 60%), linear-gradient(150deg, rgba(120,128,60,0.55), rgba(60,74,43,0.6));
+            box-shadow: 0 8px 22px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px rgba(244,211,94,0.30); }
+        .lobby-entry.create .le-art { right: 8px; bottom: 4px; width: 112px; height: 84px; transition: transform 0.3s cubic-bezier(0.22,1,0.36,1); }
+        .lobby-entry.create:hover .le-art { transform: translateY(-3px) rotate(-3deg); }
+        .lobby-entry.join { background: radial-gradient(ellipse at 90% 12%, rgba(46,230,176,0.20), transparent 55%), linear-gradient(150deg, rgba(45,74,66,0.85), rgba(29,51,44,0.85)); }
+        .lobby-entry.join .le-art { top: 8px; right: 10px; width: 74px; height: 56px; opacity: 0.92; }
+        .lobby-entry.join .le-title, .lobby-entry.join .le-sub { padding-right: 78px; }
+        /* 电脑上大厅放宽（美术第二轮 §12.6 ①，用户选「放宽单栏」）：原来固定 720px，1440 屏上只占中间一窄条。
+           两张入口卡并排、更高，牌局列表排成两列。手机竖屏完全不变。*/
+        body.layout-landscape #lobby-view { max-width: 1080px; }
+        body.layout-landscape .lobby-top { flex-wrap: nowrap; }
+        body.layout-landscape .lobby-entry { min-height: 168px; }
+        body.layout-landscape .lobby-entry.create .le-art { width: 150px; height: 112px; }
+        body.layout-landscape .lobby-entry.create { padding-right: 168px; padding-left: 26px; }
+        body.layout-landscape #my-room-list, body.layout-landscape #room-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        body.layout-landscape #my-room-list > .room-card, body.layout-landscape #room-list > .room-card { margin: 0; }
+        body.layout-landscape #my-room-list > .pane-empty, body.layout-landscape #room-list > .pane-empty { grid-column: 1 / -1; }
         .le-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; letter-spacing: 0.3px; }
         .le-sub { font-size: 12px; color: #a8c4b6; line-height: 1.5; }
         .le-join-row { display: flex; gap: 8px; margin-top: 8px; }
@@ -128,6 +157,13 @@
             text-align: center; font-size: 26px; font-weight: 800; color: #fff; caret-color: #3a86ff;
             background: rgba(0,0,0,0.32); border: 2px solid rgba(255,255,255,0.22); border-radius: 10px; padding: 0; }
         .code-boxes .code-box:focus { outline: none; border-color: #3a86ff; box-shadow: 0 0 0 3px rgba(58,134,255,0.28); }
+        /* 输进一位：这一格跳一下；房间码不对：整排抖一下、边框闪红（2026-11-18，美术第二轮 §12.6 ⑧）*/
+        .code-boxes .code-box.pop { animation: codePop 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+        @keyframes codePop { 0% { transform: scale(1); } 40% { transform: scale(1.12); border-color: #f4d35e; } 100% { transform: scale(1); } }
+        .code-boxes.shake { animation: codeShake 0.5s ease-in-out; }
+        .code-boxes.shake .code-box { border-color: #ff6b6b; }
+        @keyframes codeShake { 0%, 100% { transform: translateX(0); } 15%, 55% { transform: translateX(-9px); } 35%, 75% { transform: translateX(9px); } 90% { transform: translateX(-3px); } }
+        @media (prefers-reduced-motion: reduce) { .code-boxes .code-box.pop, .code-boxes.shake { animation: none; } }
         /* ⚠️ 原来写的是 #create-form button —— id 选择器权重压过 .ct-tab / .tier-btn / .vis-btn，
            表单里【所有】按钮都成了实心蓝：SNG/现金桌两个页签分不出哪个选中，
            报名费档位「没选的实心蓝、选中的反而暗」（2026-09-29 最终验收截图）。只给底部确认/取消用。*/

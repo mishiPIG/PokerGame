@@ -27,7 +27,8 @@ const raw = (db) => require('better-sqlite3')(db.databasePath);
 function handPayload(ids) {
     const [a, b, c] = ids;
     return {
-        ts: Date.now(), matchId: 'm-secret', roomId: '987654', mode: 'cash', handSeq: 7, sb: 10, bb: 20, ante: 0,
+        // ts 用固定值：下面会在整段文本里查房间号「987654」，用 Date.now() 会偶发撞上
+        ts: 1794900000000, matchId: 'm-secret', roomId: '987654', mode: 'cash', handSeq: 7, sb: 10, bb: 20, ante: 0,
         buttonUserId: a,
         seats: [
             { userId: a, username: 'Alice', seat: 0, avatar: null, startChips: 1000, hole: ['KS', 'KH'] },

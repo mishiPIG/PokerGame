@@ -155,9 +155,12 @@
         .tc-btn.disabled { opacity: 0.5; }
         .tc-btn #tcAddInfo { font-size: 11px; }
         .set-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-        .sa-btn { flex: 1; min-width: 110px; background: #3a4a60; color: #fff; border: none;
-            border-radius: 8px; padding: 10px; font-size: 14px; font-weight: bold; cursor: pointer; }
-        .sa-btn.danger { background: #6a2a2a; color: #ff9a9a; }
+        /* 原来是灰蓝 #3a4a60（早期深蓝配色的漏网之鱼，2026-11-18 美术第二轮 §12.6 ⑩ 换成道场绿体系）*/
+        .sa-btn { flex: 1; min-width: 110px; display: inline-flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.06); color: #dfe9e2; border: 1px solid rgba(255,255,255,0.16);
+            border-radius: 10px; padding: 10px; font-size: 14px; font-weight: bold; cursor: pointer; }
+        .sa-btn:hover { background: rgba(255,255,255,0.1); }
+        .sa-btn.danger { background: rgba(255,120,120,0.08); color: #ff8f8f; border-color: rgba(255,120,120,0.28); }
         /* 窄屏 / 矮屏进一步压缩间距，保证整屏不滚动 */
         @media (max-width: 480px) {
             #user-bar { padding: 5px 10px; gap: 6px; font-size: 13px; margin-bottom: 6px; }

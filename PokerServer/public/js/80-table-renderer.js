@@ -1,7 +1,31 @@
 // ===== UI helpers =====
+// 顶栏金币：变化时数字滚动过去，整块闪一下（加钱绿、扣钱红）—— 签到、结算、补码后能看出「钱动了」
+// （2026-11-18，美术第二轮 §12.6 ⑦；牌桌上的筹码早就是这样滚的，见 animateChipCounts）。第一次显示不滚。
+let _goldShown = null, _goldRaf = 0;
+function showGold(to) {
+    const el = document.getElementById('display-gold');
+    if (!el) return;
+    const from = _goldShown;
+    _goldShown = to;
+    if (from == null || from === to || (typeof reducedMotion === 'function' && reducedMotion())) { el.textContent = to.toLocaleString(); return; }
+    const box = el.closest('.gold');
+    if (box) {
+        box.classList.remove('gold-up', 'gold-down');
+        void box.offsetWidth;   // 连着两次变化也要重播
+        box.classList.add(to > from ? 'gold-up' : 'gold-down');
+    }
+    cancelAnimationFrame(_goldRaf);
+    const dur = 700, t0 = performance.now();
+    const step = (t) => {
+        const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+        el.textContent = Math.round(from + (to - from) * e).toLocaleString();
+        if (k < 1) _goldRaf = requestAnimationFrame(step);
+    };
+    _goldRaf = requestAnimationFrame(step);
+}
 function updateUserBar() {
     // 用户名/头像已搬到「我的」页的头卡，顶栏只留随时要看的余额
-    document.getElementById('display-gold').textContent = myGold?.toLocaleString() || '0';
+    showGold(myGold || 0);
     if (typeof renderMeHead === 'function') renderMeHead();
 }
 

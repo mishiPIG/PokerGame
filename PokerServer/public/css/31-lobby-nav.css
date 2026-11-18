@@ -152,6 +152,12 @@
         .pane-empty { text-align: center; color: #9db9a9; font-size: 14px; line-height: 1.9;
             padding: 34px 18px; }
         .pane-empty .pe-ico { font-size: 40px; opacity: .45; display: block; margin-bottom: 10px; }
+        /* 空状态配插画 + 直接能点的下一步（2026-11-18，美术第二轮 §12.6 ④）：新人进来第一眼看到的就是它 */
+        .pane-empty .pe-art { display: block; width: 150px; height: 96px; margin: 0 auto 10px; opacity: 0.92; }
+        .pe-acts { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+        .pe-btn { display: inline-flex; align-items: center; padding: 10px 18px; border-radius: 999px; font-size: 14px; font-weight: 700;
+            cursor: pointer; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color: #dfe9e2; }
+        .pe-btn.primary { background: linear-gradient(135deg, #f4d35e, #e0b63a); border-color: transparent; color: #2a1d00; }
 
         /* ===== 入场动效：切页时逐块浮现（2026-09-13，玩家反馈「只有约局有动画，其他很生硬」）=====
            原来只有「约局」那两张卡自带入场（.lobby-entry 的 leIn），发现/我的都是硬切。
@@ -169,6 +175,28 @@
         .lobby-pane.active > *:nth-child(6) { animation-delay: 0.22s; }
         .lobby-pane.active > *:nth-child(n+7) { animation-delay: 0.25s; }   /* 再往后不继续拉长，否则末尾等太久 */
         @keyframes paneIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        /* 切页有方向感（2026-11-18，美术第二轮 §12.6 ⑥）：往右边的页切，内容从右边进来；往左切从左边进来 */
+        #lobby-view[data-dir="r"] .lobby-pane.active > * { animation-name: paneInR; }
+        #lobby-view[data-dir="l"] .lobby-pane.active > * { animation-name: paneInL; }
+        @keyframes paneInR { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+        @keyframes paneInL { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
+        /* 导航指示条：一根金条从上一个选中项【滑】到新选中项（原来是每项各自的条，淡出 / 淡入，看起来是「跳」）。
+           JS 按选中项的位置写 --nx / --ny（30-room.js 的 positionNavSlider）；有了它就不再画每项自己的那根。*/
+        #lobby-nav { position: relative; }
+        #nav-slider { position: absolute; top: 0; left: 0; width: 30px; height: 2px; border-radius: 999px; background: #f4d35e;
+            pointer-events: none; transform: translate(var(--nx, 0px), var(--ny, 0px)); opacity: 0;
+            transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.15s ease; }
+        #nav-slider.ready { opacity: 1; }
+        #lobby-nav.has-slider .nav-item.active::before { display: none; }
+        @media (min-width: 721px) { #nav-slider { width: 3px; height: 20px; } }
+        /* 金币变化：数字滚动的同时整块闪一下（加钱绿、扣钱红）*/
+        .gold.gold-up   { animation: goldUp 0.8s ease-out; }
+        .gold.gold-down { animation: goldDown 0.8s ease-out; }
+        @keyframes goldUp   { 0% { text-shadow: none; } 25% { text-shadow: 0 0 12px rgba(46,230,176,0.9); color: #b8ffe6; transform: scale(1.06); } 100% { text-shadow: none; } }
+        @keyframes goldDown { 0% { text-shadow: none; } 25% { text-shadow: 0 0 10px rgba(255,107,107,0.8); color: #ffc2c2; } 100% { text-shadow: none; } }
+        .gold { display: inline-flex; align-items: center; gap: 4px; transform-origin: left center; }
+        .gold.gold-up .ic { animation: coinSpin 0.8s ease-out; }
+        @keyframes coinSpin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
 
         /* 导航：选中标记淡入 + 图标轻微上浮，切换不再是「啪」地跳过去 */
         .nav-item.active::before { animation: navMark 0.3s cubic-bezier(0.22,1,0.36,1) both; }
@@ -185,5 +213,7 @@
         /* 尊重系统的「减少动态效果」设置（登录页那套也是这么做的）*/
         @media (prefers-reduced-motion: reduce) {
             .lobby-pane.active > *, .nav-item.active::before, .ni-badge { animation: none; }
+            #lobby-view[data-dir] .lobby-pane.active > *, .gold.gold-up, .gold.gold-down, .gold.gold-up .ic { animation: none; }
+            #nav-slider { transition: none; }
         }
         @keyframes navMarkV { from { opacity: 0; transform: translateY(-50%) scaleY(0.3); } }

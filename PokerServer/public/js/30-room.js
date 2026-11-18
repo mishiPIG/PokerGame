@@ -400,6 +400,7 @@ function codeBoxes() { return Array.from(document.querySelectorAll('#joinCodeBox
 function getJoinCode() { return codeBoxes().map(b => b.value).join(''); }
 function onCodeInput(el, idx) {
     el.value = el.value.replace(/\D/g, '').slice(0, 1);   // 只留一位数字
+    if (el.value) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }   // 输进一位：这一格轻轻跳一下
     const boxes = codeBoxes();
     if (el.value && idx < boxes.length - 1) boxes[idx + 1].focus();
     if (getJoinCode().length === boxes.length) joinByCode();   // 输满自动加入
@@ -432,6 +433,13 @@ function joinByCode() {
     window._joinCodeUnlock = setTimeout(() => { window._joinSubmitting = false; }, 4000);
 }
 // 加入成功/失败后复位（失败时清空四格并聚焦第一格，方便重输）
+// 房间码不对：整排左右抖一下（美术第二轮 §12.6 ⑧）—— 比只弹一句提示更直观，手指也知道「这次没成」
+function shakeJoinCode() {
+    const row = document.getElementById('joinCodeBoxes');
+    if (!row) return;
+    row.classList.remove('shake'); void row.offsetWidth; row.classList.add('shake');
+    if (typeof vibrate === 'function') vibrate([20, 40, 20]);
+}
 function resetJoinCode(clearBoxes) {
     window._joinSubmitting = false;
     clearTimeout(window._joinCodeUnlock);
@@ -709,6 +717,16 @@ function renderStats(st) {
 // 一份数据渲染两个列表：
 //   「约局」= 我参与的（isMember）—— 空是正常的，文案要引导而不是报丧
 //   「发现」= 其余的 —— 带筛选，数量上导航角标
+// 空状态插画：俯视的一张空牌桌，几个虚线空座（2026-11-18，美术第二轮 §12.6 ④）
+const EMPTY_TABLE_ART = '<svg class="pe-art" viewBox="0 0 150 96" aria-hidden="true">'
+    + '<ellipse cx="75" cy="52" rx="58" ry="30" fill="#5b3f1c"/><ellipse cx="75" cy="50" rx="53" ry="26" fill="#2f6b4f" stroke="#e6c35a" stroke-opacity=".7" stroke-width="1.5"/>'
+    + '<path d="M57 45 Q75 41 93 45 M60 50 H90 M64 45 V60 M86 45 V60" stroke="#e6c35a" stroke-opacity=".45" stroke-width="2.2" fill="none" stroke-linecap="round"/>'
+    + [[75, 14], [126, 34], [126, 70], [75, 90], [24, 70], [24, 34]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="7" fill="none" stroke="#9db9a9" stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="3 3"/>`).join('')
+    + '</svg>';
+// text / acts 都是代码里写死的常量文案和按钮（不含玩家输入）
+function emptyPane(text, acts) {
+    return `<div class="pane-empty">${EMPTY_TABLE_ART}${text}<div class="pe-acts">${acts}</div></div>`;   // escape-ok: 常量文案和按钮
+}
 function renderRoomList(rooms) {
     window._lastRooms = rooms;   // 缓存：切语言 / 换筛选时可立即重渲染
     const mine = rooms.filter(r => r.isMember);
@@ -719,9 +737,10 @@ function renderRoomList(rooms) {
     if (myBox) {
         document.getElementById('my-room-count').textContent = mine.length ? `(${mine.length})` : '';
         myBox.innerHTML = mine.length ? roomCards(mine)
-            : `<div class="pane-empty"><span class="pe-ico">${ic('cards')}</span>${
-                L('还没有进行中的牌局<br>创建一局，或输入朋友给你的四位房间码',
-                  'No games in progress<br>Create one, or enter the 4-digit room code a friend gave you')}</div>`;
+            : emptyPane(L('还没有进行中的牌局<br>创建一局，或输入朋友给你的四位房间码',
+                          'No games in progress<br>Create one, or enter the 4-digit room code a friend gave you'),
+                `<button class="pe-btn primary" onclick="showCreateForm()">${ic('plus')}<span>${L('创建一局', 'Create a game')}</span></button>`
+                + `<button class="pe-btn" onclick="openDemoHand()">${ic('play')}<span>${L('看一手示例', 'Watch a sample hand')}</span></button>`);
     }
 
     // 发现页的角标用「别人的局」总数，不受当前筛选影响（筛选只是看法，不是有多少）
@@ -734,10 +753,12 @@ function renderRoomList(rooms) {
 
     const box = document.getElementById('room-list');
     if (!others.length) {
-        box.innerHTML = `<div class="pane-empty"><span class="pe-ico">${ic('search')}</span>${
-            discoverTotal ? L('这个筛选下没有牌局', 'No games match this filter')
-                          : L('现在没有别人的牌局<br>让朋友开一局，或者自己在「约局」里创建',
-                              'Nobody else has a game going<br>Ask a friend to start one, or create your own under Play')}</div>`;
+        box.innerHTML = discoverTotal
+            ? emptyPane(L('这个筛选下没有牌局', 'No games match this filter'),
+                `<button class="pe-btn" onclick="setDiscoverFilter('all')">${L('看全部', 'Show all')}</button>`)
+            : emptyPane(L('现在没有别人的牌局<br>让朋友开一局，或者自己创建一张',
+                          'Nobody else has a game going<br>Ask a friend to start one, or create your own'),
+                `<button class="pe-btn primary" onclick="setLobbyTab('play');showCreateForm()">${ic('plus')}<span>${L('创建一局', 'Create a game')}</span></button>`);
         return;
     }
     box.innerHTML = roomCards(others);
@@ -895,6 +916,10 @@ try { const t = localStorage.getItem('lobbyTab'); if (LOBBY_TABS.includes(t)) lo
 
 function setLobbyTab(name) {
     if (!LOBBY_TABS.includes(name)) name = 'play';
+    // 切页方向：往右边的页切，内容从右边进来（美术第二轮 §12.6 ⑥）。第一次进大厅、点当前页不带方向
+    const from = LOBBY_TABS.indexOf(lobbyTab), to = LOBBY_TABS.indexOf(name);
+    const viewEl = document.getElementById('lobby-view');
+    if (viewEl) viewEl.dataset.dir = (from < 0 || from === to) ? '' : (to > from ? 'r' : 'l');
     lobbyTab = name;
     try { localStorage.setItem('lobbyTab', name); } catch {}
     document.querySelectorAll('#lobby-nav .nav-item')
@@ -902,10 +927,32 @@ function setLobbyTab(name) {
     document.querySelectorAll('#lobby-view .lobby-pane')
         .forEach(p => p.classList.toggle('active', p.id === 'pane-' + name));
     if (name === 'me') renderMeHead();
+    positionNavSlider();
     // 切到某页时把它滚回顶部，否则从长列表切过去会停在半空
     const view = document.getElementById('lobby-view');
     if (view) view.scrollTop = 0;
 }
+
+// 导航指示条：一根金条滑到当前选中项（样式见 31-lobby-nav.css 的 #nav-slider）。
+// 窄屏（底部导航）滑到选中项正上方的中间；宽屏（左侧竖排）滑到选中项左边的中间。
+function positionNavSlider() {
+    const nav = document.getElementById('lobby-nav');
+    if (!nav || typeof nav.querySelector !== 'function') return;
+    const active = nav.querySelector('.nav-item.active');
+    if (!active || !nav.getBoundingClientRect) return;
+    let bar = document.getElementById('nav-slider');
+    if (!bar) { bar = document.createElement('span'); bar.id = 'nav-slider'; nav.appendChild(bar); nav.classList.add('has-slider'); }
+    const n = nav.getBoundingClientRect(), a = active.getBoundingClientRect();
+    if (!a.width) return;   // 牌桌里导航是藏着的：量不到，等回大厅再说
+    const wide = window.matchMedia && window.matchMedia('(min-width: 721px)').matches;
+    const x = wide ? a.left - n.left : a.left - n.left + a.width / 2 - 15;
+    const y = wide ? a.top - n.top + a.height / 2 - 10 : a.top - n.top;
+    bar.style.setProperty('--nx', x.toFixed(1) + 'px');
+    bar.style.setProperty('--ny', y.toFixed(1) + 'px');
+    // 第一次摆位置不要从左上角滑过来：先瞬移到位，下一帧再显示
+    if (!bar.classList.contains('ready')) requestAnimationFrame(() => bar.classList.add('ready'));
+}
+if (typeof window.addEventListener === 'function') window.addEventListener('resize', () => positionNavSlider());
 
 // 「发现」页的筛选：全部 / 现金桌 / SNG
 let discoverFilter = 'all';

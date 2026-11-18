@@ -106,6 +106,7 @@ function connectSocket(token) {
             try { sessionStorage.removeItem('pendingInviteToken'); } catch {}
         }
         resetJoinCode(source !== 'link');   // 输错房间码→清空四格重输（链接失败不清）
+        if (source !== 'link') shakeJoinCode();
         showLobby();
         // k = 结构化 key（各客户端按自己的语言渲染）；message = 老服务端的中文原文，兼容用
         toast(renderServerMsg(k ? { k } : null) || message || t('srv.invite.badCode', ''), 3500);

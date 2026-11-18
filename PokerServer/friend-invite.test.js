@@ -186,7 +186,10 @@ test('🔴 邀请事件里绝不能带房间码', () => {
     host.fire('invite_friend', { userId: 'pal' });
     const inv = pal.got('friend_invite')[0];
     // 被邀请者转手就能把码发给别人 → 房主控制入场那条就没了
-    const blob = JSON.stringify(inv);
+    // ⚠️ expiresAt 是 13 位时间戳，碰巧含「4321」时会误报（2026-11-18 偶发过一次，约千分之一）——查子串前先拿掉它
+    const { expiresAt, ...rest } = inv;
+    assert.equal(typeof expiresAt, 'number');
+    const blob = JSON.stringify(rest);
     assert.ok(!('joinCode' in inv), 'friend_invite 带了 joinCode');
     assert.ok(!blob.includes('4321'), '房间码泄漏进了邀请事件：' + blob);
     assert.ok(!blob.includes('tok-'), '邀请 token 泄漏进了邀请事件：' + blob);

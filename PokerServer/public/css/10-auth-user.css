@@ -99,7 +99,9 @@
         .auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.14); }
         .guest-banner { background: rgba(244,211,94,0.1); border: 1px solid rgba(244,211,94,0.35);
             border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
-        .gb-text { font-size: 13px; color: #eaf3ee; line-height: 1.5; }
+        .gb-text { font-size: 13px; color: #eaf3ee; line-height: 1.5; display: flex; align-items: flex-start; gap: 8px; }
+        .gb-text .ic { margin-top: 0.15em; font-size: 15px; }
+        .gb-text .ic + span { margin-left: 0; }
         .gb-acts { display: flex; align-items: center; gap: 14px; margin-top: 8px; font-size: 13px; }
         .sa-note { font-size: 13px; color: #9db9a9; line-height: 1.6; margin: 6px 0 12px; }
         .me-guest-tag { display: inline-block; margin: 0 0 4px; padding: 1px 8px; border-radius: 999px;
