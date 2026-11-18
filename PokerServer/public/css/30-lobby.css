@@ -198,6 +198,8 @@
         #create-form input[type=range]::-moz-range-thumb, #buyin-modal input[type=range]::-moz-range-thumb {
             width: 20px; height: 20px; border-radius: 50%; background: #06d6a0; border: 3px solid #eaf3ee; }
         /* 建房表单很长，「确定创建」原来要滚到最底下才点得到：钉在可视区底部（2026-11-17，美术第二轮 ④）*/
+        /* SNG 报名费下面那一行：按开赛人数，每个名次拿多少 */
+        .sng-payout-line { margin-top: 6px; font-size: 12px; color: #f4d35e; opacity: 0.9; }
         .create-actions { display: flex; gap: 10px; position: sticky; bottom: -8px; z-index: 5;
             margin: 12px -16px -16px; padding: 18px 16px 14px; border-radius: 0 0 12px 12px;
             background: linear-gradient(180deg, rgba(26,44,35,0), rgba(26,44,35,0.98) 22%); }

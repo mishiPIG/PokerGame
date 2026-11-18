@@ -9,7 +9,7 @@ const { createSeatService } = require('../rooms/seat-service');
 const { createGamePersistenceService } = require('../persistence/game-persistence-service');
 
 function createTableService({ io, db, stats, equity, Card, Deck, HandEvaluator, crypto, config, runtime }) {
-    const { gameSB, gameBB, gameAnte, sngPrize } = config;
+    const { gameSB, gameBB, gameAnte, sngPrize, sngPayouts, sngEntrants } = config;
     const { roomGames, lobbySockets } = runtime;
     const persistence = createGamePersistenceService({ db, runtime, Deck, Card });
     const lobbyService = createLobbyService({ io, runtime, config });
@@ -18,7 +18,7 @@ function createTableService({ io, db, stats, equity, Card, Deck, HandEvaluator, 
     const { recordLeft, buildRanking, sendMatchResult } = matchResultService;
     let seatService;
     let pokerService;
-    const sngMatchService = createSngMatchService({ io, db, roomGames, lobbySockets, sngPrize, persistence, PHASES: config.PHASES, hooks: { broadcastState: (...args) => pokerService.broadcastState(...args), broadcastRoomList, buildRanking, sendMatchResult, listRooms, clearActionTimer: (...args) => pokerService.clearActionTimer(...args) } });
+    const sngMatchService = createSngMatchService({ io, db, roomGames, lobbySockets, sngPrize, sngPayouts, sngEntrants, persistence, PHASES: config.PHASES, hooks: { broadcastState: (...args) => pokerService.broadcastState(...args), broadcastRoomList, buildRanking, sendMatchResult, listRooms, clearActionTimer: (...args) => pokerService.clearActionTimer(...args) } });
     const cashMatchService = createCashMatchService({ io, db, roomGames, lobbySockets, config, persistence, hooks: { buildRanking, sendMatchResult, clearActionTimer: (...args) => pokerService.clearActionTimer(...args), clearStraddleDecision: (...args) => pokerService.clearStraddleDecision(...args), showStraddleDecision: (...args) => pokerService.showStraddleDecision(...args), broadcastState: (...args) => pokerService.broadcastState(...args), broadcastRoomList, listRooms, removeBustedPlayers: (...args) => seatService.removeBustedPlayers(...args), liveCount: (...args) => pokerService.liveCount(...args), startHand: (...args) => pokerService.startHand(...args), // 延后解散：本手打完后按房型执行真正的解散
         dissolveNow: (roomId) => (roomGames[roomId]?.roomType === 'cash'
             ? cashMatchService.endCashTable(roomId, '房主提前结束')

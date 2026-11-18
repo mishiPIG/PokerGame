@@ -314,14 +314,29 @@ function showTable() {
 }
 let createTab = 'sng';
 const CASH_BLINDS = [[10,20],[20,40],[30,60],[50,100],[100,200],[200,400],[300,600],[500,1000]];
-// SNG 报名费档位（2 人冠军奖励参考；多人时奖池随人数变大）
-const SNG_TIERS = [[110, 200], [220, 400], [550, 1000], [1100, 2000]];
+// SNG 报名费档位。奖金按开赛人数照名次表分（2026-11-18；原来写死「冠军≈200」是按 2 人算的，开 3 人、6 人时是错的）
+const SNG_TIERS = [110, 220, 550, 1100];
 let sngBuyin = 110;
+// ⚠️ 和服务端 config.sngPayouts 是同一张表（服务端才是发钱的那份，这里只用来显示），sng-payout.test.js 核对两边一致。
+function sngPayoutsView(fee, entrants) {
+    const net = Math.floor(fee * entrants * 10 / 11);   // 抽水先从奖池里扣
+    const shares = entrants <= 2 ? [1] : entrants === 3 ? [2 / 3, 1 / 3] : entrants <= 6 ? [0.65, 0.35] : [0.5, 0.3, 0.2];
+    const amounts = shares.map(s => Math.floor(net * s));
+    amounts[0] += net - amounts.reduce((a, b) => a + b, 0);
+    return amounts;
+}
 function renderSngTiers() {
     const row = document.getElementById('sngBuyinRow');
-    row.innerHTML = SNG_TIERS.map(([fee, prize]) =>
+    if (!row) return;
+    const n = +(document.getElementById('cfgMax') || {}).value || 2;
+    row.innerHTML = SNG_TIERS.map(fee =>
         `<button type="button" class="tier-btn${fee === sngBuyin ? ' sel' : ''}" onclick="selectSngTier(${fee})">
-            ${ic('coin', 'gold')}${fee}<small>${L('冠军≈', 'Win≈')}${prize}</small></button>`).join('');
+            ${ic('coin', 'gold')}${fee}<small>${L('冠军', 'Win')} ${sngPayoutsView(fee, n)[0].toLocaleString()}</small></button>`).join('');
+    // 选中那一档：每个名次各拿多少
+    const places = [L('冠军', '1st'), L('亚军', '2nd'), L('季军', '3rd')];
+    const line = document.getElementById('sngPayoutLine');
+    if (line) line.textContent = L(`${n} 人开赛 · `, `${n} players · `)
+        + sngPayoutsView(sngBuyin, n).map((v, i) => `${places[i]} ${v.toLocaleString()}`).join(' · ');
 }
 function selectSngTier(fee) { sngBuyin = fee; renderSngTiers(); }
 // 现金桌训练时长档位（小时）

@@ -489,7 +489,13 @@ function startHand(roomId) {
             action: 'straddle', amount: st.amount, thinkMs: 0
         }))   // amount=该街行动后的 currentBet 总额（链式则逐档记录）
     };
-    game.players.forEach(p => { if (!p.folded) p.handsPlayed = (p.handsPlayed || 0) + 1; });
+    game.players.forEach(p => {
+        if (p.folded) return;
+        p.handsPlayed = (p.handsPlayed || 0) + 1;
+        // SNG 名次：同一手里几个人一起出局，开手时筹码多的排前面（还原下盲前，和牌谱 startChips 同口径）
+        p.handStartChips = p.chips + p.currentBet + (p.committed || 0);
+        p.handStartSeq = game.handSeq;
+    });
 
     // preflop 第一个行动：heads-up = SB（按钮）；N≥3 = BB 后第一位（UTG）
     // 注意：heads-up 时若 SB 已因下盲全押，则不能让 SB 行动（否则超时会误弃全押者）→ 顺延找下一个能行动的

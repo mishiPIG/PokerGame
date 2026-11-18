@@ -125,26 +125,30 @@ test('座位号必须是整数：字符串 "0" 不能骗过占座检查', () => 
 });
 
 // ───────── SNG 没开赛就解散 ─────────
-function sngHarness(status) {
+function sngHarness(status, players = [
+    { userId: 'owner', seat: 0, chips: 10000, buyInGold: 1100 },
+    { userId: 'guest', seat: 1, chips: 10000, buyInGold: 1100 }
+]) {
     const { createSngMatchService } = require('./src/matches/sng-match-service');
+    const { createMatchResultService } = require('./src/matches/match-result-service');
+    const config = require('./src/config');
     const game = {
-        matchId: 'm1', roomType: 'sng', status, prizePool: 2200, config: { name: 'T', buyIn: 1100 },
-        players: [
-            { userId: 'owner', seat: 0, chips: 10000, buyInGold: 1100 },
-            { userId: 'guest', seat: 1, chips: 10000, buyInGold: 1100 }
-        ]
+        matchId: 'm1', roomType: 'sng', status, prizePool: 1100 * players.length, config: { name: 'T', buyIn: 1100 },
+        players
     };
+    // 排名用真的 buildRanking（按名次发奖靠它算每一名拿多少）
+    const { buildRanking } = createMatchResultService({ io: { in: () => ({ emit() {} }) }, db: { getUserById: () => null }, roomGames: { r: game } });
     const paid = [];
     const svc = createSngMatchService({
         io: { in: () => ({ emit() {} }), to: () => ({ emit() {} }), sockets: { sockets: new Map() } },
         db: { wallet: { countOperations: () => 0 } },
-        roomGames: { r: game }, lobbySockets: new Set(), sngPrize: (pool) => Math.floor(pool * 10 / 11),
+        roomGames: { r: game }, lobbySockets: new Set(), sngPrize: config.sngPrize, sngPayouts: config.sngPayouts, sngEntrants: config.sngEntrants,
         persistence: {
             commitWithWallet(roomId, changes) { changes.forEach(c => paid.push([c.userId, c.delta, c.type])); return { wallets: changes.map(() => ({ balance: 0, applied: true })) }; },
             finish() {}
         },
         PHASES: { WAITING: 'waiting', SHOWDOWN: 'showdown' },
-        hooks: { broadcastState() {}, broadcastRoomList() {}, buildRanking: () => [], sendMatchResult() {}, listRooms: () => [], clearActionTimer() {} }
+        hooks: { broadcastState() {}, broadcastRoomList() {}, buildRanking, sendMatchResult() {}, listRooms: () => [], clearActionTimer() {} }
     });
     return { svc, paid };
 }
@@ -155,10 +159,23 @@ test('🔴 没开赛的 SNG 被解散 → 每人原数退回报名费，不判�
     assert.deepEqual(paid.sort(), [['guest', 1100, 'sng_refund'], ['owner', 1100, 'sng_refund']]);
 });
 
-test('已经开赛的 SNG 被解散 → 照旧：奖池（抽水后）给筹码领先者', () => {
-    const { svc, paid } = sngHarness('running');
+test('已经开赛的单挑 SNG 被解散 → 奖池（抽水后）给筹码领先者（单挑只发一名，和原来一样）', () => {
+    const { svc, paid } = sngHarness('running', [
+        { userId: 'owner', seat: 0, chips: 12000, buyInGold: 1100 },
+        { userId: 'guest', seat: 1, chips: 8000, buyInGold: 1100 }
+    ]);
     svc.dissolveSngRoom('r');
     assert.deepEqual(paid, [['owner', 2000, 'sng_prize']]);
+});
+
+test('已经开赛的 3 人 SNG 被解散 → 按当前名次发：筹码第一 2 份、第二 1 份（2026-11-18 起按名次发奖）', () => {
+    const { svc, paid } = sngHarness('running', [
+        { userId: 'a', seat: 0, chips: 5000, buyInGold: 1100 },
+        { userId: 'b', seat: 1, chips: 15000, buyInGold: 1100 },
+        { userId: 'c', seat: 2, chips: 10000, buyInGold: 1100 }
+    ]);
+    svc.dissolveSngRoom('r');
+    assert.deepEqual(paid, [['b', 2000, 'sng_prize'], ['c', 1000, 'sng_prize']]);   // 奖池 3300 → 抽水后 3000
 });
 
 test('SNG 里已入座的人不能被请出（否则报名费既不退也不参与排名）', () => {

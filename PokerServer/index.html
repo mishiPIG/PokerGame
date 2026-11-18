@@ -332,10 +332,11 @@
                 <div class="cfg-note" data-i18n="cfg.sngNote">初始盲注 25/50 每级递增、淘汰制；冠军赢得奖池</div>
                 <label><span data-i18n="cfg.name">比赛名字</span> <input type="text" id="cfgName" placeholder="不服就推" maxlength="20" data-i18n-ph="cfg.namePh"></label>
                 <div class="cfg-field"><span class="cfg-label" data-i18n="cfg.buyin">报名费（冠军奖励）</span>
-                    <div class="tier-row" id="sngBuyinRow"></div></div>
+                    <div class="tier-row" id="sngBuyinRow"></div>
+                    <div class="sng-payout-line" id="sngPayoutLine"></div></div>
                 <label><span data-i18n="cfg.maxPlayers">开赛人数：</span><b id="cfgMaxVal">2</b> <span data-i18n="cfg.unitPeople">人</span>
                     <input type="range" id="cfgMax" min="2" max="9" step="1" value="2"
-                           oninput="document.getElementById('cfgMaxVal').textContent=this.value"></label>
+                           oninput="document.getElementById('cfgMaxVal').textContent=this.value;renderSngTiers()"></label>
                 <label><span data-i18n="cfg.startStack">初始记分牌：</span><b id="cfgStackVal">10,000 (200BB)</b>
                     <input type="range" id="cfgStack" min="5000" max="30000" step="1000" value="10000"
                            oninput="document.getElementById('cfgStackVal').textContent=(+this.value).toLocaleString()+' ('+Math.round(this.value/50)+'BB)'"></label>

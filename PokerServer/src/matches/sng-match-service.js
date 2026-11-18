@@ -2,7 +2,7 @@
 
 const SNG_DISSOLVE_GRACE_MS = 25000;   // SNG 分出胜负后，留 25s 看结算排名，再自动解散房间
 
-function createSngMatchService({ io, db, roomGames, lobbySockets, sngPrize, persistence, PHASES, hooks }) {
+function createSngMatchService({ io, db, roomGames, lobbySockets, sngPrize, sngPayouts, sngEntrants, persistence, PHASES, hooks }) {
     const { broadcastState, broadcastRoomList, buildRanking, sendMatchResult, listRooms, clearActionTimer } = hooks;
 
 // SNG 结束后清房：清所有定时器、通知客户端回大厅、把玩家踢回大厅、删房。奖金已在 maybeEndSNG 结算，此处不再发奖。
@@ -48,28 +48,36 @@ function dissolveSngRoom(roomId) {
         }
         game.prizePool = 0;
     } else if (!game.tournamentOver) {
-        const prize = sngPrize(game.prizePool);
+        // 开赛后解散：按当前名次发（还在桌上的按筹码多少排，已出局的按出局先后）。
+        // 原来是奖池全给筹码领先者 —— 现在名次多了，照名次表发才和「打到最后」一致。
         const leader = [...game.players].sort((a, b) => b.chips - a.chips)[0];
-        if (leader && prize > 0) {
-            const old = { settlementGold: leader.settlementGold, settledAt: leader.settledAt };
-            leader.settlementGold = prize;
-            leader.settledAt = Date.now();
-            try {
-                const committed = persistence.commitWithWallet(roomId, [{
-                    userId: leader.userId, delta: prize, type: 'sng_prize', matchId: game.matchId,
-                    operationKey: `sng-prize:${game.matchId}:${leader.userId}`,
-                    metadata: { reason: 'owner_dissolve', prizePool: game.prizePool }
-                }], 'sng_prize', leader.userId, { prize, reason: 'owner_dissolve' });
-                if (leader.socketId) io.to(leader.socketId).emit('gold_update', { gold: committed.wallets[0].balance });
-            } catch (error) {
-                leader.settlementGold = old.settlementGold; leader.settledAt = old.settledAt;
-                throw error;
-            }
-        }
-        sendMatchResult(roomId, `【${game.config.name}】房主提前结束`, buildRanking(game, leader && leader.userId, prize));
+        const ranking = buildRanking(game, leader && leader.userId, sngPayouts(game.prizePool, sngEntrants(game)));
+        settleSngPlaces(roomId, game, ranking, 'owner_dissolve');
+        sendMatchResult(roomId, `【${game.config.name}】房主提前结束`, ranking);
     }
     io.in(roomId).emit('server_msg', { k: 'host.dissolved' });
     finalizeSngRoom(roomId);
+}
+
+// 按名次发奖（2026-11-18）：ranking 是 buildRanking 的结果（每一名带 prize），把 prize > 0 的一次性写进钱包。
+// 自然结束、开赛后解散两条路径共用。被淘汰的人已经不在座位上（在观战或已离开），金币照发、能找到连接就推一下余额。
+// operationKey 沿用 sng-prize:<场>:<人> —— 同一场同一个人只会拿一次，重复调用钱包直接挡回。
+function settleSngPlaces(roomId, game, ranking, reason) {
+    const paid = ranking.filter(r => (r.prize || 0) > 0);
+    if (!paid.length) return;
+    const pool = game.prizePool;
+    const committed = persistence.commitWithWallet(roomId, paid.map(r => ({
+        userId: r.userId, delta: r.prize, type: 'sng_prize', matchId: game.matchId,
+        operationKey: `sng-prize:${game.matchId}:${r.userId}`,
+        metadata: { prizePool: pool, rank: r.rank, entrants: sngEntrants(game), ...(reason ? { reason } : {}) }
+    })), 'sng_prize', paid[0].userId, { payouts: paid.map(r => ({ userId: r.userId, rank: r.rank, prize: r.prize })), ...(reason ? { reason } : {}) });
+    paid.forEach((r, i) => {
+        const seat = game.players.find(p => p.userId === r.userId);
+        if (seat) { seat.settlementGold = r.prize; seat.settledAt = Date.now(); }
+        for (const s of io.sockets.sockets.values()) {
+            if (s.user && s.user.id === r.userId) s.emit('gold_update', { gold: committed.wallets[i].balance });
+        }
+    });
 }
 
 // SNG 升盲计时器
@@ -136,35 +144,22 @@ function maybeEndSNG(roomId) {
         game.status = 'finished';
         clearTimeout(game.levelTimer);
         const winner = alive[0];
+        // 按名次发奖（2026-11-18）：原来冠军一个人拿走整个奖池，现在按报名人数照名次表发（config.sngPayouts）
+        const ranking = buildRanking(game, winner && winner.userId, sngPayouts(game.prizePool, sngEntrants(game)));
+        try {
+            settleSngPlaces(roomId, game, ranking, null);
+        } catch (error) {
+            game.tournamentOver = false;
+            game.status = 'running';
+            throw error;
+        }
         if (winner) {
-            const prize = sngPrize(game.prizePool);
-            if (prize > 0) {
-                const oldSettlement = { settlementGold: winner.settlementGold, settledAt: winner.settledAt };
-                winner.settlementGold = prize;
-                winner.settledAt = Date.now();
-                try {
-                    const committed = persistence.commitWithWallet(roomId, [{
-                        userId: winner.userId,
-                        delta: prize,
-                        type: 'sng_prize',
-                        matchId: game.matchId,
-                        operationKey: `sng-prize:${game.matchId}:${winner.userId}`,
-                        metadata: { prizePool: game.prizePool }
-                    }], 'sng_prize', winner.userId, { prize });
-                    if (winner.socketId) io.to(winner.socketId).emit('gold_update', { gold: committed.wallets[0].balance });
-                } catch (error) {
-                    winner.settlementGold = oldSettlement.settlementGold;
-                    winner.settledAt = oldSettlement.settledAt;
-                    game.tournamentOver = false;
-                    game.status = 'running';
-                    throw error;
-                }
-            }
+            const prize = (ranking[0] && ranking[0].prize) || 0;
             io.in(roomId).emit('server_msg', { k: 'sng.champion', p: { name: winner.displayName || winner.username, prize } });
             io.in(roomId).emit('tournament_over', { winnerId: winner.userId, prize });
         }
-        // 公布按名次排名（冠军→淘汰倒序）+ 给每位玩家（含已淘汰离开者）发消息
-        sendMatchResult(roomId, `【${game.config.name}】比赛结束`, buildRanking(game, winner && winner.userId, sngPrize(game.prizePool)));
+        // 公布按名次排名（冠军→淘汰倒序，每一名带奖金）+ 给每位玩家（含已淘汰离开者）发消息
+        sendMatchResult(roomId, `【${game.config.name}】比赛结束`, ranking);
         // 分出胜负 → 自动结算(上面已发奖) + 宽限后自动解散房间(玩家看完排名回大厅，无需手动解散)
         clearTimeout(game.dissolveTimer);
         game.dissolveAt = Date.now() + SNG_DISSOLVE_GRACE_MS;

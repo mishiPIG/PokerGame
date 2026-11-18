@@ -7,11 +7,13 @@ function recordLeft(game, p) {
     const net = (p.chips || 0) - (p.buyIn || 0);
     const ex = game.statsHistory.find(h => h.userId === p.userId);
     if (ex) { ex.net = net; ex.handsPlayed = p.handsPlayed || 0; ex.buyIn = p.buyIn || 0; }
-    else game.statsHistory.push({ userId: p.userId, username: p.username, displayName: p.displayName || p.username, buyIn: p.buyIn || 0, handsPlayed: p.handsPlayed || 0, net, left: true });
+    else game.statsHistory.push({ userId: p.userId, username: p.username, displayName: p.displayName || p.username, buyIn: p.buyIn || 0, handsPlayed: p.handsPlayed || 0, net, left: true,
+        bustSeq: p.bustSeq ?? null, startChips: p.handStartChips ?? null });   // SNG：哪一手出局、那一手开手时多少筹码（同手出局排名次用）
 }
 
 // 构建结束排名：现金=按盈亏(筹码)；SNG=冠军→淘汰倒序(盈亏金币)
 // 附带 handsPlayed / avatar —— 颁奖台（老板/MVP/力工）与结算面板要用
+// SNG 时 prize 可以是数组：按名次每一名拿多少（config.sngPayouts）；传数字则只有冠军有奖（老调用方式）
 function buildRanking(game, winnerId, prize) {
     const avatarOf = userId => {
         const p = game.players.find(x => x.userId === userId) || (game.vacatedPlayers || []).find(x => x.userId === userId);
@@ -28,20 +30,38 @@ function buildRanking(game, winnerId, prize) {
             .map((r, i) => ({ rank: i + 1, userId: r.userId, username: r.username, displayName: r.displayName, net: r.net, handsPlayed: r.handsPlayed, avatar: avatarOf(r.userId), unit: '筹码' }));
     }
     const fee = game.config.buyIn || 0;
+    const payouts = Array.isArray(prize) ? prize : [prize || 0];
     const order = [];
     const w = game.players.find(p => p.userId === winnerId);
-    if (w) order.push({ userId: w.userId, username: w.username, displayName: w.displayName || w.username, net: (prize || 0) - fee, handsPlayed: w.handsPlayed || 0 });
+    if (w) order.push({ userId: w.userId, username: w.username, displayName: w.displayName || w.username, handsPlayed: w.handsPlayed || 0 });
     // 🔴 还坐在桌上的其他人（最后一手被淘汰的亚军、解散时还没出局的人）原来一个都不进排名：
     //    statsHistory 只在「局间移除出局者」时才记，而比赛在那之前就结束了 ——
     //    单挑 SNG 的排名只有冠军一行，亚军既收不到收件箱，也评不了颁奖台。按筹码多少排在冠军后面。
     const placed = new Set(order.map(r => r.userId));
-    game.players.filter(p => !placed.has(p.userId)).sort((a, b) => (b.chips || 0) - (a.chips || 0)).forEach(p => {
-        placed.add(p.userId);
-        order.push({ userId: p.userId, username: p.username, displayName: p.displayName || p.username, net: -fee, handsPlayed: p.handsPlayed || 0 });
-    });
+    //    同样都是 0 筹码（最后一手一起出局）时，开手筹码多的排前面。
+    game.players.filter(p => !placed.has(p.userId))
+        .sort((a, b) => ((b.chips || 0) - (a.chips || 0)) || ((b.handStartChips || 0) - (a.handStartChips || 0)))
+        .forEach(p => {
+            placed.add(p.userId);
+            order.push({ userId: p.userId, username: p.username, displayName: p.displayName || p.username, handsPlayed: p.handsPlayed || 0,
+                tie: p.chips > 0 ? null : `${p.handStartSeq}:${p.handStartChips}` });
+        });
     (game.statsHistory || []).slice().reverse().filter(h => !placed.has(h.userId))
-        .forEach(h => order.push({ userId: h.userId, username: h.username, displayName: h.displayName || h.username, net: -fee, handsPlayed: h.handsPlayed || 0 }));
-    return order.map((r, i) => ({ rank: i + 1, userId: r.userId, username: r.username, displayName: r.displayName, net: r.net, handsPlayed: r.handsPlayed, avatar: avatarOf(r.userId), unit: '金币' }));
+        .forEach(h => order.push({ userId: h.userId, username: h.username, displayName: h.displayName || h.username, handsPlayed: h.handsPlayed || 0,
+            tie: h.bustSeq != null && h.startChips != null ? `${h.bustSeq}:${h.startChips}` : null }));
+    // 同一手出局、开手筹码也一模一样：分不出先后，这几个名次的奖金加起来平分（锦标赛通行规则；零头给排在前面的）
+    const won = order.map((r, i) => payouts[i] || 0);
+    for (let i = 0; i < order.length;) {
+        let j = i + 1;
+        while (order[i].tie && j < order.length && order[j].tie === order[i].tie) j++;
+        if (j - i > 1) {
+            const total = won.slice(i, j).reduce((a, b) => a + b, 0), each = Math.floor(total / (j - i));
+            for (let k = i; k < j; k++) won[k] = each + (k === i ? total - each * (j - i) : 0);
+        }
+        i = j;
+    }
+    return order.map((r, i) => ({ rank: i + 1, userId: r.userId, username: r.username, displayName: r.displayName,
+        prize: won[i], net: won[i] - fee, handsPlayed: r.handsPlayed, avatar: avatarOf(r.userId), unit: '金币' }));
 }
 
 // 颁奖台（纯娱乐/调侃）：🥇老板=亏最多（玩梗"输最多的请客"）、🥈MVP=赢最多、🥉力工=手数最多。

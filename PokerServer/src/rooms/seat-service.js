@@ -146,6 +146,13 @@ function chargeRebuy(game, p, chips, outcome = {}) {
 // - SNG：筹码归零者淘汰移除
 function removeBustedPlayers(game) {
     const roomId = Object.keys(roomGames).find(id => roomGames[id] === game);
+    // SNG：这一手出局的人按「开手时筹码」从少到多记进淘汰顺序（先记 = 名次靠后）。
+    // 原来按座位倒序记，两个人一起出局时谁排前面全看坐哪儿 —— 而名次现在直接决定拿多少奖金。
+    if (game.roomType === 'sng') {
+        game.players.filter(p => p.chips <= 0)
+            .sort((a, b) => (a.handStartChips || 0) - (b.handStartChips || 0))
+            .forEach(p => { p.bustSeq = p.handStartSeq; recordLeft(game, p); });
+    }
     for (let i = game.players.length - 1; i >= 0; i--) {
         const p = game.players[i];
         if (game.roomType === 'cash') {
@@ -165,7 +172,7 @@ function removeBustedPlayers(game) {
             }
         } else {
             if (p.chips <= 0) {
-                recordLeft(game, p);   // SNG 淘汰顺序（用于结束排名：先淘汰=末名）
+                // 淘汰顺序已在循环前按开手筹码记好（见上）
                 io.in(roomId).emit('server_msg', `💀 ${nameOf(p)} 出局`);
                 // 淘汰后【留在房间继续观战】：只把他移出座位，不再踢出 socket 房间。
                 // 观众 = 房间内未在座者（见 listSpectators），所以 splice 之后他自动就是观众。

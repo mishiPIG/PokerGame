@@ -64,12 +64,34 @@ function timeCardsFor(game, chips) {
     return game.roomType === 'cash' ? Math.round(buyInBB * 0.25) : Math.max(6, Math.round(buyInBB * 0.1));
 }
 function sngPrize(pool) { return Math.floor((pool || 0) * 10 / 11); }
+// SNG 按名次发奖（2026-11-18 用户定）。原来不管几个人开都是冠军一个人拿走整个奖池。
+// 抽水照旧先从奖池里扣（sngPrize = 奖池 × 10/11），剩下的按人数分：
+//   2 人：冠军全拿 / 3 人：冠军 2 份、亚军 1 份（亚军拿回自己那份）/ 4–6 人：65% / 35% / 7–9 人：50% / 30% / 20%
+// 除不尽的零头给冠军，保证各名次加起来正好等于抽水后的奖池。
+// ⚠️ 客户端 30-room.js 的 sngPayoutsView 是同一张表（建房表单显示用），sng-payout.test.js 核对两边一致。
+function sngPayoutShares(entrants) {
+    if (entrants <= 2) return [1];
+    if (entrants === 3) return [2 / 3, 1 / 3];
+    if (entrants <= 6) return [0.65, 0.35];
+    return [0.5, 0.3, 0.2];
+}
+function sngPayouts(pool, entrants) {
+    const net = sngPrize(pool);
+    const amounts = sngPayoutShares(entrants).map(s => Math.floor(net * s));
+    amounts[0] += net - amounts.reduce((a, b) => a + b, 0);
+    return amounts;
+}
+// 这场有几个人报了名：奖池只由报名费累积（开赛前退出的已从奖池里退掉），所以奖池 ÷ 报名费就是报名人数
+function sngEntrants(game) {
+    const fee = game && game.config && game.config.buyIn;
+    return fee > 0 ? Math.round((game.prizePool || 0) / fee) : (game.players || []).length;
+}
 
 module.exports = {
     LOCAL_DEV: process.env.LOCAL_DEV === '1', PHASES, DEFAULT_SMALL_BLIND, DEFAULT_BIG_BLIND,
     ACTION_TIME, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, RUNIT_MAX, RUNIT_DECIDE_MS,
     STRADDLE_DECISION_MS, STRADDLE_INTERMISSION_MS, SNG_BUYIN_TIERS,
     BUYIN_RATE, CASHOUT_RATE, CONFIGURED_PUBLIC_ORIGIN, STANDARD_BLIND_LEVELS,
-    loadJwtSecret, gameSB, gameBB, gameAnte, timeCardsFor, sngPrize,
+    loadJwtSecret, gameSB, gameBB, gameAnte, timeCardsFor, sngPrize, sngPayouts, sngPayoutShares, sngEntrants,
     ACTION_TIME_CHOICES, pickActionTimeSec, actionTimeOf
 };
