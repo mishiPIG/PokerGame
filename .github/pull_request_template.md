@@ -9,7 +9,8 @@
 ## Checklist
 - [ ] `npm test` and `npm run check` pass locally
 - [ ] The JS server (`PokerServer/`) is the source of truth; C# left as-is or intentionally updated
-- [ ] No secrets or data committed (`data.json`, `secret.key`, `mail.json`, `hands.jsonl`, `*.env`)
+- [ ] No secrets or data committed (SQLite database / WAL / SHM files, `secret.key`, `mail.json`, legacy `data.json` / `hands.jsonl`, `*.env`)
+- [ ] Text shown to players is bilingual (`L()` / `t()`), and player-supplied text goes through `escapeHtml`
 - [ ] Commits are signed off (`git commit -s`) per the DCO in CONTRIBUTING.md
 - [ ] Matches the surrounding code's style, naming, and comment density
 - [ ] Any test accounts I created were cleaned up

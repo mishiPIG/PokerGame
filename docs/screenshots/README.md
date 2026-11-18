@@ -6,4 +6,5 @@ Used by the top-level `README.md` (English UI, this folder) and `README.zh-CN.md
 - `desktop` — landscape layout (1280×760 CSS px @1.5x)
 
 All shots come from a local server with throwaway test accounts; the names are fictional and no real player data appears.
+Last retaken 2026-11-18 (v1.14.0: unified icons, face-card art, redesigned lobby). Retake them whenever the table or lobby changes visibly — stale screenshots are the first thing a visitor sees.
 JPEG rather than PNG: the felt texture makes PNGs ~1.3MB each, JPEG keeps them ~110KB.

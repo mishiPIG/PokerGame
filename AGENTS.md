@@ -31,6 +31,9 @@
 - `PokerServer/src/matches/`：现金训练赛、SNG 和比赛结算。
 - `PokerServer/src/socket/events/`：按领域拆分的 socket 事件。
 - `PokerServer/src/http/`：账户、认证和管理员 HTTP 路由。
+- `PokerServer/src/account/`：账号相关的纯逻辑（头像白名单、显示名、游客号、在线改身份）。
+- `PokerServer/src/storage/`：SQLite 仓库层和迁移脚本（`migrations/*.sql`）。
+- `PokerServer/src/ops/`：限流、来源 IP、报错上报、崩溃告警等运维护栏。
 - `PokerServer/public/js/`、`public/css/`：按加载顺序编号的前端模块。
 
 模块边界的设计依据见 `docs/refactor/`。新增功能应放进相应领域模块，不要重新把
@@ -42,7 +45,7 @@
 数据是项目最重要且必须可迁移的资产：
 
 - 用户、经济流水、牌谱和活跃比赛快照：SQLite，由 `POKER_DB_PATH` 指向代码目录外的数据文件。
-- `PokerServer/data.json`、`hands.jsonl`、`feedback.jsonl`：仅用于首次迁移和稳定观察期回滚。
+- `PokerServer/data.json`、`hands.jsonl`、`feedback.jsonl`：SQLite 之前的旧格式，已不再读写（导入脚本已删除）；部署仍要排除，不得提交也不得删除。
 - JWT 私章：`PokerServer/secret.key`
 - SMTP 凭据：`PokerServer/mail.json`
 
@@ -52,7 +55,8 @@ SQLite 备份必须使用 `scripts/backup-sqlite.js` 生成一致性快照，不
 服务器密钥或 SMTP 授权码。
 
 - 牌谱必须保持结构化、追加式和有时间顺序，并记录玩家、模式、动作、思考时间、
-  底牌、公共牌、下注、底池和结果。
+  底牌、公共牌、下注、底池和结果。新增玩法（短牌、奥马哈等）时牌谱要带上玩法标记，
+  个人统计按「玩家 × 模式 × 玩法」切分。
 - 影响金币、买入、兑出、奖励、边池或比赛结算的改动属于高风险改动；必须检查重复
   结算、掉线、离场、重连、全押和多边池路径。
 - 修改广播数据结构时，必须检查是否可能泄露底牌或其他私有状态。

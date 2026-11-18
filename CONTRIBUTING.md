@@ -23,7 +23,7 @@ LOCAL_DEV=1 PORT=3000 node server.js   # http://127.0.0.1:3000, seeds test/test 
 
 ```bash
 cd PokerServer
-npm test          # Node's built-in test runner (node --test), ~350 tests, a few seconds
+npm test          # Node's built-in test runner (node --test), ~470 tests, a few seconds
 npm run check     # lint + structural gates (i18n, escaping, CSS, timers, destructuring)
 ```
 

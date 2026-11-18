@@ -4,7 +4,7 @@
 
 > Open a private room, play Texas Hold'em with friends, and grow together.
 
-Poker Dojo is a **server-authoritative** online Texas Hold'em game built for playing with friends. All game logic (shuffling, dealing, hand evaluation, betting, settlement) runs on the server; clients only render and send actions. It ships with a lobby, SNG tournaments, cash "training" tables, a full multiplayer engine (real side pots, run-it-N-times), hand histories, career stats, chat/emote/voice, and a Capacitor Android shell.
+Poker Dojo is a **server-authoritative** online Texas Hold'em game built for playing with friends. All game logic (shuffling, dealing, hand evaluation, betting, settlement) runs on the server; clients only render and send actions. It ships with a lobby, SNG tournaments, cash "training" tables, a full multiplayer engine (real side pots, run-it-N-times), hand histories with shareable replay links, career stats, guest play, chat/emote/voice, and a Capacitor Android shell.
 
 > **Responsible play:** This is a **play-money** game for friends to practice and have fun. It is **not gambling** — no real-money wagering, cash-out, or prizes. Green competition, stay away from gambling.
 
@@ -29,15 +29,18 @@ Poker Dojo is a **server-authoritative** online Texas Hold'em game built for pla
 - **Server-authoritative engine** — hole cards are private (`io.to(socketId)`), broadcasts carry only public info, every action is validated server-side. You cannot cheat by inspecting your own traffic.
 - **Provably fair dealing** — fresh deck every hand, Fisher–Yates, unbiased and unpredictable. Every hand is **committed to before the deal and revealed after**, so anyone can recompute the deck offline and check it was never changed mid-hand ([how to verify](#-provably-fair)).
 - **Two room types**
-  - **SNG** (Sit-N-Go single-table tournament): increasing blinds, elimination, prize pool with rake.
+  - **SNG** (Sit-N-Go single-table tournament): increasing blinds, elimination; the prize pool (after rake) is paid by place — winner-take-all heads-up, top 2 for 3–6 players, top 3 for 7–9.
   - **Cash / "Training" table** (2–9 players): fixed blinds, buy-in/cash-out at a gold↔chips rate, training duration + extensions.
 - **Full multiplayer engine** — proper action order (UTG first), button rotation, and **real side pots** (with adjacent-pot merging + uncalled-bet return).
 - **Run it N times** — when two players are all-in, the underdog picks how many times to run (1–5) and the leader agrees; the pot is split into N shares, each dealt street-by-street on the table.
 - **Hand histories = data asset** — every hand (per-street actions, think time, hole cards, board, result, timestamp) is archived per player and per game mode in SQLite. Each hand also keeps its full original record verbatim, so nothing is lost to schema changes.
+- **Replay & share** — any hand can be replayed on an animated table, and shared as a public link. The link only shows what the sharer could see at the time (folded cards stay hidden) and never exposes account names or seeds.
 - **Career stats** — VPIP / PFR / 3-bet / C-bet / AF / WTSD / net + profit curve, aggregated from hand histories.
-- **Table UX** — ring seating, avatars, breathing action timer + ring countdown, four-color deck, bet slider, pre-actions, all-in equity %, chip/pot animations, haptics.
+- **Table UX** — ring seating, avatars, breathing action timer + ring countdown, bet slider + phone number pad, pre-actions, all-in equity %, slow-reveal run-outs, chip/pot animations, haptics. Four card styles (four-color / classic / black / big-index) and two face-card art sets (calligraphy seals / dojo warriors). Desktop scales up to the screen and shows keyboard shortcuts on the buttons.
+- **Host tools** — private rooms joined by 4-digit code or invite link, entry lock, choice of think time, optional buy-in approval, pause dealing, move a player to the rail, "play again" after an SNG.
 - **Social** — in-table chat + quick phrases, tap-avatar emotes, push-to-talk voice bubbles.
-- **Accounts & security** — username/email registration with email verification codes, JWT auth (per-server random signing key), TLS/WSS in production.
+- **Accounts & security** — play instantly as a guest with just a nickname (an invite link drops you straight at the table) and save it as a full account later without losing chips or history; username/email registration with email verification codes, JWT auth (per-server random signing key), TLS/WSS in production.
+- **New-player friendly** — a hand-rankings cheat sheet, a three-step hint the first time you are dealt in, and a sample hand to watch before anyone else is online.
 - **Android** — a thin **Capacitor** shell points at the live site; the game updates by deploying the server, no re-release needed.
 
 ---
@@ -153,7 +156,12 @@ LOCAL_DEV=1 PORT=3000 node server.js
 
 ## 🗺️ Roadmap highlights
 
-Done: multiplayer engine + real side pots · SNG & cash tables · run-it-N-times · chained straddles · hand histories + replay · career stats · friends & one-tap invites · provably fair shuffle (verifiable offline) · Chinese / English UI · four card-face styles · avatars/chat/emote/voice · email accounts + TLS · Android build.
+Done: multiplayer engine + real side pots · SNG (paid by place) & cash tables · run-it-N-times · chained straddles · hand histories + replay · shareable hand links · career stats · friends & one-tap invites · guest mode (play with just a nickname, save as an account later) · beginner guide · host buy-in approval · provably fair shuffle (verifiable offline) · Chinese / English UI · card styles & face-card art · avatars/chat/emote/voice · email accounts + TLS · Android build.
+
+Next — bigger features:
+- **Short Deck (6+ Hold'em)** — 36-card deck (2–5 removed). Needs its own hand ranking (flush beats full house, A-6-7-8-9 is a straight), a 36-card deck in the equity calculator and the provably-fair shuffle, and hand histories tagged by variant so stats stay separate.
+- **Omaha (PLO)** — four hole cards, exactly two of them plus three from the board, pot-limit betting. Needs a new evaluator path, pot-limit bet caps, a four-card table layout, and equity for four-card hands.
+- Home-game variants (bomb pot, 7-2 game) — smaller, no change to hand evaluation.
 
 See [`CHANGELOG.md`](./CHANGELOG.md) for release history and
 [`docs/archive/`](./docs/archive/) for the legacy development notes.
