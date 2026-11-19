@@ -230,7 +230,7 @@
         .rc-mi { white-space: nowrap; }
         .rc-mi .ic, .rc-tag .ic { margin-right: 2px; }
         .rc-owner { color: #cfe3d7; margin-right: 6px; }
-        .rc-tag { background: rgba(255,255,255,0.12); color: #cbd9d0; padding: 1px 7px; border-radius: 8px; margin-right: 6px; }
+        .rc-tag { background: rgba(255,255,255,0.12); color: #cbd9d0; padding: 1px 7px; border-radius: 8px; margin-right: 6px; white-space: nowrap; }
         .rc-join { min-width: 72px; }
         .rc-join:disabled { opacity: 0.4; cursor: not-allowed; }
         .rc-join.rejoin { background: #06d6a0; color: #0a1f1a; }
@@ -254,6 +254,28 @@
         .ext-btn:active { transform: scale(0.96); }
         /* 比赛设置里的多选一（7-2 倍数、Bomb 频率 / 金额）：选中的那个用薄荷色（全站「已选中」的颜色） */
         .ext-btn.sel { background: #06d6a0; color: #0a1f1a; border-color: transparent; }
+        /* ===== 三种玩法的识别色（2026-11-19）=====
+           德州 = 蓝、短牌 = 橙、奥马哈 = 紫。只用在「这是哪种玩法」上：建房的玩法按钮、大厅卡片左边那道色条和标签、
+           牌桌水印 / 牌谱里的玩法图标、生涯战绩的玩法筛选。别拿来表示别的东西，否则颜色就不再代表玩法了。
+           （不用金色：金 = 钱 / 赢；不用薄荷：薄荷 = 已选中 / 现金桌 / 公开。）*/
+        /* --vc 文字 / 图标用的亮色；--vg1 → --vg2 色块用的渐变（白字压在上面要看得清，所以比 --vc 深）*/
+        .v-nlhe      { --vc: #6aa8ff; --vc-rgb: 106,168,255; --vg1: #5b9bff; --vg2: #2c63d8; }
+        .v-shortdeck { --vc: #ffa552; --vc-rgb: 255,165,82;  --vg1: #ffa04f; --vg2: #e0661f; }
+        .v-plo       { --vc: #b892ff; --vc-rgb: 184,146,255; --vg1: #ad7ff6; --vg2: #7443d6; }
+        .ic.v-nlhe, .ic.v-shortdeck, .ic.v-plo { color: var(--vc); }
+        /* 大厅卡片：左边一个玩法色块（白色图标 + 行话缩写 NLH / 6+ / PLO），整张卡从左往右透出这种玩法的颜色、边框也带这个色。
+           2026-11-19 第一版只有一道 3px 色条 + 小标签，用户：「只有一点颜色的区别，不够明显也不够好看」。*/
+        .room-card.v-nlhe, .room-card.v-shortdeck, .room-card.v-plo {
+            border-color: rgba(var(--vc-rgb), 0.38);
+            background: linear-gradient(100deg, rgba(var(--vc-rgb), 0.2), rgba(var(--vc-rgb), 0.05) 45%, rgba(255,255,255,0.03)); }
+        .room-card.v-nlhe:hover, .room-card.v-shortdeck:hover, .room-card.v-plo:hover { border-color: rgba(var(--vc-rgb), 0.7); }
+        .rc-vtile { flex: 0 0 auto; width: 54px; height: 54px; border-radius: 14px; color: #fff;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+            background: linear-gradient(160deg, var(--vg1), var(--vg2));
+            box-shadow: 0 4px 12px rgba(var(--vc-rgb), 0.3), inset 0 1px 0 rgba(255,255,255,0.28); }
+        .rc-vtile .ic { width: 26px; height: 26px; stroke-width: 1.9; }
+        .rc-vtile b { font-size: 12px; font-weight: 800; letter-spacing: 0.5px; line-height: 1; white-space: nowrap; }
+        .cfg-note { font-size: 12px; color: #9db9a9; margin-top: 6px; line-height: 1.5; }
         .ext-btn:disabled { opacity: .6; cursor: default; }
         .tier-row .tier-cap { flex: 0 0 auto; align-self: center; font-size: 12px; color: #9db9a9; white-space: nowrap; }
         .tier-row + .tier-row { margin-top: 6px; }
@@ -261,6 +283,17 @@
         .tier-btn.sel { border-color: #06d6a0; background: linear-gradient(180deg,#0be6ad,#06d6a0);
             color: #06231c; box-shadow: 0 0 0 3px rgba(6,214,160,0.3), 0 3px 8px rgba(0,0,0,0.4); transform: translateY(-1px); }
         .tier-btn.sel small { opacity: 0.85; }
+        /* 建房的玩法按钮：图标在上、名字在下；选中的那个用这种玩法自己的颜色（不是通用的薄荷色）*/
+        /* 没选中的也带着自己的颜色（淡底 + 彩色图标），选中的整块变成和大厅色块同一套渐变 → 建房时选的颜色，
+           就是之后在大厅里看到的那张卡的颜色 */
+        .var-btn { padding: 10px 6px 8px; border-color: rgba(var(--vc-rgb), 0.45); background: rgba(var(--vc-rgb), 0.1); }
+        .var-btn .ic { width: 30px; height: 30px; color: var(--vc); margin-bottom: 4px; }
+        .var-btn .ic + span { margin-left: 0; }
+        .var-btn small { font-weight: 800; letter-spacing: 0.5px; color: var(--vc); opacity: 1; }
+        .var-btn.sel { border-color: transparent; color: #fff;
+            background: linear-gradient(160deg, var(--vg1), var(--vg2));
+            box-shadow: 0 0 0 3px rgba(var(--vc-rgb), 0.3), 0 6px 14px rgba(var(--vc-rgb), 0.3), inset 0 1px 0 rgba(255,255,255,0.28); }
+        .var-btn.sel .ic, .var-btn.sel small { color: #fff; }
 
         /* ===== 比赛结算 ===== */
         /* 结算面板：每局收尾都会看到 —— 用道场绿氛围底 + 金色仪式感，和登录页/大厅同一套视觉 */

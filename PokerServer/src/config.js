@@ -10,7 +10,8 @@ const DEFAULT_SMALL_BLIND = 10;
 const DEFAULT_BIG_BLIND = 20;
 const ACTION_TIME = 18000;
 // 房主建房时可选的思考时间（秒）。默认还是 18 —— 新手觉得紧的话房主可以放宽（2026-11-17 玩家视角复盘 P6）。
-const ACTION_TIME_CHOICES = [15, 18, 20, 30];
+// 30 秒是线下牌桌的节奏，线上用不着（用户 2026-11-19 定，去掉）。老房间快照里存的 30 读回来按 18 秒走。
+const ACTION_TIME_CHOICES = [15, 18, 20];
 const pickActionTimeSec = (v) => (ACTION_TIME_CHOICES.includes(+v) ? +v : ACTION_TIME / 1000);
 // 这一桌每次行动给多少毫秒。老房间（快照里没有这个字段）照旧 18 秒。
 const actionTimeOf = (game) => pickActionTimeSec(game && game.config && game.config.actionTimeSec) * 1000;

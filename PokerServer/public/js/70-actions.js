@@ -92,11 +92,18 @@ function runPreAction(toCall) {
     const a = preAction;
     if (a === 'call' && lastState && lastState.currentBet !== preCallBet) { preAction = null; updatePreBar(); return; }
     preAction = null; updatePreBar();
-    setTimeout(() => {
+    // 🔴 轮到我常常和新发的公共牌是同一个状态，那一刻渲染会上 650ms 的输入锁（防误触），
+    //    350ms 后 act() 撞上锁就直接 return —— 勾好的预操作被悄悄吞掉，然后超时弃牌（2026-11-19 真人测试 35 次）。
+    //    所以撞上锁就等锁过了再发；要跟多少按发出那一刻的状态重新算。
+    const fire = () => {
         if (!lastState || lastState.actionOnUserId !== myUserId) return;
-        if (a === 'checkfold') act(toCall > 0 ? 'fold' : 'check');
-        else if (a === 'call') act(toCall > 0 ? 'call' : 'check');
-    }, 350);
+        if (inputLocked()) { setTimeout(fire, Math.max(20, inputLockUntil - Date.now() + 20)); return; }
+        const me = lastState.players.find(p => p.userId === myUserId);
+        const owe = me ? Math.max(0, lastState.currentBet - me.currentBet) : toCall;
+        if (a === 'checkfold') act(owe > 0 ? 'fold' : 'check');
+        else if (a === 'call') act(owe > 0 ? 'call' : 'check');
+    };
+    setTimeout(fire, 350);
 }
 // 现在轮到我、且不用跟注（可以过牌）
 function canCheckNow() {

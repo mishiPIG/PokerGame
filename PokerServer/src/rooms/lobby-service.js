@@ -136,6 +136,7 @@ function roomSummary(roomId, userId) {
         bb:         g.config?.bb || 0,
         ante:       g.config?.ante || 0,
         allowUtgStraddle: !!g.config?.allowUtgStraddle,
+        variant:    g.config?.variant || 'nlhe',   // 玩法：房间卡片上标出来（短牌 / 奥马哈）
         minBuyIn:   g.config?.minBuyIn || 0,
         // 我是否本房成员/有下场资格（在座 / 站起 / 输过房号授权）→ 列表显示「重新加入」而非「观战」
         isMember:   !!(userId && (g.players.some(p => p.userId === userId)

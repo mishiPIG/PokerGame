@@ -62,8 +62,12 @@ function payloads(ctx) {
         // 「毒对象」：自带 toString / valueOf 的对象 —— String(x)、x + ''、拿来当属性名都会直接抛错
         { text: { toString: 1 } }, { code: { toString: 1 } }, { roomId: { toString: 1 } }, { note: { valueOf: 1 } },
         { toString: 1 }, { emote: { toString: 1 } }, { targetUserId: 'x'.repeat(30000) }, { userId: { toString: 1 } },
+        // 「毒值」：对象自带的属性名当【值】传进来 —— 拿去查表时 TABLE[x] 会取到函数 / Object（2026-11-19 对抗测试抓过两处：
+        // 建房 variant、桌规投票 kind）。查表必须用 Object.hasOwn
+        { variant: 'constructor' }, { variant: '__proto__' }, { cfg: { variant: 'toString' } }, { kind: 'constructor' },
+        { kind: '__proto__', bb: 2 }, { kind: 'hasOwnProperty' }, { action: 'constructor', roomId: ctx.roomId }, { mode: 'valueOf' },
     ];
-    return QUICK ? all.filter((p, i) => i % 4 === 0 || JSON.stringify(p || {}).includes('toString') || JSON.stringify(p || {}).includes('valueOf')) : all;
+    return QUICK ? all.filter((p, i) => i % 4 === 0 || JSON.stringify(p || {}).includes('toString') || JSON.stringify(p || {}).includes('valueOf') || /constructor|__proto__|hasOwnProperty/.test(JSON.stringify(p || {}))) : all;
 }
 
 // ── 小工具 ──

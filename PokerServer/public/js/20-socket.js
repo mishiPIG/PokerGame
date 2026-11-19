@@ -222,6 +222,7 @@ function connectSocket(token) {
     socket.on('hole_cards', (cards) => {
         noteGuestHand();     // 游客打过几手之后回大厅时提醒保存账号
         maybeStartCoach();   // 新来的人第一次被发到牌：三步提示（44-guide.js）
+        clearStaleTableNotice();   // 上一手留下的桌面提示不挂进这一手（30-room.js）
         myHoleCards = cards;
         refreshRails(600);   // 宽屏常驻的牌谱栏：上一手刚存好，刷一下
         revealedCards = {};  // 新一局清除 showdown 展示

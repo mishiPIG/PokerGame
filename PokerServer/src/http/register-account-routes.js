@@ -1,4 +1,5 @@
 'use strict';
+const { normalizeVariant } = require('../games/poker/variants');
 
 const buildInfo = require('../build-info');
 const { findBlockingRoom } = require('../account/deletion-guards');
@@ -50,7 +51,9 @@ app.get('/api/me', requireAuth, (req, res) => {
 
 // 我的生涯统计（从牌谱聚合 VPIP/PFR/3bet/AF/WTSD…，可按 mode 筛选）
 app.get('/api/my-stats', requireAuth, (req, res) => {
-    res.json(stats.computeUserStats(req.authUser.id, req.query.mode));
+    // 生涯数据按玩法分开：默认德州，?variant=shortdeck / plo 看另外两种
+    // 不认识的值也当德州（原来只管了「没传」，传个乱值会退成「三种混在一起」—— 2026-11-19 回归测试）
+    res.json(stats.computeUserStats(req.authUser.id, req.query.mode, null, normalizeVariant(req.query.variant)));
 });
 
 // 我的站内消息（收件箱）：比赛结束排名等

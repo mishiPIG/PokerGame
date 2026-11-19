@@ -58,13 +58,17 @@ const AVATARS = Array.from({ length: 27 }, (_, i) => `/avatars/b${i + 1}.svg`);
 //     uiConfirm(x).then(ok => { if (!ok) return; 干活(); });
 // ⚠️ 一定要走 .then/await —— 忘了的话会变成「不管点什么都执行」，比弹窗丑严重得多。
 let _confirmResolve = null;
-function uiConfirm(text, { ok, cancel, danger = false } = {}) {
+// sticky：点外面 / 下拉都关不掉，只能点两个按钮之一（带入审批用：原来点外面就算「拒绝」，房主手一滑就把别人的补码拒了）。
+// 被新弹出的确认框顶掉时 Promise 落 null（不是 false）—— 调用方能分清「被拒」和「没来得及答」。
+let _confirmSticky = false;
+function uiConfirm(text, { ok, cancel, danger = false, sticky = false } = {}) {
     const box = document.getElementById('confirm-modal');
     if (!box) return Promise.resolve(window.confirm(text));   // 兜底：元素不在就退回原生
     // 上一个还开着就又来一个（比如正问「确定离开吗」时收到牌友邀请）：
     // 先把上一个按「取消」了结。否则它的 Promise 永远不落地 ——
     // 被顶掉的若是邀请，房主那边要干等 3 分钟过期。
-    if (_confirmResolve) { const prev = _confirmResolve; _confirmResolve = null; prev(false); }
+    if (_confirmResolve) { const prev = _confirmResolve; _confirmResolve = null; prev(null); }
+    _confirmSticky = !!sticky;
     document.getElementById('confirm-text').textContent = text;
     const okBtn = document.getElementById('confirm-ok');
     okBtn.textContent = ok || t('btn.ok', '确定');
@@ -74,6 +78,8 @@ function uiConfirm(text, { ok, cancel, danger = false } = {}) {
     return new Promise(res => { _confirmResolve = res; });
 }
 function closeConfirm(result) {
+    if (result === undefined && _confirmSticky) return;   // 点外面 / 下拉（不传参）：sticky 的不关
+    _confirmSticky = false;
     document.getElementById('confirm-modal').style.display = 'none';
     const r = _confirmResolve; _confirmResolve = null;
     if (r) r(!!result);

@@ -1,5 +1,6 @@
 'use strict';
 const { nameOf } = require('../../account/display-name');
+const { maxBetTo } = require('../../games/poker/variants');
 
 function registerPokerActionEvents(context) {
     const { socket, user, io, db, stats, Deck, config, runtime, tableService, syncRecentVoices } = context;
@@ -57,6 +58,9 @@ function registerPokerActionEvents(context) {
                     socket.emit('server_msg', { k: 'act.betMin', p: { min: minBet } }); return;
                 }
                 if (betTo > maxBet) { socket.emit('server_msg', { k: 'act.notEnoughChips' }); return; }
+                // 底池限注（奥马哈）：首注最多下到底池。无限注下 maxBetTo 就是全下额，这里不会挡
+                const potCapBet = maxBetTo(game, player);
+                if (betTo > potCapBet) { socket.emit('server_msg', { k: 'act.potLimit', p: { max: potCapBet } }); return; }
                 player.chips -= betTo; player.currentBet = betTo;
                 if (player.chips === 0) player.allIn = true;
                 game.currentBet = betTo;
@@ -87,6 +91,9 @@ function registerPokerActionEvents(context) {
                 }
                 const needed = raiseTo - player.currentBet;
                 if (needed > player.chips) { socket.emit('server_msg', { k: 'act.notEnoughChips' }); return; }
+                // 底池限注（奥马哈）：最多加到「跟注之后的底池」。无限注下 maxBetTo 就是全下额，这里不会挡
+                const potCapRaise = maxBetTo(game, player);
+                if (raiseTo > potCapRaise) { socket.emit('server_msg', { k: 'act.potLimit', p: { max: potCapRaise } }); return; }
                 const increment = raiseTo - game.currentBet;
                 const fullRaise = increment >= game.lastRaiseSize;   // 达到完整加注增量才算「完整加注」
                 if (fullRaise) game.lastRaiseSize = increment;       // 完整加注才刷新最小增量

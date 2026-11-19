@@ -19,11 +19,37 @@ const HAND_GUIDE = [
     { cat: '高牌', cards: ['AC', 'JD', '8H', '5S', '3C'], zh: '什么都没凑成，比最大的那张', en: 'Nothing made — the highest card plays' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
 ];
 
+// 短牌（36 张，没有 2–5）：同花 > 葫芦，A-6-7-8-9 是最小的顺子；其余和德州一样（顺子 > 三条，按官方规则）。示例牌一张 2–5 都不能有
+const HAND_GUIDE_SD = [
+    { cat: '皇家同花顺', cards: ['AS', 'KS', 'QS', 'JS', 'TS'], zh: '同一花色的 A K Q J 10', en: 'A K Q J 10, all one suit' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '同花顺', cards: ['AH', '9H', '8H', '7H', '6H'], zh: '同一花色、点数连续；A-6-7-8-9 也算（最小的）', en: 'Five in a row, one suit. A-6-7-8-9 counts (the lowest)' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '四条', cards: ['QC', 'QD', 'QH', 'QS', '7D'], zh: '四张点数相同', en: 'Four of the same rank' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '同花', cards: ['AD', 'JD', '9D', '7D', '6D'], zh: '五张同一花色 —— 短牌里比葫芦大', en: 'Five of one suit — beats a full house in short deck' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '葫芦', cards: ['KH', 'KD', 'KC', '6S', '6H'], zh: '三条 + 一对', en: 'Three of a kind plus a pair' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '顺子', cards: ['9C', '8D', '7S', '6H', 'AC'], zh: '五张点数连续；A-6-7-8-9 是最小的顺子', en: 'Five in a row. A-6-7-8-9 is the lowest straight' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '三条', cards: ['7S', '7H', '7D', 'KC', '9S'], zh: '三张点数相同', en: 'Three of the same rank' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '两对', cards: ['JH', 'JS', '8C', '8D', 'AH'], zh: '两个对子', en: 'Two different pairs' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '一对', cards: ['TH', 'TD', 'KS', '7C', '6H'], zh: '两张点数相同', en: 'Two of the same rank' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '高牌', cards: ['AC', 'JD', '9H', '7S', '6C'], zh: '什么都没凑成，比最大的那张', en: 'Nothing made — the highest card plays' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+];
+// 在短牌房间里打开就给短牌那一版
+function guideRows() { return (typeof lastState !== 'undefined' && lastState && lastState.variant === 'shortdeck') ? HAND_GUIDE_SD : HAND_GUIDE; }
 function renderHandGuide() {
-    document.getElementById('hg-list').innerHTML = HAND_GUIDE.map((h, i) =>
+    const sd = guideRows() === HAND_GUIDE_SD;
+    const plo = typeof lastState !== 'undefined' && lastState && lastState.variant === 'plo';
+    document.getElementById('hg-list').innerHTML = (sd ? `<div class="hg-variant">${L('短牌（去掉 2–5）：同花大于葫芦，A-6-7-8-9 也是顺子', 'Short deck (2–5 removed): flush beats full house, and A-6-7-8-9 is a straight')}</div>` : '')
+        + (plo ? `<div class="hg-variant">${L('奥马哈：牌型大小和德州一样，但必须正好用 2 张底牌 + 3 张公共牌（手里四张同花不算同花）', 'Omaha: same rankings as Hold\'em, but you must use exactly two hole cards plus three from the board (four suited cards in hand is not a flush)')}</div>` : '')
+        + guideRows().map((h, i) =>
         `<div class="hg-row"><span class="hg-no">${i + 1}</span>`
         + `<div class="hg-main"><div class="hg-name">${handCat(h.cat)}</div><div class="hg-desc">${L(h.zh, h.en)}</div></div>`
         + `<div class="hg-cards">${h.cards.map(c => formatCard(rpParseCard(c))).join('')}</div></div>`).join('');
+    // 底部那句「两张底牌 + 五张公共牌」在奥马哈里是错的：换成奥马哈那句。
+    // data-i18n 一起换，切语言时 applyLang() 才会按新的那条重写
+    const note = document.querySelector('#hand-guide .hg-note');
+    if (note) {
+        note.setAttribute('data-i18n', plo ? 'hg.notePlo' : 'hg.note');
+        note.textContent = plo ? t('hg.notePlo') : t('hg.note');
+    }
 }
 function openHandGuide() {
     renderHandGuide();
@@ -37,11 +63,19 @@ const COACH_KEY = 'coachSeen';
 let coachStep = -1;
 function coachSteps() {
     return [
-        { sel: `.seat[data-uid="${myUserId}"] .self-cards`,
-          zh: '这是你的两张底牌，只有你自己看得见。', en: 'These are your two hole cards. Only you can see them.' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
-        { sel: '#community',
-          zh: '中间是公共牌（最多 5 张），所有人共用。用你的两张加上公共牌，凑出最好的五张来比大小。',   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
-          en: 'These are the community cards (up to 5), shared by everyone. Make your best five cards from your two plus these.' },
+        // 奥马哈是 4 张底牌，而且必须正好用其中 2 张 —— 新手最容易不知道的就是这一条
+        (typeof lastState !== 'undefined' && lastState && lastState.holeCount === 4)
+            ? { sel: `.seat[data-uid="${myUserId}"] .self-cards`,
+                zh: '这是你的四张底牌，只有你自己看得见。奥马哈必须正好用其中两张、再加三张公共牌来组牌。', en: 'These are your four hole cards. Only you can see them. In Omaha you must use exactly two of them plus three from the board.' }   // i18n-ok: 成对的 zh/en 数据
+            : { sel: `.seat[data-uid="${myUserId}"] .self-cards`,
+                zh: '这是你的两张底牌，只有你自己看得见。', en: 'These are your two hole cards. Only you can see them.' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+        (typeof lastState !== 'undefined' && lastState && lastState.holeCount === 4)
+            ? { sel: '#community',
+                zh: '中间是公共牌（最多 5 张），所有人共用。从你的四张里挑两张、公共牌里挑三张，凑出最好的五张来比大小。',   // i18n-ok: 成对的 zh/en 数据
+                en: 'These are the community cards (up to 5), shared by everyone. Pick two of your four plus three of these to make your best five.' }
+            : { sel: '#community',
+                zh: '中间是公共牌（最多 5 张），所有人共用。用你的两张加上公共牌，凑出最好的五张来比大小。',   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+                en: 'These are the community cards (up to 5), shared by everyone. Make your best five cards from your two plus these.' },
         { sel: `.seat[data-uid="${myUserId}"] .avatar-block`,
           zh: '轮到你时，这里会出现按钮：✕ 弃牌、跟注 / 过牌、加注；头像外面那圈是倒计时。不记得牌型大小？点 ☰ 菜单里的「牌型大小」。',   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
           en: 'When it’s your turn, buttons appear here: ✕ fold, call / check, raise. The ring around your avatar is your timer. Forgot the hand rankings? Open ☰ → Hand rankings.' },

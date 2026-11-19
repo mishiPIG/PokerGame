@@ -4,6 +4,7 @@ const { newServerSeed, commitOf, createSeededRng } = require('./provably-fair');
 const { applyPendingBlinds } = require('../../rooms/rule-vote');
 const { bountyForHand } = require('./extensions/seven-deuce');
 const { isBombHand, bombAmount, postBomb } = require('./extensions/bomb-pot');
+const { variantOf } = require('./variants');
 
 function createHandService({ io, roomGames, Deck, HandEvaluator, equity, config, rules, pots, presenter, straddle, runIt, showdown, history, hooks }) {
     const { PHASES, actionTimeOf, EXTRA_STEP, EXTRA_MAX, RUNOUT_DELAY, STANDARD_BLIND_LEVELS, gameSB, gameBB, gameAnte, timeCardsFor } = config;
@@ -64,14 +65,20 @@ function restoreActionTimer(roomId) {
     );
 }
 
+// 重启恢复：全押跑马发到一半就重启了，接着按原来的节奏往下发。
+// 🔴 只在【真的在等跑马】时动手（亮了牌、没人要行动、牌局还在进行）。runoutDeadline 原来从不清，
+//    正常下注轮里重启的话，残留的旧时刻会让它提前发下一条街。
+// 🔴 时刻缺了也要接着发：全押亮牌那一刻原来是先存快照、后记时刻，正好在亮牌到翻牌这 1.4 秒里崩，
+//    快照里就没有时刻 → 恢复后谁都不推进，这手永远卡住、筹码锁死（2026-11-19 历史 bug 回放实测，三种玩法都会）。
 function restoreRunoutTimer(roomId) {
     const game = roomGames[roomId];
-    if (!game?.runoutDeadline || game.runoutState || game.runItPending) return;
+    if (!game || game.runoutState || game.runItPending) return;
+    const waitingRunout = game.allinRevealed && game.actionOnIdx < 0
+        && game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
+    if (!waitingRunout) return;
+    const at = game.runoutDeadline || (Date.now() + RUNOUT_DELAY);
     clearTimeout(game.runoutTimer);
-    game.runoutTimer = setTimeout(
-        () => advanceStage(roomId),
-        Math.max(0, game.runoutDeadline - Date.now())
-    );
+    game.runoutTimer = setTimeout(() => advanceStage(roomId), Math.max(0, at - Date.now()));
 }
 
 function onActionTimeout(roomId) {
@@ -128,7 +135,7 @@ function emitEquity(roomId) {
     const holes = {};
     activePlayers(game).forEach(p => { if (game.holeCards[p.userId]) holes[p.userId] = game.holeCards[p.userId]; });
     if (Object.keys(holes).length < 2) return;
-    try { io.in(roomId).emit('equity', equity.computeEquity(holes, game.communityCards)); } catch (e) {}
+    try { io.in(roomId).emit('equity', equity.computeEquity(holes, game.communityCards, variantOf(game))); } catch (e) {}
 }
 
 function advanceStage(roomId) {
@@ -155,6 +162,8 @@ function advanceStage(roomId) {
         });
         io.in(roomId).emit('server_msg', `🃏 双方全押，亮牌！`);
         io.in(roomId).emit('allin_reveal', { reveals });
+        // 先记下「什么时候发下一张」再广播：广播会存快照，顺序反了的话这一刻崩掉，快照里就没有这个时刻（见 restoreRunoutTimer）
+        game.runoutDeadline = Date.now() + RUNOUT_DELAY;
         broadcastState(roomId);                 // 先展示亮牌（公共牌暂不变）
         emitEquity(roomId);                     // 亮牌即算一次当前胜率
         // 恰两人 all-in 且还有公共牌未发 → 进入「发几次」协商（落后方选、领先方同意）；否则照常单次跑马
@@ -225,6 +234,7 @@ function advanceStage(roomId) {
         }
         if (game.actionOnIdx < 0) {
             // 无人可行动（全押 all-in 跑马）：发完这条街先展示，间隔一段时间再发下一张
+            game.runoutDeadline = Date.now() + RUNOUT_DELAY;   // 先记时刻再广播（存快照），同上
             broadcastState(roomId);
             emitEquity(roomId);                 // 每发一条街重算胜率（跳动）
             clearTimeout(game.runoutTimer);
@@ -275,7 +285,8 @@ function drawForButton(roomId) {
     if (!game) return;
     const live = game.players.filter(canPlay);
     if (live.length < 2) { startHand(roomId); return; }
-    const d = new Deck(); d.reset(); d.shuffle();
+    // 用这张桌的牌堆抽（短牌没有 2–5；原来固定拿 52 张抽，短牌桌上会翻出 2–5 —— 2026-11-19 短牌测试）
+    const d = new Deck(); d.reset(variantOf(game).ranks); d.shuffle();
     const draws = live.map(p => ({ userId: p.userId, username: p.username, displayName: p.displayName, seat: p.seat, card: d.drawCard() }));
     let win = draws[0];
     for (const x of draws) if (cardScore(x.card) > cardScore(win.card)) win = x;
@@ -302,11 +313,29 @@ function beginPlay(roomId) {
     } else startHand(roomId);
 }
 
+// 兜底：上一手没结算完就要开新一手（结算时抛错 → 桌子被暂停 → 房主点「继续发牌」就会走到这里），
+// 下面那句 game.pot = 0 会把没结算的底池直接清掉 —— 钱凭空消失。
+// 这里先按各自投入原数退回（和「全员弃牌」那条兜底同一口径），并大声记一笔：走到这里就说明结算路径又出了问题。
+// 正常结束的每一条路径（弃牌赢 / 摊牌 / 多次发牌）都会把 committed 和 currentBet 清零，所以平时什么都不做。
+function refundUnsettledPot(roomId, game) {
+    const refunds = {};
+    for (const p of game.players) {
+        const back = (p.committed || 0) + (p.currentBet || 0);
+        if (back > 0) { p.chips += back; refunds[p.userId] = back; }
+        p.committed = 0; p.currentBet = 0;
+    }
+    if (Object.keys(refunds).length) {
+        console.error(`[pot] 房间 ${roomId} 第 ${game.handSeq} 手没结算完就要开新一手：底池 ${game.pot} 按投入退回`, refunds);
+        game.pot = 0;
+    }
+}
+
 function startHand(roomId) {
     const game = roomGames[roomId];
     if (!game) return;
     game.beginning = false;   // 开赛流程结束（含下面各 early return：否则房主再也点不动「开始」）
     if (game.paused || game.timeExpired) { broadcastState(roomId); return; } // 手动暂停或训练到时：不开新局
+    refundUnsettledPot(roomId, game);
 
     // 中途改盲注（全桌同意的）只在这里换上 —— 一手牌中间绝不改（见 rooms/rule-vote.js）
     const newBlinds = applyPendingBlinds(game);
@@ -354,7 +383,8 @@ function startHand(roomId) {
     game.fair.nonce = game.handSeq;
     game.fair.clientSeed = String(game.clientSeed || roomId);
     const fairRng = createSeededRng(game.fair.serverSeed, game.fair.clientSeed, game.fair.nonce);
-    game.deck.reset(); game.deck.shuffle(fairRng);
+    const variant = variantOf(game);
+    game.deck.reset(variant.ranks); game.deck.shuffle(fairRng);
     // 整副牌序记下来，牌局结束后跟种子一起入牌谱 —— 玩家才能离线重算。
     game.fair.deckOrder = game.deck.cards.map(c => `${c.rank}${c.suit[0]}`);
     console.log(`[deal] 房间 ${roomId} 新一手已重新洗牌（可验证） commit=${game.fair.commit.slice(0, 12)}… nonce=${game.fair.nonce}`);
@@ -362,6 +392,7 @@ function startHand(roomId) {
     game.shownCards = {};   // 本局主动亮牌记录（userId -> Set(牌索引)）
     game.allinRevealed = false;   // 全押亮牌标志
     game.pot = 0; game.currentBet = 0; game.straddle = null;
+    game.runoutDeadline = null;   // 上一手跑马留下的时刻不能带进这一手（见 restoreRunoutTimer）
     game.lastRaiseSize = BB;   // 本街最小加注增量（每条街在 collectBetsToPot 重置）
     game.players.forEach(p => {
         p.currentBet = 0; p.committed = 0; p.allIn = false; p.hasActed = false;
@@ -488,18 +519,18 @@ function startHand(roomId) {
 
     game.players.forEach(p => {
         if (p.folded) return;   // 坐出玩家不发牌
-        const c1 = game.deck.drawCard();
-        const c2 = game.deck.drawCard();
-        game.holeCards[p.userId] = [c1, c2];
-        io.to(p.socketId).emit('hole_cards', [
-            { suit: c1.suit, rank: c1.rank },
-            { suit: c2.suit, rank: c2.rank }
-        ]);
+        // 每人连发 holeCount 张（德州 2、奥马哈 4）。⚠️ 这个顺序就是 tools/verify-hand.js 重算发牌的顺序
+        const hole = [];
+        for (let k = 0; k < variant.holeCount; k++) hole.push(game.deck.drawCard());
+        game.holeCards[p.userId] = hole;
+        io.to(p.socketId).emit('hole_cards', hole.map(c => ({ suit: c.suit, rank: c.rank })));
     });
 
     // 牌谱记录初始化（数据资产：玩家×模式×时序）——仅记录参与本手的玩家
     game.hand = {
         ts: Date.now(), matchId: game.matchId, roomId, mode: game.roomType, handSeq: game.handSeq,
+        // 玩法：德州不写（没写 = 德州，老牌谱一样），短牌 / 奥马哈才写，统计 / 回放 / 验算都靠它分开
+        ...(variant.id !== 'nlhe' ? { variant: variant.id } : {}),
         sb: SB, bb: BB, ante,
         // 7-2 奖励额：开手这一刻就定下（房主中途改设置只影响下一手）；0 = 这一手没开
         sevenDeuceBounty: bountyForHand(game, BB),

@@ -204,10 +204,11 @@ test('🔴 重连失败不等于登录失效：还会自己重连时只显示「
         '必须先判 socket.active 再决定要不要清令牌');
 });
 
-test('确认弹窗被第二个顶掉时，第一个要按「取消」了结', () => {
+test('确认弹窗被第二个顶掉时，第一个要了结（不能让它的 Promise 永远挂着）', () => {
     const src = codeOf(read('public/js/05-utils.js'));
     const at = src.indexOf('function uiConfirm(');
-    assert.match(src.slice(at, at + 900), /if \(_confirmResolve\)[^\n]*prev\(false\)/);
+    // 2026-11-19 起落 null（「没来得及答」，同样是假值）而不是 false：带入审批要分清「被拒」和「被顶掉」
+    assert.match(src.slice(at, at + 1200), /if \(_confirmResolve\)[^\n]*prev\(null\)/);
 });
 
 // ───────── 运维脚本 ─────────

@@ -16,9 +16,10 @@ class Deck {
         this.reset();
         this.shuffle();
     }
-    reset() {
+    // ranks 可选：玩法层传进来（短牌只有 6..A）。不传 = 原来的 52 张。
+    // ⚠️ 顺序是「花色在外、点数在内」—— 这就是可验证公平的重算起点，tools/verify-hand.js 必须按同一顺序建牌
+    reset(ranks = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']) {
         const suits = ['Spades', 'Hearts', 'Diamonds', 'Clubs'];
-        const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']; 
         this.cards = [];
         for (let suit of suits) {
             for (let rank of ranks) {

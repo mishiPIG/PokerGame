@@ -12,9 +12,13 @@ function sampleCurve(curve, maxPts) {
     return out;
 }
 
-function computeUserStatsUncached(userId, mode, room) {
+// variant：生涯数据三种玩法分开算（用户 2026-11-18 定）—— 德州 / 短牌 / 奥马哈的 VPIP 口径完全不同，混在一起没有意义。
+//   传 null = 不分（只用于「本房」统计：一张桌只有一种玩法）。牌谱里没写玩法的 = 德州（老牌谱都是）。
+const VARIANTS = ['nlhe', 'shortdeck', 'plo'];
+function computeUserStatsUncached(userId, mode, room, variant) {
     const m = (mode === 'cash' || mode === 'sng') ? mode : null;
-    const hands = db.getHandsForUser(userId, { limit: 200000, mode: m, room: room || null });
+    const all = db.getHandsForUser(userId, { limit: 200000, mode: m, room: room || null });
+    const hands = variant ? all.filter(h => (h.variant || 'nlhe') === variant) : all;
     const chrono = hands.slice().reverse();   // getHandsForUser 是倒序（新→旧），翻成时序
 
     let totalHands = 0, netTotal = 0, biggestWin = 0;
@@ -105,6 +109,7 @@ function computeUserStatsUncached(userId, mode, room) {
     const pct = (n, d) => d > 0 ? Math.round((n / d) * 1000) / 10 : 0;
     return {
         mode: m || 'all',
+        variant: variant || 'all',
         totalHands,
         net: netTotal,
         biggestWin,
@@ -136,12 +141,13 @@ function handVersion(userId) {
     if (!countStmt) countStmt = db.raw.prepare('SELECT COUNT(*) AS c FROM hand_players WHERE user_id = ?');
     return countStmt.get(userId).c;
 }
-function computeUserStats(userId, mode, room) {
-    const key = `${userId}|${mode || ''}|${room || ''}`;
+function computeUserStats(userId, mode, room, variant = null) {
+    variant = VARIANTS.includes(variant) ? variant : null;
+    const key = `${userId}|${mode || ''}|${room || ''}|${variant || ''}`;
     const version = handVersion(userId);
     const hit = cache.get(key);
     if (hit && hit.version === version) return hit.value;
-    const value = computeUserStatsUncached(userId, mode, room);
+    const value = computeUserStatsUncached(userId, mode, room, variant);
     cache.delete(key);
     cache.set(key, { version, value });
     if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);

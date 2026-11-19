@@ -88,6 +88,12 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
         .opp-backs .card:first-child { transform: rotate(-9deg); }
         .opp-backs .card + .card { margin-left: -8px; transform: rotate(7deg); }
+        /* 奥马哈 4 张小牌背：扇得更紧一点，宽度只比两张多 8px */
+        .opp-backs.many .card + .card { margin-left: -10px; }
+        .opp-backs.many .card:first-child { transform: rotate(-12deg); }
+        .opp-backs.many .card:nth-child(2) { transform: rotate(-4deg); }
+        .opp-backs.many .card:nth-child(3) { transform: rotate(4deg); }
+        .opp-backs.many .card:nth-child(4) { transform: rotate(12deg); }
         /* 本手下注：贴头像顶部小 chip */
         .bet-badge { position: absolute; top: -7px; left: 50%; transform: translateX(-50%); white-space: nowrap;
             display: inline-flex; align-items: center; gap: 3px; z-index: 5;
@@ -161,6 +167,11 @@
            （亮出的对手牌 30px×2 几乎占满座位宽，贴边放会被牌盖住一截）*/
         .status-bubble.with-eq { top: 26px; left: calc(100% + 2px); }
         .ring-seat.bub-l .status-bubble.with-eq { left: auto; right: calc(100% + 2px); }
+        /* 奥马哈：4 张叠放约 84px，比座位宽一截 —— 标签不往外挪了（手机 9 人桌最上面两家挨得很近，往外挪会钻到邻座的牌底下，
+           2026-11-19 美术测试），改成【压在自家牌的下半截、居中】：被压住的前三张只有左上角有字，下半截是空白；
+           最后一张的大花色在它自己那一截的中间，居中的标签够不着。所以谁的牌都不挡，也不占邻座的地方。*/
+        .ring-seat:not(.bottom) .status-bubble.with-eq.wide,
+        .ring-seat.bub-l:not(.bottom) .status-bubble.with-eq.wide { top: 48px; left: 50%; right: auto; transform: translateX(-50%); z-index: 9; }
         /* 两个都有时（开赛前状态 + 准备）错开一行，别叠在一起 */
         .status-bubble + .ready-badge { top: 18px; }
         /* 对手亮牌：盖在头像上，牌型徽章紧贴牌下沿。
@@ -189,6 +200,35 @@
         .self-body { display: flex; flex-direction: row; align-items: center; gap: 9px; }
         .self-info { display: flex; flex-direction: column; align-items: center; gap: 1px; position: relative; }
         .self-cards { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        /* 奥马哈 4 张底牌：一排叠着放（后一张压住前一张），宽度不翻倍 —— 否则自己的牌会伸到对手座位上、
+           对手亮出的 4 张会盖到隔壁座位。
+           四张牌一律用「角标」：点数 + 花色竖着靠左，正好落在露出来的那一条里（实体牌左上角那种）。
+           原来照常居中排，露出来的只有点数的左半边、花色整个被下一张盖住。
+           ⚠️ 最后一张也用角标（2026-11-19 用户：前三张小、最后一张大，看着很不协调）—— 四张同一个样子、同一个字号，
+              字号取露出来那一条放得下的最大值。
+           2026-11-19 和「两行 2×2」对比过：两行每张都完整，但必定盖住这个座位自己的名字和筹码（量过 6 / 9 人、手机 / 电脑全部如此），
+           所以留一排 + 角标。
+           ⚠️ 每张牌都 position: relative：赢家高亮的牌会 transform 抬起，没有这条它会浮到最上层、把后面那张整个盖住；
+              都定位之后层次一律按先后，抬起的牌仍被后一张压住右半边。*/
+        .self-cards.many .card-row, .opp-cards.many .card-row { gap: 0; }
+        .self-cards.many .card, .opp-cards.many .card { position: relative; }
+        .self-cards.many .card + .card { margin-left: calc(var(--self-w, var(--card-w)) * -0.36); }
+        .ring-seat .opp-cards.many .card + .card { margin-left: -12px; }
+        .opp-cards.many .card.hl { transform: translateY(-3px); }
+        .self-cards.many .card.hl, .opp-cards.many .card.hl { z-index: auto; }   /* 盖过默认 .card.hl 的 z-index: 2 */
+        .opp-cards.many .card, .self-cards.many .card { justify-content: flex-start; align-items: flex-start; }
+        .ring-seat .opp-cards.many .card { padding: 2px 0 0 2px; }
+        .ring-seat .opp-cards.many .card > .rank { font-size: 15px; letter-spacing: -0.06em; }
+        .ring-seat .opp-cards.many .card > .suit { font-size: 13px; align-self: flex-start; margin-top: 1px; }
+        .self-cards.many .card { padding: calc(var(--card-w) * 0.06) 0 0 calc(var(--card-w) * 0.06); }
+        .self-cards.many .card > .rank { font-size: calc(var(--card-w) * 0.5); letter-spacing: -0.06em; }
+        .self-cards.many .card > .suit { font-size: calc(var(--card-w) * 0.44); align-self: flex-start; margin-top: 2px; }
+        /* 「10」是两位数，在角标那一条里会顶到下一张牌的边上：字距再收一点（formatCard 给它挂了 r10）。必须排在上面字号那几条后面，同权重时后写的赢 */
+        .ring-seat .opp-cards.many .card.r10 > .rank, .self-cards.many .card.r10 > .rank, .rp-cards.many .card.r10 > .rank, .hd-cards.many .card.r10 > .rank { letter-spacing: -0.16em; }
+        /* 人头牌图案在角标里放不下：四张一律回到字母 */
+        .opp-cards.many .card > .fa, .self-cards.many .card > .fa { display: none; }
+        .opp-cards.many .card > .rank, .opp-cards.many .card > .suit,
+        .self-cards.many .card > .rank, .self-cards.many .card > .suit { visibility: visible; }
         .self-cards .card-row { gap: 4px; }
         /* 自己的牌是普通牌的 1.4 倍宽。宽度先在容器上算成 --self-w（用的是继承下来的 --card-w），
            再让牌自己的 --card-w = --self-w —— 点数 / 花色的字号按 --card-w 算，这样字才跟着牌一起大（原来牌大了字没变）。

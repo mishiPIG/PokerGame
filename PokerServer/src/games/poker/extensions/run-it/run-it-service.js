@@ -1,4 +1,5 @@
 'use strict';
+const { variantOf } = require('../../variants');
 const { nameOf } = require('../../../../account/display-name');
 
 function createRunItService({ io, roomGames, HandEvaluator, equity, config, persistence, activePlayers, buildSidePots, hooks }) {
@@ -15,7 +16,7 @@ function offerRunIt(roomId, act) {
     act.forEach(p => { if (game.holeCards[p.userId]) holes[p.userId] = game.holeCards[p.userId]; });
     if (Object.keys(holes).length !== 2) return false;
     let eq = {};
-    try { eq = equity.computeEquity(holes, game.communityCards); } catch (e) { return false; }
+    try { eq = equity.computeEquity(holes, game.communityCards, variantOf(game)); } catch (e) { return false; }
     const [a, b] = act;
     const ea = eq[a.userId] ?? 50, eb = eq[b.userId] ?? 50;
     const deciderId = ea <= eb ? a.userId : b.userId;        // 落后方（胜率低）选发几次
@@ -110,9 +111,10 @@ function executeRunouts(roomId, n) {
     const winByUser = {};
     const runs = [];
     const scoreCache = new Map();
+    const variant = variantOf(game);   // 怎么评估由玩法决定
     const scoreOn = (board, id) => {
         const k = board.length + ':' + id + ':' + board.map(c => c.rank + c.suit[0]).join('');
-        if (!scoreCache.has(k)) scoreCache.set(k, HandEvaluator.evaluate7Cards(board.concat(game.holeCards[id])));
+        if (!scoreCache.has(k)) scoreCache.set(k, variant.score(board, game.holeCards[id]));
         return scoreCache.get(k);
     };
     for (let i = 0; i < n; i++) {
@@ -143,7 +145,7 @@ function executeRunouts(roomId, n) {
         }
         const winners = Object.keys(awards);
         runs.push({ newCards, board, chunks: chunkRun(newCards, baseLen), winners, awards, thisPot, potResults,
-            categories: winners.reduce((m, id) => { m[id] = HandEvaluator.handCategory(scoreOn(board, id)); return m; }, {}) });
+            categories: winners.reduce((m, id) => { m[id] = variant.category(scoreOn(board, id)); return m; }, {}) });
     }
     const reveals = {};
     contenders.forEach(id => { reveals[id] = game.holeCards[id].map(c => ({ suit: c.suit, rank: c.rank })); });

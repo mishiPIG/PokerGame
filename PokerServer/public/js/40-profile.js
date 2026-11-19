@@ -267,17 +267,22 @@ function renderProfileAvatars() {
 }
 
 // 生涯战绩
-let statsMode = '';
+let statsMode = '', statsVariant = 'nlhe';
 function statsFilter(btn, mode) {
     btn.parentElement.querySelectorAll('.hf').forEach(b => b.classList.remove('active'));
     btn.classList.add('active'); statsMode = mode; loadStats(mode);
+}
+// 玩法：德州 / 短牌 / 奥马哈三种分开算
+function statsVariantFilter(btn, variant) {
+    btn.parentElement.querySelectorAll('.hf').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active'); statsVariant = variant; loadStats(statsMode);
 }
 async function loadStats(mode) {
     const box = document.getElementById('stats-body2');
     box.innerHTML = `<div class="hist-empty">${L('加载中…', 'Loading…')}</div>`;
     try {
         const token = localStorage.getItem('token');
-        const q = mode ? `?mode=${mode}` : '';
+        const q = `?variant=${statsVariant}` + (mode ? `&mode=${mode}` : '');
         const res = await fetch('/api/my-stats' + q, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw 0;
         renderStatsPage(await res.json());

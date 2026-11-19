@@ -33,6 +33,18 @@ const SUITS = ['Spades', 'Hearts', 'Diamonds', 'Clubs'];
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
 const ORDERED = [];
 for (const s of SUITS) for (const r of RANKS) ORDERED.push(r + s[0]);
+// 玩法（2026-11-19）：牌谱里写着 variant 的按它来；没写 = 德州（老牌谱都是）。
+//   短牌：去掉 2–5 的 36 张，建牌顺序同样是「花色在外、点数在内」（和 Deck.reset(ranks) 一致）
+//   奥马哈：每人 4 张底牌，同样是一个人连发完再发下一个人
+const VARIANT_RANKS = { shortdeck: ['6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'] };
+const VARIANT_HOLE = { plo: 4 };
+function orderedFor(variant) {
+    const ranks = typeof variant === 'string' && Object.hasOwn(VARIANT_RANKS, variant) ? VARIANT_RANKS[variant] : null;
+    if (!ranks) return ORDERED;
+    const out = [];
+    for (const s of SUITS) for (const r of ranks) out.push(r + s[0]);
+    return out;
+}
 
 function fail(msg) {
     console.error(T('用法错误：', 'Usage error: ') + msg);
@@ -90,7 +102,8 @@ function verify(hand) {
     ]);
 
     // ② 牌序：用三要素重新洗一遍，必须和当时记录的牌序一模一样。
-    const replay = shuffledOrder(ORDERED, { serverSeed, clientSeed, nonce });
+    const replay = shuffledOrder(orderedFor(hand.variant), { serverSeed, clientSeed, nonce });
+    const H = (typeof hand.variant === 'string' && Object.hasOwn(VARIANT_HOLE, hand.variant) && VARIANT_HOLE[hand.variant]) || 2;   // 每人几张底牌
     const orderOk = Array.isArray(deckOrder) && deckOrder.length === replay.length
         && replay.every((c, i) => c === deckOrder[i]);
     out.push([
@@ -105,17 +118,17 @@ function verify(hand) {
     const seats = Array.isArray(hand.seats) ? hand.seats : [];
     const problems = [];
     seats.forEach((s, i) => {
-        const expect = [replay[2 * i], replay[2 * i + 1]];
+        const expect = replay.slice(H * i, H * i + H);
         const actual = Array.isArray(s.hole) ? s.hole : null;
         if (!actual) return;                       // 没记底牌（观战者等）就跳过
-        if (actual[0] !== expect[0] || actual[1] !== expect[1]) {
+        if (actual.length !== H || actual.some((c, k) => c !== expect[k])) {
             problems.push(T('座位 ', 'seat ') + (s.seat ?? i) + ' (' + (s.username || '?') + ')'
                 + T('记录是 ', ' recorded ') + actual.join(' ')
                 + T('，按牌序应当是 ', ', deck order says ') + expect.join(' '));
         }
     });
-    const base = 2 * seats.length;
-    // 发牌顺序与 hand-service 一致：每人两张 → 烧一张 → 翻牌 3 张 → 烧 → 转牌 → 烧 → 河牌
+    const base = H * seats.length;
+    // 发牌顺序与 hand-service 一致：每人 H 张（德州 / 短牌 2、奥马哈 4）→ 烧一张 → 翻牌 3 张 → 烧 → 转牌 → 烧 → 河牌
     const expectedBoard = [replay[base + 1], replay[base + 2], replay[base + 3],
         replay[base + 5], replay[base + 7]];
     const board = Array.isArray(hand.community) ? hand.community : [];

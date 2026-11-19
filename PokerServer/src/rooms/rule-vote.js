@@ -94,11 +94,13 @@ function pass(game, vote) {
 
 function propose(game, ownerId, kind, input, now = Date.now()) {
     if (!game) return { ok: false, reason: 'gone' };
-    const K = KINDS[kind];
+    // Object.hasOwn：'constructor' / 'toString' 这类名字是对象自带的，KINDS[kind] 会取到函数（同 variants/index.js 那个坑）
+    const K = typeof kind === 'string' && Object.hasOwn(KINDS, kind) ? KINDS[kind] : null;
     if (!K) return { ok: false, reason: 'bad' };
     if (game.roomType !== 'cash') return { ok: false, reason: 'notCash' };
     if (game.ownerUserId !== ownerId) return { ok: false, reason: 'notOwner' };
     if (activeVote(game, now)) return { ok: false, reason: 'busy' };
+    if (kind === 'sevenDeuce' && (game.config.variant || 'nlhe') !== 'nlhe') return { ok: false, reason: 'noSevenDeuce' };   // 短牌没有 2、奥马哈是 4 张
     const payload = K.validate(input || {}, game);
     if (!payload) return { ok: false, reason: kind === 'blinds' ? 'badBlinds' : 'bad' };
     if (K.same(game, payload)) return { ok: false, reason: 'same' };

@@ -16,7 +16,7 @@ const HOTKEY_DEFS = [
     { id: 'fold',    def: 'f',     btns: ['btnFold'],                zh: '弃牌',        en: 'Fold' },
     { id: 'check',   def: 'c',     btns: ['btnCheckCall'],           zh: '过牌 / 跟注',  en: 'Check / Call' },
     { id: 'raise',   def: 'r',     btns: ['btnRaise', 'btnBet'],     zh: '下注 / 加注',  en: 'Bet / Raise' },
-    { id: 'allin',   def: 'a',     btns: [],                         zh: '全下',        en: 'All-in' },
+    { id: 'allin',   def: 'a',     btns: [],                         zh: '全下（奥马哈：最大注）', en: 'All-in (Omaha: max bet)' },   // 底池限注时按到的是上限，不是全下
     { id: 'confirm', def: 'Enter', btns: ['btnConfirmBet'],          zh: '确认下注',     en: 'Confirm bet' },
     { id: 'ready',   def: ' ',     btns: ['btnReady', 'btnStart'],   zh: '准备 / 开始',  en: 'Ready / Start' },
 ];

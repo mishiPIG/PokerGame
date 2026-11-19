@@ -92,6 +92,8 @@
         .hi-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; align-items: center; }
         .hi-time { color: #9db9a9; font-size: 11px; }
         .hi-net { color: #4ade80; font-size: 12px; }
+        .hi-net.lose { color: #f87171; }   /* 输了是红的（原来一律绿色，「-40」也是绿的）*/
+        .hi-net:not(.win):not(.lose) { color: #9db9a9; }
         .match-info { font-size: 14px; color: #dfe9e2; }
         .mi-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px solid rgba(255,255,255,0.1); }
         .mi-row > span { white-space: nowrap; flex-shrink: 0; }   /* 标签不折行（「当前状/态」，2026-09-29 截图）；长的值去右边折行 */

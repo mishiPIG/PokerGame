@@ -53,6 +53,7 @@ function loadLobby() {
     const ctx = {
         console,
         L: (zh) => zh,                                   // 测试里固定取中文，断言好写
+        t: (k) => k,                                     // 真实定义在 03-i18n.js（卡片上的玩法名走字典）
         escapeHtml: s => String(s),
         ic: n => `<svg data-ic="${n}"></svg>`,           // 真实定义在 05-utils.js（线条图标）
         onLangChange() {},                               // 真实定义在 03-i18n.js

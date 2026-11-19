@@ -86,6 +86,10 @@
     <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M12 3.5 19 6.3v5.2c0 4.3-3 7.6-7 9-4-1.4-7-4.7-7-9V6.3z"/><path d="M9 12l2.1 2.1L15.3 10"/></symbol>
     <symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 4.5H6.5A1.5 1.5 0 0 0 5 6v12a1.5 1.5 0 0 0 1.5 1.5H10M14.5 8l4 4-4 4M18.5 12h-9"/></symbol>
     <symbol id="i-cards" viewBox="0 0 24 24"><path d="M9 4.2h8.3A1.7 1.7 0 0 1 19 5.9v11.3"/><rect x="5" y="6.8" width="10.5" height="13.5" rx="1.7"/><path d="M10.25 10.6 12.4 13.5l-2.15 2.9-2.15-2.9z"/></symbol>
+    <!-- 三种玩法（2026-11-19）：德州 = 两张牌叠着、奥马哈 = 四张牌叠着（张数就是底牌张数），短牌 = 一张写着 6 的牌（6+ Hold'em）-->
+    <symbol id="i-v-nlhe" viewBox="0 0 24 24"><path d="M8.5 7.5V5.7a1.7 1.7 0 0 1 1.7-1.7h7.1a1.7 1.7 0 0 1 1.7 1.7v10.1a1.7 1.7 0 0 1-1.7 1.7h-2.8"/><rect x="4" y="7.5" width="10.5" height="13.5" rx="1.7"/><path d="M9.25 11.4l2.1 2.85-2.1 2.85-2.1-2.85z"/></symbol>
+    <symbol id="i-v-short" viewBox="0 0 24 24"><rect x="5.5" y="3.5" width="13" height="17" rx="2"/><circle cx="12" cy="14.4" r="2.7"/><path d="M14.5 7.6c-1.3-.6-2.6-.5-3.5.2-1.4 1-1.8 3.2-1.7 6.6"/></symbol>
+    <symbol id="i-v-plo" viewBox="0 0 24 24"><path d="M5.9 9.5v-.7a1.5 1.5 0 0 1 1.5-1.5h6.5a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-1.4M8.8 7.3v-.7a1.5 1.5 0 0 1 1.5-1.5h6.5a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-1.4M11.7 5.1v-.7a1.5 1.5 0 0 1 1.5-1.5h6.5a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-1.4"/><rect x="3" y="9.5" width="9.5" height="12" rx="1.5"/><path d="M7.75 12.9l1.9 2.6-1.9 2.6-1.9-2.6z"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l4.5 4.5"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M7 4h10M7 20h10M8 4c0 3.8 8 4.6 8 8s-8 4.2-8 8M16 4c0 3.8-8 4.6-8 8s8 4.2 8 8"/></symbol>
@@ -328,6 +332,17 @@
 
         <!-- 创建表单（SNG / 现金桌 两栏）-->
         <div id="create-form" style="display:none">
+            <!-- 玩法：放在最上面（用户 2026-11-19 定：先选玩法，再选 SNG 还是现金桌）。两种都能选，建房后不可改 -->
+            <div class="cfg-field variant-field">
+                <span class="cfg-label" data-i18n="cfg.variant">玩法</span>
+                <div class="tier-row" id="variantRow">
+                    <button type="button" class="tier-btn var-btn v-nlhe sel" data-variant="nlhe" onclick="setVariant('nlhe')"><svg class="ic"><use href="#i-v-nlhe"/></svg><span data-i18n="variant.nlhe">德州</span><small>NLH</small></button>
+                    <button type="button" class="tier-btn var-btn v-shortdeck" data-variant="shortdeck" onclick="setVariant('shortdeck')"><svg class="ic"><use href="#i-v-short"/></svg><span data-i18n="variant.shortdeck">短牌</span><small>6+</small></button>
+                    <button type="button" class="tier-btn var-btn v-plo" data-variant="plo" onclick="setVariant('plo')"><svg class="ic"><use href="#i-v-plo"/></svg><span data-i18n="variant.plo">奥马哈</span><small>PLO</small></button>
+                </div>
+                <div class="cfg-note" id="variantNote" style="display:none" data-i18n="cfg.variantSdNote">短牌：去掉 2–5 只用 36 张。同花大于葫芦，A-6-7-8-9 也是顺子，其余牌型大小和德州一样。</div>
+                <div class="cfg-note" id="variantNotePlo" style="display:none" data-i18n="cfg.variantPloNote">奥马哈：每人 4 张底牌，必须正好用 2 张底牌 + 3 张公共牌；底池限注（最多加到跟注后的底池）。</div>
+            </div>
             <div class="ct-tabs">
                 <button class="ct-tab active" id="ctTabSng" onclick="switchCreateTab('sng')"><svg class="ic" aria-hidden="true"><use href="#i-trophy"/></svg><span data-i18n="cfg.tabSng">SNG 升盲</span></button>
                 <button class="ct-tab" id="ctTabCash" onclick="switchCreateTab('cash')"><svg class="ic" aria-hidden="true"><use href="#i-chips"/></svg><span data-i18n="cfg.tabCash">现金桌</span></button>
@@ -361,7 +376,7 @@
                     <span data-i18n="cfg.straddle">允许 UTG Straddle（固定 2BB）</span></label>
                 <label class="toggle-label"><input type="checkbox" id="ccBomb">
                     <span data-i18n="cfg.bomb">Bomb pot（每 10 手一次：每人 2BB 进底池，直接发翻牌）</span></label>
-                <label class="toggle-label"><input type="checkbox" id="ccSevenDeuce">
+                <label class="toggle-label" id="ccSevenDeuceRow"><input type="checkbox" id="ccSevenDeuce">
                     <span data-i18n="cfg.sevenDeuce">7-2 奖励（用 7-2 赢下底池，其余每人付 2BB）</span></label>
                 <label class="toggle-label"><input type="checkbox" id="ccApprove">
                     <span data-i18n="cfg.approve">带入需房主批准（坐下和补码都要你点头）</span></label>
@@ -381,7 +396,6 @@
                     <button type="button" class="tier-btn" data-sec="15" onclick="setThinkTime(15)">15s</button>
                     <button type="button" class="tier-btn sel" data-sec="18" onclick="setThinkTime(18)">18s</button>
                     <button type="button" class="tier-btn" data-sec="20" onclick="setThinkTime(20)">20s</button>
-                    <button type="button" class="tier-btn" data-sec="30" onclick="setThinkTime(30)">30s</button>
                 </div>
             </div>
             <div class="cfg-field vis-field">
@@ -532,7 +546,7 @@
         <div id="sizing-row" style="display:none">
             <div class="size-slider-group">
                 <input type="range"   id="betSlider"   min="0" max="0" step="1" value="0" oninput="onSliderInput()">
-                <input type="number"  id="raiseAmount" min="0" step="1" inputmode="numeric" oninput="onAmountInput()" onclick="toggleKeypad()">
+                <input type="number"  id="raiseAmount" min="0" step="1" inputmode="numeric" oninput="onAmountInput()" onclick="toggleKeypad()" onkeydown="if (event.key === 'Enter') { event.preventDefault(); confirmBet(); }">
             </div>
             <!-- 手机上的数字键盘：点金额框弹出，代替系统软键盘（软键盘会把整个牌桌顶起来、座位重排）-->
             <div id="bet-keypad" class="bet-keypad" style="display:none">
@@ -797,6 +811,12 @@
             <div class="avatar-grid" id="profile-avatar-grid"></div>
         </div>
         <div id="pt-stats" class="prof-pane" style="display:none">
+            <!-- 玩法：三种分开算（德州 / 短牌 / 奥马哈的打法口径完全不同） -->
+            <div class="hist-filter" id="stats-variant">
+                <button class="hf active" onclick="statsVariantFilter(this,'nlhe')"><svg class="ic v-nlhe"><use href="#i-v-nlhe"/></svg><span data-i18n="variant.nlhe">德州</span></button>
+                <button class="hf" onclick="statsVariantFilter(this,'shortdeck')"><svg class="ic v-shortdeck"><use href="#i-v-short"/></svg><span data-i18n="variant.shortdeck">短牌</span></button>
+                <button class="hf" onclick="statsVariantFilter(this,'plo')"><svg class="ic v-plo"><use href="#i-v-plo"/></svg><span data-i18n="variant.plo">奥马哈</span></button>
+            </div>
             <div class="hist-filter">
                 <button class="hf active" onclick="statsFilter(this,'')" data-i18n="filter.all">全部</button>
                 <button class="hf" onclick="statsFilter(this,'cash')" data-i18n="filter.cash">现金桌</button>

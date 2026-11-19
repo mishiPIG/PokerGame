@@ -28,16 +28,16 @@ function table(actionTimeSec) {
     return { svc, game };
 }
 
-test('这一桌设了 30 秒，轮到谁就给谁 30 秒', (t) => {
-    const { svc, game } = table(30);
+test('这一桌设了 20 秒，轮到谁就给谁 20 秒', (t) => {
+    const { svc, game } = table(20);
     t.after(() => clearTimeout(game.actionTimer));
     svc.startHand('R');
     assert.ok(game.actionOnIdx >= 0);
-    assert.equal(game.actionTotalMs, 30000);
+    assert.equal(game.actionTotalMs, 20000);
 });
 
-test('没设（老房间的快照）照旧 18 秒；乱填的值也按 18 秒', (t) => {
-    for (const v of [undefined, 7, '999', 'abc']) {
+test('没设（老房间的快照）照旧 18 秒；乱填的值、已经去掉的 30 秒也按 18 秒', (t) => {
+    for (const v of [undefined, 7, '999', 'abc', 30]) {
         const { svc, game } = table(v);
         t.after(() => clearTimeout(game.actionTimer));
         svc.startHand('R');
@@ -45,8 +45,9 @@ test('没设（老房间的快照）照旧 18 秒；乱填的值也按 18 秒', 
     }
 });
 
-test('只收 15 / 18 / 20 / 30', () => {
-    assert.deepEqual(config.ACTION_TIME_CHOICES, [15, 18, 20, 30]);
+test('只收 15 / 18 / 20', () => {
+    assert.deepEqual(config.ACTION_TIME_CHOICES, [15, 18, 20]);
+    assert.equal(config.pickActionTimeSec(30), 18);
     assert.equal(config.pickActionTimeSec('20'), 20);
     assert.equal(config.pickActionTimeSec(60), 18);
     assert.equal(config.pickActionTimeSec(null), 18);

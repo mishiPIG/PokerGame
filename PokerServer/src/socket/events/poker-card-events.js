@@ -14,7 +14,7 @@ function registerPokerCardEvents(context) {
         const hole = game.holeCards[user.id];
         if (!hole) return;
         index = parseInt(index);
-        if (index !== 0 && index !== 1) return;
+        if (!(index >= 0 && index < hole.length)) return;   // 德州 0–1、奥马哈 0–3
         game.shownCards = game.shownCards || {};
         const set = game.shownCards[user.id] || (game.shownCards[user.id] = new Set());
         if (set.has(index)) return;
@@ -32,6 +32,7 @@ function registerPokerCardEvents(context) {
         if (socket.currentRoom !== roomId) return;   // 只能对自己所在的桌发：房间号是客户端传的
         const game = roomGames[roomId];
         if (!game || game.phase !== PHASES.SHOWDOWN) return;
+        if (!game.players.some(p => p.userId === user.id)) return;   // 只有在座的人能看后续牌（观众点会一次次推迟下一手）
         const n = game.communityCards.length;
         if (n >= 5) return;                       // 已到河牌（含真摊牌），无可发
         const count = n === 0 ? 3 : 1;            // 0→翻牌3张，3→转牌1张，4→河牌1张

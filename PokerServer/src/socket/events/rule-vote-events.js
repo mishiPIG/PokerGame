@@ -10,6 +10,7 @@ const timers = new Map();
 const REASON_MSG = {
     notOwner: { k: 'rule.notOwner' }, notCash: { k: 'rule.notCash' }, busy: { k: 'rule.busy' },
     bad: { k: 'rule.bad' }, badBlinds: { k: 'rule.badBlinds' }, same: { k: 'rule.same' }, gone: { k: 'rule.gone' },
+    noSevenDeuce: { k: 'rule.noSevenDeuce' },
 };
 
 // 发起时的桌面提示：谁、提议了什么

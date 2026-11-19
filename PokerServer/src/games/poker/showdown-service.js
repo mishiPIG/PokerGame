@@ -1,5 +1,6 @@
 'use strict';
 const { nameOf } = require('../../account/display-name');
+const { variantOf } = require('./variants');
 
 function createShowdownService({ io, roomGames, HandEvaluator, activePlayers, buildSidePots, returnUncalledBets, hooks }) {
     const { saveHandHistory, commitHandHistory, applyPendingLevelUp, broadcastState, maybeEndSNG, scheduleNextHand } = hooks;
@@ -7,12 +8,13 @@ function doShowdown(roomId) {
     const game = roomGames[roomId];
     returnUncalledBets(roomId);   // 摊牌前退还未被跟到的多余下注（幂等；已在 all-in 亮牌时退过则不动）
     const active = activePlayers(game);
+    const variant = variantOf(game);   // 怎么评估一手牌由玩法决定（德州 / 短牌 / 奥马哈）
     io.in(roomId).emit('server_msg', `\n--- 🃏 Showdown ---`);
 
     // 每位仍在局玩家的 7 张牌得分
     const scoreOf = {};
     active.forEach(p => {
-        scoreOf[p.userId] = HandEvaluator.evaluate7Cards(game.communityCards.concat(game.holeCards[p.userId]));
+        scoreOf[p.userId] = variant.score(game.communityCards, game.holeCards[p.userId]);
     });
 
     // 广播所有手牌
@@ -49,12 +51,8 @@ function doShowdown(roomId) {
     const bestByWinner = {};
     winnerIds.forEach(id => {
         if (!game.holeCards[id]) return;
-        const wb = HandEvaluator.bestHand(game.communityCards.concat(game.holeCards[id]));
-        bestByWinner[id] = {
-            community: wb.indices.filter(i => i < 5),
-            hole: wb.indices.filter(i => i >= 5).map(i => i - 5),
-            category: wb.category
-        };
+        const wb = variant.best(game.communityCards, game.holeCards[id]);
+        bestByWinner[id] = { community: wb.boardIdx, hole: wb.holeIdx, category: wb.category };
     });
     const ob = bestByWinner[overallId] || { community: [], hole: [], category: '' };
     // 每一家亮出来的牌型（不只是赢家）：玩家最想看清的是「他拿什么输给我的」。
@@ -62,7 +60,7 @@ function doShowdown(roomId) {
     // 弃牌者的牌型绝不能出现在这里。
     const categories = {};
     active.forEach(p => {
-        categories[p.userId] = HandEvaluator.bestHand(game.communityCards.concat(game.holeCards[p.userId])).category;
+        categories[p.userId] = variant.best(game.communityCards, game.holeCards[p.userId]).category;
     });
     io.in(roomId).emit('showdown_reveal', {
         reveals, winners: winnerIds, winnerId: overallId,

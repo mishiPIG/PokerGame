@@ -19,6 +19,8 @@
         .hist-filter .hf { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
             color: #dfe9e2; border-radius: 16px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
         .hist-filter .hf.active { background: #06d6a0; border-color: #06d6a0; color: #0a1f1a; }
+        /* 生涯战绩的玩法筛选：选中时底是薄荷色，玩法颜色的图标在上面看不清，跟文字走 */
+        .hist-filter .hf.active .ic { color: currentColor; }
         .hist-empty { text-align: center; color: #7e9686; padding: 30px; }
         .hist-more { display: block; width: 100%; padding: 10px; margin: 4px 0 8px; cursor: pointer;
             background: rgba(255,255,255,0.06); color: #dfe9e2; border: 1px solid rgba(255,255,255,0.14);
@@ -74,7 +76,19 @@
         .hd-pos { display: inline-block; background: rgba(255,255,255,0.12); color: #b8ccbe; border-radius: 4px; padding: 0 4px; font-size: 9px; margin-left: 2px; }
         .hd-me { display: inline-block; background: #06d6a0; color: #04241c; border-radius: 4px; padding: 0 4px; font-size: 9px; margin-left: 2px; }
         .hd-fold { display: inline-block; color: #f87171; font-size: 9px; margin-left: 2px; }
-        .hd-hole { --card-w: 26px; --card-h: 36px; display: flex; gap: 2px; flex-shrink: 0; }
+        /* 牌在上、牌型名在下（原来牌型名接在牌的右边，奥马哈 4 张时整行太宽，动作那一栏被挤成每个徽章一行、
+           窄屏上盈亏数字伸出屏幕 —— 2026-11-19 UI 测试）*/
+        .hd-hole { --card-w: 26px; --card-h: 36px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+        .hd-cards { display: flex; gap: 2px; }
+        /* 奥马哈 4 张：和牌桌同一个办法 —— 一排叠放，被压住的前三张用角标（20-table.css「奥马哈 4 张底牌」）*/
+        .hd-cards.many { gap: 0; }
+        .hd-cards.many .card { position: relative; }
+        .hd-cards.many .card + .card { margin-left: -11px; }
+        .hd-cards.many .card { justify-content: flex-start; align-items: flex-start; padding: 2px 0 0 2px; }
+        .hd-cards.many .card > .rank { font-size: 13px; letter-spacing: -0.08em; }
+        .hd-cards.many .card > .suit { font-size: 12px; align-self: flex-start; margin-top: 1px; }
+        .hd-cards.many .card > .fa { display: none; }
+        .hd-cards.many .card > .rank, .hd-cards.many .card > .suit { visibility: visible; }
         .hd-acts { flex: 1; display: flex; flex-wrap: wrap; gap: 3px; align-items: center; min-width: 0; }
         .hd-st { font-size: 9px; color: #7e9686; margin: 0 2px 0 5px; }
         .hd-act { font-size: 10px; font-weight: bold; border-radius: 4px; padding: 1px 5px; background: rgba(255,255,255,0.1); color: #dfe9e2; }

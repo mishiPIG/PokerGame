@@ -55,6 +55,10 @@ function registerTableControlEvents(context) {
         //    等于房主可以没收别人的报名费（现金桌没这个问题：筹码留到结束照常结算）。
         //    想让他走：开赛前让他自己退出（会退报名费），开赛后只能打完。
         if (game.roomType === 'sng' && target) { socket.emit('server_msg', { k: 'host.kickSngSeated' }); return; }
+        // 🔴 对方还在这一手里就先不让请：请出会把他移出房间、没法再行动，超时就被判弃牌 ——
+        //    房主下注后请走面对下注的人，底池就归房主了（2026-11-19 安全测试）。本手结束后再请；弃了牌的照常可以立刻请
+        const handLive = game.phase !== PHASES.WAITING && game.phase !== PHASES.SHOWDOWN;
+        if (target && handLive && !target.folded) { socket.emit('server_msg', { k: 'host.kickAfterHand' }); return; }
 
         // 先记名单再离座：离座会广播，广播里已经不该把他算成能回来的人
         if (!game.kicked) game.kicked = new Set();
@@ -131,8 +135,12 @@ function registerTableControlEvents(context) {
         if (!p) return;
         if (typeof auto === 'boolean') p.autoRebuy = auto;
         const maxB = game.config.maxBuyIn || 1e9;
-        const cap = maxB - p.chips - (p.pendingRebuy || 0);
-        if (amount === 0 || amount == null) {   // 仅切换自动补码、不补当前码
+        // 带入上限要算上「本手已经投进底池、还可能赢回来」的筹码：一手中间 p.chips 只是后手，
+        // 原来只减它 → 全押后补码能补到上限的近两倍（2026-11-19 极端值测试：60000 上限的桌下一手拿到 111000）。
+        // 已经弃牌的人投进去的就没了，不算。
+        const inPot = p.folded ? 0 : (p.currentBet || 0) + (p.committed || 0);
+        const cap = maxB - p.chips - inPot - (p.pendingRebuy || 0);
+        if (amount == null || Number(amount) === 0) {   // 仅切换自动补码、不补当前码（字符串 "0" 也算）
             io.in(roomId).emit('server_msg', `🔁 ${nameOf(user)} ${p.autoRebuy ? '开启' : '关闭'}自动补码`);
             broadcastState(roomId); return;
         }

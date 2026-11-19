@@ -6,7 +6,8 @@ function rpParseCard(str) {
     return { suit, rank: str.slice(0, -1) };
 }
 function rpRingPos(i, n) {
-    const cx = 50, cy = 44, rx = 40, ry = 37;
+    // 纵向用满整个座位环（原来 cy 44 / ry 37，最下面那家下方空出一大块，9 人桌上下几家反而挤在一起 —— 2026-11-19 UI 测试量到约 250px 空白）
+    const cx = 50, cy = 48, rx = 40, ry = 45;
     const ang = Math.PI / 2 + (2 * Math.PI * i / n);
     return { x: cx + rx * Math.cos(ang), y: cy + ry * Math.sin(ang) };
 }
@@ -17,7 +18,7 @@ function buildReplayFrames(h) {
         stack: s.startChips || 0, bet: 0, folded: false, showCards: !!h.revealAll,
         // heroId：示例牌局没有「我」，由牌谱自己指定从谁的视角看（那一家的牌亮着、坐在屏幕下方）
         // 底牌被过滤掉的人（桌子还没散时别人弃掉的牌 / 分享链接里看不见的牌）：画两张牌背，别让他看起来像没拿牌
-        hole: s.hole && s.hole.length ? s.hole.map(rpParseCard) : [null, null], isMe: s.userId === (h.heroId || myUserId), pos: ''
+        hole: s.hole && s.hole.length ? s.hole.map(rpParseCard) : Array(h.variant === 'plo' ? 4 : 2).fill(null), isMe: s.userId === (h.heroId || myUserId), pos: ''
     }));
     const byId = {}; players.forEach(p => byId[p.userId] = p);
     const n = players.length;
@@ -84,7 +85,7 @@ function buildReplayFrames(h) {
             const amt = (rr.amounts || [])[i] || 0;
             ws.forEach(id => { const p = byId[id]; if (p) p.stack += Math.floor(amt / ws.length); });
             pot = Math.max(0, pot - amt);
-            const names = ws.map(id => byId[id] && byId[id].name).filter(Boolean).join('、');
+            const names = ws.map(id => byId[id] && byId[id].name).filter(Boolean).join(L('、', ', '));
             snap(`${L(`第 ${i + 1} 次`, `Run ${i + 1}`)} · ${names || L('平分', 'split')} +${fmtChips(amt)}`, null,
                 { community: 5, board: (bd || []).map(rpParseCard) });
         });
@@ -109,7 +110,7 @@ function buildReplayFrames(h) {
         byId[sd.userId].stack -= sd.total;
     }
     const wn = winners.map(r => byId[r.userId] && byId[r.userId].name).filter(Boolean);
-    snap(`${L('摊牌', 'Showdown')} · ${wn.length ? wn.join('、') + L(' 赢得 ', ' won ') + fmtChips(winners.reduce((s, r) => s + r.won, 0)) : L('结束', 'End')}`, null);
+    snap(`${L('摊牌', 'Showdown')} · ${wn.length ? wn.join(L('、', ', ')) + L(' 赢得 ', ' won ') + fmtChips(winners.reduce((s, r) => s + r.won, 0)) : L('结束', 'End')}`, null);
     // 7-2 奖励：其余每人付给赢家
     if (sd && byId[sd.userId]) {
         (sd.payers || []).forEach(x => { const p = byId[x.userId]; if (p) p.stack -= x.paid; });
@@ -144,7 +145,9 @@ function openHandDetail(h) {
     const pot = (h.results || []).reduce((s, r) => s + (r.won || 0), 0);
     const community = (h.community || []).map(rpParseCard);
     const time = fmtDateTime(h.ts);
-    document.getElementById('hd-title').textContent = `${L('牌谱详情', 'Hand detail')} · ${h.mode === 'cash' ? L('现金桌', 'Cash') : 'SNG'} ${h.sb}/${h.bb}`;
+    // 短牌 / 奥马哈要标出来：同一副牌在不同玩法里牌型大小不一样，不标会被当成德州看
+    const vtag = typeof variantLabel === 'function' && variantLabel(h.variant) ? variantLabel(h.variant) + ' · ' : '';
+    document.getElementById('hd-title').textContent = `${L('牌谱详情', 'Hand detail')} · ${vtag}${h.mode === 'cash' ? L('现金桌', 'Cash') : 'SNG'} ${h.sb}/${h.bb}`;
     const commHtml = [0, 1, 2, 3, 4].map(i => community[i] ? formatCard(community[i]) : emptySlot()).join('');
     // 多次发牌（run it N times）：完整展示每组公共牌 + 该组赢家 + 该份金额
     let runitHtml = '';
@@ -165,7 +168,7 @@ function openHandDetail(h) {
         const isMe = s.userId === myUserId;
         const folded = foldedSet.has(s.userId);
         const showFace = isMe || (!folded && showdown);
-        const holeHtml = (s.hole && s.hole.length ? s.hole : [null, null]).map(cs => (showFace && cs) ? formatCard(rpParseCard(cs)) : cardBack()).join('');
+        const holeHtml = (s.hole && s.hole.length ? s.hole : Array(h.variant === 'plo' ? 4 : 2).fill(null)).map(cs => (showFace && cs) ? formatCard(rpParseCard(cs)) : cardBack()).join('');
         const acts = (h.actions || []).filter(a => a.userId === s.userId);
         let actHtml = '', lastStreet = null;
         acts.forEach(a => {
@@ -187,7 +190,7 @@ function openHandDetail(h) {
         return `<div class="hd-row${folded ? ' folded' : ''}">
             <div class="hd-who"><div class="hd-av" style="background:hsl(${hashHue(s.userId)},45%,42%)">${av}</div>
               <div class="hd-nm">${escapeHtml(s.username)}${isMe ? `<span class="hd-me">${L('你', 'You')}</span>` : ''}${pos[s.userId] ? `<span class="hd-pos">${pos[s.userId]}</span>` : ''}${folded ? `<span class="hd-fold">${L('弃牌', 'Fold')}</span>` : ''}</div></div>
-            <div class="hd-hole">${holeHtml}${catHtml}</div>
+            <div class="hd-hole"><div class="hd-cards${(s.hole || []).length > 2 || h.variant === 'plo' ? ' many' : ''}">${holeHtml}</div>${catHtml}</div>
             <div class="hd-acts">${actHtml}</div>
             <div class="hd-net ${netCls}">${net > 0 ? '+' : ''}${fmtChips(net)}</div>
         </div>`;
@@ -208,7 +211,7 @@ function openReplay(h) {
     const me = (h.seats || []).find(s => s.userId === (h.heroId || myUserId));
     const sharer = h.shared && me ? L(`${me.username} 分享的一手 · `, `Shared by ${me.username} · `) : '';
     document.getElementById('rp-info').textContent = sharer +
-        `${time} · ${h.mode === 'cash' ? L('现金桌', 'Cash') : 'SNG'} · ${L('盲注', 'Blinds')} ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''} · ${L(`${(h.seats || []).length} 人`, `${(h.seats || []).length} players`)}`
+        `${time} · ${typeof variantLabel === 'function' && variantLabel(h.variant) ? variantLabel(h.variant) + ' · ' : ''}${h.mode === 'cash' ? L('现金桌', 'Cash') : 'SNG'} · ${L('盲注', 'Blinds')} ${h.sb}/${h.bb}${h.ante ? ' ante ' + h.ante : ''} · ${L(`${(h.seats || []).length} 人`, `${(h.seats || []).length} players`)}`
         // 分享来的那一手：「我」是分享人，不是正在看的人
         + (me ? (h.shared
             ? L(` · TA 的后手 ${Math.round((me.startChips || 0) / h.bb)}BB`, ` · their stack ${Math.round((me.startChips || 0) / h.bb)}BB`)
@@ -227,6 +230,9 @@ function renderReplayFrame() {
     const n = f.players.length;
     const meIdx = f.players.findIndex(p => p.isMe);
     const base = meIdx >= 0 ? meIdx : 0;
+    // 8 人以上：座位整体收紧一点（小头像、小牌）—— 360px 手机上分享页底下还有一条「来玩」，牌桌更矮，
+    // 9 人桌左右两列上下几家会叠在一起（2026-11-19 UI 测试）
+    document.getElementById('rp-ring').classList.toggle('crowd', n >= 8);
     document.getElementById('rp-ring').innerHTML = f.players.map((p, i) => {
         const ri = ((i - base) % n + n) % n;
         const pos = rpRingPos(ri, n);
@@ -236,7 +242,7 @@ function renderReplayFrame() {
         const initial = (p.name || '?').charAt(0).toUpperCase();
         const av = p.avatar ? `<img src="${escapeHtml(p.avatar)}" onerror="this.style.display='none'">` : escapeHtml(initial);
         return `<div class="${cls}" style="left:${pos.x}%;top:${pos.y}%">
-            <div class="rp-cards">${cards}</div>
+            <div class="rp-cards${p.hole.length > 2 ? ' many' : ''}">${cards}</div>
             <div class="rp-avatar" style="background:hsl(${hashHue(p.userId)},45%,42%)">${av}</div>
             <div class="rp-name"><span class="rp-nm">${escapeHtml(p.name)}</span>${
                 p.pos ? `<span class="pos">${p.pos}</span>` : ''}</div>

@@ -1,5 +1,6 @@
 'use strict';
 const { publicVote } = require('../../rooms/rule-vote');
+const { variantOf, maxBetTo } = require('./variants');
 
 function createStatePresenter({ io, db, roomGames, PHASES, gameSB, gameBB, gameAnte, ACTION_TIME, EXTRA_MAX, livePots, HandEvaluator, persistence }) {
 function broadcastState(roomId) {
@@ -30,6 +31,8 @@ function broadcastState(roomId) {
         maxBuyIn:   game.config?.maxBuyIn || 0,
         minBet:     gameBB(game),                                       // 本街首注最小额
         minRaiseTo: game.currentBet + (game.lastRaiseSize || gameBB(game)), // 最小加注目标额
+        // 当前行动者这一次最多能下到 / 加到多少：无限注 = 全下额，底池限注（奥马哈）= 跟注后的底池
+        maxBetTo: game.actionOnIdx >= 0 && game.players[game.actionOnIdx] ? maxBetTo(game, game.players[game.actionOnIdx]) : null,
         // 无效加注：当前行动者本街已行动过、且面对的加注不足「一个完整加注」（前方是短码全押）
         // → 行动未被重开，他只能跟/弃。下发给客户端用于置灰加注按钮 + 点击时给出可见提示。
         raiseClosed: (() => {
@@ -38,6 +41,10 @@ function broadcastState(roomId) {
             return !!a.hasActed && (game.currentBet - a.currentBet) < (game.lastRaiseSize || gameBB(game));
         })(),
         roomType:   game.roomType || 'cash',
+        // 玩法：客户端按它画几张底牌、下注上限怎么算、速查表给哪一版
+        variant:    variantOf(game).id,
+        holeCount:  variantOf(game).holeCount,
+        betLimit:   variantOf(game).betLimit,
         roomName:   game.config?.name || roomId,
         maxPlayers: game.config?.maxPlayers || 9,
         actionTimeSec: (game.config?.actionTimeSec) || ACTION_TIME / 1000,
@@ -147,11 +154,9 @@ function emitHandHints(roomId) {
     if (comLen < 3) return;
     game.players.forEach(p => {
         if (!p.socketId || !game.holeCards[p.userId]) return;
-        const cards = game.communityCards.concat(game.holeCards[p.userId]);
-        const bh = HandEvaluator.bestHandFrom(cards);
+        const bh = variantOf(game).bestPartial(game.communityCards, game.holeCards[p.userId]);
         if (!bh) return;
-        const community = bh.indices.filter(i => i < comLen);
-        const hole = bh.indices.filter(i => i >= comLen).map(i => i - comLen);
+        const community = bh.boardIdx, hole = bh.holeIdx;
         // 已弃牌的人也发（标记 folded=true）：玩家反馈「弃牌后就看不到自己最终会是什么牌型了」。
         // 这只用到他【自己的底牌 + 公共牌】，不含任何对手信息，且是私发给本人，不影响公平性。
         io.to(p.socketId).emit('my_hand', { community, hole, category: bh.category, folded: !!p.folded });

@@ -1,4 +1,5 @@
 'use strict';
+const { normalizeVariant } = require('../../games/poker/variants');
 // 房间名是房主自己输入的，会出现在大厅列表、牌桌水印、管理面板、收件箱里。
 // 能拼出 HTML / 跳出 JS 字符串的字符直接去掉（客户端也会转义，这是第二道）。
 // 建房上限。没有它的话一个人可以开到房间码用完（4 位码 = 1 万个），之后谁都建不了房；
@@ -62,7 +63,9 @@ function registerLobbyEvents(context) {
                 startingStack: clampInt(cfg.startingStack, 5000, 30000, 10000),
                 levelMinutes:  clampInt(cfg.levelMinutes, 3, 10, 3),
                 buyIn:         SNG_BUYIN_TIERS.includes(+cfg.buyIn) ? +cfg.buyIn : SNG_BUYIN_TIERS[0],
-                actionTimeSec: context.config.pickActionTimeSec(cfg.actionTimeSec)   // 每次行动的思考时间（秒）
+                actionTimeSec: context.config.pickActionTimeSec(cfg.actionTimeSec),   // 每次行动的思考时间（秒）
+                // 玩法（德州 / 短牌 / 奥马哈）：建房时定，之后不可改（见 games/poker/variants）
+                variant: normalizeVariant(cfg.variant)
             },
             blindLevels: STANDARD_BLIND_LEVELS,
             currentLevel: 0, levelStartTime: null, prizePool: 0, tournamentOver: false,
@@ -98,7 +101,7 @@ function registerLobbyEvents(context) {
             if (s && s.user && ids.has(s.user.id)) here.push(s);
         }
         const newId = createSngRoom({ name: c.name, visibility: c.visibility, maxPlayers: c.maxPlayers,
-            startingStack: c.startingStack, levelMinutes: c.levelMinutes, buyIn: c.buyIn, actionTimeSec: c.actionTimeSec });
+            startingStack: c.startingStack, levelMinutes: c.levelMinutes, buyIn: c.buyIn, actionTimeSec: c.actionTimeSec, variant: c.variant });
         if (!newId) return;
         old.rematchRoomId = newId;
         const expiresAt = Date.now() + REMATCH_TTL_MS;
@@ -144,10 +147,12 @@ function registerLobbyEvents(context) {
                 durationH: [0.5, 1, 2, 3, 4, 5, 6].includes(+cfg.durationH) ? +cfg.durationH : 2,
                 approveBuyIn: cfg.approveBuyIn === true,   // 带入 / 补码需房主批准（默认关）
                 // 7-2 奖励：0 = 关；1 / 2 / 5 = 用 7-2 赢下底池时其余每人付几个大盲（见 extensions/seven-deuce.js）
-                sevenDeuceBB: [0, 1, 2, 5].includes(Number(cfg.sevenDeuceBB)) ? Number(cfg.sevenDeuceBB) : 0,
+                // 7-2 奖励只在德州：短牌没有 2、奥马哈手里是 4 张，都不会发生，干脆不让开（免得有人开了一个不会生效的设置）
+                sevenDeuceBB: normalizeVariant(cfg.variant) === 'nlhe' && [0, 1, 2, 5].includes(Number(cfg.sevenDeuceBB)) ? Number(cfg.sevenDeuceBB) : 0,
                 // Bomb pot：每 N 手一次（0 = 不自动；房主也可以随时点「下一手 Bomb」）、每人放几个大盲（见 extensions/bomb-pot.js）
                 bombEvery: [0, 5, 10, 20].includes(Number(cfg.bombEvery)) ? Number(cfg.bombEvery) : 0,
                 bombBB: [2, 5, 10].includes(Number(cfg.bombBB)) ? Number(cfg.bombBB) : 2,
+                variant: normalizeVariant(cfg.variant),   // 玩法：建房时定，之后不可改
                 actionTimeSec: context.config.pickActionTimeSec(cfg.actionTimeSec)   // 每次行动的思考时间（秒）
             },
             prizePool: 0, tournamentOver: false,

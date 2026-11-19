@@ -74,14 +74,15 @@ function renderHistory(hands, listId) {
         const won = res ? res.won : 0;
         const net = res ? ((res.endChips ?? (me ? me.startChips : 0)) - (me ? me.startChips || 0 : 0)) : 0;
         const time = fmtDateTime(h.ts);
-        const tag = h.mode === 'cash' ? L('现金', 'Cash') : 'SNG';
+        // 短牌 / 奥马哈那几手前面挂上自己颜色的玩法图标（德州不标，和水印一致）
+        const tag = (typeof variantLabel === 'function' && variantLabel(h.variant) ? variantIcon(h.variant) + variantLabel(h.variant) + '·' : '') + (h.mode === 'cash' ? L('现金', 'Cash') : 'SNG');
         const winCls = net > 0 ? 'win' : (net < 0 ? 'lose' : '');
         const holeCards = me ? me.hole.map(cs => formatCard(rpParseCard(cs))).join('') : '';
         const commCards = (h.community || []).map(cs => formatCard(rpParseCard(cs))).join('') || `<span class="hi-nocomm">${L('未到公共牌', 'No board')}</span>`;
         return `<div class="hist-item ${winCls}" onclick="openReplayFrom('${listId}',${idx})">
             <div class="hi-head">
                 <span class="hi-time">${time}·${tag}</span>
-                <span class="hi-net">${net > 0 ? '+' : ''}${net.toLocaleString()} ›</span>
+                <span class="hi-net ${winCls}">${net > 0 ? '+' : ''}${net.toLocaleString()} ›</span>
             </div>
             <div class="hi-cards"><span class="hi-mine">${holeCards}</span><span class="hi-comm">${commCards}</span></div></div>`;
     }).join('');

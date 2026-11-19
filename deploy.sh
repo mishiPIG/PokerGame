@@ -86,7 +86,7 @@ DEPLOY_TMP="$(mktemp -t poker_deploy.XXXXXX).tar.gz"
 LIST_TMP="$(mktemp -t poker_files.XXXXXX)"
 cd "$SCRIPT_DIR/PokerServer"
 git ls-files --cached --others --exclude-standard -- . \
-    | grep -v '\.test\.js$' | grep -v '^\.eslintrc' \
+    | grep -v '\.test\.js$' | grep -v '^\.eslintrc' | grep -v '^golden/' \
     | while read -r f; do [ -e "$f" ] && echo "$f"; done > "$LIST_TMP"
 echo "build-info.json" >> "$LIST_TMP"
 tar czf "$DEPLOY_TMP" -T "$LIST_TMP"

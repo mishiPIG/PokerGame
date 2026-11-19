@@ -63,14 +63,22 @@ function showKickedNotice(reason) {
     el.style.display = 'flex';
 }
 // 公共牌下方一行提示（如"某某想看转牌"），几秒后自动消失
-let _noticeTimer = 0;
+let _noticeTimer = 0, _noticeAt = 0;
 function showTableNotice(text) {
     const el = document.getElementById('table-notice');
     if (!el) return;
     el.textContent = text;
     el.style.display = '';
+    _noticeAt = Date.now();
     clearTimeout(_noticeTimer);
     _noticeTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+// 新一手发牌时收起上一手留下的提示（「某某想看河牌」原来会挂进下一手 —— 局间只有几秒，4 秒的自动收起来不及）。
+// 只收半秒之前的：开新一手那一刻服务端可能刚发了「新盲注生效 / Bomb pot」这类提示，不能顺手把它也收掉。
+function clearStaleTableNotice() {
+    const el = document.getElementById('table-notice');
+    if (el && Date.now() - _noticeAt > 500) { el.style.display = 'none'; clearTimeout(_noticeTimer); }
 }
 
 // ===== 多次发牌（run it N times）UI =====
@@ -373,6 +381,31 @@ function updateCashLabels() {
 let createVisibility = 'private';
 // 每次行动的思考时间（秒）：默认 18，和原来一样；朋友里有新手的话房主可以放宽到 20 / 30
 let createThinkSec = 18;
+// 玩法（2026-11-19）：德州 / 短牌 / 奥马哈。7-2 奖励只在德州
+let createVariant = 'nlhe';
+function setVariant(v) {
+    createVariant = v;
+    document.querySelectorAll('#variantRow .tier-btn').forEach(b => b.classList.toggle('sel', b.dataset.variant === v));
+    document.getElementById('variantNote').style.display = v === 'shortdeck' ? '' : 'none';
+    document.getElementById('variantNotePlo').style.display = v === 'plo' ? '' : 'none';
+    // 7-2 奖励只在德州（短牌没有 2，奥马哈手里是 4 张）
+    const sd = document.getElementById('ccSevenDeuceRow');
+    if (sd) { sd.style.display = v === 'nlhe' ? '' : 'none'; if (v !== 'nlhe') document.getElementById('ccSevenDeuce').checked = false; }
+}
+// 玩法的显示名。key 写成字面量（不拼字符串），翻译完整性检查才认得出来
+const VARIANT_KEY = { nlhe: 'variant.nlhe', shortdeck: 'variant.shortdeck', plo: 'variant.plo' };
+function variantName(v) { return t(VARIANT_KEY[v] || VARIANT_KEY.nlhe); }
+// 德州不标：没有标记就是德州（牌桌水印、牌谱这类一行字里用）
+function variantLabel(v) { return v && v !== 'nlhe' && VARIANT_KEY[v] ? variantName(v) : ''; }
+// 每种玩法一个图标 + 一个颜色（2026-11-19）：建房、大厅卡片、牌桌水印、牌谱里一眼分清。颜色见 30-lobby.css 的 .v-*
+const VARIANT_ICON = { nlhe: 'v-nlhe', shortdeck: 'v-short', plo: 'v-plo' };
+// 行话缩写：各家扑克客户端都这么写，不分语言，所以不进字典
+const VARIANT_CODE = { nlhe: 'NLH', shortdeck: '6+', plo: 'PLO' };
+function variantKey(v) { return Object.hasOwn(VARIANT_ICON, v) ? v : 'nlhe'; }
+function variantIcon(v) {
+    const k = variantKey(v), color = 'v-' + k;   // 颜色类单独算：写在 ic(...) 参数里会被图标检查当成一个图标名
+    return ic(VARIANT_ICON[k], color);
+}
 function setThinkTime(s) {
     createThinkSec = s;
     document.querySelectorAll('#thinkRow .tier-btn').forEach(b => b.classList.toggle('sel', +b.dataset.sec === s));
@@ -387,7 +420,7 @@ function submitCreate() {
     if (createTab === 'cash') {
         const [sb, bb] = CASH_BLINDS[parseInt(document.getElementById('ccBlind').value)];
         socket.emit('create_cash_room', {
-            name: document.getElementById('ccName').value,
+            name: document.getElementById('ccName').value.trim() || L(`${myDisplayName || myUsername || ''}的现金桌`, `${myDisplayName || myUsername || ''}’s table`),
             sb, bb,
             ante: parseInt(document.getElementById('ccAnte').value),
             allowUtgStraddle: document.getElementById('ccStraddle').checked,
@@ -400,17 +433,19 @@ function submitCreate() {
             maxBuyIn: parseInt(document.getElementById('ccCap').value),
             durationH: ccDur,
             actionTimeSec: createThinkSec,
-            visibility: createVisibility
+            visibility: createVisibility,
+            variant: createVariant
         });
     } else {
         socket.emit('create_room', {
-            name:          document.getElementById('cfgName').value,
+            name:          document.getElementById('cfgName').value.trim() || L(`${myDisplayName || myUsername || ''}的比赛`, `${myDisplayName || myUsername || ''}’s SNG`),
             startingStack: parseInt(document.getElementById('cfgStack').value),
             levelMinutes:  parseInt(document.getElementById('cfgLevel').value),
             maxPlayers:    parseInt(document.getElementById('cfgMax').value),
             buyIn:         sngBuyin,
             actionTimeSec: createThinkSec,
-            visibility:    createVisibility
+            visibility:    createVisibility,
+            variant:       createVariant
         });
     }
     hideCreateForm();
@@ -609,7 +644,7 @@ function forceStand(targetUserId) {
     const st = lastState; if (!st) return;
     const tp = (st.players || []).find(p => p.userId === targetUserId);
     const nm = tp ? (tp.displayName || tp.username) : L('该玩家', 'that player');
-    uiConfirm(L(`把「${nm}」移到观战席？其座位将空出（筹码保留至结束结算，TA 可自行「回到座位」）。`, `Move "${nm}" to the rail? Their seat frees up (chips kept until settlement; they can "Sit back").`)).then(ok => {
+    uiConfirm(L(`把「${nm}」移到观战席？其座位将空出（筹码保留至结束结算，TA 可自行「回到座位」）。正在牌局中的话，TA 会把这一手打完再离座。`, `Move "${nm}" to the rail? Their seat frees up (chips kept until settlement; they can "Sit back"). If a hand is in progress, they finish it first.`)).then(ok => {
         if (!ok) return;
         socket.emit('force_stand', { targetUserId });
         closeAvatarPopup();
@@ -798,6 +833,10 @@ function roomCards(rooms) {
         else                { btnLabel = L('观战', 'Spectate'); disabled = false; cls = 'watch'; }
         const isCash = r.roomType === 'cash';
         const tag  = isCash ? `<span class="rc-tag cash">${L('现金桌', 'Cash')}</span>` : `<span class="rc-tag">${L('SNG·升盲', 'SNG')}</span>`;
+        // 三种玩法都标（德州也标）：卡片左边一个玩法色块，一排卡片扫过去靠颜色就能分出来，不用一张张读字。
+        // 色块里中文写玩法名（三个字放得下），英文写行话缩写（Short deck 放不下，扑克玩家也认 NLH / 6+ / PLO）
+        const vk = variantKey(r.variant);
+        const vtile = `<div class="rc-vtile" aria-hidden="true">${ic(VARIANT_ICON[vk])}<b>${L(variantName(vk), VARIANT_CODE[vk])}</b></div>`;
         const vis  = isPublic ? `<span class="rc-tag open">${ic('globe')}${L('公开', 'Open')}</span>`
                               : `<span class="rc-tag priv">${ic('lock')}${L('房间码', 'Code')}</span>`;
         // 每一项包成不折行的一组：否则窄屏换行时图标会留在上一行行尾、数字掉到下一行
@@ -807,7 +846,8 @@ function roomCards(rooms) {
                r.ante ? mi('ante ' + r.ante) : '', mi(`${L('带入≥', 'Buy-in≥')}${(r.minBuyIn||0).toLocaleString()}`)].filter(Boolean).join(' · ')
             : [mi(`${ic('user')}${r.playerCount}/${r.maxPlayers}`), mi(`${ic('timer')}${r.levelMinutes}min`),
                mi(`${ic('coin', 'c-gold')}${L('报名', 'Buy-in')} ${r.buyIn}`)].join(' · ');
-        return `<div class="room-card">
+        return `<div class="room-card v-${vk}">
+            ${vtile}
             <div class="rc-main">
                 <div class="rc-name">${escapeHtml(r.name)}</div>
                 <div class="rc-meta"><span class="rc-owner">${escapeHtml(r.ownerName)}</span>${tag}${vis} ${meta}</div>
@@ -827,6 +867,7 @@ function renderMatchInfo(st) {
         // 房间名原来常驻在桌心水印里；水印精简成一行盲注之后，它住到这里（玩家视角复盘 P1b）
         [L('房间', 'Room'), escapeHtml(st.roomName || '')],
         [L('类型', 'Type'), isCash ? L('现金桌', 'Cash table') : L('SNG 升盲', 'SNG (blinds up)')],
+        [L('玩法', 'Variant'), variantName(st.variant)],
         [L('入场状态', 'Access'), iCanPlay ? L('🔐 已获下场资格', '🔐 May sit down') : L('👀 观战中', '👀 Spectating')],
         [L('盲注', 'Blinds'), `${st.smallBlind}/${st.bigBlind}` + (st.ante ? ` · ante ${st.ante}` : '')],
         [L('最大人数', 'Max players'), st.maxPlayers],
@@ -838,7 +879,8 @@ function renderMatchInfo(st) {
         rows.push([L('带入审批', 'Buy-in approval'), st.approveBuyIn ? L('🔐 需房主批准', '🔐 Host approves') : L('不需要', 'Off')]);
         rows.push(['Bomb pot', (st.bombEvery ? L(`每 ${st.bombEvery} 手一次`, `every ${st.bombEvery} hands`) : L('不自动', 'manual only'))
             + L(` · 每人 ${st.bombBB}BB`, ` · ${st.bombBB}BB each`) + (st.bombNext ? L(' · 下一手就是', ' · next hand') : '')]);
-        rows.push([L('7-2 奖励', '7-2 bounty'), st.sevenDeuceBB ? L(`其余每人付 ${st.sevenDeuceBB}BB`, `Everyone else pays ${st.sevenDeuceBB}BB`) : L('未开启', 'Off')]);
+        // 7-2 奖励只在德州：短牌 / 奥马哈的桌子不显示这一行，也不给投票按钮（服务端本来就会拒，别让房主点了才知道）
+        if (!st.variant || st.variant === 'nlhe') rows.push([L('7-2 奖励', '7-2 bounty'), st.sevenDeuceBB ? L(`其余每人付 ${st.sevenDeuceBB}BB`, `Everyone else pays ${st.sevenDeuceBB}BB`) : L('未开启', 'Off')]);
         if (st.tableEndAt) {
             // 和播报走同一个 fmtDuration —— 否则面板说「约 80 分钟」、toast 说「1 小时 20 分」，
             // 同一个数两种说法，正是那种「说不上哪儿不对」的来源。
@@ -873,7 +915,7 @@ function renderMatchInfo(st) {
             `</div><div class="tier-row"><span class="tier-cap">${L('每人', 'Each')}</span>` +
             [2, 5, 10].map(n => `<button type="button" class="ext-btn${(st.bombBB || 2) === n ? ' sel' : ''}" onclick="proposeRule('bomb', { bb: ${n} })">${n}BB</button>`).join('') +
             `</div></div>`;
-        html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('7-2 奖励（用 7-2 赢下底池，其余每人付几个大盲；改动需全桌同意）', '7-2 bounty (win with 7-2, everyone else pays N big blinds; changes need everyone’s OK)')}</span>
+        if (!st.variant || st.variant === 'nlhe') html += `<div class="cfg-field" style="margin-top:10px"><span class="cfg-label">${L('7-2 奖励（用 7-2 赢下底池，其余每人付几个大盲；改动需全桌同意）', '7-2 bounty (win with 7-2, everyone else pays N big blinds; changes need everyone’s OK)')}</span>
             <div class="tier-row">` +
             [0, 1, 2, 5].map(n => `<button type="button" class="ext-btn${(st.sevenDeuceBB || 0) === n ? ' sel' : ''}" onclick="proposeRule('sevenDeuce', { bb: ${n} })">${n ? n + 'BB' : L('关', 'Off')}</button>`).join('') +
             `</div></div>`;
@@ -962,10 +1004,17 @@ function nextBuyinRequest() {
     const what = req.kind === 'rebuy'
         ? L(`${req.name} 想补码 ${fmtChips(req.chips)}`, `${req.name} wants to rebuy ${fmtChips(req.chips)}`)
         : L(`${req.name} 想坐下，带入 ${fmtChips(req.chips)}`, `${req.name} wants to sit down with ${fmtChips(req.chips)}`);
-    uiConfirm(what, { ok: L('批准', 'Approve'), cancel: L('拒绝', 'Decline') }).then(ok => {
+    uiConfirm(what, { ok: L('批准', 'Approve'), cancel: L('拒绝', 'Decline'), sticky: true }).then(ok => {
+        // null = 被别的确认框顶掉了，房主还没答：放回队首，等那个框关了再问，绝不当成拒绝
+        if (ok === null) { buyinQueue.unshift(req); waitConfirmClosed(nextBuyinRequest); return; }
         if (socket) socket.emit('buyin_decide', { userId: req.userId, approve: ok });
         nextBuyinRequest();
     });
+}
+function waitConfirmClosed(fn) {
+    const box = document.getElementById('confirm-modal');
+    if (!box || box.style.display === 'none') { fn(); return; }
+    setTimeout(() => waitConfirmClosed(fn), 400);
 }
 // 申请人这边：房主批准了 → 把原来那个请求再发一次（服务端这次会认出那张批准）
 function onBuyinApproved({ kind, chips, seat }) {

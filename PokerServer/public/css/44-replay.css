@@ -32,6 +32,20 @@
         .rp-seat.acting .rp-avatar { box-shadow: 0 0 0 2px #f4d35e, 0 0 12px rgba(244,211,94,0.8); }
         .rp-cards { display: flex; gap: 2px; height: 34px; }
         .rp-cards { --card-w: 24px; --card-h: 33px; }
+        /* 奥马哈 4 张：和牌桌同一个办法（20-table.css「奥马哈 4 张底牌」那段）—— 一排叠放，被压住的前三张用角标。
+           原来 4 张并排 102px 宽，9 人桌在手机上几家的牌互相盖住、压到公共牌（2026-11-19 UI 测试截图） */
+        #rp-ring.crowd { inset: 44px 26px; }   /* 收紧后座位块矮了约 20px，边距也跟着收（半个座位高）*/
+        #rp-ring.crowd .rp-avatar { width: 28px; height: 28px; border-radius: 8px; font-size: 12px; }
+        #rp-ring.crowd .rp-cards { --card-w: 22px; --card-h: 30px; height: 31px; }
+        #rp-ring.crowd .rp-cards.many .card + .card { margin-left: -9px; }
+        .rp-cards.many { gap: 0; }
+        .rp-cards.many .card { position: relative; }
+        .rp-cards.many .card + .card { margin-left: -10px; }
+        .rp-cards.many .card { justify-content: flex-start; align-items: flex-start; padding: 2px 0 0 2px; }
+        .rp-cards.many .card > .rank { font-size: 12px; letter-spacing: -0.08em; }
+        .rp-cards.many .card > .suit { font-size: 11px; align-self: flex-start; margin-top: 1px; }
+        .rp-cards.many .card > .fa { display: none; }
+        .rp-cards.many .card > .rank, .rp-cards.many .card > .suit { visibility: visible; }
         .rp-avatar { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center;
             justify-content: center; color: #fff; font-weight: bold; font-size: 14px; overflow: hidden;
             border: 1.5px solid rgba(255,255,255,0.25); }

@@ -34,6 +34,7 @@ function formatCard(c, animate = false, delayMs = 0, opts = {}) {
     const red  = c.suit === 'Hearts' || c.suit === 'Diamonds';
     const rank = c.rank === 'T' ? '10' : c.rank;
     const cls = ['card', red ? 'red' : 'black', 'suit-' + c.suit.toLowerCase()];
+    if (c.rank === 'T') cls.push('r10');   // 两位数：奥马哈叠放的角标里要收紧字距（20-table.css）
     if (animate)       cls.push('deal-in');
     if (opts.flip)     cls.push('flip-in');
     if (opts.commDeal) cls.push('comm-deal');
@@ -152,7 +153,7 @@ function startDealFx(state) {
     const from = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     const b = dealt.findIndex(p => p.userId === state.buttonUserId);
     const order = dealt.slice(b + 1).concat(dealt.slice(0, b + 1));
-    const n = order.length * 2;
+    const n = order.length * (state.holeCount || 2);   // 每人几张底牌（奥马哈 4 张）
     const step = Math.min(90, 760 / n);   // 人多时每张更快，整轮发完不超过约 0.8 秒
     const now = performance.now();
     const myCards = document.querySelectorAll(`.seat[data-uid="${myUserId}"] .self-cards .card`);
@@ -408,7 +409,9 @@ function renderSeats(state) {
     const banner = document.getElementById('spectator-banner');
     if (amSpectator) {
         banner.style.display = '';
-        setIconLabel(banner, 'eye', isCash ? L('观战中 · 点空座「坐下」带入入座', 'Spectating · tap an empty seat to buy in') : L('观战中', 'Spectating'));
+        const railed = isCash && (state.vacatedUserIds || []).includes(myUserId);   // 自己站起的：回座带原筹码，不用再买入
+        setIconLabel(banner, 'eye', railed ? L('观战中 · 点「回到座位」带原筹码回来', 'Spectating · tap "Sit back" to return with your chips')
+            : isCash ? L('观战中 · 点空座「坐下」带入入座', 'Spectating · tap an empty seat to buy in') : L('观战中', 'Spectating'));
     } else banner.style.display = 'none';
 }
 
@@ -470,14 +473,17 @@ function buildSeat(p, state) {
     // 跑马时头像上方有胜率徽章（很宽，从名字左边一直盖到名字右边），这时 All in 标签往下挪一行、
     // 放到头像旁边 —— 原来两个叠在一起，「All in」只露出一个「n」（2026-11-18 重拍 README 时看到的）。
     const eqShown = equityMap[p.userId] != null && !p.folded && state.phase !== 'showdown' && state.phase !== 'waiting';
-    const statusBubble = stText ? `<div class="status-bubble ${stCls}${eqShown ? ' with-eq' : ''}">${stText}</div>` : '';
+    // 奥马哈亮出 4 张时牌比座位宽一截：All in 标签要再往外挪（.wide），否则被第 4 张牌盖住只剩「l in」（2026-11-19 UI 测试）
+    const statusBubble = stText ? `<div class="status-bubble ${stCls}${eqShown ? ' with-eq' : ''}${eqShown && (state.holeCount || 2) > 2 ? ' wide' : ''}">${stText}</div>` : '';
 
     // 手牌展示
     const dealing = holeJustDealt && !timelineFxOk();   // 发牌动画窗口（支持时改由 startDealFx 从桌心飞牌）
     const myDelay  = i => i * 2 * 130;        // 我的牌依次：0, 260ms
     const oppDelay = i => (i * 2 + 1) * 130;  // 对手牌依次：130, 390ms（交替发牌）
     let cardsHtml = '';
-    if (isMe && myHoleCards.length === 2 && (!p.folded || state.phase === 'showdown')) {
+    const HC = state.holeCount || 2;   // 每人几张底牌：德州 / 短牌 2、奥马哈 4
+    const holeIdxs = Array.from({ length: HC }, (_, i) => i);
+    if (isMe && myHoleCards.length >= 2 && (!p.folded || state.phase === 'showdown')) {
         // 我的牌：局中显示；摊牌窗口（含我已弃牌）且未摊牌结算时可点击亮牌
         const showable = state.phase === 'showdown' && !revealedCards[myUserId];
         cardsHtml = myHoleCards.map((c, i) => {
@@ -492,16 +498,16 @@ function buildSeat(p, state) {
     } else if (!isMe && shownCards[p.userId]) {
         // 对手主动亮的牌：只显示亮出的那张（未亮的不显示）
         const byIdx = {}; shownCards[p.userId].forEach(s => byIdx[s.index] = s);
-        cardsHtml = [0, 1].map(i => byIdx[i] ? formatCard(byIdx[i], false, 0, { flip: showJustHappened }) : '').join('');
+        cardsHtml = holeIdxs.map(i => byIdx[i] ? formatCard(byIdx[i], false, 0, { flip: showJustHappened }) : '').join('');
     } else if (isMe && p.folded) {
         // 我弃牌：弃牌瞬间播放飞出动画，之后仍然「保留显示自己的手牌」（变暗），本手结束可亮出
-        cardsHtml = (myHoleCards.length === 2)
+        cardsHtml = (myHoleCards.length >= 2)
             ? myHoleCards.map(c => formatCard(c, false, 0, foldingNow.has(p.userId) ? { fold: true } : { dim: true })).join('')
-            : emptySlot() + emptySlot();
+            : holeIdxs.map(() => emptySlot()).join('');
     } else if (isMe && state.phase !== 'waiting' && state.phase !== 'showdown') {
-        cardsHtml = cardBack({ animate: dealing, delayMs: myDelay(0) }) + cardBack({ animate: dealing, delayMs: myDelay(1) });
+        cardsHtml = holeIdxs.map(i => cardBack({ animate: dealing, delayMs: myDelay(i) })).join('');
     } else if (isMe) {
-        cardsHtml = emptySlot() + emptySlot();
+        cardsHtml = holeIdxs.map(() => emptySlot()).join('');   // 开局前的空位也按玩法（奥马哈 4 个）
     } else {
         // 对手：不显示盖着的牌（只在亮牌/摊牌时显示，上面的分支已处理）
         cardsHtml = '';
@@ -550,21 +556,23 @@ function buildSeat(p, state) {
 
     // 亮牌提示（摊牌局间，含弃牌者可亮牌）
     const showHint = (isMe && state.phase === 'showdown'
-        && !revealedCards[myUserId] && myHoleCards.length === 2 && myShown.size < 2)
+        && !revealedCards[myUserId] && myHoleCards.length >= 2 && myShown.size < myHoleCards.length)
         ? `<div class="show-hint">${ic('eye')} ${L('点亮牌给对手', 'Tap to show a card')}</div>` : '';
 
     // 对手亮牌：覆盖在头像上（不占额外高度、不顶出屏幕），牌型徽章压在牌下沿
     // 牌单独包一行（.card-row）：容器是竖排，徽章才会落在牌下面、按自己的文字宽度显示
     const oppCardsOverlay = (!isMe && cardsHtml)
-        ? `<div class="opp-cards"><div class="card-row">${cardsHtml}</div>${handTypeBadge}</div>` : '';
+        ? `<div class="opp-cards${HC > 2 ? ' many' : ''}"><div class="card-row">${cardsHtml}</div>${handTypeBadge}</div>` : '';
     // 还在这一手里的对手：头像左下角两张小牌背（玩家视角复盘 P4）。
     // 原来对手没有任何牌，弃没弃只差一点明暗，看不出谁还在局里。弃牌那一刻牌背飞走（fold-out），之后就没了。
     // 没被发牌的人（坐出 / 中途入座）开局就是 folded，所以「没弃牌」= 本手发到牌了。
     const inHandPhase = state.phase === 'preflop' || state.phase === 'flop' || state.phase === 'turn' || state.phase === 'river';
     let oppBacks = '';
     if (!isMe && !cardsHtml && inHandPhase) {
-        if (!p.folded) oppBacks = `<div class="opp-backs">${cardBack()}${cardBack()}</div>`;
-        else if (foldingNow.has(p.userId)) oppBacks = `<div class="opp-backs">${cardBack({ fold: true })}${cardBack({ fold: true })}</div>`;
+        // 几张底牌就几张小牌背（奥马哈 4 张）—— 发牌动画也按「第几轮」飞到对应那张上，只有两张时第 3、4 张没处落
+        const backsCls = `opp-backs${HC > 2 ? ' many' : ''}`;
+        if (!p.folded) oppBacks = `<div class="${backsCls}">${holeIdxs.map(() => cardBack()).join('')}</div>`;
+        else if (foldingNow.has(p.userId)) oppBacks = `<div class="${backsCls}">${holeIdxs.map(() => cardBack({ fold: true })).join('')}</div>`;
     }
     // 位置：庄家 D 之外只标大小盲（UTG/CO 之类不标 —— T2 信息层别再变重，见 20-table.css 开头的层级契约）。
     // 和 D 共用头像右下角那个位置；单挑时庄家就是小盲，只显示 D。
@@ -584,7 +592,7 @@ function buildSeat(p, state) {
 
     if (isMe) {
         // 自己：横向——左=名字/头像/筹码，右=两张牌（+牌型）
-        const rightCards = cardsHtml ? `<div class="self-cards"><div class="card-row">${cardsHtml}</div>${handTypeBadge}${showHint}</div>`
+        const rightCards = cardsHtml ? `<div class="self-cards${HC > 2 ? ' many' : ''}"><div class="card-row">${cardsHtml}</div>${handTypeBadge}${showHint}</div>`
             : (handTypeBadge || showHint ? `<div class="self-cards">${handTypeBadge}${showHint}</div>` : '');
         return `<div class="${cls}" data-uid="${p.userId}">${statusBubble}${readyHtml}`
             + `<div class="self-body"><div class="self-info">${nameHtml}${avatarBlock}${chipsHtml}</div>${rightCards}</div></div>`;
@@ -619,12 +627,12 @@ function render(state) {
     if (state.roomType === 'sng') {
         const lvl = (state.currentLevel || 0) + 1;
         nextLevelAt = state.nextLevelAt || 0;
-        sng.innerHTML = `${L('级别', 'Level')} ${lvl} · ${state.smallBlind}/${state.bigBlind}`
+        sng.innerHTML = (variantLabel(state.variant) ? variantIcon(state.variant) + variantLabel(state.variant) + ' · ' : '') + `${L('级别', 'Level')} ${lvl} · ${state.smallBlind}/${state.bigBlind}`
             // 分隔符「 · 」由倒计时自己带（见 70-actions.js）：模板里再写一个就成了「· ·」（2026-09-29 截图里看到的）
             + (state.pendingLevelUp ? ` · <span style="color:#ff9f1c">${ic('arrow-up')}${L('本局后升盲', 'Blinds up next hand')}</span>` : `<span id="next-level"></span>`);
     } else {
         nextLevelAt = 0; tableEndAt = state.tableEndAt || 0;
-        sng.innerHTML = `${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
+        sng.innerHTML = (variantLabel(state.variant) ? variantIcon(state.variant) + variantLabel(state.variant) + ' · ' : '') + `${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
             + (state.allowUtgStraddle ? ' · STR 2BB' : '')
             + (state.sevenDeuceBB ? ` · 7-2 ${state.sevenDeuceBB}BB` : '')
             + (state.bombHand ? ' · 💣 Bomb pot' : (state.bombNext ? L(' · 下一手 Bomb', ' · bomb next') : ''))
@@ -801,7 +809,7 @@ function render(state) {
     setupSizing(state, me, myTurn);
 
     // ── 预操作条：我在牌里、但还没轮到我时显示；轮到我则执行已勾选的预操作 ──
-    const inHand = me && !me.folded && !me.allIn && myHoleCards.length === 2
+    const inHand = me && !me.folded && !me.allIn && myHoleCards.length >= 2
         && ['preflop', 'flop', 'turn', 'river'].includes(state.phase) && state.status === 'running';
     // 下注已经结束（对手全押、底牌已亮，只剩跑马）：没人还能行动，预操作毫无意义。
     // 只判「我没全押」不够——我筹码比对手多时自己不是全押，可这手同样已经不能再下注了（截图实拍）。
@@ -814,7 +822,8 @@ function render(state) {
     else updatePreBar();
 
     // ── 行动悬浮球整体显隐：座位绝对定位、悬浮球定位在「自己座位」正上方，不遮手牌 ──
-    const showAB = (myTurn || (canReady && me) || canStart || waitForHost || amSittingOut || amReserved || rabbitVisible);
+    // amVacated：站起围观的人要看得到「回到座位」—— 那个按钮在 #action-bar 里，原来这里漏了它，按钮永远出不来（2026-11-19 真人测试）
+    const showAB = (myTurn || (canReady && me) || canStart || waitForHost || amSittingOut || amReserved || amVacated || rabbitVisible);
     const ab = document.getElementById('action-bar');
     ab.style.display = showAB ? 'flex' : 'none';
     if (showAB) requestAnimationFrame(positionActionBar);
@@ -879,9 +888,13 @@ function setupSizing(state, me, myTurn) {
     const canBet   = me && myTurn && state.currentBet === 0 && me.chips > 0;
     const canRaise = me && myTurn && state.currentBet > 0  && me.chips > (state.currentBet - me.currentBet);
     if (!canBet && !canRaise) { quick.style.display = 'none'; row.style.display = 'none'; sizeCtx = null; return; }
+    // 前方是无效加注（短码全押不足一个完整加注）：这一轮不能再加，快捷下注球一个都不给 ——
+    // 原来照常亮着金额，点了没有任何反应（2026-11-19 真人测试）。加注按钮还在（灰），点它会说明为什么不能加
+    if (state.raiseClosed) { quick.style.display = 'none'; row.style.display = 'none'; sizeCtx = null; return; }
 
     const totalPot = state.pot + state.players.reduce((s, p) => s + p.currentBet, 0);
-    const maxTo    = me.currentBet + me.chips;                       // 全下目标额
+    // 全下目标额；底池限注（奥马哈）时服务端给的上限更小（state.maxBetTo，见 variants.maxBetTo）
+    const maxTo    = Math.min(me.currentBet + me.chips, state.maxBetTo != null ? state.maxBetTo : Infinity);
     const rawMin   = canBet ? state.minBet : state.minRaiseTo;       // 服务器给的最小额
     const minTo    = Math.min(rawMin, maxTo);                        // 筹码不够最小额时只能全下
     sizeCtx = { minTo, maxTo, currentBet: state.currentBet, myBet: me.currentBet, totalPot };

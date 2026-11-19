@@ -1,6 +1,7 @@
 'use strict';
 const { newServerSeed, commitOf } = require('./provably-fair');
 const { settleSevenDeuce } = require('./extensions/seven-deuce');
+const { variantOf } = require('./variants');
 const { nameOf } = require('../../account/display-name');
 
 function createHandHistoryService({ db, persistence, roomGames, HandEvaluator, io }) {
@@ -25,7 +26,7 @@ function saveHandHistory(game, winShare) {
         try {
             const hole = game.holeCards[userId];
             if (!hole || game.communityCards.length < 3 || !HandEvaluator) return null;
-            const bh = HandEvaluator.bestHandFrom(game.communityCards.concat(hole));
+            const bh = variantOf(game).bestPartial(game.communityCards, hole);
             return bh ? bh.category : null;
         } catch (e) { return null; }   // 牌型只是展示信息，算不出也不能影响牌谱落库
     };

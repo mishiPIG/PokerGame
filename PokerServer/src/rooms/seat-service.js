@@ -43,7 +43,11 @@ function standUpPlayer(roomId, idx, byOwner) {
         // ⚠️ 已全押者绝不能改判弃牌：他的筹码已在池中、本就无需再行动，
         // 强行 folded 会剥夺其池权，并让「未跟注退还」把对手已被跟的注错误退回 → 凭空造筹码
         // （线上事故：room130674 h53，全押被跟后离座 → 对手多得 16508）。
-        if (!p.folded && !p.allIn) {
+        // 🔴 房主强制站起 / 请出【不许】在本手里判对方弃牌：否则房主下注后把面对下注的人请走、
+        //    或者全押亮牌后看到自己落后就把对手请走，底池就归房主了（2026-11-19 安全测试实测，奥马哈里尤其容易碰上）。
+        //    所以房主操作的人照常打完这一手，打完再离座（上面 vacateAfter）。
+        //    全押亮牌之后（allinRevealed）没人还有决定要做，自己站起也不判弃牌。
+        if (!byOwner && !p.folded && !p.allIn && !game.allinRevealed) {
             p.folded = true; p.hasActed = true;
             if (game.actionOnIdx === idx) { clearActionTimer(game); afterAction(roomId); }
             else if (isBettingRoundComplete(game)) advanceStage(roomId);
@@ -56,7 +60,7 @@ function standUpPlayer(roomId, idx, byOwner) {
     broadcastRoomList();
     if (byOwner) {
         const s = io.sockets.sockets.get(p.socketId);
-        if (s) s.emit('server_msg', { k: 'seat.forcedOut' });
+        if (s) s.emit('server_msg', { k: handInProgress && !p.folded ? 'seat.forcedOutAfterHand' : 'seat.forcedOut' });
     }
 }
 

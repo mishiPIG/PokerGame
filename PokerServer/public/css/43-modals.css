@@ -134,3 +134,5 @@
         /* 正在往下拉：跟手，不要过渡；松手回弹时才加过渡 */
         .sheet-dragging { transition: none !important; animation: none !important; }
         .sheet-settle { transition: transform 0.22s cubic-bezier(0.22,1,0.36,1) !important; }
+        /* 牌型速查表：短牌那一版顶上的说明 */
+        .hg-variant { font-size: 13px; color: #f4d35e; margin: 0 0 10px; line-height: 1.5; }
