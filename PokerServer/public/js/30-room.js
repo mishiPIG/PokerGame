@@ -407,6 +407,11 @@ function variantIcon(v) {
     const k = variantKey(v), color = 'v-' + k;   // 颜色类单独算：写在 ic(...) 参数里会被图标检查当成一个图标名
     return ic(VARIANT_ICON[k], color);
 }
+// 桌心那一行信息开头的玩法名（德州不标）：图标 + 名字都用玩法色，颜色来自 #table-area 上的 v-* 类
+function variantInfo(v) {
+    const label = variantLabel(v);
+    return label ? `<span class="ti-var">${variantIcon(v)}${label}</span> · ` : '';
+}
 function setThinkTime(s) {
     createThinkSec = s;
     document.querySelectorAll('#thinkRow .tier-btn').forEach(b => b.classList.toggle('sel', +b.dataset.sec === s));

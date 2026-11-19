@@ -67,3 +67,25 @@ test('建房的玩法按钮：图标 + 名字分开放（名字挂 data-i18n，�
         assert.match(html, new RegExp(`class="tier-btn var-btn v-${v}[^"]*" data-variant="${v}"[^>]*><svg class="ic"><use href="#i-${icon}"/></svg><span data-i18n="variant\\.${v}">`), v);
     }
 });
+
+test('牌桌按玩法带桌沿颜色：渲染器挂 v-* 类、两条桌面阴影（平时 / 全押聚光）都带着桌沿、桌心信息用 variantInfo', () => {
+    const renderer = read('public/js/80-table-renderer.js');
+    const table = read('public/css/20-table.css');
+    // 只挂当前这一种（换桌时把上一桌的颜色摘掉）
+    assert.match(renderer, /for \(const k of Object\.keys\(VARIANT_ICON\)\) tableArea\.classList\.toggle\('v-' \+ k, k === vk\)/);
+    for (const sel of ['#table-area {', '#table-area.allin-spot {']) {
+        const i = table.indexOf(sel);
+        const rule = table.slice(i, table.indexOf('}', table.indexOf('box-shadow', i)));
+        assert.match(rule, /inset 0 0 0 2px rgba\(var\(--vc-rgb, 0,0,0\), var\(--rim-a, 0\)\)/, sel + ' 里没有桌沿那道：全押时颜色会消失');
+    }
+    assert.match(table, /#table-area\.v-nlhe, #table-area\.v-shortdeck, #table-area\.v-plo \{ --rim-a: [0-9.]+; \}/);
+    assert.equal((renderer.match(/variantInfo\(state\.variant\)/g) || []).length, 2, 'SNG / 现金桌两处桌心信息都用 variantInfo');
+    const { ctx } = (() => {   // variantInfo：德州不标；其余带 ti-var
+        const start = room.indexOf('const VARIANT_KEY = '), end = room.indexOf('function setThinkTime');
+        const c = { t: (k) => k, ic: (n, cls) => `<i ${cls}>`, Object };
+        vm.createContext(c); vm.runInContext(room.slice(start, end), c);
+        return { ctx: c };
+    })();
+    assert.equal(ctx.variantInfo('nlhe'), '');
+    assert.match(ctx.variantInfo('plo'), /^<span class="ti-var"><i v-plo>.+<\/span> · $/);
+});

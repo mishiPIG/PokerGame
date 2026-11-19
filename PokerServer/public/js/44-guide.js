@@ -168,12 +168,22 @@ function coachWanted() {
         return isGuest || localStorage.getItem('newAccount') === '1';
     } catch { return false; }
 }
+// 这一手还在打、我还在局里、手里有牌 —— 提示讲的就是「你的牌 / 公共牌 / 你的行动」，
+// 一手已经摊牌或我已经弃牌时再出来，框住的是已经输掉、压暗的牌（2026-11-19 新手实测截图里看到的）。
+function coachHandLive() {
+    if (typeof lastState === 'undefined' || !lastState) return false;
+    const ph = lastState.phase;
+    if (ph !== 'preflop' && ph !== 'flop' && ph !== 'turn' && ph !== 'river') return false;
+    const me = (lastState.players || []).find(p => p.userId === myUserId);
+    return !!(me && !me.folded) && (typeof myHoleCards !== 'undefined' && (myHoleCards || []).length > 0);
+}
 function maybeStartCoach() {
     if (coachStep >= 0 || !coachWanted() || !mySeated) return;
     // 等发牌动画落定；正轮到他行动就再等等 —— 一边计时一边读提示，新手很可能因此被超时弃牌
     const tryStart = () => {
         if (coachStep >= 0 || !coachWanted() || !mySeated) return;
         if (lastState && lastState.actionOnUserId === myUserId) { setTimeout(tryStart, 1000); return; }
+        if (!coachHandLive()) { setTimeout(tryStart, 1000); return; }   // 这一手打完了 / 我弃了：等下一手发牌
         if (variantIntroOpen()) { setTimeout(tryStart, 1000); return; }   // 先让人读完那张玩法规则卡，两样别同时冒出来
         coachStep = 0; showCoach();
     };
@@ -203,15 +213,16 @@ function showCoach() {
 }
 // 提示开着的时候轮到我了（发牌后先出提示、随后轮到自己）：先收起，别挡住行动按钮；行动完再接着显示同一步。
 // 2026-11-17 电脑端截图里看到的 —— 只在「开始提示」前等轮到我打完是不够的，提示开着期间同样会轮到我。
+// 同理，提示开着时这一手打完了 / 我弃牌了，也先收起，下一手发牌后接着显示同一步。
 let coachPaused = false;
 function syncCoachWithTurn() {
     if (coachStep < 0) { coachPaused = false; return; }
-    const myTurn = !!(lastState && lastState.actionOnUserId === myUserId);
-    if (myTurn && !coachPaused) {
+    const hold = !!(lastState && lastState.actionOnUserId === myUserId) || !coachHandLive();
+    if (hold && !coachPaused) {
         coachPaused = true;
         document.getElementById('coach').style.display = 'none';
         document.getElementById('coach-ring').style.display = 'none';
-    } else if (!myTurn && coachPaused) {
+    } else if (!hold && coachPaused) {
         coachPaused = false;
         setTimeout(() => { if (coachStep >= 0 && !coachPaused) showCoach(); }, 600);   // 等这一下的动画落定
     }

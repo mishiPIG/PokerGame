@@ -26,7 +26,9 @@
 
 - `PokerServer/server.js`：装配入口，应保持精简，不直接注册具体 socket 事件。
 - `PokerServer/src/games/poker/`：牌局规则、手牌流程、边池、摊牌和牌谱。
-- `PokerServer/src/games/poker/extensions/`：多次发牌、straddle 等可选规则。
+- `PokerServer/src/games/poker/extensions/`：多次发牌、straddle、7-2 奖励、Bomb pot 等可选规则。
+- `PokerServer/src/games/poker/variants/`：玩法层（德州 / 短牌 / 奥马哈）。牌堆、底牌张数、判牌、下注上限都经这一层，
+  不要在别处直接调 `HandEvaluator`；德州行为由 `PokerServer/golden/` 黄金样本钉住，不得用 `--write` 重新生成来让它变绿。
 - `PokerServer/src/rooms/`：大厅、成员、座位和房间生命周期。
 - `PokerServer/src/matches/`：现金训练赛、SNG 和比赛结算。
 - `PokerServer/src/socket/events/`：按领域拆分的 socket 事件。
@@ -55,7 +57,7 @@ SQLite 备份必须使用 `scripts/backup-sqlite.js` 生成一致性快照，不
 服务器密钥或 SMTP 授权码。
 
 - 牌谱必须保持结构化、追加式和有时间顺序，并记录玩家、模式、动作、思考时间、
-  底牌、公共牌、下注、底池和结果。新增玩法（短牌、奥马哈等）时牌谱要带上玩法标记，
+  底牌、公共牌、下注、底池和结果。非德州的牌谱带 `variant` 字段（德州不写，保持老牌谱不变），
   个人统计按「玩家 × 模式 × 玩法」切分。
 - 影响金币、买入、兑出、奖励、边池或比赛结算的改动属于高风险改动；必须检查重复
   结算、掉线、离场、重连、全押和多边池路径。

@@ -627,12 +627,12 @@ function render(state) {
     if (state.roomType === 'sng') {
         const lvl = (state.currentLevel || 0) + 1;
         nextLevelAt = state.nextLevelAt || 0;
-        sng.innerHTML = (variantLabel(state.variant) ? variantIcon(state.variant) + variantLabel(state.variant) + ' · ' : '') + `${L('级别', 'Level')} ${lvl} · ${state.smallBlind}/${state.bigBlind}`
+        sng.innerHTML = variantInfo(state.variant) + `${L('级别', 'Level')} ${lvl} · ${state.smallBlind}/${state.bigBlind}`
             // 分隔符「 · 」由倒计时自己带（见 70-actions.js）：模板里再写一个就成了「· ·」（2026-09-29 截图里看到的）
             + (state.pendingLevelUp ? ` · <span style="color:#ff9f1c">${ic('arrow-up')}${L('本局后升盲', 'Blinds up next hand')}</span>` : `<span id="next-level"></span>`);
     } else {
         nextLevelAt = 0; tableEndAt = state.tableEndAt || 0;
-        sng.innerHTML = (variantLabel(state.variant) ? variantIcon(state.variant) + variantLabel(state.variant) + ' · ' : '') + `${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
+        sng.innerHTML = variantInfo(state.variant) + `${L('盲注', 'Blinds')} ${state.smallBlind}/${state.bigBlind}${state.ante ? ' · ante ' + state.ante : ''}`
             + (state.allowUtgStraddle ? ' · STR 2BB' : '')
             + (state.sevenDeuceBB ? ` · 7-2 ${state.sevenDeuceBB}BB` : '')
             + (state.bombHand ? ' · 💣 Bomb pot' : (state.bombNext ? L(' · 下一手 Bomb', ' · bomb next') : ''))
@@ -711,7 +711,11 @@ function render(state) {
         if (timelineFxOk() && startDealFx(state)) applyTimelineFx();
         else { sndDeal(0); sndDeal(1); sndDeal(2); sndDeal(3); }
     }
-    document.getElementById('table-area').classList.toggle('allin-spot', allinSpot && state.phase !== 'waiting');
+    const tableArea = document.getElementById('table-area');
+    tableArea.classList.toggle('allin-spot', allinSpot && state.phase !== 'waiting');
+    // 牌桌按玩法带一道桌沿颜色（和大厅卡片同一套颜色，见 30-lobby.css 的 .v-*）
+    const vk = variantKey(state.variant);
+    for (const k of Object.keys(VARIANT_ICON)) tableArea.classList.toggle('v-' + k, k === vk);
 
     // 入场动画标志只生效一次，渲染完即消费，避免后续重绘重复闪动
     holeJustDealt = false;

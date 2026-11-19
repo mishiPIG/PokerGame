@@ -1,11 +1,15 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100%; overflow-x: hidden; max-width: 100%; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
             background: linear-gradient(180deg, #0d1b2a, #1b263b);
             color: #e8e8e8; padding: 0;
             max-width: 720px; margin: 0 auto; overflow: hidden;
         }
+        /* 字体顺序：西文字体排在中文字体前面（2026-11-19）。中文 Windows 上微软雅黑会把英文的 ’ “ ” 画成全角，
+           「Hold’em」中间空出一块；Segoe UI / Roboto 没有汉字，汉字照样落到后面的中文字体上。
+           按钮 / 输入框默认不继承页面字体（用浏览器自己的），不写这一条它们就绕过上面的顺序。*/
+        button, input, select, textarea { font-family: inherit; }
         /* 线条图标（2026-11-17，见 index.html 开头的图标集）：跟着文字走——
            大小 = 1.15em、颜色 = currentColor，所以放进哪种按钮就自动是那种按钮的字号和颜色，
            不用每个按钮再单独配。图标和文字之间的空隙由 margin 给，图标单独成按钮时不留空。*/

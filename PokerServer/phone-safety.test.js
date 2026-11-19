@@ -85,7 +85,7 @@ function guideEnv() {
         setTimeout: (fn) => timers.push(fn),
         document: { getElementById: (id) => (els[id] = els[id] || mk()), querySelector: () => mk() },
         localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-        L: (zh) => zh, myUserId: 'me', isGuest: true, mySeated: true, lastState: { actionOnUserId: 'other' },
+        L: (zh) => zh, myUserId: 'me', isGuest: true, mySeated: true, myHoleCards: ['AS', 'KD'], lastState: { phase: 'flop', actionOnUserId: 'other', players: [{ userId: 'me', folded: false }] },
         handCat: (x) => x, escapeHtml: (x) => String(x), onLangChange() {},
     };
     vm.createContext(ctx);
@@ -98,16 +98,49 @@ test('🔴 新手提示开着时轮到我 → 先收起；行动完再接着显�
     ctx.__set(1);
     ctx.showCoach();
     assert.equal(els.coach.style.display, 'block');
-    ctx.lastState = { actionOnUserId: 'me' };
+    ctx.lastState = { phase: 'flop', actionOnUserId: 'me', players: [{ userId: 'me', folded: false }] };
     ctx.syncCoachWithTurn();
     assert.equal(els.coach.style.display, 'none', '轮到我：提示收起，别挡行动按钮');
     assert.equal(els['coach-ring'].style.display, 'none');
     ctx.syncCoachWithTurn();                      // 同一回合里重画多次，不会反复开关
     assert.equal(timers.length, 0);
-    ctx.lastState = { actionOnUserId: 'other' };
+    ctx.lastState = { phase: 'flop', actionOnUserId: 'other', players: [{ userId: 'me', folded: false }] };
     ctx.syncCoachWithTurn();
     timers.forEach(fn => fn());
     assert.equal(els.coach.style.display, 'block', '行动完：接着显示');
+});
+
+test('🔴 新手提示只在一手进行中出现：已摊牌 / 我已弃牌时不开始，等下一手', () => {
+    for (const st of [
+        { phase: 'showdown', actionOnUserId: null, players: [{ userId: 'me', folded: false }] },
+        { phase: 'turn', actionOnUserId: 'other', players: [{ userId: 'me', folded: true }] },
+        { phase: 'waiting', actionOnUserId: null, players: [{ userId: 'me', folded: false }] },
+    ]) {
+        const { ctx, els, timers } = guideEnv();
+        ctx.lastState = st;
+        ctx.maybeStartCoach();
+        for (let i = 0; i < 3; i++) timers.splice(0).forEach(fn => fn());
+        assert.notEqual(els.coach && els.coach.style.display, 'block', st.phase + (st.players[0].folded ? '（已弃牌）' : '') + ' 时不该冒出提示');
+        assert.ok(timers.length > 0, '还在等：下一手发牌后再开始');
+        ctx.lastState = { phase: 'preflop', actionOnUserId: 'other', players: [{ userId: 'me', folded: false }] };
+        timers.splice(0).forEach(fn => fn());
+        assert.equal(els.coach.style.display, 'block', '下一手一发牌就出来');
+    }
+});
+
+test('🔴 提示开着时这一手打完 → 先收起；下一手发牌后接着显示同一步', () => {
+    const { ctx, els, timers } = guideEnv();
+    ctx.__set(1);
+    ctx.showCoach();
+    const step2 = els['coach-text'].textContent;
+    ctx.lastState = { phase: 'showdown', actionOnUserId: null, players: [{ userId: 'me', folded: false }] };
+    ctx.syncCoachWithTurn();
+    assert.equal(els.coach.style.display, 'none', '摊牌了：收起');
+    ctx.lastState = { phase: 'preflop', actionOnUserId: 'other', players: [{ userId: 'me', folded: false }] };
+    ctx.syncCoachWithTurn();
+    timers.forEach(fn => fn());
+    assert.equal(els.coach.style.display, 'block');
+    assert.equal(els['coach-text'].textContent, step2, '还是同一步，不是从头来');
 });
 
 // ───────────── 样式 ─────────────
