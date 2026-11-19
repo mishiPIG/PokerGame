@@ -827,6 +827,7 @@ function render(state) {
     const ab = document.getElementById('action-bar');
     ab.style.display = showAB ? 'flex' : 'none';
     if (showAB) requestAnimationFrame(positionActionBar);
+    if (typeof maybeShowVariantIntro === 'function') maybeShowVariantIntro(state);   // 第一次坐到短牌 / 奥马哈桌：规则小卡（44-guide.js）
     if (typeof syncCoachWithTurn === 'function') syncCoachWithTurn();   // 新手提示：轮到我时先收起，别挡行动按钮
 }
 

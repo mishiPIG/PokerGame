@@ -44,6 +44,44 @@
         /* 必须设 --card-w/--card-h：牌面字号按它算（44-replay.css 开头那个坑）*/
         .hg-cards { --card-w: 21px; --card-h: 29px; display: flex; gap: 2px; flex-shrink: 0; }
         .hg-note { font-size: 12px; color: #c9d6cd; line-height: 1.5; margin: 10px 0 0; }
+        /* 三个玩法分页（2026-11-19）：颜色 / 图标和大厅卡片同一套（30-lobby.css 的 .v-*）*/
+        .hg-tabs { display: flex; gap: 6px; margin: 0 0 12px; }
+        .hg-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 2px; padding: 8px 4px;
+            border-radius: 10px; border: 1.5px solid rgba(var(--vc-rgb), 0.4); background: rgba(var(--vc-rgb), 0.08);
+            color: #dfe9e2; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap; }
+        .hg-tab.sel { border-color: transparent; color: #fff; background: linear-gradient(160deg, var(--vg1), var(--vg2));
+            box-shadow: 0 3px 10px rgba(var(--vc-rgb), 0.3); }
+        .hg-tab.sel .ic { color: #fff; }
+        /* 短牌里和德州不一样的那几行：左边一道玩法色 + 小标签 */
+        .hg-row.diff { background: linear-gradient(90deg, rgba(var(--vc-rgb), 0.14), transparent 70%);
+            box-shadow: inset 3px 0 0 var(--vc); border-radius: 4px; }
+        .hg-diff { margin-left: 6px; font-size: 10.5px; font-weight: bold; color: var(--vc);
+            border: 1px solid rgba(var(--vc-rgb), 0.5); border-radius: 999px; padding: 0 6px; vertical-align: 1px; }
+        .hg-sec { font-size: 13px; font-weight: bold; color: var(--vc, #dfe9e2); margin: 12px 0 4px; }
+        /* 奥马哈「常见误判」：手牌 / 公共牌两组小牌 + 「看着像 → 其实是」 */
+        .hg-mis { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+        .hg-mis-cards { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
+        .hg-lbl { font-size: 11px; color: #9db9a9; }
+        .hg-mis-verdict { margin: 5px 0 1px; font-size: 14px; }
+        .hg-mis-verdict s { color: #9db9a9; }
+        .hg-mis-verdict b { color: #f4d35e; }
+        /* 第一次坐到短牌 / 奥马哈桌的规则小卡：贴在顶上（行动按钮在下面，不挡操作），弹窗盖得住它 */
+        .variant-intro { position: fixed; z-index: 250; top: calc(env(safe-area-inset-top, 0px) + 44px); left: 50%;
+            transform: translateX(-50%); width: min(400px, calc(100vw - 24px)); gap: 12px; align-items: flex-start;
+            padding: 12px 14px; border-radius: 14px; border: 1.5px solid rgba(var(--vc-rgb), 0.6);
+            background: linear-gradient(160deg, rgba(var(--vc-rgb), 0.22), rgba(18,32,26,0.96) 55%), #14241c;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); animation: viIn 0.3s ease-out; }
+        @keyframes viIn { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translateX(-50%); } }
+        .variant-intro .rc-vtile { width: 48px; height: 48px; border-radius: 12px; }
+        .variant-intro .rc-vtile .ic { width: 22px; height: 22px; }
+        .vi-main { flex: 1; min-width: 0; }
+        .vi-title { font-weight: bold; font-size: 15px; color: #fff; margin-bottom: 3px; }
+        .vi-text { font-size: 12.5px; line-height: 1.5; color: #dfe9e2; }
+        .vi-btns { display: flex; gap: 8px; margin-top: 9px; justify-content: flex-end; }
+        .vi-btns button { padding: 6px 12px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: #eaf3ee;
+            display: inline-flex; align-items: center; }
+        .vi-btns button.confirm { border-color: transparent; color: #fff; background: linear-gradient(160deg, var(--vg1), var(--vg2)); }
         /* 第一次被发到牌的三步提示：不挡操作 —— 外圈光 pointer-events:none，气泡只有自己能点 */
         #coach-ring { position: fixed; z-index: 140; pointer-events: none; border-radius: 12px;
             box-shadow: 0 0 0 2px #f4d35e, 0 0 18px 4px rgba(244,211,94,0.55); }

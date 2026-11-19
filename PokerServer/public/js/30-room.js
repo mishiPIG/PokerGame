@@ -278,6 +278,7 @@ function showLobby() {
     stopVoicePlayback();
     clearVoiceBubbles();
     hideStraddleOffer();
+    if (typeof closeVariantIntro === 'function') closeVariantIntro(false);   // 没点「知道了」就回大厅：下次进这种桌还会出现
     currentRoom = '';
     localStorage.removeItem('currentRoom');
     document.body.classList.remove('in-room');

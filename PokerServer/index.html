@@ -863,10 +863,14 @@
     </div>
 </div>
 
+<!-- 第一次坐到短牌 / 奥马哈桌时的规则小卡（44-guide.js 填内容）-->
+<div id="variant-intro" class="variant-intro" style="display:none"></div>
+
 <!-- 牌型大小速查表（44-guide.js）-->
 <div id="hand-guide" class="modal-mask" style="display:none">
     <div class="modal-box hg-box">
         <h3><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg><span data-i18n="hg.title">牌型大小（从大到小）</span></h3>
+        <div id="hg-tabs" class="hg-tabs"></div>
         <div id="hg-list"></div>
         <p class="hg-note" data-i18n="hg.note">用你的两张底牌 + 五张公共牌，挑出最好的五张来比。同一种牌型再比点数；完全一样就平分底池。花色不分大小。</p>
         <div class="modal-actions"><button class="confirm" onclick="closeHandGuide()" data-i18n="btn.ok">确定</button></div>

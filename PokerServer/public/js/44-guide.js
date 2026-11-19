@@ -22,27 +22,60 @@ const HAND_GUIDE = [
 // 短牌（36 张，没有 2–5）：同花 > 葫芦，A-6-7-8-9 是最小的顺子；其余和德州一样（顺子 > 三条，按官方规则）。示例牌一张 2–5 都不能有
 const HAND_GUIDE_SD = [
     { cat: '皇家同花顺', cards: ['AS', 'KS', 'QS', 'JS', 'TS'], zh: '同一花色的 A K Q J 10', en: 'A K Q J 10, all one suit' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
-    { cat: '同花顺', cards: ['AH', '9H', '8H', '7H', '6H'], zh: '同一花色、点数连续；A-6-7-8-9 也算（最小的）', en: 'Five in a row, one suit. A-6-7-8-9 counts (the lowest)' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '同花顺', diff: true, cards: ['AH', '9H', '8H', '7H', '6H'], zh: '同一花色、点数连续；A-6-7-8-9 也算（最小的）', en: 'Five in a row, one suit. A-6-7-8-9 counts (the lowest)' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
     { cat: '四条', cards: ['QC', 'QD', 'QH', 'QS', '7D'], zh: '四张点数相同', en: 'Four of the same rank' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
-    { cat: '同花', cards: ['AD', 'JD', '9D', '7D', '6D'], zh: '五张同一花色 —— 短牌里比葫芦大', en: 'Five of one suit — beats a full house in short deck' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '同花', diff: true, cards: ['AD', 'JD', '9D', '7D', '6D'], zh: '五张同一花色 —— 短牌里比葫芦大', en: 'Five of one suit — beats a full house in short deck' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
     { cat: '葫芦', cards: ['KH', 'KD', 'KC', '6S', '6H'], zh: '三条 + 一对', en: 'Three of a kind plus a pair' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
-    { cat: '顺子', cards: ['9C', '8D', '7S', '6H', 'AC'], zh: '五张点数连续；A-6-7-8-9 是最小的顺子', en: 'Five in a row. A-6-7-8-9 is the lowest straight' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { cat: '顺子', diff: true, cards: ['9C', '8D', '7S', '6H', 'AC'], zh: '五张点数连续；A-6-7-8-9 是最小的顺子', en: 'Five in a row. A-6-7-8-9 is the lowest straight' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
     { cat: '三条', cards: ['7S', '7H', '7D', 'KC', '9S'], zh: '三张点数相同', en: 'Three of the same rank' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
     { cat: '两对', cards: ['JH', 'JS', '8C', '8D', 'AH'], zh: '两个对子', en: 'Two different pairs' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
     { cat: '一对', cards: ['TH', 'TD', 'KS', '7C', '6H'], zh: '两张点数相同', en: 'Two of the same rank' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
     { cat: '高牌', cards: ['AC', 'JD', '9H', '7S', '6C'], zh: '什么都没凑成，比最大的那张', en: 'Nothing made — the highest card plays' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
 ];
-// 在短牌房间里打开就给短牌那一版
-function guideRows() { return (typeof lastState !== 'undefined' && lastState && lastState.variant === 'shortdeck') ? HAND_GUIDE_SD : HAND_GUIDE; }
+// 奥马哈「常见误判」：按德州的习惯（9 张里随便挑 5 张）看着像 looks，按奥马哈规则（正好 2 张底牌 + 3 张公共牌）其实只是 is。
+// 新手在奥马哈里最常犯的就是这几种。hand-guide.test.js 用真评估器核对这两个牌型都没写错。
+const PLO_MISREADS = [
+    { hole: ['AH', 'QS', 'QD', '7C'], board: ['KH', '9H', '6H', '2H', 'JC'], looks: '同花', is: '一对',   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+      zh: '公共牌四张红心，可你手里只有一张红心：同花至少要两张底牌是红心', en: 'Four hearts on the board, but only one in your hand: a flush needs two hole cards of that suit' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { hole: ['AS', 'AD', 'KC', 'KH'], board: ['5S', '6D', '7C', '8H', '9S'], looks: '顺子', is: '一对',   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+      zh: '公共牌自己就是顺子，但你不能直接用公共牌：必须带上两张底牌（AA + 9 8 7）', en: 'The board is a straight, but you can’t just play the board: two hole cards must play (AA + 9 8 7)' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+    { hole: ['AS', 'AD', 'AC', 'KH'], board: ['AH', '8C', '5D', '3S', '2C'], looks: '四条', is: '三条',   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+      zh: '手里三张 A 只能用两张，加上公共牌那张 A 是三条', en: 'Only two of your three aces can play, so with the A on the board it’s trips' },   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+];
+// 速查表顶上三个玩法分页。默认：在牌桌里 = 这一桌的玩法；在大厅 / 「我的」页 = 德州（2026-11-19：原来只能看到当前牌桌那一种，在大厅永远是德州）
+const GUIDE_VARIANTS = ['nlhe', 'shortdeck', 'plo'];
+let guideVariant = 'nlhe';
+function guideRows(v) { return (v || guideVariant) === 'shortdeck' ? HAND_GUIDE_SD : HAND_GUIDE; }
+function tableVariantNow() {
+    const inRoom = typeof document !== 'undefined' && document.body && document.body.classList.contains('in-room');
+    const v = inRoom && typeof lastState !== 'undefined' && lastState && lastState.variant;
+    return GUIDE_VARIANTS.includes(v) ? v : 'nlhe';
+}
+const cardsHtml = (cs) => cs.map(c => formatCard(rpParseCard(c))).join('');
 function renderHandGuide() {
-    const sd = guideRows() === HAND_GUIDE_SD;
-    const plo = typeof lastState !== 'undefined' && lastState && lastState.variant === 'plo';
-    document.getElementById('hg-list').innerHTML = (sd ? `<div class="hg-variant">${L('短牌（去掉 2–5）：同花大于葫芦，A-6-7-8-9 也是顺子', 'Short deck (2–5 removed): flush beats full house, and A-6-7-8-9 is a straight')}</div>` : '')
-        + (plo ? `<div class="hg-variant">${L('奥马哈：牌型大小和德州一样，但必须正好用 2 张底牌 + 3 张公共牌（手里四张同花不算同花）', 'Omaha: same rankings as Hold\'em, but you must use exactly two hole cards plus three from the board (four suited cards in hand is not a flush)')}</div>` : '')
-        + guideRows().map((h, i) =>
-        `<div class="hg-row"><span class="hg-no">${i + 1}</span>`
-        + `<div class="hg-main"><div class="hg-name">${handCat(h.cat)}</div><div class="hg-desc">${L(h.zh, h.en)}</div></div>`
-        + `<div class="hg-cards">${h.cards.map(c => formatCard(rpParseCard(c))).join('')}</div></div>`).join('');
+    const v = guideVariant, sd = v === 'shortdeck', plo = v === 'plo';
+    document.getElementById('hg-tabs').innerHTML = GUIDE_VARIANTS.map(k =>
+        `<button type="button" class="hg-tab v-${k}${k === v ? ' sel' : ''}" onclick="setGuideVariant('${k}')">${variantIcon(k)}<span>${variantName(k)}</span></button>`).join('');
+    const box = document.querySelector('#hand-guide .hg-box');
+    if (box) GUIDE_VARIANTS.forEach(k => box.classList.toggle('v-' + k, k === v));   // 弹窗的强调色跟着分页走
+    const intro = sd ? L('去掉 2–5，只用 36 张。和德州不一样的地方标了出来：同花大于葫芦；A-6-7-8-9 是最小的顺子。', 'Deuces to fives removed, 36 cards. Rows that differ from Hold\'em are marked: a flush beats a full house, and A-6-7-8-9 is the lowest straight.')
+        : plo ? L('每人 4 张底牌。牌型大小和德州一样，但必须正好用 2 张底牌 + 3 张公共牌来组牌，不多不少。', 'Four hole cards each. Same rankings as Hold\'em, but your hand must use exactly two hole cards plus three from the board, no more, no less.')
+        : '';
+    let html = intro ? `<div class="hg-variant">${intro}</div>` : '';
+    if (plo) {
+        html += `<div class="hg-sec">${L('最容易看错的三种情况', 'Three common misreads')}</div>`
+            + PLO_MISREADS.map(m => `<div class="hg-mis">`
+                + `<div class="hg-mis-cards"><span class="hg-lbl">${L('手牌', 'Hand')}</span><span class="hg-cards">${cardsHtml(m.hole)}</span>`
+                + `<span class="hg-lbl">${L('公共牌', 'Board')}</span><span class="hg-cards">${cardsHtml(m.board)}</span></div>`
+                + `<div class="hg-mis-verdict"><s>${handCat(m.looks)}</s> → <b>${handCat(m.is)}</b></div>`
+                + `<div class="hg-desc">${L(m.zh, m.en)}</div></div>`).join('')
+            + `<div class="hg-sec">${L('牌型大小（和德州一样）', 'Hand rankings (same as Hold\'em)')}</div>`;
+    }
+    html += guideRows(v).map((h, i) =>
+        `<div class="hg-row${h.diff ? ' diff' : ''}"><span class="hg-no">${i + 1}</span>`
+        + `<div class="hg-main"><div class="hg-name">${handCat(h.cat)}${h.diff ? `<span class="hg-diff">${L('和德州不同', 'Differs from Hold\'em')}</span>` : ''}</div><div class="hg-desc">${L(h.zh, h.en)}</div></div>`
+        + `<div class="hg-cards">${cardsHtml(h.cards)}</div></div>`).join('');
+    document.getElementById('hg-list').innerHTML = html;
     // 底部那句「两张底牌 + 五张公共牌」在奥马哈里是错的：换成奥马哈那句。
     // data-i18n 一起换，切语言时 applyLang() 才会按新的那条重写
     const note = document.querySelector('#hand-guide .hg-note');
@@ -51,12 +84,59 @@ function renderHandGuide() {
         note.textContent = plo ? t('hg.notePlo') : t('hg.note');
     }
 }
-function openHandGuide() {
+function setGuideVariant(v) {
+    if (!GUIDE_VARIANTS.includes(v)) return;
+    guideVariant = v;
+    renderHandGuide();
+    const list = document.getElementById('hg-list');
+    if (list && list.closest('.modal-box')) list.closest('.modal-box').scrollTop = 0;
+}
+function openHandGuide(v) {
+    guideVariant = GUIDE_VARIANTS.includes(v) ? v : tableVariantNow();
     renderHandGuide();
     document.getElementById('hand-guide').style.display = 'flex';
+    // 弹窗是同一个元素反复开：不归零的话会停在上次滚到的位置，顶上的玩法分页被藏住
+    const box = document.querySelector('#hand-guide .hg-box');
+    if (box) box.scrollTop = 0;
 }
 function closeHandGuide() { document.getElementById('hand-guide').style.display = 'none'; }
 onLangChange(() => { if (document.getElementById('hand-guide').style.display !== 'none') renderHandGuide(); });
+
+// ── 第一次坐到短牌 / 奥马哈桌上：一张规则小卡（2026-11-19）──
+// 三步新手提示一台设备只出一次，而且只给新来的人；德州老手第一次进短牌 / 奥马哈桌，没有任何东西告诉他规则变了。
+// 所以这张卡给【所有人】，每种玩法每台设备一次；不挡操作（贴在顶上），点「知道了」或「牌型大小」才算看过。
+const VARIANT_INTRO = {
+    shortdeck: { title: { zh: '这是一张短牌桌', en: 'This is a short deck table' }, zh: '去掉了 2–5，只用 36 张牌。和德州不一样的两处：同花比葫芦大；A-6-7-8-9 是最小的顺子。',   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+                 en: 'Deuces to fives are removed (36 cards). Two differences from Hold\'em: a flush beats a full house, and A-6-7-8-9 is the lowest straight.' },   // i18n-ok: 成对的 zh/en 数据
+    plo:       { title: { zh: '这是一张奥马哈桌', en: 'This is an Omaha table' }, zh: '每人 4 张底牌，必须正好用其中 2 张 + 3 张公共牌来组牌（手里四张同花不算同花）。底池限注：最多加到跟注后的底池。',   // i18n-ok: 成对的 zh/en 数据（牌型名由 handCat 翻）
+                 en: 'Four hole cards each. You must use exactly two of them plus three from the board (four suited cards in your hand is not a flush). Pot limit: the most you can raise to is the pot after calling.' },   // i18n-ok: 成对的 zh/en 数据
+};
+const INTRO_KEY = (v) => 'variantIntro.' + v;
+let introVariant = null;
+function introSeen(v) { try { return !!localStorage.getItem(INTRO_KEY(v)); } catch { return true; } }   // 存不了就别反复弹
+function maybeShowVariantIntro(state) {
+    const v = state && state.variant;
+    if (!Object.hasOwn(VARIANT_INTRO, v) || introVariant === v || introSeen(v)) return;
+    introVariant = v;
+    const el = document.getElementById('variant-intro');
+    el.className = 'variant-intro v-' + v;
+    el.innerHTML = `<div class="rc-vtile" aria-hidden="true">${ic(VARIANT_ICON[v])}<b>${L(variantName(v), VARIANT_CODE[v])}</b></div>`
+        + `<div class="vi-main"><div class="vi-title">${L(VARIANT_INTRO[v].title.zh, VARIANT_INTRO[v].title.en)}</div>`
+        + `<div class="vi-text">${L(VARIANT_INTRO[v].zh, VARIANT_INTRO[v].en)}</div>`
+        + `<div class="vi-btns"><button type="button" onclick="closeVariantIntro(true);openHandGuide('${v}')">${ic('book')}<span>${L('牌型大小', 'Hand rankings')}</span></button>`
+        + `<button type="button" class="confirm" onclick="closeVariantIntro(true)">${L('知道了', 'Got it')}</button></div></div>`;
+    el.style.display = 'flex';
+}
+// seen=false：没看就离开了牌桌（回大厅），下次进这种桌还会出现
+function closeVariantIntro(seen) {
+    const el = document.getElementById('variant-intro');
+    if (!el || el.style.display === 'none') { introVariant = null; return; }
+    el.style.display = 'none';
+    if (seen && introVariant) { try { localStorage.setItem(INTRO_KEY(introVariant), '1'); } catch { /* 存不了就下次再看一遍，无害 */ } }
+    introVariant = null;
+}
+const variantIntroOpen = () => { const el = document.getElementById('variant-intro'); return !!(el && el.style.display !== 'none'); };
+onLangChange(() => { if (variantIntroOpen() && introVariant) { const v = introVariant; introVariant = null; maybeShowVariantIntro({ variant: v }); } });
 
 // ── 第一次被发到牌时的三步提示 ──
 const COACH_KEY = 'coachSeen';
@@ -94,6 +174,7 @@ function maybeStartCoach() {
     const tryStart = () => {
         if (coachStep >= 0 || !coachWanted() || !mySeated) return;
         if (lastState && lastState.actionOnUserId === myUserId) { setTimeout(tryStart, 1000); return; }
+        if (variantIntroOpen()) { setTimeout(tryStart, 1000); return; }   // 先让人读完那张玩法规则卡，两样别同时冒出来
         coachStep = 0; showCoach();
     };
     setTimeout(tryStart, 1600);
